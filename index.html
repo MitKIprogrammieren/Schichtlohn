@@ -317,6 +317,10 @@ const Store={
       const h=await waitHass(6000);
       if(h){S.hass=h;S.backend="ha";return}
     }
+    // 1b) Online-Version mit Verbindung zu Home Assistant
+    if(!window.__PW_HA&&window.HAP&&HAP.savedConn()){
+      try{await HAP.connectSaved();S.backend="ha";return}catch(e){console.warn(e);S.haConnError=String(e&&e.message||e)}
+    }
     // 2) Claude-Artefakt mit Datenbank
     if(window.claude&&typeof window.claude.use==="function"){
       try{
@@ -330,6 +334,7 @@ const Store={
     if(S.backend==="ha"){
       let [c,p,o]=await Promise.all(["cfg","portfolio","orders"].map(k=>haGet("schichtlohn_"+k)));
       if(!c&&!p&&!o){[c,p,o]=await Promise.all(["cfg","portfolio","orders"].map(k=>haGet("preiswerk_"+k)));if(c||p||o)this._migrate=true}
+      if(!c&&!p&&!o&&!window.__PW_HA){const lc=LS.get("cfg");if(lc){c=lc;p=LS.get("portfolio")||[];o=LS.get("orders")||[];this._migrate=true}}
       return {cfg:c,portfolio:p||[],orders:o||[]};
     }
     if(S.backend==="claude"){
@@ -373,6 +378,7 @@ function setSync(st){
   const where={ha:"Home Assistant",claude:"Claude",local:"Nur dieses Gerät"}[S.backend];
   el.className="sync "+(st==="ok"?"ok":st==="busy"?"busy":"");
   el.querySelector("span").textContent=st==="busy"?"Speichert…":st==="err"?"Nicht gespeichert":(S.backend==="local"?where:"Gespeichert · "+where);
+  if(S.backend==="local"&&S.haConnError&&st==="ok"){el.className="sync";el.querySelector("span").textContent="HA nicht erreichbar"}
   el.title=S.backend==="local"?"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup.":"Daten werden in "+where+" gespeichert und auf allen Geräten synchronisiert.";
 }
 let draftT;function saveDraft(){clearTimeout(draftT);draftT=setTimeout(()=>LS.set("draft",S.quote),300)}
@@ -390,7 +396,7 @@ function calc(q){
     const qty=Math.max(1,Math.round(num(p.qty)));const pr=printerOf(p,q);const hours=num(p.time)/60;
     let matCost=0,grams=0;
     p.mats.forEach((m,i)=>{const mt=matOf(m,q);const gg=num(m.g)+(i===0?num(p.purge):0);grams+=gg;matCost+=gg*num(mt.price)/1000});
-    const energy=hours*num(pr.watt)/1000*num(c.kwh);
+    const energy=num(p.kwh)>0?num(p.kwh)*num(c.kwh):hours*num(pr.watt)/1000*num(c.kwh);
     const machine=hours*(num(pr.price)/Math.max(1,num(pr.life))+num(pr.maint));
     const raw=matCost+energy+machine;const scrap=raw*num(c.scrap)/100;
     const labor=(num(c.prepMin)+num(c.postMin)*qty)/60*num(c.rate);
@@ -465,7 +471,7 @@ function renderCalc(m){
       <section class="panel pad stack" aria-label="Teil hinzufügen">
         <div class="row"><h2>Teil hinzufügen</h2><span class="sp"></span>
           <div class="seg" role="group" aria-label="Art">
-            ${[["datei","Aus Datei"],["manuell","Von Hand"],["portfolio","Aus Portfolio"]].map(([k,l])=>`<button data-act="addMode" data-v="${k}" aria-pressed="${S.addMode===k}">${l}</button>`).join("")}
+            ${[["datei","Aus Datei"],["manuell","Von Hand"],["portfolio","Aus Portfolio"],...(S.backend==="ha"?[["drucker","Vom Drucker"]]:[])].map(([k,l])=>`<button data-act="addMode" data-v="${k}" aria-pressed="${S.addMode===k}">${l}</button>`).join("")}
           </div></div>
         ${addPanelHTML()}
       </section>
@@ -507,10 +513,11 @@ function partHTML(p){
           <label class="field">${i===0?"<span>Gewicht</span>":""}<div class="unit"><input type="text" inputmode="decimal" id="pg_${p.id}_${i}" data-mbind="g" data-i="${i}" value="${inV(m.g)}"><em>g</em></div></label>
         </div>${m.label?`<div class="hint" style="margin-top:-2px">Aus Datei: ${esc(m.label)}${m.color?` <span class="dot" style="display:inline-block;vertical-align:-1px;background:${esc(m.color)}"></span>`:""}</div>`:""}`).join("")}
       </div>
-      <div class="part-foot"><span>${p.src&&p.src!=="manuell"?`<span class="chip">${esc(p.src)}</span>`:""} <button class="btn ghost sm" data-act="addMat">${ICON.plus} Filament</button></span><span class="num" data-ptotal></span></div>
+      <div class="part-foot"><span>${p.src&&p.src!=="manuell"?`<span class="chip">${esc(p.src)}</span>`:""} <button class="btn ghost sm" data-act="addMat">${ICON.plus} Filament</button>${window.HAP&&S.backend==="ha"?HAP.partExtra(p):""}</span><span class="num" data-ptotal></span></div>
     </div></div>`;
 }
 function addPanelHTML(){
+  if(S.addMode==="drucker"&&S.backend==="ha"&&window.HAP)return HAP.panelHTML();
   if(S.addMode==="manuell")return `
     <div class="cols4">
       <label class="field" style="grid-column:span 2"><span>Name</span><input type="text" id="m_name" placeholder="Wandhalter" value=""></label>
@@ -623,7 +630,7 @@ function renderOrders(m){
     <div class="row"><h1>Aufträge</h1><span class="dim">${S.orders.length} gesamt</span><span class="sp"></span>
       <select id="ordFilter" style="max-width:200px" aria-label="Filter"><option value="alle">Alle</option><option value="offen"${f==="offen"?" selected":""}>Offen</option>${STATUS.map(([k,l])=>`<option value="${k}"${f===k?" selected":""}>${l}</option>`).join("")}</select></div>
     ${S.orders.length?`<div class="panel tscroll"><table class="list"><thead><tr><th>Nr.</th><th>Datum</th><th>Bezeichnung</th><th>Kunde</th><th>Status</th><th style="text-align:right">Preis</th><th style="text-align:right">Gewinn</th><th></th></tr></thead><tbody>
-      ${list.map(o=>`<tr class="click" data-act="ordOpen" data-id="${o.id}"><td class="num">${esc(o.no)}</td><td class="num">${dDE(o.date)}</td><td>${esc(o.name||"Ohne Bezeichnung")}<div class="hint">${o.parts.length} Teil${o.parts.length===1?"":"e"} · ${g(o.sum?.grams||0)}</div></td><td>${esc(o.customer||"–")}</td>
+      ${list.map(o=>`<tr class="click" data-act="ordOpen" data-id="${o.id}"><td class="num">${esc(o.no)}</td><td class="num">${dDE(o.date)}</td><td>${esc(o.name||"Ohne Bezeichnung")}<div class="hint">${o.parts.length} Teil${o.parts.length===1?"":"e"} · ${g(o.sum?.grams||0)}${window.HAP&&S.backend==="ha"?HAP.orderHint(o):""}</div></td><td>${esc(o.customer||"–")}</td>
         <td><select data-act="ordStatus" data-id="${o.id}" aria-label="Status" style="width:auto;padding:5px 26px 5px 9px;font-size:13px" class="st-${o.status}">${STATUS.map(([k,l])=>`<option value="${k}"${o.status===k?" selected":""}>${l}</option>`).join("")}</select></td>
         <td class="num" style="text-align:right">${eur(o.sum?.total||0)}</td><td class="num ${(o.sum?.profit||0)<0?"bad":"good"}" style="text-align:right">${eur(o.sum?.profit||0)}</td>
         <td style="text-align:right;white-space:nowrap"><button class="btn icon ghost" data-act="ordPdf" data-id="${o.id}" title="Angebot als PDF" aria-label="Angebot als PDF">${ICON.file}</button><button class="btn icon ghost danger" data-act="ordDel" data-id="${o.id}" title="Löschen" aria-label="Löschen">${ICON.trash}</button></td></tr>`).join("")}
@@ -709,6 +716,7 @@ function renderSettings(m){
         <button class="btn icon ghost danger" data-act="delRow" data-list="materials" data-i="${i}" aria-label="Material entfernen">${ICON.trash}</button></div>`).join("")}</div>
     </section>
 
+    ${window.HAP?HAP.settingsHTML():""}
     <div class="grid-2p">
     ${["channels","payments"].map(k=>`<section class="panel pad"><div class="sec-title"><h2>${k==="channels"?"Verkaufskanäle":"Zahlungsarten"}</h2><span class="sp"></span><button class="btn sm" data-act="addRow" data-list="${k}">${ICON.plus} Neu</button></div>
       <div class="setlist">${c[k].map((p,i)=>`<div class="setrow sr-ch">
@@ -871,7 +879,7 @@ async function importFiles(files,target="quote"){
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
   const r=await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"});
-  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
+  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
 }
 async function lagerModal(){
   modal("Aus FilamentLager übernehmen",`<div class="hint">Wähle Filamente aus deinem FilamentLager. Ist dort kein Preis hinterlegt, wird der übliche Preis je Typ vorgeschlagen. Du kannst ihn danach ändern.</div><input type="search" id="lagerSearch" placeholder="Hersteller, Typ oder Farbe"><div class="pick" id="lagerList"><div class="empty">Lädt…</div></div>`,`<button class="btn ghost" data-act="close">Fertig</button>`);
@@ -1041,7 +1049,7 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
   catch(err){toast("Das ist keine gültige Schichtlohn-Sicherung.")}});
 
 /* ---------- Start ---------- */
-(async function start(){
+async function start(){
   S.cfg=defaultCfg();S.quote=newQuote();render();setSync("busy");
   await Store.init();
   try{
@@ -1054,7 +1062,9 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
   const isExample=dr&&!dr.id&&dr.name==="Beispiel: Wandhalter"&&dr.parts&&dr.parts.length===1&&dr.parts[0].name==="Wandhalter (Beispiel)";
   S.quote=(dr&&dr.parts&&!isExample)?Object.assign(newQuote(),dr):newQuote();
   fixRefs();setSync("ok");render();
-})();
+  if(window.HAP)HAP.init();
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start);else start();
 </script>
 <style>
 .sec-title{flex-wrap:wrap}
@@ -1168,6 +1178,327 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
 [data-skin="ha"] input[type=range]{accent-color:var(--accent)}
 @media (max-width:620px){[data-skin="ha"] .sync{order:-2;width:100%;justify-content:flex-end;padding-top:8px}}
 </style>
+<style>
+.prn{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--sunken)}
+.prn .thumb{width:72px;height:72px}
+.prn h3{font-size:15px}
+.prn .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--fg-2);margin-top:4px}
+.prn .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.pbar{height:6px;border-radius:4px;background:var(--track);overflow:hidden;margin-top:6px}
+.pbar i{display:block;height:100%;background:var(--accent)}
+.st-run{color:var(--accent)}.st-fin{color:var(--good)}.st-fail{color:var(--bad)}
+.hamap{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(120px,1fr) minmax(120px,1fr);gap:8px;align-items:end;padding:10px 0;border-top:1px solid var(--line)}
+.hamap:first-child{border-top:0}
+.amsrow{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(140px,1fr);gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.amsrow:first-child{border-top:0}
+.swatch{width:20px;height:20px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.4)}
+@media (max-width:620px){.hamap{grid-template-columns:minmax(0,1fr)}.amsrow{grid-template-columns:22px minmax(0,1fr)}.amsrow select{grid-column:1/-1}}
+</style>
+<script>
+/* ===== Home Assistant: Drucker, AMS, Strom, Auftragsstatus ===== */
+(function(){
+"use strict";
+const CONN_KEY="schichtlohn_haconn";
+const ROLE={
+  status:/_(druckstatus|print_status)$/, progress:/_(druckfortschritt|print_progress)$/,
+  weight:/_(gewicht_des_drucks|print_weight)$/, remaining:/_(verbleibende_zeit|remaining_time)$/,
+  start:/_(startzeit|start_time)$/, end:/_(endzeit|end_time)$/, task:/_(name_der_aufgabe|task_name)$/,
+  gcode:/_(gcode_dateiname|gcode_filename|gcode_file)$/, pname:/_(name_des_druckers|printer_name)$/
+};
+const COVER=/_(titelbild|cover_image)$/;
+const BAD=new Set(["unknown","unavailable","","none","?"]);
+const RUN=new Set(["running","prepare","pause","slicing","init"]);
+let reg=null,regAt=0,wsStates=null,timer=null;
+
+/* --- WebSocket-Verbindung für die Online-Version --- */
+class HAWS{
+  constructor(url,token){this.url=url.replace(/\/+$/,"");this.token=token;this.n=0;this.pend={};this.ws=null;this.ready=null}
+  open(){
+    if(this.ready)return this.ready;
+    this.ready=new Promise((res,rej)=>{
+      let ws;try{ws=new WebSocket(this.url.replace(/^http/i,"ws")+"/api/websocket")}catch(e){this.ready=null;return rej(new Error("Adresse ungültig"))}
+      const to=setTimeout(()=>{try{ws.close()}catch(e){}this.ready=null;rej(new Error("Zeitüberschreitung beim Verbinden"))},8000);
+      ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}
+        if(m.type==="auth_required")ws.send(JSON.stringify({type:"auth",access_token:this.token}));
+        else if(m.type==="auth_ok"){clearTimeout(to);this.ws=ws;res(this)}
+        else if(m.type==="auth_invalid"){clearTimeout(to);this.ready=null;rej(new Error("Zugangsschlüssel ungültig"))}
+        else if(m.type==="result"&&this.pend[m.id]){const p=this.pend[m.id];delete this.pend[m.id];m.success?p.res(m.result):p.rej(new Error(m.error&&m.error.message||"Fehler"))}};
+      ws.onerror=()=>{};
+      ws.onclose=()=>{clearTimeout(to);this.ws=null;this.ready=null;Object.values(this.pend).forEach(p=>p.rej(new Error("Verbindung getrennt")));this.pend={};};
+    });
+    return this.ready;
+  }
+  async callWS(msg){await this.open();const id=++this.n;return new Promise((res,rej)=>{this.pend[id]={res,rej};this.ws.send(JSON.stringify(Object.assign({},msg,{id})))})}
+}
+function savedConn(){try{const v=JSON.parse(localStorage.getItem(CONN_KEY)||"null");return v&&v.url&&v.token?v:null}catch(e){return null}}
+async function connect(url,token){const c=new HAWS(url,token);await c.open();window.__hass={__ws:true,__base:c.url,callWS:m=>c.callWS(m)};S.hass=window.__hass;return c}
+async function connectSaved(){const c=savedConn();if(!c)throw new Error("keine Verbindung gespeichert");return connect(c.url,c.token)}
+const isWS=()=>!!(window.__hass&&window.__hass.__ws);
+
+/* --- Zugriff auf Zustände und Register --- */
+function st(id){if(!id)return null;const h=window.__hass;if(!h)return null;if(isWS())return wsStates?wsStates[id]:null;return h.states?h.states[id]:null}
+const val=id=>{const s=st(id);return s&&!BAD.has(String(s.state).toLowerCase())?s.state:null};
+async function loadRegistry(force){
+  const h=window.__hass;if(!h)return null;
+  if(!isWS()&&h.entities&&h.devices){reg={ents:Object.values(h.entities).map(e=>({id:e.entity_id,dev:e.device_id,pl:e.platform})),devs:h.devices};return reg}
+  if(reg&&!force&&Date.now()-regAt<300000){await refreshStates();return reg}
+  const [er,dr]=await Promise.all([h.callWS({type:"config/entity_registry/list_for_display"}),h.callWS({type:"config/device_registry/list"})]);
+  const devs={};(dr||[]).forEach(d=>devs[d.id]=d);
+  reg={ents:(er.entities||[]).map(e=>({id:e.ei,dev:e.di,pl:e.pl})),devs};regAt=Date.now();await refreshStates();return reg;
+}
+async function refreshStates(){if(!isWS())return;const arr=await window.__hass.callWS({type:"get_states"});wsStates={};arr.forEach(x=>wsStates[x.entity_id]=x)}
+
+/* --- Drucker finden --- */
+function printers(){
+  if(!reg)return[];const by={};
+  reg.ents.filter(e=>e.pl==="bambu_lab"&&e.dev).forEach(e=>{(by[e.dev]=by[e.dev]||[]).push(e.id)});
+  const out=[];
+  for(const [dev,ids] of Object.entries(by)){
+    const roles={};let cover=null;const trays=[];let ext=null;
+    ids.forEach(id=>{const oid=id.split(".")[1];
+      if(id.startsWith("sensor.")){for(const [k,re] of Object.entries(ROLE))if(!roles[k]&&re.test(oid))roles[k]=id;
+        const m=oid.match(/_ams_(\d+)_(?:slot|tray)_(\d+)/);if(m)trays.push({id,ams:+m[1],slot:+m[2]});
+        if(/external_?spool/.test(oid)&&!/aktiv|active/.test(oid))ext=id}
+      if(id.startsWith("image.")&&COVER.test(oid))cover=id});
+    if(!roles.status)continue;
+    const d=reg.devs[dev]||{};const model=(roles.status.split(".")[1].split("_")[0]||"").toLowerCase();
+    const name=val(roles.pname)||d.name_by_user||d.name||model.toUpperCase();
+    out.push({dev,roles,cover,trays,ext,model,name});
+  }
+  return out.sort((a,b)=>a.name.localeCompare(b.name));
+}
+function trayInfo(p,key){
+  let id=null;const m=String(key).match(/AMS\s*(\d+)\s*Tray\s*(\d+)/i);
+  if(m){const t=p.trays.find(t=>t.ams===+m[1]&&t.slot===+m[2]);id=t&&t.id}else if(/ext/i.test(key))id=p.ext;
+  const a=(st(id)||{}).attributes||{};
+  return {type:a.type&&a.type!=="?"?a.type:"",color:String(a.color||"").slice(0,7),filament_id:a.filament_id||"",name:a.name&&a.name!=="?"?a.name:""};
+}
+function snapshot(p){
+  const status=String((st(p.roles.status)||{}).state||"unknown").toLowerCase();
+  const w=st(p.roles.weight);const weight=w&&!BAD.has(w.state)?num(w.state):0;
+  const mats=[];if(w&&w.attributes)for(const [k,v] of Object.entries(w.attributes)){if(/AMS\s*\d+\s*Tray\s*\d+/i.test(k)||/^ext/i.test(k)){const g=num(v);if(g>0)mats.push(Object.assign({g:r2(g)},trayInfo(p,k)))}}
+  if(!mats.length&&weight>0)mats.push({g:r2(weight),type:"",color:"",filament_id:"",name:""});
+  const task=val(p.roles.task)||(val(p.roles.gcode)||"").replace(/\.(gcode|3mf)$/gi,"").split("/").pop()||"";
+  const start=val(p.roles.start),end=val(p.roles.end);
+  return {status,running:RUN.has(status),progress:num(val(p.roles.progress)),remaining:num(val(p.roles.remaining)),weight,mats,task,start,end,
+    cover:p.cover&&st(p.cover)&&st(p.cover).attributes?st(p.cover).attributes.entity_picture:null};
+}
+async function lastValues(ids,days=14){
+  const h=window.__hass;const start=new Date(Date.now()-days*864e5).toISOString();
+  const r=await h.callWS({type:"history/history_during_period",start_time:start,entity_ids:ids.filter(Boolean),minimal_response:true,no_attributes:true,significant_changes_only:false});
+  const out={};for(const id of ids){if(!id)continue;const arr=(r&&r[id])||[];for(let i=arr.length-1;i>=0;i--){const v=arr[i].s;if(v!=null&&!BAD.has(String(v).toLowerCase())){out[id]=v;break}}}
+  return out;
+}
+async function job(p){
+  const s=snapshot(p);
+  if(!s.running&&(!s.start||!s.end||!s.task||new Date(s.end)<new Date(s.start))){
+    try{const lv=await lastValues([p.roles.start,p.roles.end,p.roles.task]);s.start=s.start||lv[p.roles.start]||null;s.end=(s.end&&new Date(s.end)>=new Date(s.start||0))?s.end:(lv[p.roles.end]||null);s.task=s.task||lv[p.roles.task]||""}catch(e){}
+  }
+  let minutes=0;const t0=s.start?new Date(s.start).getTime():NaN;
+  if(s.running&&isFinite(t0))minutes=(Date.now()-t0)/60000+s.remaining*60;
+  else if(s.running)minutes=s.remaining*60/Math.max(.01,1-s.progress/100);
+  else if(isFinite(t0)&&s.end){const t1=new Date(s.end).getTime();if(t1>t0)minutes=(t1-t0)/60000}
+  s.minutes=Math.round(minutes);return s;
+}
+function cfgMap(dev){S.cfg.haMap=S.cfg.haMap||{};return S.cfg.haMap[dev]=S.cfg.haMap[dev]||{}}
+function energySensors(){
+  const h=window.__hass;const all=isWS()?Object.values(wsStates||{}):Object.values(h.states||{});
+  return all.filter(x=>x.entity_id.startsWith("sensor.")&&x.attributes&&(x.attributes.device_class==="energy"||/k?wh/i.test(x.attributes.unit_of_measurement||""))).map(x=>({id:x.entity_id,name:x.attributes.friendly_name||x.entity_id,unit:x.attributes.unit_of_measurement||"kWh"}));
+}
+function autoMap(list){
+  let changed=false;const ens=energySensors();
+  for(const p of list){const m=cfgMap(p.dev);const tok=p.model.replace(/[^a-z0-9]/g,"");
+    if(m.printerId===undefined){const want=tok.replace("mini"," mini");const pr=S.cfg.printers.find(x=>x.name.toLowerCase().replace(/\s+/g,"").startsWith(tok))||S.cfg.printers.find(x=>x.name.toLowerCase().includes(want.split(" ")[0])&&(tok.includes("mini")===x.name.toLowerCase().includes("mini")));m.printerId=pr?pr.id:"";changed=true}
+    if(m.energy===undefined){const e=ens.find(x=>{const id=x.id.split(".")[1].toLowerCase();return id.startsWith(tok+"_")&&(tok.includes("mini")||!id.includes("mini"))});m.energy=e?e.id:"";changed=true}}
+  if(changed)saveCfgSoon();
+}
+async function kwhFor(dev,start,end){
+  const m=cfgMap(dev);if(!m.energy||!start)return 0;
+  const t0=new Date(new Date(start).getTime()-120000).toISOString(),t1=new Date((end?new Date(end).getTime():Date.now())+120000).toISOString();
+  try{const r=await window.__hass.callWS({type:"history/history_during_period",start_time:t0,end_time:t1,entity_ids:[m.energy],minimal_response:true,no_attributes:true,significant_changes_only:false});
+    const arr=((r&&r[m.energy])||[]).map(x=>num(x.s)).filter(v=>isFinite(v)&&v>0);if(arr.length<2)return 0;
+    let d=arr[arr.length-1]-arr[0];const u=(energySensors().find(x=>x.id===m.energy)||{}).unit||"kWh";if(/^wh$/i.test(u))d/=1000;return d>0&&d<50?d:0}catch(e){return 0}
+}
+/* --- AMS-Fach -> Material --- */
+async function mapAms(m){
+  S.cfg.amsMap=S.cfg.amsMap||{};const key=(m.filament_id||m.type||"?")+"|"+(m.color||"").toLowerCase();
+  const known=S.cfg.amsMap[key];if(known&&byId(S.cfg.materials,known))return known;
+  let id="";
+  try{if(m.filament_id){S.lager=S.lager||await loadLager();
+    const c=S.lager.filter(x=>x._bid===m.filament_id||x.bambu_id===m.filament_id);
+    if(c.length){let best=c[0],bd=1e9;c.forEach(x=>{const d=hexDist(x.hex,m.color);if(d<bd){bd=d;best=x}});
+      if(bd<90){const have=S.cfg.materials.find(x=>x.lagerUid===best.uid);if(have)id=have.id;else{const tk=typeKey(best.type||m.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};
+        const nm={id:uid(),name:best.name,type:best.type||tk,hex:best.hex,price:best.price?r2(best.price/best.weight*1000):td.p,density:td.d,lagerUid:best.uid};S.cfg.materials.push(nm);id=nm.id}}}}}catch(e){}
+  if(!id)id=bestMaterial(m)||mapMaterial(m.type,m.color)||"";
+  if(id){S.cfg.amsMap[key]=id;saveCfgSoon()}
+  return id;
+}
+const SUB=["basic","matt","silk","tough","cf","gf","hf","galaxy","metal","marmor","marble","sparkle","glitzer","holz","wood","transparent","translucent","plus","lite"];
+function subTokens(t){t=String(t||"").toLowerCase().replace(/matte/g,"matt").replace(/seide/g,"silk").replace(/[+]/g," plus ").replace(/[-_()]/g," ");return SUB.filter(x=>new RegExp("(^|\\s)"+x+"(\\s|$)").test(t))}
+function bestMaterial(m){
+  const tk=typeKey(m.type);const same=S.cfg.materials.filter(x=>typeKey(x.type)===tk);if(!same.length)return "";
+  const want=subTokens((m.name||"")+" "+(m.type||""));
+  let best=null,bs=-1e9;
+  for(const x of same){const have=subTokens(x.name+" "+x.type);let sc=0;
+    want.forEach(w=>{if(have.includes(w))sc+=10});have.forEach(h=>{if(!want.includes(h))sc-=6});
+    sc-=hexDist(x.hex,m.color)/60;if(sc>bs){bs=sc;best=x}}
+  return best?best.id:"";
+}
+async function coverThumb(url){if(!url)return"";try{const full=isWS()?window.__hass.__base+url:url;const r=await fetch(full);if(!r.ok)return"";return await blobToThumb(await r.blob())}catch(e){return""}}
+
+/* --- UI: Teil vom Drucker --- */
+let list=[],loading=false,lastErr="";
+async function reload(){
+  loading=true;lastErr="";redrawPanel();
+  try{await loadRegistry(true);list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}catch(e){lastErr=String(e&&e.message||e);list=[]}
+  loading=false;redrawPanel();
+}
+function statusText(s){const map={running:"Druckt",prepare:"Bereitet vor",pause:"Pausiert",finish:"Fertig",failed:"Fehlgeschlagen",idle:"Bereit",offline:"Offline",slicing:"Slict",init:"Startet"};return map[s]||s}
+function panelHTML(){
+  if(loading&&!list.length)return `<div class="empty">Drucker werden aus Home Assistant geladen…</div>`;
+  if(lastErr)return `<div class="note">Home Assistant konnte nicht gelesen werden: ${esc(lastErr)}</div>`;
+  if(!list.length)return `<div class="note">In Home Assistant wurden keine Bambu-Lab-Drucker gefunden. Schichtlohn erwartet die Integration „Bambu Lab“ (ha-bambulab).</div><div class="row"><button class="btn sm" data-act="haReload">Neu laden</button></div>`;
+  return `<div class="stack" style="gap:10px">${list.map(p=>{const s=p.snap||snapshot(p);const cls=s.running?"st-run":s.status==="finish"?"st-fin":s.status==="failed"?"st-fail":"";
+    const hasJob=s.weight>0;
+    return `<div class="prn"><div class="thumb" data-cover="${esc(p.dev)}">${ICON.cube}</div><div style="min-width:0">
+      <div class="row" style="gap:8px"><h3>${esc(p.name)}</h3><span class="chip ${cls}">${esc(statusText(s.status))}${s.running?` · ${N0.format(s.progress)} %`:""}</span></div>
+      <div class="meta">${s.task?`<span>${esc(s.task)}</span>`:""}${hasJob?`<span class="num">${g(s.weight)}</span>`:""}${s.mats.length>1?`<span>${s.mats.length} Filamente</span>`:""}${s.running&&s.remaining?`<span>noch ${dur(s.remaining*60)}</span>`:""}</div>
+      ${s.running?`<div class="pbar"><i style="width:${Math.min(100,s.progress)}%"></i></div>`:""}
+      <div class="acts">${hasJob?`<button class="btn sm pri" data-act="haImport" data-dev="${esc(p.dev)}">${ICON.plus} ${s.running?"Laufenden Druck übernehmen":"Letzten Druck übernehmen"}</button>`:`<span class="hint">Noch kein Druck gespeichert.</span>`}</div>
+    </div></div>`}).join("")}
+    <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler.</span><span class="sp"></span><button class="btn sm ghost" data-act="haReload">Aktualisieren</button></div></div>`;
+}
+function redrawPanel(){if(S.tab!=="rechner"||S.addMode!=="drucker")return;const sec=document.querySelector('[aria-label="Teil hinzufügen"]');if(!sec)return;
+  const old=sec.querySelector(".ha-panel");const html=`<div class="ha-panel">${panelHTML()}</div>`;
+  if(old)old.outerHTML=html;else{const seg=sec.querySelector(".row");seg.insertAdjacentHTML("afterend",html);[...sec.children].forEach(ch=>{if(ch!==seg&&!ch.classList.contains("ha-panel"))ch.remove()})}
+  loadCovers()}
+async function loadCovers(){for(const p of list){const el=document.querySelector(`[data-cover="${CSS.escape(p.dev)}"]`);if(!el||el.dataset.done)continue;el.dataset.done=1;const s=p.snap;if(!s||!s.cover)continue;
+  if(!isWS()){el.style.backgroundImage=`url('${s.cover}')`;el.innerHTML=""}else{el.style.backgroundImage=`url('${window.__hass.__base+s.cover}')`;el.innerHTML=""}}}
+async function importJob(dev){
+  const p=list.find(x=>x.dev===dev);if(!p)return;toast("Druck wird übernommen…");
+  try{await loadRegistry(false);const j=await job(p);
+    const mats=[];for(const m of j.mats)mats.push({matId:await mapAms(m),g:m.g,label:[m.name||m.type,m.color].filter(Boolean).join(" "),color:m.color});
+    const kwh=await kwhFor(p.dev,j.start,j.running?null:j.end);
+    const thumb=await coverThumb(j.cover);const m=cfgMap(p.dev);
+    const part=newPart({name:j.task||("Druck auf "+p.name),time:j.minutes||60,thumb,src:"Drucker "+p.name,printerId:m.printerId||"",kwh:j.running?0:r2(kwh*1000)/1000,
+      mats:mats.length?mats:[{matId:"",g:0}],job:{dev:p.dev,printer:p.name,task:j.task,start:j.start,end:j.running?null:j.end}});
+    if(j.running)part.watch={dev:p.dev,printer:p.name,since:j.start||new Date(Date.now()-60000).toISOString(),done:false};
+    S.quote.parts.push(part);saveDraft();renderCalc($("#main"));
+    toast(j.running?"Laufender Druck übernommen. Strom wird nach Druckende eingetragen.":"Druck übernommen"+(kwh>0?` · ${N1.format(kwh)} kWh gemessen`:""));
+  }catch(e){console.error(e);toast("Übernehmen fehlgeschlagen: "+(e&&e.message||e))}
+}
+/* --- Teil-Zusatz in der Kalkulation --- */
+function partExtra(p){
+  let h="";
+  if(num(p.kwh)>0)h+=` <span class="chip" title="Gemessen mit deinem Energiezähler">${ICON.link} ${N1.format(p.kwh)} kWh gemessen</span>`;
+  if(p.watch&&!p.watch.done)h+=` <span class="chip st-run">Wartet auf ${esc(p.watch.printer)}</span> <button class="btn ghost sm" data-act="haUnwatch">Lösen</button>`;
+  else if(p.watch&&p.watch.done)h+=` <span class="chip st-fin">Gedruckt</span>`;
+  else h+=` <button class="btn ghost sm" data-act="haWatch">${ICON.link} Mit Drucker verknüpfen</button>`;
+  return h;
+}
+function orderHint(o){const w=o.parts.filter(p=>p.watch);if(!w.length)return"";const open=w.filter(p=>!p.watch.done);return open.length?` · wartet auf ${esc(open[0].watch.printer)}`:" · gedruckt"}
+async function watchModal(partId){
+  try{await loadRegistry(false);list=printers();}catch(e){}
+  if(!list.length){toast("Keine Drucker in Home Assistant gefunden.");return}
+  S._haWatchPart=partId;
+  modal("Mit Drucker verknüpfen",`<p class="muted" style="margin:0">Sobald auf dem gewählten Drucker der nächste Druck startet, wechselt der Auftrag auf „Im Druck“, nach Druckende auf „Fertig“. Dabei werden auch der gemessene Strom und die echte Druckzeit eingetragen.</p>
+    <div class="pick">${list.map(p=>{const s=snapshot(p);return `<button data-act="haWatchPick" data-dev="${esc(p.dev)}"><span style="flex:1"><b>${esc(p.name)}</b><span class="hint" style="display:block">${esc(statusText(s.status))}${s.task?" · "+esc(s.task):""}</span></span>${ICON.link}</button>`}).join("")}</div>
+    <div class="hint">Läuft der passende Druck schon? Dann nimm stattdessen „Vom Drucker“ → „Laufenden Druck übernehmen“.</div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`);
+}
+/* --- Auftragsstatus automatisch --- */
+let syncing=false;
+async function syncOrders(){
+  if(syncing||S.backend!=="ha")return;syncing=true;
+  try{
+    const watched=S.orders.filter(o=>["angebot","angenommen","druck"].includes(o.status)&&o.parts.some(p=>p.watch&&!p.watch.done));
+    const qWatched=S.quote.parts.some(p=>p.watch&&!p.watch.done);
+    if(!watched.length&&!qWatched)return;
+    await loadRegistry(false);list=printers();
+    const evalPart=async p=>{const pr=list.find(x=>x.dev===p.watch.dev);if(!pr)return null;const s=snapshot(pr);const since=new Date(p.watch.since).getTime()-90000;
+      let start=s.start?new Date(s.start).getTime():NaN;
+      if(s.running&&(!isFinite(start)||start>=since))return {state:"running"};
+      if(s.status==="finish"){if(!isFinite(start)){const lv=await lastValues([pr.roles.start,pr.roles.end]);s.start=lv[pr.roles.start];s.end=s.end||lv[pr.roles.end];start=s.start?new Date(s.start).getTime():NaN}
+        if(isFinite(start)&&start>=since){const j=await job(pr);const kwh=await kwhFor(pr.dev,j.start,j.end);return {state:"done",j,kwh}}}
+      return null};
+    let changed=[];
+    for(const o of watched){let anyRun=false,allDone=true,touched=false;
+      for(const p of o.parts){if(!p.watch||p.watch.done){continue}const r=await evalPart(p);
+        if(r&&r.state==="done"){p.watch.done=true;p.watch.end=r.j.end;if(r.j.minutes)p.time=r.j.minutes;if(r.kwh>0)p.kwh=r2(r.kwh*1000)/1000;touched=true}
+        else{allDone=false;if(r&&r.state==="running")anyRun=true}}
+      let ns=o.status;
+      if(allDone&&o.status!=="angebot")ns="fertig";else if(anyRun&&o.status==="angenommen")ns="druck";
+      if(ns!==o.status||touched){if(ns!==o.status)changed.push(`${o.no}: ${statusName(ns)}`);o.status=ns;await Store.saveItem("o",o);
+        if(S.quote.id===o.id){S.quote.status=o.status;S.quote.parts=clone(o.parts);saveDraft()}}}
+    for(const p of S.quote.parts){if(p.watch&&!p.watch.done&&!watched.some(o=>o.id===S.quote.id)){const r=await evalPart(p);if(r&&r.state==="done"){p.watch.done=true;if(r.j.minutes)p.time=r.j.minutes;if(r.kwh>0)p.kwh=r2(r.kwh*1000)/1000;saveDraft();changed.push("Kalkulation: Druck fertig")}}}
+    if(changed.length){toast(changed.join(" · "));render()}
+  }catch(e){console.warn("Statusabgleich",e)}finally{syncing=false}
+}
+/* --- Einstellungen --- */
+function settingsHTML(){
+  const conn=savedConn();let h="";
+  if(!window.__PW_HA){
+    h+=`<section class="panel pad stack"><div class="sec-title"><h2>Home Assistant verbinden</h2></div>
+      ${S.backend==="ha"&&isWS()?`<div class="note">Verbunden mit ${esc(conn&&conn.url)}. Deine Daten liegen jetzt in Home Assistant und sind mit dem HA-Dashboard identisch.</div><div class="row"><button class="btn danger" data-act="haDisconnect">Verbindung trennen</button></div>`:
+      `${S.haConnError?`<div class="note" style="border-color:var(--bad)">Verbindung fehlgeschlagen: ${esc(S.haConnError)}</div>`:""}
+      <div class="hint">Mit der Verbindung nutzt diese Seite deine Drucker aus Home Assistant und denselben Datenstand wie das HA-Dashboard. Den Zugangsschlüssel legst du in Home Assistant an: Profil → Sicherheit → Langlebige Zugangstokens → Token erstellen. Er wird nur in diesem Browser gespeichert.</div>
+      <div class="cols2"><label class="field"><span>Adresse von Home Assistant</span><input type="url" id="ha_url" placeholder="https://abcdef.ui.nabu.casa" value="${esc(conn?conn.url:"")}"></label>
+      <label class="field"><span>Zugangsschlüssel</span><input type="password" id="ha_token" autocomplete="off" placeholder="eyJ0eXAiOiJKV1Qi…"></label></div>
+      <div class="row"><button class="btn pri" data-act="haConnect">Verbinden</button><span class="hint" id="ha_msg"></span></div>`}
+    </section>`;
+  }
+  if(S.backend!=="ha")return h;
+  const ens=energySensors();
+  h+=`<section class="panel pad"><div class="sec-title"><h2>Drucker aus Home Assistant</h2><span class="sp"></span><button class="btn sm" data-act="haReloadSettings">Neu einlesen</button></div>
+    ${list.length?`<div>${list.map(p=>{const m=cfgMap(p.dev);return `<div class="hamap"><div><b>${esc(p.name)}</b><div class="hint">${esc(p.model.toUpperCase())}</div></div>
+      <label class="field"><span>Kosten wie Drucker</span><select data-hamap="${esc(p.dev)}" data-k="printerId">${opt(S.cfg.printers,m.printerId,"nicht zugeordnet")}</select></label>
+      <label class="field"><span>Energiezähler</span><select data-hamap="${esc(p.dev)}" data-k="energy"><option value="">keiner</option>${ens.map(e=>`<option value="${esc(e.id)}"${e.id===m.energy?" selected":""}>${esc(e.name)}</option>`).join("")}</select></label></div>`}).join("")}</div>
+    <div class="hint" style="margin-top:8px">Teilen sich zwei Drucker eine Steckdose, misst der Zähler beide zusammen. Druckt dann nur einer, stimmt der Wert trotzdem.</div>`:`<div class="hint">Drucker werden geladen… Falls hier nichts erscheint, tippe auf „Neu einlesen“.</div>`}
+  </section>
+  <section class="panel pad"><div class="sec-title"><h2>AMS-Zuordnung</h2></div>
+    <div class="hint" style="margin-bottom:6px">Für jede Filamentsorte im AMS merkt sich Schichtlohn, welches deiner Materialien gemeint ist. Neue Sorten werden automatisch über dein FilamentLager zugeordnet.</div>
+    ${amsRows()}</section>`;
+  return h;
+}
+function amsRows(){
+  const seen=new Set();const rows=[];
+  for(const p of list)for(const t of p.trays){const a=(st(t.id)||{}).attributes||{};if(a.empty||!a.type||a.type==="?")continue;
+    const key=(a.filament_id||a.type)+"|"+String(a.color||"").slice(0,7).toLowerCase();if(seen.has(key))continue;seen.add(key);
+    const cur=(S.cfg.amsMap||{})[key]||"";
+    rows.push(`<div class="amsrow"><span class="swatch" style="background:${esc(String(a.color||"#888").slice(0,7))}"></span><span>${esc(a.name||a.type)}<span class="hint" style="display:block">${esc(p.name)} · AMS ${t.ams} Fach ${t.slot}</span></span>
+      <select data-amskey="${esc(key)}">${opt(S.cfg.materials,cur,"automatisch")}</select></div>`)}
+  return rows.length?`<div>${rows.join("")}</div>`:`<div class="hint">Keine belegten AMS-Fächer gefunden.</div>`;
+}
+/* --- Ereignisse --- */
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+  if(a==="haReload"){await reload()}
+  else if(a==="haImport"){await importJob(b.dataset.dev)}
+  else if(a==="haWatch"){const row=b.closest("[data-part]");if(row)await watchModal(row.dataset.part)}
+  else if(a==="haWatchPick"){const p=S.quote.parts.find(x=>x.id===S._haWatchPart);const pr=list.find(x=>x.dev===b.dataset.dev);closeModal();if(!p||!pr)return;
+    p.watch={dev:pr.dev,printer:pr.name,since:new Date().toISOString(),done:false};p.printerId=p.printerId||cfgMap(pr.dev).printerId||"";saveDraft();
+    if(S.quote.id){await saveOrder()}else toast("Verknüpft. Speichere die Kalkulation als Auftrag, damit der Status mitläuft.");renderCalc($("#main"))}
+  else if(a==="haUnwatch"){const row=b.closest("[data-part]");const p=row&&S.quote.parts.find(x=>x.id===row.dataset.part);if(p){delete p.watch;saveDraft();renderCalc($("#main"))}}
+  else if(a==="haReloadSettings"){try{await loadRegistry(true);list=printers();autoMap(list)}catch(err){toast("Home Assistant konnte nicht gelesen werden.")}renderSettings($("#main"))}
+  else if(a==="haConnect"){const url=$("#ha_url").value.trim(),token=$("#ha_token").value.trim(),msg=$("#ha_msg");
+    if(!/^https?:\/\//i.test(url)){msg.textContent="Gib die Adresse mit https:// ein.";return}if(token.length<20){msg.textContent="Füge den Zugangsschlüssel ein.";return}
+    msg.textContent="Verbinde…";try{await connect(url,token);localStorage.setItem(CONN_KEY,JSON.stringify({url:url.replace(/\/+$/,""),token}));msg.textContent="Verbunden. Lädt neu…";setTimeout(()=>location.reload(),600)}
+    catch(err){msg.textContent="Verbindung fehlgeschlagen: "+(err&&err.message||err)}}
+  else if(a==="haDisconnect"){confirmBox("Verbindung zu Home Assistant trennen? Diese Seite nutzt danach wieder die Daten, die nur in diesem Browser liegen.","Trennen",()=>{try{localStorage.removeItem(CONN_KEY)}catch(e){}location.reload()})}
+});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.hamap){cfgMap(t.dataset.hamap)[t.dataset.k]=t.value;saveCfgSoon();toast("Gespeichert")}
+  else if(t.dataset.amskey){S.cfg.amsMap=S.cfg.amsMap||{};if(t.value)S.cfg.amsMap[t.dataset.amskey]=t.value;else delete S.cfg.amsMap[t.dataset.amskey];saveCfgSoon();toast("Gespeichert")}
+});
+/* Panel neu zeichnen, wenn der Rechner neu aufgebaut wird */
+const _rc=renderCalc;renderCalc=function(m){_rc(m);if(S.addMode==="drucker"&&S.backend==="ha"){if(!list.length&&!loading)reload();else loadCovers()}};
+const _rs=renderSettings;renderSettings=function(m){_rs(m);if(S.backend==="ha"&&!list.length&&!loading){loadRegistry(false).then(()=>{list=printers();autoMap(list);if(S.tab==="einstellungen")_rs($("#main"))}).catch(()=>{})}};
+
+function init(){if(S.backend!=="ha")return;loadRegistry(false).then(()=>{list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}).catch(()=>{});
+  setTimeout(syncOrders,4000);clearInterval(timer);timer=setInterval(()=>{syncOrders();if(S.addMode==="drucker"&&S.tab==="rechner"&&!loading){list.forEach(p=>p.snap=snapshot(p));if(!isWS())redrawPanel()}},60000)}
+
+window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload};
+})();
+</script>
 
 </body>
 </html>
