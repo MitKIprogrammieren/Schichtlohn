@@ -2223,7 +2223,7 @@ function logoSlug(n){return String(n||"").trim().toLowerCase().replace(/ä/g,"ae
 function haLocal(){if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
 const logoMiss=new Set();
 function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
-  if(sl&&base)for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext,own:true});
+  if(sl&&base){const cv="?v="+Math.floor(Date.now()/36e5);for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext+cv,own:true})}
   const li=LOGO_IMG[String(name||"").trim().toLowerCase()];if(li)out.push({u:li,own:true,mono:true});
   const d=logoDomain(name);if(d)out.push({u:"https://www.google.com/s2/favicons?sz=128&domain="+encodeURIComponent(d),own:false});
   return out.filter(x=>!logoMiss.has(x.u))}
