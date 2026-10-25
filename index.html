@@ -2083,7 +2083,7 @@ async function wsHass(){
     user:{name:"Schichtlohn",is_admin:false},language:"de",selectedLanguage:"de",locale:{language:"de",number_format:"language",time_format:"24"},
     themes:{darkMode:!matchMedia("(prefers-color-scheme: light)").matches},entities:{},devices:{},config:{},hassUrl:p=>b.__base+(p||"")});
   try{await b.__subscribe({type:"subscribe_events",event_type:"state_changed"},ev=>{const d=ev&&ev.data;if(!d)return;if(d.new_state)L.states[d.entity_id]=d.new_state;else delete L.states[d.entity_id];L.dirty=true})}catch(e){console.warn("Zustände",e)}
-  clearInterval(L.timer);L.timer=setInterval(()=>{if(!L.dirty)return;L.dirty=false;L.states=Object.assign({},L.states);L.shim=mk();if(L.el)L.el.hass=L.shim;status()},2000);
+  clearInterval(L.timer);L.timer=setInterval(()=>{if(!L.dirty)return;L.dirty=false;L.states=Object.assign({},L.states);L.shim=mk();if(L.el)L.el.hass=L.shim;status();if(window.LGN)LGN.onStates()},2000);
   L.shim=mk();return L.shim;
 }
 /* Herstellerlogos in den Gruppenköpfen (wenn nach Hersteller sortiert): Logo der Herstellerseite, live geladen */
@@ -2147,7 +2147,7 @@ async function ensure(){
     const el=document.createElement(TAG);el.setConfig(Object.assign({},L.cfg));look(el);el.hass=isWS()?await wsHass():window.__hass;L.el=el})();
   try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
 }
-window.addEventListener("pw-hass-update",()=>{if(L.el&&!isWS()&&window.__hass){L.el.hass=window.__hass;if(S.tab==="lager")statusSoon()}});
+window.addEventListener("pw-hass-update",()=>{if(!isWS()&&window.__hass){if(L.el)L.el.hass=window.__hass;if(S.tab==="lager")statusSoon();if(window.LGN)LGN.onStates()}});
 let stT;function statusSoon(){clearTimeout(stT);stT=setTimeout(status,1500)}
 
 /* --- Zustand von Waage und Druckbrücke --- */
@@ -2176,17 +2176,22 @@ function status(){
 }
 
 /* --- Reiter --- */
+const nativ=()=>{try{return localStorage.getItem("schichtlohn_lagermodus")!=="karte"}catch(e){return true}};
 function render(m){
   m=m||$("#main");if(!m)return;S.lager=null;
+  if(S.backend==="ha"&&nativ()&&window.LGN)return LGN.render(m);
   if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
-  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span></div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
+  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span><span class="sp"></span>${window.LGN?`<button class="btn ghost sm" data-act="lgMode" data-v="nativ">Schichtlohn-Ansicht</button>`:""}</div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
   const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
   if(L.el){put();return}
   ensure().then(put).catch(e=>{const host=$("#lagerHost");if(host&&S.tab==="lager")host.innerHTML=`<div class="panel pad"><div class="note" style="border-color:var(--bad)">${esc(String(e&&e.message||e))}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="lagerRetry">Erneut versuchen</button></div></div>`});
 }
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act=lagerRetry]");if(b){L.err="";render()}});
 
-window.LAGER={render,_L:L};
+let linkP=null;
+async function link(){if(L.link)return L.link;if(!linkP)linkP=findCfg().then(f=>{L.link=f.link||"";return L.link}).catch(()=>"");return linkP}
+window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,darkUI,guard,link,isWS,shims,
+  async initStates(){if(isWS()&&!L.shim)await wsHass()}};
 })();
 </script>
 <style>
@@ -2265,6 +2270,373 @@ document.addEventListener("dblclick",e=>{const sec=e.target.closest("#main secti
 document.addEventListener("click",e=>{const b=e.target.closest("#main .cchev");if(b){e.stopPropagation();toggle(b.closest("section.cfold"));return}
   const m=e.target.closest('#main section.cfold.czu [data-act="addMode"]');if(m){const sec=m.closest("section.cfold");setTimeout(()=>toggle(sec,false),0)}},true);
 const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).observe(m,{childList:true,subtree:true});
+})();
+</script>
+<style>
+.lgbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lgbar input[type=search]{flex:1 1 220px;width:auto;min-width:160px}
+.lgbar select{width:auto;flex:0 1 auto;max-width:190px}
+.lgbar select.on{border-color:var(--accent);color:var(--accent)}
+.lgsum{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.lgsum .big{font:600 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
+.lgp{overflow:hidden}
+.lgp>.row.pad{position:relative;padding-top:10px;padding-bottom:10px;min-height:42px}
+.lgp>.row.pad .gl{font-weight:600}
+.lgp>.row.pad .gt{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--fg-2);font-weight:600}
+.lgp .hmat,.lgp .hlogo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+.lgp .hlogo{height:22px;max-width:140px;object-fit:contain}
+.lgp .hmat{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--mc) 55%,transparent);background:color-mix(in srgb,var(--mc) 16%,transparent);color:var(--mc);font:700 12px/1 var(--f-body);letter-spacing:.06em;white-space:nowrap}
+[data-skin="bambu"] .lgp .hmat{border-radius:4px}
+.lgp .hmat ha-icon{--mdc-icon-size:15px}
+.lgp .hmat i{font-style:normal;font-weight:700;font-size:10px;padding:2px 5px;border-radius:4px;background:color-mix(in srgb,var(--mc) 28%,transparent);color:var(--fg)}
+.lgp .hmat i.cf{background:repeating-linear-gradient(135deg,#2b2b2b 0 3px,#444 3px 6px);color:#eee}
+.lgp .hmat i.gf{background:repeating-linear-gradient(135deg,#cfd8dc 0 3px,#eceff1 3px 6px);color:#263238}
+.lgr{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid var(--line);cursor:pointer}
+.lgr:first-of-type{border-top:0}
+.lgp>.row.pad+.lgr{border-top:0}
+.lgr:hover{background:var(--sunken)}
+.lgr.leer{opacity:.55}
+.lgsw{width:30px;height:30px;border-radius:var(--r-s);box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
+.lgn{font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
+.lgn small{color:var(--fg-2);font-weight:400;font-size:13px}
+.lgs{font-size:12.5px;color:var(--fg-2);margin-top:2px}
+.lgc{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.lgc .chip{font-size:11.5px;padding:1px 8px;gap:4px}
+.lgc .chip svg{width:12px;height:12px}
+.chip.c-an{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.chip.c-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.chip.c-ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:var(--accent-soft)}
+.lgrt{text-align:right;min-width:70px}
+.lgrt b{font-variant-numeric:tabular-nums;font-size:15px}
+.lgbarx{height:5px;width:70px;margin:6px 0 0 auto;border-radius:3px;background:var(--track);overflow:hidden}
+.lgbarx i{display:block;height:100%;border-radius:3px}
+.lgo{border-left:3px solid var(--warn)}
+.lgo>.row.pad .gl{color:var(--warn)}
+.lgor{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.lgor .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.lgmore{padding:8px 16px 12px}
+.lgform{display:flex;flex-direction:column;gap:12px}
+.lgform .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lgform .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.lgform .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.lgdots{display:flex;flex-wrap:wrap;gap:6px}
+.lgdots button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-2);cursor:pointer;padding:0}
+.lgdots button.on{outline:2px solid var(--fg);outline-offset:1px}
+.lgtg{display:flex;flex-wrap:wrap;gap:6px}
+.lgtg button{cursor:pointer}
+.lgtg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.lgcol{display:flex;gap:8px;align-items:center}
+.lgcol input[type=color]{width:46px;height:40px;padding:2px;border:1px solid var(--line-2);border-radius:var(--r-s);background:var(--sunken);flex:none}
+.lgask{border:1px solid var(--warn);border-radius:var(--r-s);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.lgpick{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-s)}
+.lgpick .lgr{padding:9px 12px}
+.lghint{font-size:12px;color:var(--fg-3)}
+details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
+@media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
+</style>
+<script>
+/* ===== Lager in Schichtlohn: liest und schreibt todo.filament direkt, gleiches Datenformat wie die FilamentLager-Karte ===== */
+(function(){
+"use strict";
+const ENT="todo.filament",META="todo.filament_verbrauch";
+const MATERIALIEN=["PLA","PETG","ABS","ASA","TPU","PA","PC","PET","PVA","HIPS","PP"];
+const BESOND=["Basic","Matt","Seide","Glänzend","Glitzer","Metallic","Transparent","Marmor","Holz","Leuchtend","GF","CF","HF"];
+const FARBEN=[["Schwarz","#000000"],["Weiß","#ffffff"],["Hellgrau","#c8c8c8"],["Grau","#8a8a8a"],["Dunkelgrau","#4a4a4a"],["Silber","#b0b4b8"],["Rot","#d32f2f"],["Dunkelrot","#8b1a1a"],["Orange","#f57c00"],["Gelb","#fdd835"],["Gold","#c9a227"],["Beige","#d8c3a0"],["Braun","#6d4c41"],["Hellgrün","#9ccc65"],["Grün","#43a047"],["Dunkelgrün","#1b5e20"],["Türkis","#26a69a"],["Hellblau","#64b5f6"],["Blau","#1e63c8"],["Dunkelblau","#0d2a5c"],["Lila","#7b3fb0"],["Pink","#ec5f9a"]];
+const BES_MAP={basic:"Basic",matte:"Matt",matt:"Matt",silk:"Seide",glow:"Leuchtend",sparkle:"Glitzer",galaxy:"Glitzer",metal:"Metallic",metallic:"Metallic",marble:"Marmor",wood:"Holz",translucent:"Transparent",transparent:"Transparent",cf:"CF",gf:"GF",hf:"HF",tough:"Tough","tough+":"Tough+",lite:"Lite"};
+const FAM=["Schwarz","Grau","Weiß","Braun","Beige","Rot","Orange","Gelb","Grün","Türkis","Blau","Lila","Pink"];
+const SORTS=[["material","Material"],["hersteller","Marke"],["farbe","Farbe"],["besonderheit","Besonderheit"],["drucker","Drucker"],["bestand","Bestand"]];
+const TOL=19200;
+const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,openFach:false,openOffen:false,sub:false,form:null};
+const PREF="schichtlohn_lager_ui";try{Object.assign(G,JSON.parse(localStorage.getItem(PREF)||"{}"))}catch(e){}
+const savePref=()=>{try{localStorage.setItem(PREF,JSON.stringify({sort:G.sort,f:G.f,showLeer:G.showLeer}))}catch(e){}};
+
+/* --- Hilfen wie in der Karte --- */
+const fNum=v=>{if(v===""||v==null)return null;const n=Number(String(v).replace(",","."));return Number.isFinite(n)?n:null};
+const leer=v=>v===null||v===undefined||v==="";
+const hexOk=h=>/^#[0-9a-fA-F]{6}$/.test(String(h||""));
+const fHex=h=>hexOk(h)?String(h).toLowerCase():"#888888";
+const fReste=(v,gew)=>{const a=Array.isArray(v)?v:String(v??"").split(/[,;+/\s]+/);return a.map(fNum).filter(x=>x!=null&&x>0&&(!(gew>0)||x<gew)).map(Math.round)};
+const generic=fid=>/^GF.99$/i.test(String(fid||""));
+const dist=(a,b)=>{const p=x=>[1,3,5].map(i=>parseInt(fHex(x).slice(i,i+2),16));const u=p(a),v=p(b);return u.reduce((s,x,i)=>s+(x-v[i])**2,0)};
+function fam(hex){const h=fHex(hex),r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,d=mx-mn;const s=d===0?0:d/(1-Math.abs(2*l-1));let hue=0;
+  if(d){hue=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;hue=(hue*60+360)%360}
+  if(l<.13)return "Schwarz";if(l>.9&&s<.5)return "Weiß";if(s<.15)return l>.82?"Weiß":"Grau";if(hue>=10&&hue<45&&(l<.4||(l<.5&&s<.6)))return "Braun";if(hue>=20&&hue<55&&l>=.55&&(s<.5||l>.75))return "Beige";
+  if(hue<15||hue>=345)return "Rot";if(hue<40)return "Orange";if(hue<70)return "Gelb";if(hue<165)return "Grün";if(hue<195)return "Türkis";if(hue<255)return "Blau";if(hue<300)return "Lila";return "Pink"}
+const desc=it=>{try{return JSON.parse(it.description||"{}")||{}}catch(e){return {}}};
+function parse(it){const d=desc(it);const sp=Number(d.spulen);const spulen=Number.isFinite(sp)?sp:1;const gewicht=Number(d.gewicht)>0?Number(d.gewicht):1000;
+  const reste=fReste(Array.isArray(d.reste)?d.reste:(leer(d.rest)?[]:[d.rest]),gewicht);const rf=Number(d.refills);
+  const refills=d.refills!=null&&Number.isFinite(rf)?Math.max(0,Math.min(Math.round(rf),Math.max(0,spulen))):(d.ausfuehrung==="refill"?Math.max(0,spulen):0);
+  const codes=Array.isArray(d.codes)?d.codes.map(String):[];const cr=Array.isArray(d.codes_refill)?d.codes_refill.map(String).filter(c=>codes.includes(c)):(d.ausfuehrung==="refill"?[...codes]:[]);
+  return {uid:it.uid,raw:d,hersteller:d.hersteller||"",material:d.material||"",farbe:d.farbe||(d.material?"":it.summary||""),hex:fHex(d.hex),besonderheiten:Array.isArray(d.besonderheiten)?d.besonderheiten:[],
+    gewicht,spulen,refills,reste,codes,codes_refill:cr,durchmesser:fNum(d.durchmesser)??1.75,duese_min:fNum(d.duese_min),duese_max:fNum(d.duese_max),bett_min:fNum(d.bett_min),bett_max:fNum(d.bett_max),
+    trocknen_c:fNum(d.trocknen_c),trocknen_h:fNum(d.trocknen_h),fcode:d.fcode?String(d.fcode):"",bambu_id:d.bambu_id?String(d.bambu_id):"",preis:fNum(d.preis),
+    ams_farben:Array.isArray(d.ams_farben)?d.ams_farben.filter(hexOk).map(x=>x.toLowerCase()):[]}}
+const entries=()=>G.items.filter(i=>!desc(i).typ).map(parse);
+const offen=()=>G.items.filter(i=>desc(i).typ==="offen").map(i=>{const d=desc(i);return {uid:i.uid,gramm:Number(d.gramm)||0,drucker:d.drucker||"",ort:d.ort||"",fid:d.fid?String(d.fid):"",hex:fHex(d.farbe),name:d.name||"",material:d.material||"",grund:d.grund||"",zeit:d.zeit||"",anlass:d.anlass||""}}).sort((a,b)=>String(b.zeit).localeCompare(String(a.zeit)));
+const name=e=>[e.hersteller,e.material,e.farbe].filter(Boolean).join(" ");
+const summary=e=>name(e)+(e.besonderheiten&&e.besonderheiten.length?` (${e.besonderheiten.join(", ")})`:"");
+const total=e=>{if(e.spulen<=0)return 0;const rs=(e.reste||[]).slice(0,e.spulen);return (e.spulen-rs.length)*e.gewicht+rs.reduce((a,x)=>a+x,0)};
+const kg=g0=>g0>=1000?(g0/1000).toLocaleString("de-DE",{maximumFractionDigits:1})+" kg":Math.round(g0).toLocaleString("de-DE")+" g";
+const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const w=(it&&desc(it).werte)||{};return Object.assign({gruppe:"material",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35},w)};
+
+/* --- Home Assistant --- */
+const L=()=>window.LAGER;
+const isWS=()=>!!(window.__hass&&window.__hass.__ws);
+const states=()=>L()?L().stateMap():{};
+async function svc(service,data,entity){
+  const h=window.__hass;if(!h)throw new Error("Keine Verbindung zu Home Assistant");
+  if(!isWS()&&h.callService)return h.callService("todo",service,data,{entity_id:entity||ENT});
+  return h.callWS({type:"call_service",domain:"todo",service,service_data:data,target:{entity_id:entity||ENT}})}
+async function subscribe(entity,cb){const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
+  if(isWS())return h.__subscribe(msg,ev=>cb((ev&&ev.items)||[]));
+  return h.connection.subscribeMessage(ev=>cb((ev&&ev.items)||[]),msg)}
+async function start(){
+  if(G.sub)return;G.sub=true;G.err="";
+  try{if(L()){L().shims();await L().initStates()}
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw()});
+    try{if(states()[META])G.unsubM=await subscribe(META,items=>{G.meta=items;draw()})}catch(e){}
+    if(window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
+    if(L())L().link().then(()=>{if(S.tab==="lager")L().status()});
+  }catch(e){G.err=String(e&&e.message||e);G.sub=false;draw()}
+}
+async function write(e,patch){
+  const x=Object.assign({},e,patch);const spulen=Math.max(0,Math.round(Number(x.spulen)||0));
+  const refills=Math.min(spulen,Math.max(0,Math.round(Number(x.refills)||0)));const codes=[...new Set(x.codes||[])];
+  const d=Object.assign({},e.raw||{},{v:2,hersteller:x.hersteller,material:x.material,farbe:x.farbe,hex:fHex(x.hex),besonderheiten:[...(x.besonderheiten||[])],gewicht:Number(x.gewicht)||1000,spulen,refills,
+    reste:fReste(x.reste||[],Number(x.gewicht)),codes,codes_refill:[...new Set(x.codes_refill||[])].filter(c=>codes.includes(c)),durchmesser:fNum(x.durchmesser)??1.75,
+    ausfuehrung:refills>0&&refills>=spulen?"refill":"spule",duese_min:fNum(x.duese_min),duese_max:fNum(x.duese_max),bett_min:fNum(x.bett_min),bett_max:fNum(x.bett_max),
+    trocknen_c:fNum(x.trocknen_c),trocknen_h:fNum(x.trocknen_h),fcode:x.fcode?String(x.fcode).trim():"",bambu_id:x.bambu_id?String(x.bambu_id).trim():"",preis:fNum(x.preis),
+    ams_farben:[...new Set((x.ams_farben||[]).filter(hexOk).map(c=>c.toLowerCase()))]});
+  delete d.rest;delete d.typ;
+  if(!e.uid)return svc("add_item",{item:summary(d),description:JSON.stringify(d)});
+  return svc("update_item",{item:e.uid,rename:summary(d),description:JSON.stringify(d)})}
+function abbuchen(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen),g0=gramm;let rl=[...(e.reste||[])].sort((a,b)=>a-b).slice(0,sp);
+  for(let i=0;i<25&&g0>0&&sp>0;i++){if(!rl.length)rl=[gw];else if(rl[0]-g0>=1){rl[0]-=g0;g0=0}else{g0=Math.max(0,g0-rl[0]);rl.shift();sp-=1}}
+  rl=rl.map(Math.round).filter(x=>x>0&&x<gw);return {spulen:sp,reste:rl,refills:Math.min(e.refills,sp)}}
+async function logVerbrauch(e,o,g0){if(!states()[META])return;const preis=Number(e.preis)||0;
+  const d={typ:"verbrauch",v:1,zeit:o.zeit||new Date().toISOString(),drucker:o.drucker,ort:o.ort,sorte:summary(e),uid:e.uid,hersteller:e.hersteller,material:e.material,hex:e.hex,gramm:Math.round(g0*10)/10,
+    preis:preis>0?preis:null,kosten:preis>0?Math.round(g0/1000*preis*100)/100:null,anlass:(o.anlass||"Druck")+" (von Hand zugeordnet)"};
+  const t=new Date(d.zeit);const dt=isNaN(t)?"":t.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");
+  try{await svc("add_item",{item:`${dt} · ${o.drucker} · ${String(d.gramm).replace(".",",")} g · ${d.sorte}`,description:JSON.stringify(d)},META)}catch(x){}}
+
+/* --- AMS --- */
+function druckerName(prefix){const p2=String(prefix||"").split("_").slice(0,2).join("_");
+  const pr=window.HAP&&HAP._printers?HAP._printers().find(p=>p.roles.status==="sensor."+p2+"_druckstatus"):null;if(pr)return pr.name;
+  const m=p2.split("_")[0];return ({h2c:"H2C",h2d:"H2D",h2s:"H2S",p1s:"P1S",p1p:"P1P",x1c:"X1C",x1e:"X1E",a1:"A1",a1mini:"A1 mini"})[m]||m.toUpperCase()}
+const platz=(n,f)=>Number(n)>=128?"HT"+(Number(n)-127):(("ABCDEFGH"[Number(n)-1])||n+"-")+f;
+function slots(){const st=states();return Object.keys(st).filter(id=>/^sensor\..+_(ams_\d+_slot_\d+(?:_\d+)?|externalspool\d*_externe_spule)$/.test(id)).map(id=>st[id])
+  .filter(s=>!["unavailable","unknown","","empty","leer"].includes(String(s.state).toLowerCase())&&s.attributes.empty!==true)
+  .map(s=>{const m=s.entity_id.match(/_ams_(\d+)_slot_(\d+)(?:_\d+)?$/);return {id:s.entity_id,ort:druckerName(s.entity_id.slice(7))+" · "+(m?platz(m[1],m[2]):"Externe Spule"),name:s.attributes.name||s.state,type:s.attributes.type||"",
+    hex:fHex(String(s.attributes.color||"").slice(0,7)),remain:Number(s.attributes.remain),fid:s.attributes.filament_id?String(s.attributes.filament_id):"",
+    ams:s.entity_id.replace(/^sensor\./,"").replace(/_slot_\d+(_\d+)?$/,"")}})}
+function feuchte(){const st=states();const o={};Object.keys(st).forEach(id=>{const m=id.match(/^sensor\.(.+)_ams_(\d+)_(luftfeuchtigkeit|humidity)(?:_\d+)?$/);if(m){const v=fNum(st[id].state);if(v!=null)o[m[1]+"_ams_"+m[2]]=Math.round(v)}});return o}
+function treffer(s,list){if(!s.fid||generic(s.fid))return null;let best=null,bd=1e15;list.filter(e=>e.spulen>0&&e.bambu_id===s.fid).forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,s.hex)));if(d<bd){bd=d;best=e}});return best&&bd<=TOL?best:null}
+function faecherOffen(list,sl){const mit=new Set(list.filter(e=>e.spulen>0).map(e=>e.bambu_id).filter(Boolean));
+  return sl.filter(s=>s.fid&&!treffer(s,list)).map(s=>Object.assign({},s,{generic:generic(s.fid),grund:generic(s.fid)?"Generic-Profil – in Bambu Studio erst das eigene Profil der Sorte wählen":mit.has(s.fid)?"Profil bekannt, diese Farbe noch keiner Sorte zugeordnet":"Profil noch keiner Sorte im Lager zugeordnet"}))}
+
+/* --- Darstellung --- */
+const SV={spule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  rf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>',
+  half:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4v16A8 8 0 0 0 12 4z" fill="currentColor"/></svg>',
+  ams:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 7h16v10H4z"/><path d="M9 7v10M15 7v10"/></svg>',
+  drop:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>'};
+function stufe(v,e){return v==null?"":v<e.feuchte_gruen?"c-ok":v<e.feuchte_warnung?"c-an":"c-bad"}
+function rowHTML(e,orte,fu,E){
+  const tot=total(e),cap=Math.max(1,e.spulen)*e.gewicht,pct=e.spulen<=0?0:Math.max(2,Math.round(tot/cap*100));
+  const col=pct>50?"var(--good)":pct>20?"var(--warn)":"var(--bad)";
+  let ch=e.besonderheiten.map(b=>`<span class="chip">${esc(b)}</span>`).join("");
+  const mit=Math.max(0,e.spulen-e.refills);
+  if(mit>0)ch+=`<span class="chip">${SV.spule}${mit} mit Spule</span>`;
+  if(e.refills>0)ch+=`<span class="chip">${SV.rf}${e.refills} Refill</span>`;
+  if(e.spulen>0&&e.reste.length)ch+=`<span class="chip c-an">${SV.half}angebrochen ${e.reste.slice(0,e.spulen).map(r=>r+" g").join(" + ")}</span>`;
+  if(e.spulen<=0)ch+=`<span class="chip c-bad">aufgebraucht</span>`;else if(E.knapp_g>0&&tot<E.knapp_g)ch+=`<span class="chip c-bad">knapp</span>`;
+  (orte||[]).forEach(s=>{ch+=`<span class="chip c-ok">${SV.ams}${esc(s.ort)}</span>`;const f=fu[s.ams];if(f!=null)ch+=`<span class="chip ${stufe(f,E)}">${SV.drop}${f} %</span>`});
+  const tech=[e.duese_min!=null||e.duese_max!=null?"Druck "+[e.duese_min,e.duese_max].filter(x=>x!=null).join("–")+" °C":"",e.preis>0?e.preis.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €/kg":""].filter(Boolean).join(" · ");
+  return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}"><span class="lgsw" style="background:${e.hex}"></span>
+    <div style="min-width:0"><div class="lgn">${esc(name(e))}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
+    <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
+function body(){
+  const E=ein();const all=entries();const sl=slots();const fu=feuchte();
+  const imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
+  const sort=G.sort||E.gruppe||"material";const fl=G.f||{};const zeigLeer=G.showLeer??E.leer_zeigen;
+  const q=G.q.trim().toLowerCase(),worte=q.split(/\s+/).filter(Boolean);
+  const txt=e=>[e.hersteller,e.material,e.farbe,fam(e.hex),...e.besonderheiten,e.fcode,e.bambu_id,...e.codes,...(imFach[e.uid]||[]).map(s=>s.ort)].join(" ").toLowerCase();
+  const passt=e=>{if(fl.material&&e.material!==fl.material)return false;if(fl.hersteller&&e.hersteller!==fl.hersteller)return false;if(fl.farbe&&fam(e.hex)!==fl.farbe)return false;
+    if(fl.ort){const o=imFach[e.uid]||[];if(fl.ort==="ams"&&!o.length)return false;if(fl.ort==="lager"&&o.length)return false;if(fl.ort==="angebrochen"&&!(e.spulen>0&&e.reste.length))return false;
+      if(fl.ort==="knapp"&&!(e.spulen>0&&total(e)<(E.knapp_g||0)))return false;if(fl.ort==="leer"&&e.spulen>0)return false}return true};
+  const sicht=(q||zeigLeer||fl.ort==="leer")?all:all.filter(e=>e.spulen>0);
+  const list=sicht.filter(e=>passt(e)&&worte.every(w=>txt(e).includes(w)));
+  const sum=all.reduce((a,e)=>a+total(e),0),spulen=all.reduce((a,e)=>a+Math.max(0,e.spulen),0),refills=all.reduce((a,e)=>a+Math.max(0,Math.min(e.refills,e.spulen)),0);
+  const leerN=all.filter(e=>e.spulen<=0).length;
+  const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
+  const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
+  let h=`<div class="lgsum"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen (${spulen-refills} mit Spule, ${refills} Refill)</span><span class="sp"></span>
+    <button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div>
+    <div class="lgbar"><input type="search" id="lgq" placeholder="Suchen: Farbe, Marke, Material, Code, AMS …" value="${esc(G.q)}">
+      <select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
+      ${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
+      ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
+      ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}
+      ${(q||Object.values(fl).some(Boolean))?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>`;
+  if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
+  if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird aus Home Assistant geladen…</div>`;
+  const of=offen();
+  if(of.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Nicht zugeordnet (${of.length})</span></div>${(G.openOffen?of:of.slice(0,4)).map(o=>`<div class="lgor"><span class="lgsw" style="background:${o.hex}"></span>
+      <div style="min-width:0"><div class="lgn">${String(Math.round(o.gramm*10)/10).replace(".",",")} g · ${esc([o.drucker,o.ort].filter(Boolean).join(" · "))}</div><div class="lgs">${esc([o.name||o.material,o.fid,o.zeit?new Date(o.zeit).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"",o.anlass].filter(Boolean).join(" · "))}</div></div>
+      <div class="acts"><button class="btn sm" data-act="lgOzu" data-uid="${esc(o.uid)}">Zuordnen</button><button class="btn icon ghost danger" data-act="lgOweg" data-uid="${esc(o.uid)}" title="Merkzeile löschen" aria-label="Merkzeile löschen">${ICON.x}</button></div></div>`).join("")}
+      ${of.length>4?`<div class="lgmore"><button class="btn ghost sm" data-act="lgMore" data-k="openOffen">${G.openOffen?"Weniger anzeigen":`Alle ${of.length} anzeigen`}</button></div>`:""}</section>`}
+  const fo=faecherOffen(all,sl);
+  if(fo.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Fächer ohne Zuordnung (${fo.length})</span></div>${(G.openFach?fo:fo.slice(0,3)).map(f=>`<div class="lgor"><span class="lgsw" style="background:${f.hex}"></span>
+      <div style="min-width:0"><div class="lgn">${esc(f.ort)}</div><div class="lgs">${esc([f.name||f.type,f.fid].filter(Boolean).join(" · "))}</div><div class="lgs">${esc(f.grund)}</div></div>
+      <div class="acts">${f.generic?"":`<button class="btn sm" data-act="lgFzu" data-id="${esc(f.id)}">Zuordnen</button>`}</div></div>`).join("")}
+      ${fo.length>3?`<div class="lgmore"><button class="btn ghost sm" data-act="lgMore" data-k="openFach">${G.openFach?"Weniger anzeigen":`Alle ${fo.length} anzeigen`}</button></div>`:""}</section>`}
+  if(!all.length)return h+`<div class="panel empty">Noch kein Filament erfasst. Mit „Sorte“ legst du die erste an.</div>`;
+  if(!list.length)return h+`<div class="panel empty">${q||Object.values(fl).some(Boolean)?"Nichts gefunden.":"Alle Sorten sind aufgebraucht."}</div>`+(leerN?`<div class="row"><span class="sp"></span><button class="btn ghost sm" data-act="lgLeer">${zeigLeer?"Aufgebrauchte ausblenden":`Aufgebrauchte anzeigen (${leerN})`}</button><span class="sp"></span></div>`:"");
+  const ortKey=e=>{const o=imFach[e.uid]||[];return o.length?o[0].ort.split(" · ")[0]:"Im Lager"};
+  const gk=e=>sort==="hersteller"?(e.hersteller||"Ohne Hersteller"):sort==="farbe"?fam(e.hex):sort==="besonderheit"?(e.besonderheiten[0]||"Ohne Besonderheit"):sort==="drucker"?ortKey(e):sort==="bestand"?"Nach Bestand":(e.material||"Ohne Material");
+  const groups={};list.forEach(e=>{(groups[gk(e)]=groups[gk(e)]||[]).push(e)});
+  const ord=k=>sort==="farbe"?String(FAM.indexOf(k)).padStart(2,"0"):sort==="drucker"?(k==="Im Lager"?"zz":k):(/^Ohne /.test(k)?"zzz":k);
+  const hell=x=>{const c=fHex(x);return parseInt(c.slice(1,3),16)*.3+parseInt(c.slice(3,5),16)*.59+parseInt(c.slice(5,7),16)*.11};
+  Object.keys(groups).sort((a,b)=>ord(a).localeCompare(ord(b),"de")).forEach(k=>{
+    const sk=e=>sort==="hersteller"?e.material+" "+e.farbe:sort==="material"?e.hersteller+" "+e.farbe:name(e);
+    const arr=groups[k].sort((a,b)=>sort==="bestand"?total(b)-total(a)||sk(a).localeCompare(sk(b),"de"):sort==="farbe"?(hell(a.hex)-hell(b.hex))||sk(a).localeCompare(sk(b),"de"):sk(a).localeCompare(sk(b),"de"));
+    h+=`<section class="panel lgp" data-gk="${esc(k)}" data-sort="${sort}"><div class="row pad"><span class="gl">${esc(k)}</span><span class="gt">${kg(arr.reduce((a,e)=>a+total(e),0))}</span></div>${arr.map(e=>rowHTML(e,imFach[e.uid],fu,E)).join("")}</section>`});
+  if(leerN&&!q&&!Object.values(fl).some(Boolean))h+=`<div class="row"><span class="sp"></span><button class="btn ghost sm" data-act="lgLeer">${zeigLeer?"Aufgebrauchte ausblenden":`Aufgebrauchte anzeigen (${leerN})`}</button><span class="sp"></span></div>`;
+  return h}
+function decorate(){
+  if(!L())return;
+  document.querySelectorAll("#lgList .lgp[data-gk]").forEach(sec=>{const head=sec.firstElementChild;if(head.querySelector(".hmat,.hlogo"))return;const k=sec.dataset.gk,s=sec.dataset.sort;
+    if(s==="material"){const b=L().matBadge(k);if(b)head.appendChild(b);return}
+    if(s!=="hersteller")return;const urls=L().logoUrls(k);if(!urls.length)return;
+    const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";let i=0;
+    const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.own?"1":"";img.src=c.u};
+    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
+    img.onerror=next;head.appendChild(img);next()})}
+let drawT=null,lastHTML="";
+function draw(){clearTimeout(drawT);drawT=setTimeout(()=>{if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const h=body();if(h===lastHTML)return;
+  const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
+  if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
+  if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
+function render(m){
+  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">aus Home Assistant</span><span class="sp"></span><button class="btn ghost sm" data-act="lgMode" data-v="karte" title="Die Karte aus Home Assistant anzeigen">HA-Karte</button></div>
+    <div class="lstat" id="lagerStatus"></div><div class="stack" id="lgList"></div></div>`;
+  lastHTML="";if(L())L().status();start();draw()}
+function onStates(){if(S.tab==="lager"){draw();if(L())L().status()}}
+
+/* --- Bearbeiten --- */
+function known(k){const s=new Set();entries().forEach(e=>{const v=e[k];if(Array.isArray(v))v.forEach(x=>x&&s.add(x));else if(v)s.add(v)});return [...s].sort((a,b)=>a.localeCompare(b,"de"))}
+function formModal(e,prefill){
+  const isNew=!e;const f=e?Object.assign({},e,{besonderheiten:[...e.besonderheiten],codes:[...e.codes],codes_refill:[...e.codes_refill],reste:[...e.reste]})
+    :Object.assign({uid:null,raw:{},hersteller:G.lastH||known("hersteller")[0]||"Bambu Lab",material:"PLA",farbe:"",hex:"#808080",besonderheiten:[],codes:[],codes_refill:[],gewicht:1000,spulen:1,refills:0,reste:[],durchmesser:1.75,ams_farben:[]},prefill||{});
+  G.form=f;
+  const mats=[...new Set([...MATERIALIEN,...known("material")])];const bes=[...new Set([...BESOND,...known("besonderheiten"),...f.besonderheiten])];
+  const v=x=>x==null?"":esc(String(x));
+  modal(isNew?"Filament hinzufügen":"Filament bearbeiten",`<div class="lgform">
+    ${f.hinweis?`<div class="note">${esc(f.hinweis)}</div>`:""}
+    <div class="g2"><label class="field"><span>Hersteller</span><input type="text" id="lf_h" list="lf_hl" value="${v(f.hersteller)}" placeholder="z. B. Bambu Lab"><datalist id="lf_hl">${known("hersteller").map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label>
+      <label class="field"><span>Material</span><input type="text" id="lf_m" list="lf_ml" value="${v(f.material)}" placeholder="PLA"><datalist id="lf_ml">${mats.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label></div>
+    <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
+    <div class="lgdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>
+    <div class="field"><span>Besonderheiten</span><div class="lgtg" id="lf_bes">${bes.map(b=>`<button type="button" class="chip${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`).join("")}</div></div>
+    <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
+      <label class="field"><span>Anzahl Rollen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_s" value="${v(f.spulen)}"><em>Stk</em></div></label>
+      <label class="field"><span>Reste angebrochen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_r" value="${v((f.reste||[]).join(", "))}" placeholder="voll"><em>g</em></div></label></div>
+    <div class="lghint">Mehrere angebrochene Rollen mit Komma trennen, z. B. „300, 500“. Sie zählen bei „Anzahl Rollen“ mit.</div>
+    ${isNew?"":`<div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="lgMinus">− 1 Rolle verbraucht</button><button class="btn sm" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn ghost sm" data-act="lgCopy">${ICON.copy} Als Vorlage kopieren</button></div><div id="lf_ask"></div>`}
+    <details class="lgx"${(f.bambu_id||f.preis||f.duese_min||f.fcode)?" open":""}><summary>Technische Daten, Preis und Bambu-ID</summary><div class="lgform" style="margin-top:10px">
+      <div class="g3"><label class="field"><span>Bambu-ID (Abbuchung)</span><input type="text" id="lf_bid" value="${v(f.bambu_id)}" placeholder="GFG02"></label>
+        <label class="field"><span>Preis je kg</span><div class="unit"><input type="text" inputmode="decimal" id="lf_p" value="${f.preis==null?"":String(f.preis).replace(".",",")}" placeholder="19,99"><em>€</em></div></label>
+        <label class="field"><span>Davon Refill</span><div class="unit"><input type="text" inputmode="numeric" id="lf_rf" value="${v(f.refills)}"><em>Stk</em></div></label></div>
+      <div class="g4"><label class="field"><span>Druck von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d1" value="${v(f.duese_min)}"><em>°C</em></div></label>
+        <label class="field"><span>Druck bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d2" value="${v(f.duese_max)}"><em>°C</em></div></label>
+        <label class="field"><span>Bett von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b1" value="${v(f.bett_min)}"><em>°C</em></div></label>
+        <label class="field"><span>Bett bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b2" value="${v(f.bett_max)}"><em>°C</em></div></label></div>
+      <div class="g4"><label class="field"><span>Trocknen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_tc" value="${v(f.trocknen_c)}"><em>°C</em></div></label>
+        <label class="field"><span>Trocknen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_th" value="${v(f.trocknen_h)}"><em>h</em></div></label>
+        <label class="field"><span>Durchmesser</span><select id="lf_dm">${[1.75,2.85].map(d=>`<option value="${d}"${Number(f.durchmesser)===d?" selected":""}>${String(d).replace(".",",")} mm</option>`).join("")}</select></label>
+        <label class="field"><span>Filament-Code</span><input type="text" id="lf_fc" value="${v(f.fcode)}"></label></div>
+      ${f.codes.length?`<div class="field"><span>Strichcodes</span><div class="lgtg">${f.codes.map(c=>`<span class="chip">${esc(c)} · ${f.codes_refill.includes(c)?"Refill":"Spule"} <button type="button" class="btn icon ghost" style="width:20px;height:20px;padding:0" data-act="lgCode" data-c="${esc(c)}" aria-label="Code entfernen">${ICON.x}</button></span>`).join("")}</div></div>`:""}
+    </div></details>
+    <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
+    `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
+}
+function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
+  const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};
+  set("hersteller","lf_h",x=>x.trim());set("material","lf_m",x=>x.trim());set("farbe","lf_f",x=>x.trim());set("hex","lf_hex");set("gewicht","lf_g",x=>fNum(x)||0);set("spulen","lf_s",x=>Math.max(0,Math.round(fNum(x)||0)));
+  set("reste","lf_r",x=>fReste(x,fNum(val("lf_g"))));set("bambu_id","lf_bid",x=>x.trim());set("preis","lf_p",fNum);set("refills","lf_rf",x=>Math.max(0,Math.round(fNum(x)||0)));
+  set("duese_min","lf_d1",fNum);set("duese_max","lf_d2",fNum);set("bett_min","lf_b1",fNum);set("bett_max","lf_b2",fNum);set("trocknen_c","lf_tc",fNum);set("trocknen_h","lf_th",fNum);set("durchmesser","lf_dm",fNum);set("fcode","lf_fc",x=>x.trim());
+  return f}
+const msg=t=>{const m=document.getElementById("lf_msg");if(m)m.textContent=t};
+async function save(f,silent){
+  if(!f.hersteller)return msg("Bitte einen Hersteller angeben.");if(!f.material)return msg("Bitte das Material angeben.");if(!f.farbe)return msg("Bitte die Farbe benennen.");
+  if(!(Number(f.gewicht)>0))return msg("Bitte das Gewicht je Rolle angeben.");
+  const rs=fReste(f.reste,Number(f.gewicht));if(rs.length>f.spulen)return msg(`${rs.length} Reste, aber nur ${f.spulen} Rolle(n). Die angebrochenen Rollen zählen bei „Anzahl Rollen“ mit.`);
+  f.reste=rs;
+  try{
+    if(!f.uid){const key=x=>[x.hersteller,x.material,x.farbe,[...x.besonderheiten].sort().join(",")].join("|").toLowerCase();const dup=entries().find(x=>key(x)===key(f));
+      if(dup){closeModal();confirmBox(`„${summary(f)}“ gibt es schon (${dup.spulen} Rollen). ${f.spulen} Rolle(n) dazuzählen?`,"Dazuzählen",async()=>{
+        await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt")});return}}
+    await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt")
+  }catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
+
+/* --- Zuordnen --- */
+function sortenPick(hex,mat,fid,act){const E=entries().filter(e=>e.spulen>0).map(e=>({e,d:Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)))+(fid&&e.bambu_id===fid?0:1e6)+(mat&&!e.material.toUpperCase().startsWith(mat)?1e7:0)})).sort((a,b)=>a.d-b.d);
+  return `<input type="search" id="lgpq" placeholder="Sorte suchen"><div class="lgpick" id="lgpick">${E.map(({e})=>`<div class="lgr" data-act="${act}" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}"><span class="lgsw" style="background:${e.hex}"></span><div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>${e.bambu_id?`<div class="lgs">Bambu-ID ${esc(e.bambu_id)}</div>`:""}</div><div class="lgrt"><b>${kg(total(e))}</b></div></div>`).join("")}</div>`}
+function ozuModal(uid){const o=offen().find(x=>x.uid===uid);if(!o)return;G.ozu=o;const fidOk=o.fid&&!generic(o.fid);
+  modal("Verbrauch zuordnen",`<div class="lgform"><div class="lghint">${esc([o.drucker,o.ort,o.name||o.material,o.fid].filter(Boolean).join(" · "))}</div>
+    <div class="g2"><label class="field"><span>Abbuchen</span><div class="unit"><input type="text" inputmode="decimal" id="lo_g" value="${String(Math.round(o.gramm*10)/10).replace(".",",")}"><em>g</em></div></label></div>
+    ${fidOk?`<label class="row" style="gap:8px"><input type="checkbox" id="lo_m" checked style="width:18px;height:18px;accent-color:var(--accent)"> Bambu-ID ${esc(o.fid)} bei der Sorte merken, damit es nächstes Mal automatisch geht</label>`:""}
+    <div class="lghint">Sorte antippen, von der abgebucht wird. Passende Farbe und Material stehen oben.</div>${sortenPick(o.hex,String(o.material||"").toUpperCase(),o.fid,"lgOzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
+function fzuModal(id){const s=slots().find(x=>x.id===id);if(!s)return;G.fzu=s;
+  modal("Fach zuordnen",`<div class="lgform"><div class="row" style="gap:10px"><span class="lgsw" style="background:${s.hex}"></span><div><div class="lgn">${esc(s.ort)}</div><div class="lgs">${esc([s.name||s.type,s.fid].filter(Boolean).join(" · "))}</div></div></div>
+    <div class="lghint">Sorte antippen, die in diesem Fach steckt. Schichtlohn merkt sich Bambu-ID und AMS-Farbe, danach wird die Sorte von allein erkannt, auch bei der Abbuchung.</div>
+    <div class="row"><button class="btn sm" data-act="lgFneu">${ICON.plus} Neue Sorte aus diesem Fach</button></div>
+    ${sortenPick(s.hex,String(s.type||"").split("-")[0].toUpperCase(),s.fid,"lgFzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
+function fromSlot(s){const toks=String(s.name||"").split(/\s+/).filter(Boolean);let her="";if(toks.length&&/^bambu/i.test(toks[0]))her="Bambu Lab";else if(toks.length&&!/^generic$/i.test(toks[0])&&toks[0].toUpperCase()!==String(s.type).toUpperCase())her=toks[0];
+  const material=s.type||"PLA";const bes=[];toks.slice(1).forEach(t=>{if(t.toUpperCase()===material.toUpperCase())return;t.toLowerCase().split("-").forEach(p=>{const m=BES_MAP[p];if(m&&!bes.includes(m)&&!material.toLowerCase().includes(p))bes.push(m)})});
+  let best=FARBEN[0],bd=1e15;FARBEN.forEach(p=>{const d=dist(p[1],s.hex);if(d<bd){bd=d;best=p}});
+  const rest=Number.isFinite(s.remain)&&s.remain>=0&&s.remain<100?[Math.round(s.remain*10)]:[];
+  formModal(null,{hersteller:her||G.lastH||"",material,farbe:best[0],hex:s.hex,besonderheiten:bes,reste:rest,bambu_id:generic(s.fid)?"":s.fid,ams_farben:generic(s.fid)||!s.fid?[]:[s.hex],hinweis:`Übernommen aus ${s.ort}, bitte prüfen`})}
+
+/* --- Ereignisse --- */
+document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.value;draw()}
+  else if(t.id==="lgpq"){const q=t.value.trim().toLowerCase();document.querySelectorAll("#lgpick .lgr").forEach(r=>{r.hidden=!!q&&!r.dataset.s.includes(q)})}});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.matches&&t.matches("[data-lgsort]")){G.sort=t.value;savePref();draw()}
+  else if(t.dataset&&t.dataset.lgf!==undefined){G.f=Object.assign({},G.f,{[t.dataset.lgf]:t.value});savePref();draw()}});
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^lg/.test(a))return;
+  if(a==="lgMode"){try{localStorage.setItem("schichtlohn_lagermodus",b.dataset.v)}catch(x){}window.render&&window.render();return}
+  if(a==="lgReset"){G.q="";G.f={};savePref();draw();return}
+  if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
+  if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
+  if(a==="lgNew"){formModal(null);return}
+  if(a==="lgEdit"){const x=entries().find(y=>y.uid===b.dataset.uid);if(x)formModal(x);return}
+  if(a==="lgDot"){const f=collect();f.hex=b.dataset.x;if(!f.farbe||FARBEN.some(([n])=>n===f.farbe))f.farbe=b.dataset.n;const hx=document.getElementById("lf_hex"),fn=document.getElementById("lf_f");if(hx)hx.value=f.hex;if(fn)fn.value=f.farbe;
+    document.querySelectorAll(".lgdots button").forEach(x=>x.classList.toggle("on",x===b));return}
+  if(a==="lgBes"){const f=G.form;const v=b.dataset.b,i=f.besonderheiten.indexOf(v);if(i>=0)f.besonderheiten.splice(i,1);else f.besonderheiten.push(v);b.classList.toggle("on",i<0);return}
+  if(a==="lgCode"){const f=collect();const c=b.dataset.c;f.codes=f.codes.filter(x=>x!==c);f.codes_refill=f.codes_refill.filter(x=>x!==c);b.closest(".chip").remove();return}
+  if(a==="lgSave"){const f=collect();await save(f);return}
+  if(a==="lgPlus"){const f=collect();f.spulen=(f.spulen||0)+1;await save(f);return}
+  if(a==="lgMinus"){const f=collect();const n=f.spulen||0;const rs=fReste(f.reste,Number(f.gewicht));const voll=n-rs.length;
+    if(!rs.length||(rs.length===1&&voll<=0)){f.spulen=Math.max(0,n-1);f.reste=[];await save(f);return}
+    const box=document.getElementById("lf_ask");if(box)box.innerHTML=`<div class="lgask"><b>Welche Rolle nimmst du raus?</b><div class="lghint">Bestand: ${n} Rollen, ${voll} voll, ${rs.length} angebrochen (${rs.map(r=>r+" g").join(", ")}).</div>
+      <div class="row" style="flex-wrap:wrap">${voll>0?`<button class="btn sm" data-act="lgMinusVoll">Volle Rolle rausnehmen</button>`:""}${rs.map((r,i)=>`<button class="btn sm danger" data-act="lgMinusRest" data-i="${i}">Rest ${r} g ist leer</button>`).join("")}</div></div>`;return}
+  if(a==="lgMinusVoll"||a==="lgMinusRest"){const f=collect();f.spulen=Math.max(0,(f.spulen||0)-1);if(a==="lgMinusRest"){const rs=fReste(f.reste,Number(f.gewicht));rs.splice(Number(b.dataset.i),1);f.reste=rs}await save(f);return}
+  if(a==="lgCopy"){const f=collect();closeModal();formModal(null,Object.assign({},f,{uid:null,raw:{},codes:[],codes_refill:[],spulen:1,refills:0,reste:[],besonderheiten:[...f.besonderheiten],hinweis:`Kopie von „${summary(f)}“. Farbe, Gewicht usw. anpassen und speichern`}));return}
+  if(a==="lgDel"){const f=G.form;closeModal();confirmBox(`„${name(f)}“ wirklich löschen?`,"Löschen",async()=>{try{await svc("remove_item",{item:[f.uid]});toast("Gelöscht")}catch(err){toast("Löschen fehlgeschlagen")}});return}
+  if(a==="lgOzu"){ozuModal(b.dataset.uid);return}
+  if(a==="lgOweg"){const o=offen().find(x=>x.uid===b.dataset.uid);if(!o)return;confirmBox(`Merkzeile „${String(Math.round(o.gramm*10)/10).replace(".",",")} g · ${[o.drucker,o.ort].filter(Boolean).join(" · ")}“ löschen? Es wird nichts abgebucht.`,"Löschen",async()=>{try{await svc("remove_item",{item:[o.uid]})}catch(err){toast("Löschen fehlgeschlagen")}});return}
+  if(a==="lgOzuPick"){const o=G.ozu,x=entries().find(y=>y.uid===b.dataset.uid);if(!o||!x)return;const g0=fNum(document.getElementById("lo_g").value);if(!(g0>0)){msg("Bitte eine Grammzahl über 0 angeben.");return}
+    const patch=abbuchen(x,g0);const mk=document.getElementById("lo_m");if(mk&&mk.checked){patch.bambu_id=o.fid;if(hexOk(o.hex)&&o.hex!=="#888888")patch.ams_farben=[...new Set([...x.ams_farben,o.hex])]}
+    try{await write(x,patch);await svc("remove_item",{item:[o.uid]});await logVerbrauch(x,o,g0);closeModal();toast(`${String(g0).replace(".",",")} g von ${name(x)} abgebucht`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}return}
+  if(a==="lgFzu"){fzuModal(b.dataset.id);return}
+  if(a==="lgFneu"){const s=G.fzu;closeModal();if(s)fromSlot(s);return}
+  if(a==="lgFzuPick"){const s=G.fzu,x=entries().find(y=>y.uid===b.dataset.uid);if(!s||!x)return;
+    const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});closeModal();toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}};
+    if(x.bambu_id&&x.bambu_id!==s.fid){closeModal();confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go)}else await go();return}
+});
+window.LGN={render,onStates,_G:G};
 })();
 </script>
 
