@@ -440,7 +440,11 @@ function roundPrice(p,mode){
 }
 
 /* ---------- Rendering ---------- */
+const TABNAMES={lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
+function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
 function render(){
+  const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
+  if(hid.includes(S.tab)){const f=$$("#tabs button").find(b=>!b.hidden);S.tab=f?f.dataset.tab:"einstellungen"}
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
   const m=$("#main");
   ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML=""),lager:m=>window.LAGER?LAGER.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
@@ -762,6 +766,11 @@ function renderSettings(m){
       <label class="field"><span>Schlusssatz</span><input type="text" id="co_f" data-bind="c.company.footer" value="${esc(c.company.footer)}"></label>
     </section>
 
+    <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
+      <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
+      <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
+    </section>
+
     <section class="panel pad stack"><div class="sec-title"><h2>Daten und Sicherung</h2></div>
       <div class="note">Deine Daten liegen ${where}.</div>
       <div class="row"><button class="btn" data-act="exportJson">${ICON.save} Backup exportieren</button><button class="btn" data-act="importJson">${ICON.upload} Backup einspielen</button><span class="sp"></span><button class="btn danger" data-act="resetCfg">Standardwerte wiederherstellen</button></div>
@@ -1015,6 +1024,7 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
+  if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();render();return}
   switch(a){
     case "close":closeModal();break;
     case "confirmOk":{const f=S._confirm;closeModal();if(f)await f();break}
@@ -1546,8 +1556,8 @@ function settingsHTML(){
       <label class="field"><span>Energiezähler</span><select data-hamap="${esc(p.dev)}" data-k="energy"><option value="">keiner</option>${ens.map(e=>`<option value="${esc(e.id)}"${e.id===m.energy?" selected":""}>${esc(e.name)}</option>`).join("")}</select></label></div>`}).join("")}</div>
     <div class="hint" style="margin-top:8px">Teilen sich zwei Drucker eine Steckdose, misst der Zähler beide zusammen. Druckt dann nur einer, stimmt der Wert trotzdem.</div>`:`<div class="hint">Drucker werden geladen… Falls hier nichts erscheint, tippe auf „Neu einlesen“.</div>`}
   </section>
-  <section class="panel pad"><div class="sec-title"><h2>AMS-Zuordnung</h2></div>
-    <div class="hint" style="margin-bottom:6px">Für jede Filamentsorte im AMS merkt sich Schichtlohn, welches deiner Materialien gemeint ist. Neue Sorten werden automatisch über dein FilamentLager zugeordnet.</div>
+  <section class="panel pad"><div class="sec-title"><h2>Filamentpreis je AMS-Fach</h2></div>
+    <div class="hint" style="margin-bottom:6px">Übernimmst du einen Druck vom Drucker, rechnet Schichtlohn das verbrauchte Filament mit einem Preis aus deiner Materialliste. Hier siehst du, welches Material (und damit welcher Preis) für das Filament in jedem AMS-Fach genommen wird. Das passiert automatisch über dein FilamentLager. Ändern musst du hier nur etwas, wenn ein Preis nicht stimmt.</div>
     ${amsRows()}</section>`;
   return h;
 }
@@ -1557,7 +1567,7 @@ function amsRows(){
     const key=(a.filament_id||a.type)+"|"+String(a.color||"").slice(0,7).toLowerCase();if(seen.has(key))continue;seen.add(key);
     const cur=(S.cfg.amsMap||{})[key]||"";
     rows.push(`<div class="amsrow"><span class="swatch" style="background:${esc(String(a.color||"#888").slice(0,7))}"></span><span>${esc(a.name||a.type)}<span class="hint" style="display:block">${esc(p.name)} · AMS ${t.ams} Fach ${t.slot}</span></span>
-      <select data-amskey="${esc(key)}">${opt(S.cfg.materials,cur,"automatisch")}</select></div>`)}
+      <select data-amskey="${esc(key)}"><option value="">automatisch</option>${S.cfg.materials.map(x=>`<option value="${esc(x.id)}"${x.id===cur?" selected":""}>${esc(x.name)}${x.price?` · ${String(r2(+x.price)).replace(".",",")} €/kg`:""}</option>`).join("")}</select></div>`)}
   return rows.length?`<div>${rows.join("")}</div>`:`<div class="hint">Keine belegten AMS-Fächer gefunden.</div>`;
 }
 /* --- Ereignisse --- */
@@ -2332,9 +2342,10 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgdots{display:flex;flex-wrap:wrap;gap:6px}
 .lgdots button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-2);cursor:pointer;padding:0}
 .lgdots button.on{outline:2px solid var(--fg);outline-offset:1px}
-.lgtg{display:flex;flex-wrap:wrap;gap:6px}
-.lgtg button{cursor:pointer}
-.lgtg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.lgtg,.tabtg{display:flex;flex-wrap:wrap;gap:6px}
+.lgtg button,.tabtg button{cursor:pointer}
+.tabtg button{padding:6px 12px;font-size:13px;gap:6px}.tabtg button svg{width:14px;height:14px}
+.lgtg button.on,.tabtg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .lgcol{display:flex;gap:8px;align-items:center}
 .lgcol input[type=color]{width:46px;height:40px;padding:2px;border:1px solid var(--line-2);border-radius:var(--r-s);background:var(--sunken);flex:none}
 .lgask{border:1px solid var(--warn);border-radius:var(--r-s);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
