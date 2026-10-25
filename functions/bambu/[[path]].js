@@ -70,6 +70,10 @@ export async function onRequest({ request, params }) {
     if (res.ok && m) return json(request, 200, { accessToken: m[1], expiresIn: 7776000 });
   }
   const ct = res.headers.get("content-type") || "";
-  if (!/json/i.test(ct)) return json(request, res.status >= 400 ? res.status : 502, { message: `Bambu-Cloud antwortet nicht wie erwartet (HTTP ${res.status})` });
+  let isJson = /json/i.test(ct);
+  if (!isJson && text.trim()) { try { JSON.parse(text); isJson = true; } catch (e) {} }
+  // Manche Aufrufe (z. B. Code per Mail senden) antworten mit leerem Text: bei Erfolg als {} weitergeben
+  if (!isJson && res.ok) return json(request, 200, {});
+  if (!isJson) return json(request, res.status >= 400 ? res.status : 502, { message: `Bambu-Cloud antwortet nicht wie erwartet (HTTP ${res.status})` });
   return new Response(text, { status: res.status, headers: { ...cors(request), "Content-Type": "application/json" } });
 }
