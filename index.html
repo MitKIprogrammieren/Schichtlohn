@@ -205,6 +205,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <button data-tab="rechner" aria-current="page">Rechner</button>
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="auftraege">Aufträge</button>
+      <button data-tab="drucke">Druckaufträge</button>
       <button data-tab="geschaeft">Geschäft</button>
       <button data-tab="einstellungen">Einstellungen</button>
     </nav>
@@ -437,7 +438,7 @@ function roundPrice(p,mode){
 function render(){
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
   const m=$("#main");
-  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings}[S.tab])(m);
+  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
 }
 function opt(list,sel,empty){return (empty?`<option value="">${esc(empty)}</option>`:"")+list.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.name)}</option>`).join("")}
 function unitIn(bind,val,u,extra=""){return `<div class="unit"><input type="text" inputmode="decimal" data-bind="${bind}" value="${inV(val)}" ${extra}><em>${u}</em></div>`}
@@ -717,6 +718,7 @@ function renderSettings(m){
     </section>
 
     ${window.HAP?HAP.settingsHTML():""}
+    ${window.JOBS?JOBS.settingsHTML():""}
     <div class="grid-2p">
     ${["channels","payments"].map(k=>`<section class="panel pad"><div class="sec-title"><h2>${k==="channels"?"Verkaufskanäle":"Zahlungsarten"}</h2><span class="sp"></span><button class="btn sm" data-act="addRow" data-list="${k}">${ICON.plus} Neu</button></div>
       <div class="setlist">${c[k].map((p,i)=>`<div class="setrow sr-ch">
@@ -1496,7 +1498,296 @@ const _rs=renderSettings;renderSettings=function(m){_rs(m);if(S.backend==="ha"&&
 function init(){if(S.backend!=="ha")return;loadRegistry(false).then(()=>{list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}).catch(()=>{});
   setTimeout(syncOrders,4000);clearInterval(timer);timer=setInterval(()=>{syncOrders();if(S.addMode==="drucker"&&S.tab==="rechner"&&!loading){list.forEach(p=>p.snap=snapshot(p));if(!isWS())redrawPanel()}},60000)}
 
-window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload};
+window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload,
+  mapAms,kwhFor,cfgMap,coverThumb,async ensure(){await loadRegistry(false);list=printers();autoMap(list);return list},
+  bySerial(sn){sn=String(sn||"").toLowerCase();return sn?list.find(p=>p.roles.status.toLowerCase().includes("_"+sn+"_"))||null:null}};
+})();
+</script>
+<style>
+.jhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.jhead select,.jhead input[type=search]{width:auto;max-width:220px}
+.jsrc{display:flex;flex-wrap:wrap;gap:8px}
+.jday{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2);padding:14px 4px 6px}
+.job{display:grid;grid-template-columns:26px 56px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel,transparent);cursor:pointer;margin-bottom:6px}
+.job:hover{border-color:var(--line-2)}
+.job.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.job.used{opacity:.62}
+.job input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:pointer}
+.job .thumb{width:56px;height:56px}
+.job h3{font-size:15px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px;color:var(--fg-2);margin-top:3px;align-items:center}
+.job .sw{display:inline-flex;gap:3px;vertical-align:-2px}
+.job .sw i{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
+.job .right{text-align:right;font-size:13px;color:var(--fg-2);white-space:nowrap}
+.job .right b{display:block;font-size:15px;color:var(--fg)}
+.jbar{position:sticky;bottom:12px;z-index:15;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;margin-top:8px;border:1px solid var(--accent);border-radius:var(--r-s);background:var(--header-bg,var(--panel));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.jbar .info{flex:1 1 200px;min-width:0}
+.jbar .info b{font-size:15px}
+.chip.cl{color:var(--accent)}
+.chip.bad{color:var(--bad)}
+@media (max-width:620px){.job{grid-template-columns:24px 44px minmax(0,1fr)}.job .thumb{width:44px;height:44px}.job .right{grid-column:3;text-align:left}.job .right b{display:inline;margin-right:8px}.jbar{bottom:8px}}
+</style>
+<script>
+/* ===== Druckaufträge: Druckprotokoll aus Home Assistant und Druckhistorie aus der Bambu-Cloud ===== */
+(function(){
+"use strict";
+const BK="schichtlohn_bambu",TODO="todo.druckprotokoll";
+const PROXY=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev")+"/bambu";
+const J={ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haErr:"",cloudErr:"",sel:new Set(),src:"alle",printer:"",q:"",open:true,login:null,more:false};
+
+/* --- Bambu-Konto (nur in diesem Browser) --- */
+function acct(){try{const v=JSON.parse(localStorage.getItem(BK)||"null");return v&&v.token?v:null}catch(e){return null}}
+function setAcct(v){try{v?localStorage.setItem(BK,JSON.stringify(v)):localStorage.removeItem(BK)}catch(e){}}
+async function api(path,o={}){
+  const u=new URL(PROXY+"/"+path);if(o.region==="cn")u.searchParams.set("region","cn");
+  for(const [k,v] of Object.entries(o.query||{}))if(v!=null&&v!=="")u.searchParams.set(k,v);
+  const h={};if(o.body)h["Content-Type"]="application/json";if(o.token)h.Authorization="Bearer "+o.token;
+  let r;try{r=await fetch(u,{method:o.body?"POST":"GET",headers:h,body:o.body?JSON.stringify(o.body):undefined})}catch(e){throw new Error("Bambu-Cloud nicht erreichbar. Prüfe die Internetverbindung.")}
+  let d=null;try{d=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error((d&&(d.message||d.error||d.msg))||("HTTP "+r.status));e.status=r.status;throw e}
+  return d||{};
+}
+function saveToken(d,login){const exp=Date.now()+(num(d.expiresIn)||7776000)*1000;setAcct({token:d.accessToken,region:login.region,account:login.account,exp});J.login=null;J.cloud=[];J.cloudAt=0}
+async function loginStep(kind,vals){
+  const L=J.login;
+  if(kind==="pw"){L.account=vals.account;L.region=vals.region;
+    const d=await api("user/login",{region:L.region,body:{account:L.account,password:vals.password}});
+    if(d.accessToken){saveToken(d,L);return "ok"}
+    if(d.loginType==="verifyCode"){await api("user/sendemail/code",{region:L.region,body:{email:L.account,type:"codeLogin"}});L.step="code";return "code"}
+    if(d.loginType==="tfa"){L.tfaKey=d.tfaKey;L.step="tfa";return "tfa"}
+    throw new Error("Anmeldung nicht möglich"+(d.loginType?` (${d.loginType})`:""));}
+  if(kind==="code"){const d=await api("user/login",{region:L.region,body:{account:L.account,code:vals.code}});if(!d.accessToken)throw new Error("Code nicht angenommen");saveToken(d,L);return "ok"}
+  if(kind==="resend"){await api("user/sendemail/code",{region:L.region,body:{email:L.account,type:"codeLogin"}});return "code"}
+  if(kind==="tfa"){const d=await api("tfa",{region:L.region,body:{tfaKey:L.tfaKey,tfaCode:vals.code}});if(!d.accessToken)throw new Error("Code nicht angenommen");saveToken(d,L);return "ok"}
+}
+function loginModal(){
+  const L=J.login||(J.login={step:"pw",account:"",region:"global"});
+  const step=L.step;
+  const body=step==="pw"?`<p class="muted" style="margin:0">Melde dich mit deinem Bambu-Lab-Konto an, um die Druckhistorie deiner Drucker abzurufen. Das Passwort wird nur für die Anmeldung gesendet und nicht gespeichert. In diesem Browser bleibt danach nur der Anmeldeschlüssel (rund drei Monate gültig).</p>
+      <label class="field"><span>E-Mail</span><input type="email" id="bb_acc" autocomplete="username" value="${esc(L.account)}"></label>
+      <label class="field"><span>Passwort</span><input type="password" id="bb_pw" autocomplete="current-password"></label>
+      <label class="field"><span>Region</span><select id="bb_reg"><option value="global"${L.region!=="cn"?" selected":""}>Europa und Welt (bambulab.com)</option><option value="cn"${L.region==="cn"?" selected":""}>China (bambulab.cn)</option></select></label>
+      <div class="hint">Bambu bietet dafür keine offizielle Schnittstelle. Der Abruf läuft über eine kleine Weiterleitung auf schichtlohn.pages.dev, weil die Bambu-Cloud direkte Aufrufe aus dem Browser sperrt. Ändert Bambu etwas, kann der Abruf ausfallen.</div>`
+    :`<p class="muted" style="margin:0">${step==="code"?`Bambu hat einen Bestätigungscode an <b>${esc(L.account)}</b> geschickt. Gib ihn hier ein.`:"Gib den Code aus deiner Authenticator-App ein."}</p>
+      <label class="field"><span>Code</span><input type="text" id="bb_code" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
+      ${step==="code"?`<button class="btn ghost sm" data-act="bbResend" style="align-self:flex-start">Code neu senden</button>`:""}`;
+  modal("Bambu-Cloud verbinden",`<div class="stack">${body}<div class="hint" id="bb_msg" role="status"></div></div>`,
+    `<button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="bbNext">${step==="pw"?"Anmelden":"Bestätigen"}</button>`);
+}
+async function loginSubmit(kind){
+  const msg=$("#bb_msg");const btn=$('[data-act="bbNext"]');
+  try{let vals={};
+    if(kind==="pw"){vals={account:$("#bb_acc").value.trim(),password:$("#bb_pw").value,region:$("#bb_reg").value};if(!/.+@.+/.test(vals.account)||!vals.password){msg.textContent="Gib E-Mail und Passwort ein.";return}}
+    else if(kind!=="resend"){vals={code:$("#bb_code").value.trim()};if(vals.code.length<4){msg.textContent="Gib den Code ein.";return}}
+    if(btn)btn.disabled=true;msg.textContent=kind==="resend"?"Sende Code…":"Prüfe…";
+    const r=await loginStep(kind,vals);
+    if(r==="ok"){closeModal();toast("Bambu-Cloud verbunden");loadCloud(true);render()}
+    else if(kind==="resend"){msg.textContent="Neuer Code ist unterwegs."}
+    else loginModal();
+  }catch(e){if(msg)msg.textContent=e.status===401||e.status===400?"Anmeldung abgelehnt: "+e.message:"Fehler: "+e.message}
+  finally{if(btn)btn.disabled=false}
+}
+
+/* --- Normalisieren --- */
+const hex=c=>{c=String(c||"").replace("#","");return c.length>=6?"#"+c.slice(0,6).toLowerCase():""};
+function fromCloud(t){
+  const st=t.startTime?new Date(t.startTime):null,en=t.endTime?new Date(t.endTime):null;
+  let minutes=st&&en&&en>st?(en-st)/60000:0;if(!minutes&&t.costTime)minutes=num(t.costTime)/60;
+  const mats=(t.amsDetailMapping||[]).filter(m=>num(m.weight)>0).map(m=>({g:r2(num(m.weight)),type:m.filamentType||m.targetFilamentType||"",color:hex(m.sourceColor||m.targetColor),filament_id:m.filamentId||"",name:m.filamentType||""}));
+  if(!mats.length&&num(t.weight)>0)mats.push({g:r2(num(t.weight)),type:"",color:"",filament_id:"",name:""});
+  return {key:"c:"+t.id,src:"cloud",id:String(t.id),title:t.title||t.designTitle||"Druck",printer:t.deviceName||t.deviceId||"",serial:String(t.deviceId||""),model:t.deviceModel||"",
+    start:st?st.toISOString():"",end:en?en.toISOString():"",minutes:Math.round(minutes),failed:+t.status===3,running:![2,3].includes(+t.status),grams:num(t.weight)||mats.reduce((a,m)=>a+m.g,0),mats,cover:t.cover||"",plate:t.plateIndex||""};
+}
+function fromHa(i){
+  let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}
+  const minutes=d.start&&d.ende?(new Date(d.ende)-new Date(d.start))/60000:0;
+  const failed=d.status==="failed";const share=failed&&num(d.fortschritt)>0?Math.min(1,num(d.fortschritt)/100):1;
+  const mats=(d.faecher||[]).map(f=>({g:r2(num(f.g)*share),type:f.typ||"",color:hex(f.farbe),filament_id:f.fid||"",name:f.name||f.typ||"",ort:f.ort||""}));
+  if(!mats.length&&num(d.gramm)>0)mats.push({g:r2(num(d.gramm)*share),type:"",color:"",filament_id:"",name:""});
+  const serial=String(d.drucker||"").split("_").pop().toUpperCase();
+  return {key:"h:"+i.uid,src:"ha",uid:i.uid,done:i.status==="completed",title:d.aufgabe||String(d.datei||"").replace(/\.(gcode|3mf)$/gi,"").split("/").pop()||i.summary||"Druck",
+    printer:d.druckername||d.drucker||"",prefix:d.drucker||"",serial,start:d.start||"",end:d.ende||"",minutes:minutes>0&&minutes<20000?Math.round(minutes):0,failed,progress:num(d.fortschritt),
+    grams:r2(mats.reduce((a,m)=>a+m.g,0)),mats,cover:""};
+}
+
+/* --- Laden --- */
+async function loadHa(force){
+  if(S.backend!=="ha"||J.haLoading)return;if(!force&&J.haAt&&Date.now()-J.haAt<60000)return;
+  J.haLoading=true;J.haErr="";redraw();
+  try{const r=await hass().callWS({type:"todo/item/list",entity_id:TODO});J.ha=(r.items||[]).map(fromHa);J.haAt=Date.now()}
+  catch(e){J.haErr=/not.?found|unknown|entity/i.test(String(e&&e.message))?"Die Liste „Druckprotokoll“ (todo.druckprotokoll) fehlt in Home Assistant.":String(e&&e.message||e)}
+  J.haLoading=false;redraw();
+}
+async function loadCloud(force,more){
+  const a=acct();if(!a||J.cloudLoading)return;if(!force&&!more&&J.cloudAt&&Date.now()-J.cloudAt<300000)return;
+  J.cloudLoading=true;J.cloudErr="";redraw();
+  try{const after=more&&J.cloud.length?J.cloud[J.cloud.length-1].id:undefined;
+    const d=await api("my/tasks",{token:a.token,region:a.region,query:{limit:100,after}});
+    const hits=(d.hits||[]).map(fromCloud);const seen=new Set(more?J.cloud.map(x=>x.id):[]);const fresh=hits.filter(h=>!seen.has(h.id));
+    J.cloud=more?J.cloud.concat(fresh):hits;J.more=fresh.length>=100&&num(d.total)>J.cloud.length;J.cloudAt=Date.now()}
+  catch(e){if(e.status===401||e.status===403){J.cloudErr="Die Anmeldung bei Bambu ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else J.cloudErr=String(e&&e.message||e)}
+  J.cloudLoading=false;redraw();
+}
+
+/* --- Zusammenführen und Filtern --- */
+function usedMap(){const m={};const add=(p,where)=>{if(p&&p.job)(p.job.keys||[p.job.key]).filter(Boolean).forEach(k=>{if(!m[k])m[k]=where})};
+  S.orders.forEach(o=>(o.parts||[]).forEach(p=>add(p,"Auftrag "+(o.no||""))));(S.quote&&S.quote.parts||[]).forEach(p=>add(p,"Kalkulation"));return m}
+function all(){
+  const ha=J.ha.map(x=>Object.assign({},x)),out=[];const used=new Set();
+  for(const h of ha){const t=new Date(h.end).getTime();
+    const c=J.cloud.find(c=>!used.has(c.id)&&c.serial&&c.serial.toUpperCase()===h.serial&&c.end&&Math.abs(new Date(c.end).getTime()-t)<15*60000);
+    if(c){used.add(c.id);h.cloud=c;h.cover=c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
+    out.push(h)}
+  J.cloud.forEach(c=>{if(!used.has(c.id))out.push(c)});
+  return out.sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""));
+}
+const keysOf=j=>[j.key].concat(j.cloud?[j.cloud.key]:[]);
+function visible(list,used){
+  const q=J.q.trim().toLowerCase();
+  return list.filter(j=>{if(j.running)return false;
+    if(J.src==="ha"&&j.src!=="ha")return false;if(J.src==="cloud"&&!(j.src==="cloud"||j.cloud))return false;
+    if(J.printer&&j.printer!==J.printer)return false;
+    if(J.open&&(j.done||keysOf(j).some(k=>used[k])))return false;
+    if(q&&!(j.title+" "+j.printer+" "+j.mats.map(m=>m.name+" "+m.type).join(" ")).toLowerCase().includes(q))return false;
+    return true});
+}
+const dayKey=iso=>iso?iso.slice(0,10):"";
+function dayLabel(iso){if(!iso)return "Ohne Datum";const d=new Date(iso);const t=new Date();const y=new Date(Date.now()-864e5);
+  if(d.toDateString()===t.toDateString())return "Heute";if(d.toDateString()===y.toDateString())return "Gestern";
+  return d.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:d.getFullYear()===t.getFullYear()?undefined:"numeric"})}
+const hm=iso=>iso?new Date(iso).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"";
+
+/* --- Darstellung --- */
+let J_list=[];
+function render(m){
+  m=m||$("#main");if(!m)return;
+  const a=acct(),isHa=S.backend==="ha";
+  if(isHa)loadHa(false);if(a)loadCloud(false);
+  const used=usedMap();const list=all();J_list=list;const vis=visible(list,used);
+  for(const k of [...J.sel])if(!list.some(j=>j.key===k))J.sel.delete(k);
+  const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
+  const sources=`<div class="jsrc">
+    ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll · ${J.ha.length}`}</span>`:`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`}
+    ${a?`<span class="chip cl">${J.cloudLoading?"Bambu-Cloud lädt…":J.cloudErr?`<span class="bad">Bambu-Cloud: ${esc(J.cloudErr)}</span>`:`Bambu-Cloud · ${J.cloud.length}`}</span>`:`<button class="btn sm" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button>`}
+  </div>`;
+  let body;
+  if(!isHa&&!a&&!J.cloudErr)body=`<div class="panel empty"><h3>Druckaufträge übernehmen</h3>Hier erscheinen deine fertigen Drucke mit Gewicht je Filament, Druckzeit und Drucker. Du kannst einzelne oder mehrere davon in eine Kalkulation oder einen Auftrag übernehmen.<br><br>
+      Quellen sind das Druckprotokoll aus Home Assistant (in den Einstellungen verbinden) und die Druckhistorie deines Bambu-Kontos.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button><span class="sp"></span></div></div>`;
+  else if(!list.length&&(J.haLoading||J.cloudLoading))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
+  else if(!list.length)body=`<div class="panel empty"><h3>Noch keine Drucke</h3>${isHa?"Sobald ein Drucker einen Druck beendet, trägt Home Assistant ihn ins Druckprotokoll ein.":""}${a?"":" Für ältere Drucke verbinde die Bambu-Cloud."}</div>`;
+  else if(!vis.length)body=`<div class="panel empty">${J.open?"Alle Drucke sind schon übernommen. Schalte „Nur offene“ aus, um sie zu sehen.":"Kein Druck passt zum Filter."}</div>`;
+  else{let html="",lastDay=null;
+    for(const j of vis.slice(0,400)){const dk=dayKey(j.end||j.start);if(dk!==lastDay){html+=`<div class="jday">${esc(dayLabel(j.end||j.start))}</div>`;lastDay=dk}
+      const u=keysOf(j).map(k=>used[k]).find(Boolean);const sel=J.sel.has(j.key);
+      html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
+        <input type="checkbox" ${sel?"checked":""} aria-label="${esc(j.title)} auswählen" tabindex="-1">
+        <div class="thumb" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}">${j.cover?"":ICON.cube}</div>
+        <div style="min-width:0"><h3 title="${esc(j.title)}">${esc(j.title)}</h3>
+          <div class="meta"><span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
+            <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
+            ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
+            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}
+            ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
+        <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
+    body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
+      ${a&&J.more&&J.src!=="ha"?`<div class="row" style="margin-top:8px"><span class="sp"></span><button class="btn sm" data-act="jobMore">Ältere aus der Cloud laden</button><span class="sp"></span></div>`:""}`}
+  const selJ=list.filter(j=>J.sel.has(j.key));
+  const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
+    <button class="btn ghost sm" data-act="jobClear">Auswahl aufheben</button>
+    <button class="btn sm" data-act="jobToOrder">Zu Auftrag hinzufügen</button>
+    <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
+    <button class="btn pri sm" data-act="jobNewOrder">${ICON.save} Neuer Auftrag</button></div>`:"";
+  m.innerHTML=`<div class="stack">
+    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
+      <button class="btn ghost sm" data-act="jobReload">Aktualisieren</button></div>
+    ${sources}
+    ${list.length?`<div class="jhead">
+      <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
+      <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option><option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option></select>
+      <select id="job_pr" aria-label="Drucker"><option value="">Alle Drucker</option>${printers.map(p=>`<option${p===J.printer?" selected":""}>${esc(p)}</option>`).join("")}</select>
+      <label class="chip" style="cursor:pointer"><input type="checkbox" id="job_open" ${J.open?"checked":""} style="margin:0 4px 0 0;accent-color:var(--accent)">Nur offene</label>
+      <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
+    ${body}${bar}
+  </div>`;
+}
+function redraw(){if(S.tab!=="drucke")return;const q=$("#job_q");const foc=q&&document.activeElement===q,pos=q?q.selectionStart:0;render();if(foc){const n=$("#job_q");n.focus();n.setSelectionRange(pos,pos)}}
+
+/* --- Übernehmen --- */
+async function partFromJob(j){
+  const isHa=S.backend==="ha"&&window.HAP;let pr=null;
+  if(isHa){try{await HAP.ensure();pr=HAP.bySerial(j.serial)}catch(e){}}
+  const mats=[];for(const m of j.mats){let id="";try{id=await HAP.mapAms(m)}catch(e){id=mapMaterial(m.type,m.color)}mats.push({matId:id,g:m.g,label:[m.name||m.type,m.ort].filter(Boolean).join(" · "),color:m.color})}
+  let printerId=pr?(HAP.cfgMap(pr.dev).printerId||""):"";
+  if(!printerId){const nm=String(j.printer||"").toLowerCase().replace(/[\s_-]+/g,"");const md=String(j.model||"").toLowerCase().replace(/[\s_-]+/g,"");
+    const hit=S.cfg.printers.find(x=>{const n=x.name.toLowerCase().replace(/[\s_-]+/g,"");return n===nm||(md&&n.startsWith(md)&&(md.includes("mini")===n.includes("mini")))});printerId=hit?hit.id:""}
+  let kwh=0;if(pr&&j.start&&j.end){try{kwh=await HAP.kwhFor(pr.dev,j.start,j.end)}catch(e){}}
+  let thumb="";if(j.cover){try{const r=await fetch(j.cover);if(r.ok)thumb=await blobToThumb(await r.blob())}catch(e){}}
+  return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"?"Druckprotokoll":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
+    mats:mats.length?mats:[{matId:"",g:0}],job:{key:j.key,keys:keysOf(j),printer:j.printer,start:j.start,end:j.end,failed:j.failed}});
+}
+async function markHa(jobs){if(S.backend!=="ha")return;for(const j of jobs)if(j.src==="ha"&&j.uid&&!j.done){try{await hass().callWS({type:"call_service",domain:"todo",service:"update_item",target:{entity_id:TODO},service_data:{item:j.uid,status:"completed"}});j.done=true;const o=J.ha.find(x=>x.uid===j.uid);if(o)o.done=true}catch(e){console.warn("Druckprotokoll",e)}}}
+async function take(mode,orderId,ok){
+  const sel=J_list.filter(j=>J.sel.has(j.key)).sort((a,b)=>(a.end||"").localeCompare(b.end||""));if(!sel.length)return;
+  if(!ok&&S.quote.parts.length&&!S.quote.id&&mode!=="quote"){confirmBox(mode==="new"?"Die aktuelle Kalkulation ist nicht gespeichert und wird ersetzt. Weiter?":"Die aktuelle Kalkulation ist nicht gespeichert und wird durch den Auftrag ersetzt. Weiter?",mode==="new"?"Ersetzen":"Weiter",()=>take(mode,orderId,true));return}
+  toast(sel.length>1?`${sel.length} Drucke werden übernommen…`:"Druck wird übernommen…");
+  const parts=[];for(const j of sel){try{parts.push(await partFromJob(j))}catch(e){console.error(e)}}
+  if(!parts.length){toast("Übernehmen fehlgeschlagen");return}
+  const latest=sel[sel.length-1];
+  if(mode==="new"){
+    S.quote=newQuote();S.quote.name=sel.length===1?sel[0].title:`${sel[0].title} und ${sel.length-1} weitere`;S.quote.status="fertig";
+    if(latest.end)S.quote.date=latest.end.slice(0,10);S.quote.parts=parts;fixRefs();
+  }else if(mode==="order"){
+    const o=byId(S.orders,orderId);if(!o)return;
+    S.quote=clone(o);delete S.quote.sum;S.quote.parts.push(...parts);fixRefs();
+  }else{S.quote.parts.push(...parts)}
+  J.sel.clear();saveDraft();S.tab="rechner";render0();
+  if(mode==="order"){await saveOrder();toast(`${parts.length} Druck${parts.length>1?"e":""} zu Auftrag ${S.quote.no} hinzugefügt`)}
+  else toast(mode==="new"?"Neuer Auftrag vorbereitet. Prüfe Preis und Kunde, dann „Als Auftrag speichern“.":`${parts.length} Druck${parts.length>1?"e":""} in die Kalkulation übernommen`);
+  markHa(sel);
+}
+function orderPick(){
+  const list=S.orders.filter(o=>o.status!=="storniert").sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,60);
+  if(!list.length){toast("Es gibt noch keine Aufträge. Lege mit „Neuer Auftrag“ einen an.");return}
+  modal("Zu Auftrag hinzufügen",`<input type="search" id="jobOrdQ" placeholder="Auftrag suchen"><div class="pick" id="jobOrdList">${ordPickHTML("")}</div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`);
+}
+function ordPickHTML(f){f=f.toLowerCase();const l=S.orders.filter(o=>o.status!=="storniert"&&(!f||(o.no+" "+o.name+" "+o.customer).toLowerCase().includes(f))).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,60);
+  return l.length?l.map(o=>`<button data-act="jobOrdPick" data-id="${o.id}"><span style="flex:1;min-width:0"><b>${esc(o.no)} · ${esc(o.name||"Ohne Bezeichnung")}</b><span class="hint" style="display:block">${esc(o.customer||"–")} · ${dDE(o.date)} · ${esc(statusName(o.status))} · ${o.parts.length} Teil${o.parts.length===1?"":"e"}</span></span>${ICON.plus}</button>`).join(""):`<div class="empty">Kein Treffer.</div>`}
+
+/* --- Einstellungen --- */
+function settingsHTML(){
+  const a=acct();
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Bambu-Cloud</h2></div>
+    ${a?`<div class="note">Verbunden als ${esc(a.account)}${a.region==="cn"?" (China)":""}. Die Anmeldung gilt bis etwa ${new Date(a.exp).toLocaleDateString("de-DE")} und liegt nur in diesem Browser.</div>
+      <div class="row"><button class="btn" data-act="bbOpen">Druckhistorie öffnen</button><button class="btn danger" data-act="bbLogout">Abmelden</button></div>`
+    :`<div class="hint">Mit deinem Bambu-Konto holt Schichtlohn die Druckhistorie aller Drucker, auch ältere Drucke. Sie erscheinen im Reiter „Druckaufträge“.</div><div class="row"><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button></div>`}
+  </section>`;
+}
+
+/* --- Ereignisse --- */
+let render0=()=>window.render?window.render():null;
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+  if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
+  else if(a==="jobAll"){visible(J_list,usedMap()).slice(0,400).forEach(j=>J.sel.add(j.key));redraw()}
+  else if(a==="jobClear"){J.sel.clear();redraw()}
+  else if(a==="jobReload"){loadHa(true);loadCloud(true)}
+  else if(a==="jobMore"){loadCloud(true,true)}
+  else if(a==="jobToQuote")await take("quote");
+  else if(a==="jobNewOrder")await take("new");
+  else if(a==="jobToOrder")orderPick();
+  else if(a==="jobOrdPick"){closeModal();await take("order",b.dataset.id)}
+  else if(a==="bbLogin"){J.login={step:"pw",account:(acct()||{}).account||"",region:"global"};loginModal()}
+  else if(a==="bbNext"){await loginSubmit(J.login?J.login.step:"pw")}
+  else if(a==="bbResend"){await loginSubmit("resend")}
+  else if(a==="bbLogout"){confirmBox("Von der Bambu-Cloud abmelden? Der Anmeldeschlüssel wird aus diesem Browser gelöscht.","Abmelden",()=>{setAcct(null);J.cloud=[];J.cloudAt=0;render0();toast("Abgemeldet")})}
+  else if(a==="bbOpen"){S.tab="drucke";render0()}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.closest&&e.target.closest("#modal")&&$('[data-act="bbNext"]')&&e.target.tagName==="INPUT"){e.preventDefault();$('[data-act="bbNext"]').click()}
+  if((e.key===" "||e.key==="Enter")&&e.target.classList&&e.target.classList.contains("job")){e.preventDefault();e.target.click()}});
+document.addEventListener("input",e=>{const t=e.target;if(t.id==="job_q"){J.q=t.value;redraw()}else if(t.id==="jobOrdQ"){$("#jobOrdList").innerHTML=ordPickHTML(t.value)}});
+document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.src=t.value;redraw()}else if(t.id==="job_pr"){J.printer=t.value;redraw()}else if(t.id==="job_open"){J.open=t.checked;redraw()}});
+
+window.JOBS={render,settingsHTML,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 })();
 </script>
 

@@ -1,6 +1,6 @@
 # Schichtlohn
 
-Preisrechner für 3D-Drucke. Läuft komplett im Browser, ohne Server und ohne Konto.
+Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 
 **Öffnen:** https://schichtlohn.pages.dev/ (alternativ https://mitkiprogrammieren.github.io/Schichtlohn/)
 
@@ -10,6 +10,7 @@ Preisrechner für 3D-Drucke. Läuft komplett im Browser, ohne Server und ohne Ko
 - **Datei-Import:** `.gcode.3mf` und `.3mf` aus Bambu Studio oder Orca Slicer (Druckzeit, Gewicht je Filament, Vorschaubild), `.gcode`, sowie `.stl` und ungeslicte `.3mf` als Schätzung über das Volumen.
 - **Portfolio:** häufige Produkte mit Bild, Gewicht und Druckzeit speichern.
 - **Aufträge:** Status vom Angebot bis zur Bezahlung verfolgen.
+- **Druckaufträge:** fertige Drucke aus dem Home-Assistant-Druckprotokoll und der Bambu-Cloud-Historie übernehmen, auch mehrere in einen Auftrag.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
 
@@ -29,3 +30,11 @@ In Safari öffnen, Teilen → „Zum Home-Bildschirm“. Schichtlohn startet dan
 2. Ein Dashboard mit einer Ansicht vom Typ **Panel** anlegen und die Karte `type: custom:schichtlohn-card` einsetzen.
 
 In Home Assistant werden die Daten im HA-Benutzerkonto gespeichert (auf allen Geräten gleich), und Materialien lassen sich aus dem FilamentLager (`todo.filament`) übernehmen.
+
+### Druckprotokoll
+
+Eine Automation schreibt jeden beendeten oder abgebrochenen Druck in die To-do-Liste `todo.druckprotokoll` (Drucker, Aufgabe, Start, Ende, Gramm je AMS-Fach mit Material und Farbe). Schichtlohn zeigt diese Drucke im Reiter **Druckaufträge**; übernommene Einträge werden in der Liste abgehakt.
+
+## Bambu-Cloud
+
+Unter **Einstellungen → Bambu-Cloud** meldest du dich mit deinem Bambu-Lab-Konto an (E-Mail, Passwort, Bestätigungscode). Das Passwort wird nicht gespeichert, nur der Anmeldeschlüssel im Browser. Weil die Bambu-API keine Aufrufe direkt aus dem Browser erlaubt, läuft der Abruf über `functions/bambu/` (Cloudflare Pages Function auf schichtlohn.pages.dev), die nur Anmeldung und Druckhistorie durchreicht und nichts speichert. Die Schnittstelle ist inoffiziell und kann sich ändern.
