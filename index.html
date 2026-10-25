@@ -2109,6 +2109,15 @@ function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
   if(sl&&base)for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext,own:true});
   const d=logoDomain(name);if(d)out.push({u:"https://www.google.com/s2/favicons?sz=128&domain="+encodeURIComponent(d),own:false});
   return out.filter(x=>!logoMiss.has(x.u))}
+/* Scroll-Schutz: springt die Seite ohne eigenes Scrollen (z. B. wenn die Karte neu zeichnet), zurück an die alte Stelle */
+let lastY=0,userT=0,guardUntil=0;
+["wheel","touchmove","touchstart","keydown","mousedown"].forEach(t=>addEventListener(t,()=>{userT=Date.now()},{passive:true,capture:true}));
+addEventListener("scroll",()=>{if(S.tab!=="lager")return;if(Date.now()<guardUntil&&Date.now()-userT>700)return;lastY=scrollY},{passive:true});
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-tab]"))lastY=0},true);
+function guard(){if(S.tab!=="lager")return;const want=lastY;if(want<60||Date.now()-userT<700)return;guardUntil=Date.now()+900;
+  const fix=()=>{if(S.tab==="lager"&&Date.now()-userT>700&&Math.abs(scrollY-want)>40)scrollTo(0,want)};
+  requestAnimationFrame(()=>{fix();requestAnimationFrame(fix);setTimeout(fix,250)})}
+{const m=document.getElementById("main");if(m)new MutationObserver(()=>{if(S.tab==="lager")guard()}).observe(m,{childList:true,subtree:true})}
 function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
   r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
     const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";
@@ -2118,7 +2127,7 @@ function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
       if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
       img.style.visibility=""};
     img.onerror=()=>{logoMiss.add(img.src);next()};gh.appendChild(img);next()})}
-function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
+function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{guard();clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
 async function ensure(){
   if(L.el)return;if(L.p)return L.p;
   L.p=(async()=>{shims();await loadCode();const f=await findCfg();L.title=f.cfg.title||"FilamentLager";L.cfg=Object.assign({},f.cfg,{title:""});L.link=f.link;
