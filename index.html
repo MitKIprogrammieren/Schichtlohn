@@ -1280,10 +1280,12 @@ function printers(){
       if(id.startsWith("image.")&&COVER.test(oid))cover=id});
     if(!roles.status)continue;
     const d=reg.devs[dev]||{};const model=(roles.status.split(".")[1].split("_")[0]||"").toLowerCase();
-    const name=val(roles.pname)||d.name_by_user||d.name||model.toUpperCase();
+    const mp=(S.cfg.haMap&&S.cfg.haMap[dev]&&S.cfg.haMap[dev].printerId)?byId(S.cfg.printers,S.cfg.haMap[dev].printerId):null;
+    const name=val(roles.pname)||d.name_by_user||(mp&&mp.name)||d.name||model.toUpperCase();
     out.push({dev,roles,cover,trays,ext,model,name});
   }
-  return out.sort((a,b)=>a.name.localeCompare(b.name));
+  const off=p=>BAD.has(String((st(p.roles.status)||{}).state||"").toLowerCase())?1:0;
+  return out.sort((a,b)=>off(a)-off(b)||a.name.localeCompare(b.name));
 }
 function trayInfo(p,key){
   let id=null;const m=String(key).match(/AMS\s*(\d+)\s*Tray\s*(\d+)/i);
@@ -1371,27 +1373,52 @@ async function reload(){
   try{await loadRegistry(true);list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}catch(e){lastErr=String(e&&e.message||e);list=[]}
   loading=false;redrawPanel();
 }
-function statusText(s){const map={running:"Druckt",prepare:"Bereitet vor",pause:"Pausiert",finish:"Fertig",failed:"Fehlgeschlagen",idle:"Bereit",offline:"Offline",slicing:"Slict",init:"Startet"};return map[s]||s}
+function statusText(s){const map={unavailable:"Nicht erreichbar",unknown:"Unbekannt",running:"Druckt",prepare:"Bereitet vor",pause:"Pausiert",finish:"Fertig",failed:"Fehlgeschlagen",idle:"Bereit",offline:"Offline",slicing:"Slict",init:"Startet"};return map[s]||s}
 function panelHTML(){
   if(loading&&!list.length)return `<div class="empty">Drucker werden aus Home Assistant geladen…</div>`;
   if(lastErr)return `<div class="note">Home Assistant konnte nicht gelesen werden: ${esc(lastErr)}</div>`;
   if(!list.length)return `<div class="note">In Home Assistant wurden keine Bambu-Lab-Drucker gefunden. Schichtlohn erwartet die Integration „Bambu Lab“ (ha-bambulab).</div><div class="row"><button class="btn sm" data-act="haReload">Neu laden</button></div>`;
-  return `<div class="stack" style="gap:10px">${list.map(p=>{const s=p.snap||snapshot(p);const cls=s.running?"st-run":s.status==="finish"?"st-fin":s.status==="failed"?"st-fail":"";
+  const q=hq.trim().toLowerCase();
+  return `<div class="stack" style="gap:10px">${list.length>2?`<input type="search" id="ha_q" placeholder="Drucker suchen: Name, Modell, Status oder Druck" value="${esc(hq)}" aria-label="Drucker suchen">`:""}
+    <div class="stack" id="haList" style="gap:10px">${printerCards(q)}</div>
+    <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler.</span><span class="sp"></span><button class="btn sm ghost" data-act="haReload">Aktualisieren</button></div></div>`;
+}
+let hq="";
+function printerCards(q){
+  const vis=list.filter(p=>{if(!q)return true;const s=p.snap||snapshot(p);return [p.name,p.model,statusText(s.status),s.status,s.task].join(" ").toLowerCase().includes(q)});
+  if(!vis.length)return `<div class="empty">Kein Drucker passt zu „${esc(hq)}“.</div>`;
+  return `${vis.map(p=>{const s=p.snap||snapshot(p);const cls=s.running?"st-run":s.status==="finish"?"st-fin":s.status==="failed"?"st-fail":"";
     const hasJob=s.weight>0;
     return `<div class="prn"><div class="thumb" data-cover="${esc(p.dev)}">${ICON.cube}</div><div style="min-width:0">
       <div class="row" style="gap:8px"><h3>${esc(p.name)}</h3><span class="chip ${cls}">${esc(statusText(s.status))}${s.running?` · ${N0.format(s.progress)} %`:""}</span></div>
       <div class="meta">${s.task?`<span>${esc(s.task)}</span>`:""}${hasJob?`<span class="num">${g(s.weight)}</span>`:""}${s.mats.length>1?`<span>${s.mats.length} Filamente</span>`:""}${s.running&&s.remaining?`<span>noch ${dur(s.remaining*60)}</span>`:""}</div>
       ${s.running?`<div class="pbar"><i style="width:${Math.min(100,s.progress)}%"></i></div>`:""}
       <div class="acts">${hasJob?`<button class="btn sm pri" data-act="haImport" data-dev="${esc(p.dev)}">${ICON.plus} ${s.running?"Laufenden Druck übernehmen":"Letzten Druck übernehmen"}</button>`:`<span class="hint">Noch kein Druck gespeichert.</span>`}</div>
-    </div></div>`}).join("")}
-    <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler.</span><span class="sp"></span><button class="btn sm ghost" data-act="haReload">Aktualisieren</button></div></div>`;
+    </div></div>`}).join("")}`;
 }
 function redrawPanel(){if(S.tab!=="rechner"||S.addMode!=="drucker")return;const sec=document.querySelector('[aria-label="Teil hinzufügen"]');if(!sec)return;
   const old=sec.querySelector(".ha-panel");const html=`<div class="ha-panel">${panelHTML()}</div>`;
   if(old)old.outerHTML=html;else{const seg=sec.querySelector(".row");seg.insertAdjacentHTML("afterend",html);[...sec.children].forEach(ch=>{if(ch!==seg&&!ch.classList.contains("ha-panel"))ch.remove()})}
   loadCovers()}
-async function loadCovers(){for(const p of list){const el=document.querySelector(`[data-cover="${CSS.escape(p.dev)}"]`);if(!el||el.dataset.done)continue;el.dataset.done=1;const s=p.snap;if(!s||!s.cover)continue;
-  if(!isWS()){el.style.backgroundImage=`url('${s.cover}')`;el.innerHTML=""}else{el.style.backgroundImage=`url('${window.__hass.__base+s.cover}')`;el.innerHTML=""}}}
+/* Vorschaubilder: in der Online-Version mit signierter Adresse (gilt 10 Minuten), sonst mit der Adresse aus dem Bild-Entity */
+const coverCache={};
+async function coverSrc(p){
+  if(!p.cover)return [];const out=[];const s=st(p.cover);const pic=s&&s.attributes&&s.attributes.entity_picture;
+  if(isWS()){const c=coverCache[p.cover];
+    if(c&&Date.now()-c.t<480000)out.push(c.u);
+    else{try{const r=await window.__hass.callWS({type:"auth/sign_path",path:"/api/image_proxy/"+p.cover,expires:600});if(r&&r.path){const u=window.__hass.__base+r.path;coverCache[p.cover]={u,t:Date.now()};out.push(u)}}catch(e){}}
+    if(pic)out.push(window.__hass.__base+pic);
+  }else if(pic)out.push(pic);
+  return out;
+}
+function tryImg(urls,el){if(!urls.length)return;const u=urls[0];const i=new Image();
+  i.onload=()=>{if(!el.isConnected)return;el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""};
+  i.onerror=()=>tryImg(urls.slice(1),el);i.src=u}
+async function loadCovers(){for(const p of list){const el=document.querySelector(`[data-cover="${CSS.escape(p.dev)}"]`);if(!el||el.dataset.done)continue;el.dataset.done=1;
+  const sn=(p.roles.status.split(".")[1].split("_")[1]||"").toUpperCase();
+  const cloud=async()=>{if(!window.JOBS||!JOBS.coverFor)return [];const c=await JOBS.coverFor(sn);return c?[c]:[]};
+  const haOk=p.cover&&!BAD.has(String((st(p.cover)||{}).state||"unavailable").toLowerCase());
+  (haOk?coverSrc(p):Promise.resolve([])).then(async u=>tryImg(u.concat(await cloud()),el)).catch(()=>{})}}
 async function importJob(dev){
   const p=list.find(x=>x.dev===dev);if(!p)return;toast("Druck wird übernommen…");
   try{await loadRegistry(false);const j=await job(p);
@@ -1503,6 +1530,7 @@ document.addEventListener("click",async e=>{
     catch(err){msg.textContent="Verbindung fehlgeschlagen: "+(err&&err.message||err)}}
   else if(a==="haDisconnect"){confirmBox("Verbindung zu Home Assistant trennen? Diese Seite nutzt danach wieder die Daten, die nur in diesem Browser liegen.","Trennen",()=>{try{localStorage.removeItem(CONN_KEY)}catch(e){}location.reload()})}
 });
+document.addEventListener("input",e=>{const t=e.target;if(t.id!=="ha_q")return;hq=t.value;const box=document.getElementById("haList");if(box){box.innerHTML=printerCards(hq.trim().toLowerCase());loadCovers()}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.dataset.hamap){cfgMap(t.dataset.hamap)[t.dataset.k]=t.value;saveCfgSoon();toast("Gespeichert")}
   else if(t.dataset.amskey){S.cfg.amsMap=S.cfg.amsMap||{};if(t.value)S.cfg.amsMap[t.dataset.amskey]=t.value;else delete S.cfg.amsMap[t.dataset.amskey];saveCfgSoon();toast("Gespeichert")}
@@ -1807,7 +1835,14 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.closest&&e.
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="job_q"){J.q=t.value;redraw()}else if(t.id==="jobOrdQ"){$("#jobOrdList").innerHTML=ordPickHTML(t.value)}});
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.src=t.value;redraw()}else if(t.id==="job_pr"){J.printer=t.value;redraw()}else if(t.id==="job_open"){J.open=t.checked;redraw()}});
 
-window.JOBS={render,settingsHTML,cloudStatus,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+let coverP=null;
+async function coverFor(serial){
+  if(!serial||!acct())return "";
+  if(!J.cloud.length&&!J.cloudErr){if(!coverP)coverP=loadCloud(false).finally(()=>{coverP=null});await coverP}
+  const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
+  return t?t.cover:"";
+}
+window.JOBS={render,settingsHTML,cloudStatus,coverFor,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
