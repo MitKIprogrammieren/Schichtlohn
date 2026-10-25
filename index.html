@@ -1964,6 +1964,47 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act=lagerR
 window.LAGER={render,_L:L};
 })();
 </script>
+<style>
+#main .fold>.sec-title{cursor:pointer;user-select:none;-webkit-user-select:none}
+#main .fold>.sec-title h2{display:flex;align-items:center;gap:8px}
+#main .fold>.sec-title:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fold>.sec-title .chev{width:16px;height:16px;flex:none;color:var(--fg-3);transition:transform .15s}
+.fold.zu>.sec-title .chev{transform:rotate(-90deg)}
+.fold.zu>:not(.sec-title){display:none!important}
+.fold.zu>.sec-title>:not(h2){display:none!important}
+.fold.zu>.sec-title{margin-bottom:0!important;min-height:0}
+.panel.pad.fold.zu{padding-top:12px;padding-bottom:12px}
+.panel.pad.fold.zu.stack{gap:0}
+[data-skin="bambu"] .panel.pad.fold.zu{padding-top:16px;padding-bottom:0}
+[data-skin="bambu"] .panel.pad.fold.zu>.sec-title:first-child{margin-bottom:0!important;border-bottom:0;border-radius:var(--r)}
+</style>
+<script>
+/* ===== Einstellungen: Abschnitte einklappbar, Zustand je Gerät gemerkt ===== */
+(function(){
+const KEY="schichtlohn_fold";let open={};try{open=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open))}catch(e){}};
+const CHEV='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+function secs(){return [...document.querySelectorAll("#main section.panel")].filter(s=>s.querySelector(":scope>.sec-title h2"))}
+function apply(){
+  if(S.tab!=="einstellungen")return;
+  const list=secs();if(!list.length)return;
+  for(const sec of list){const t=sec.querySelector(":scope>.sec-title"),h=t.querySelector("h2");
+    const k=h.textContent.trim();sec.dataset.fold=k;
+    if(!sec.classList.contains("fold")){sec.classList.add("fold");h.insertAdjacentHTML("afterbegin",CHEV);t.setAttribute("role","button");t.tabIndex=0}
+    sec.classList.toggle("zu",!open[k]);t.setAttribute("aria-expanded",String(!!open[k]))}
+  const head=document.querySelector("#main .stack>.row");
+  if(head&&!head.querySelector("[data-act=foldAll]"))head.insertAdjacentHTML("beforeend",'<span class="sp"></span><button class="btn ghost sm" data-act="foldAll"></button>');
+  const b=document.querySelector("#main [data-act=foldAll]");if(b)b.textContent=list.some(s=>s.classList.contains("zu"))?"Alle aufklappen":"Alle zuklappen";
+}
+function toggle(sec,want){const k=sec.dataset.fold;open[k]=want===undefined?sec.classList.contains("zu"):want;save();apply()}
+document.addEventListener("click",e=>{
+  const all=e.target.closest("#main [data-act=foldAll]");
+  if(all){const any=secs().some(s=>s.classList.contains("zu"));secs().forEach(s=>{open[s.dataset.fold]=any});save();apply();return}
+  const t=e.target.closest("#main .fold>.sec-title");if(!t||e.target.closest("button,select,input,a,label"))return;toggle(t.parentElement)});
+document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("#main .fold>.sec-title")){e.preventDefault();toggle(e.target.parentElement)}});
+const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).observe(m,{childList:true});
+})();
+</script>
 
 </body>
 </html>
