@@ -768,6 +768,7 @@ function renderSettings(m){
 
     <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
       <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
+      <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","Schichtlohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
     </section>
 
@@ -1015,6 +1016,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
+  if(t.id==="lagerModus"){try{localStorage.setItem("schichtlohn_lagermodus",t.value)}catch(e){}toast("Gespeichert");return}
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
@@ -2327,7 +2329,23 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 </script>
 <style>
 .lgbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.lgbar input[type=search]{flex:1 1 220px;width:auto;min-width:160px}
+.lgsearch{position:relative;flex:0 1 380px;min-width:200px;display:flex;align-items:center}
+.lgsearch>svg{position:absolute;left:12px;width:16px;height:16px;color:var(--fg-3);pointer-events:none}
+.lgsearch input[type=search]{width:100%;height:36px;padding:0 34px 0 36px;border-radius:999px;font-size:13px;background:var(--sunken,rgba(127,127,127,.08));border:1px solid var(--line);transition:border-color .15s,background .15s,box-shadow .15s}
+.lgsearch input[type=search]::-webkit-search-cancel-button{display:none}
+.lgsearch input[type=search]:hover{border-color:var(--line-2,var(--line))}
+.lgsearch input[type=search]:focus{outline:none;border-color:var(--accent);background:var(--glass,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.lgsearch:focus-within>svg{color:var(--accent)}
+.lgsearch .lgclr{position:absolute;right:5px;width:26px;height:26px;border-radius:50%;border:0;background:transparent;color:var(--fg-3);display:grid;place-items:center;cursor:pointer}
+.lgsearch .lgclr:hover{background:var(--sunken,rgba(127,127,127,.15));color:var(--fg)}
+.lgsearch .lgclr svg{width:14px;height:14px}
+[data-skin="bambu"] .lgsearch input[type=search]{border-radius:8px}
+.lgbar .lgtb{height:36px;padding:0 12px;gap:6px;border-radius:999px;font-size:13px}
+[data-skin="bambu"] .lgbar .lgtb{border-radius:8px}
+.lgbar .lgtb svg{width:15px;height:15px}
+.lgbar select.lgsort{width:auto;flex:0 0 auto;max-width:200px;height:36px;border-radius:999px;padding:0 32px 0 14px;font-size:13px;background-color:var(--sunken,rgba(127,127,127,.08))}
+[data-skin="bambu"] .lgbar select.lgsort{border-radius:8px}
+@media (max-width:620px){.lgsearch{flex:1 1 100%}.lgbar .lgtb{flex:1 1 0;justify-content:center}.lgbar select.lgsort{flex:1 1 100%;max-width:none}}
 .lgbar select{width:auto;flex:0 1 auto;max-width:190px}
 .lgbar select.on{border-color:var(--accent);color:var(--accent)}
 .lgbar .lgfb.on{border-color:var(--accent);color:var(--accent)}
@@ -2335,7 +2353,14 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfx{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lgfx select{width:auto;flex:0 1 auto;max-width:190px}
 .lgfx select.on{border-color:var(--accent);color:var(--accent)}
-.lghead{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px 16px}
+.lghead{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.lgtop{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.lgtop .lstat{display:contents}
+.lgbestw{display:contents}
+.lgbest .dt{flex:none}
+.lgtop .dcard.kompakt{flex-wrap:wrap;row-gap:10px;align-content:flex-start}
+.lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:space-between;flex-wrap:nowrap;gap:12px}
+.lgtop .dcard.kompakt a.btn{position:absolute;top:10px;right:10px}
 .lghead .lgact{flex-wrap:nowrap}
 .lghead h1{margin:0}
 .lghead .lgsum{justify-self:center;text-align:center}
@@ -2619,7 +2644,7 @@ function rowHTML(e,orte,fu,E){
   return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}
     <div style="min-width:0"><div class="lgn">${esc(name(e))}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
-function body(){return body0().replace("__ALLZU__",G._allZu?"Alle aufklappen":"Alle einklappen")}
+function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>Alle aufklappen`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5-5 5 5"/></svg>Alle einklappen`)}
 function body0(){G._allZu=false;
   const E=ein();const all=entries();const sl=slots();const fu=feuchte();
   const imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
@@ -2635,14 +2660,14 @@ function body0(){G._allZu=false;
   const leerN=all.filter(e=>e.spulen<=0).length;const nF=Object.values(fl).filter(Boolean).length;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
-  let h=`<div class="lghead"><h1>Lager</h1>
-    <div class="lgsum" title="${spulen-refills} mit Spule, ${refills} Refill"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen</span></div>
-    <div class="lgact"><select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
-      <button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div></div>\u0001
-    <div class="lgbar"><input type="search" id="lgq" placeholder="Suchen: Farbe, Marke, Material, Code, AMS …" value="${esc(G.q)}">
-      <button class="btn sm lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}">Filter${nF?`<b>${nF}</b>`:""}</button>
-      <button class="btn ghost sm" data-act="lgAllZu">__ALLZU__</button>
-      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}<button class="btn ghost sm" data-act="lgMode" data-v="karte" title="Die Karte aus Home Assistant anzeigen">HA-Karte</button></div>
+  let h=`<div class="dcard kompakt lgbest"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>\u0002<div class="lghead">
+    <div class="lgact"><button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div></div>\u0001
+    <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
+      <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
+      <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
+      <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
+      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
@@ -2690,13 +2715,13 @@ function decorate(){
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="";
 function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
-  const hb=$("#lgHead");if(hb&&hd!==lastHead){const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=hd}}
+  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb)bb.innerHTML=p[0];const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=p[1]||""}}
   if(h===lastHTML)return;
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
   if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
 function render(m){
-  m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lstat" id="lagerStatus"></div><div class="stack" id="lgList"></div></div>`;
+  m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
   lastHTML="";lastHead="";if(L())L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
@@ -2917,6 +2942,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgReset"){G.q="";G.f={};savePref();draw();return}
   if(a==="lgGrp"){if(e.target.closest("button,a,select,input"))return;const z=b.dataset.z,i=G.zu.indexOf(z);if(i<0)G.zu.push(z);else G.zu.splice(i,1);savePref();draw(0);return}
   if(a==="lgAllZu"){const keys=[...document.querySelectorAll("#lgList .lgp[data-gk]>.row.pad")].map(r=>r.dataset.z);const sort=keys.length?keys[0].split(":")[0]:"";G.zu=G.zu.filter(z=>!z.startsWith(sort+":"));if(!G._allZu)G.zu.push(...keys);savePref();draw(0);return}
+  if(a==="lgQClear"){G.q="";draw(0);setTimeout(()=>{const n=document.getElementById("lgq");if(n)n.focus()},60);return}
   if(a==="lgFilt"){G.showF=!G.showF;savePref();draw(0);return}
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
