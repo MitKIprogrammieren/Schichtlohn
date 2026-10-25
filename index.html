@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1b1b1d" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="description" content="Schichtlohn: Preise für 3D-Drucke kalkulieren – Datei-Import aus Bambu Studio und Orca, Portfolio, Aufträge und PDF-Angebote.">
+<meta name="description" content="SchichtLohn: Preise für 3D-Drucke kalkulieren – Datei-Import aus Bambu Studio und Orca, Portfolio, Aufträge und PDF-Angebote.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Schichtlohn">
+<meta name="apple-mobile-web-app-title" content="SchichtLohn">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
 </head>
 <body>
-<title>Schichtlohn</title>
+<title>SchichtLohn</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap">
@@ -56,6 +56,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .topin{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:12px}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.02em}
 .brand svg{width:32px;height:32px;color:var(--accent)}
+.mpick{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:6px}.mpick select:only-child{grid-column:1/-1}
 .brand small{display:block;font:500 11px/1 var(--f-body);color:var(--fg-3);letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
 nav.tabs{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none;max-width:100%}
 nav.tabs::-webkit-scrollbar{display:none}
@@ -111,7 +112,7 @@ select option{background:var(--solid);color:var(--fg)}
 .seg button[aria-pressed="true"]{background:var(--glass-2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line-2)}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--sunken);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--fg-2)}
 .dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
-.setup{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.setup{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .part{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:14px;border-top:1px solid var(--line)}
 .part:first-child{border-top:0}
 .thumb{width:64px;height:64px;border-radius:10px;background:var(--sunken) center/cover no-repeat;border:1px solid var(--line);display:grid;place-items:center;color:var(--fg-3)}
@@ -202,7 +203,7 @@ table.list tr.click:hover td{background:var(--glass)}
   <div class="wrap topin">
     <div class="brand">
       <svg viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="slTag"><path d="M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z"/></clipPath><mask id="slHole"><rect width="48" height="48" fill="#fff"/><circle cx="33.5" cy="15.5" r="4.4" fill="#000"/></mask></defs><g clip-path="url(#slTag)" mask="url(#slHole)" fill="currentColor"><rect x="0" y="8.0" width="48" height="2.4"/><rect x="0" y="11.4" width="48" height="2.4"/><rect x="0" y="14.8" width="48" height="2.4"/><rect x="0" y="18.2" width="48" height="2.4"/><rect x="0" y="21.6" width="48" height="2.4"/><rect x="0" y="25.0" width="48" height="2.4"/><rect x="0" y="28.4" width="48" height="2.4"/><rect x="0" y="31.8" width="48" height="2.4"/><rect x="0" y="35.2" width="48" height="2.4"/><rect x="0" y="38.6" width="48" height="2.4"/></g><circle cx="33.5" cy="15.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M33.5 12.9V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
-      <div>Schichtlohn<small>Druckpreise kalkulieren</small></div>
+      <div>SchichtLohn<small>Druckpreise kalkulieren</small></div>
     </div>
     <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>Bambu Cloud</span></button></span>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
@@ -452,7 +453,49 @@ function render(){
 function opt(list,sel,empty){return (empty?`<option value="">${esc(empty)}</option>`:"")+list.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.name)}</option>`).join("")}
 function unitIn(bind,val,u,extra=""){return `<div class="unit"><input type="text" inputmode="decimal" data-bind="${bind}" value="${inV(val)}" ${extra}><em>${u}</em></div>`}
 
+
+/* ---------- Materialwahl: erst Marke, dann Filamentart (aus FilamentLager und eigenen Materialien) ---------- */
+const MP_ALLG="Allgemein";
+function mpLagerBrand(m){if(m.brand)return m.brand;if(m.lagerUid&&S.lager){const x=S.lager.find(y=>y.uid===m.lagerUid);if(x&&x.brand)return x.brand}return ""}
+/* Bambu-Lab-Katalog, EU-Preise je kg mit Spule (Händlerpreise inkl. MwSt., Stand Oktober 2026) */
+const MP_KAT={"Bambu Lab":[["PLA",[],"PLA Basic",19.92],["PLA",["Matt"],"PLA Matt",19.92],["PLA",["Tough+"],"PLA Tough+",26.39],["PLA",["Pure"],"PLA Pure",21.84],
+  ["PLA",["Transparent"],"PLA Translucent",19.92],["PLA",["Seide"],"PLA Silk",23.27],["PLA",["Metallic"],"PLA Metal",27.35],["PLA",["Marmor"],"PLA Marble",27.35],
+  ["PLA",["Glitzer"],"PLA Sparkle",27.35],["PLA",["Leuchtend"],"PLA Glow",27.35],["PLA",["Holz"],"PLA Wood",27.35],["PLA",["Aero"],"PLA Aero",46.91],["PLA",["CF"],"PLA-CF",29.99],
+  ["PETG",[],"PETG Basic",18.96],["PETG",["HF"],"PETG HF",19.92],["PETG",["Transparent"],"PETG Translucent",19.92],["PETG",["CF"],"PETG-CF",30.24],
+  ["ABS",[],"ABS",19.92],["ASA",[],"ASA",24.42],["TPU",["85A","HF"],"TPU 85A HF (für AMS)",39.11],["TPU",["95A","HF"],"TPU 95A HF",34.19],["PC",[],"PC",42.99],["PAHT",["CF"],"PAHT-CF",107.98]]};
+const mpKey=(brand,type,bes)=>(brand+"|"+[...String(type||"").replace(/-/g," ").split(/\s+/),...(bes||[])].filter(Boolean).map(x=>x.toUpperCase()).sort().join(" ")).toLowerCase();
+function mpKinds(){const out=[],seen=new Set();
+  const avgPrice=list=>{const p=list.filter(x=>x.price>0&&x.weight>0).map(x=>x.price/x.weight*1000);return p.length?r2(p.reduce((a,b)=>a+b,0)/p.length):null};
+  const kat={};Object.entries(MP_KAT).forEach(([brand,arr])=>arr.forEach(([t,b,l,p])=>{kat[mpKey(brand,t,b)]={brand,type:t,label:l,price:p}}));
+  if(S.lager){const gr={};S.lager.forEach(x=>{if(!x.type)return;const bes=(x.bes||[]).filter(b=>!/^(basic)$/i.test(b)).slice().sort();const brand=x.brand||MP_ALLG;
+      const key=mpKey(brand,x.type,bes);(gr[key]=gr[key]||{key,brand,label:[x.type,...bes].join(" "),type:x.type,items:[]}).items.push(x)});
+    Object.values(gr).forEach(g=>{const td=TYPE_DEFAULTS[typeKey(g.type)]||{p:20,d:1.24};const pr=avgPrice(g.items);const m=S.cfg.materials.find(y=>y.kindKey===g.key);const k=kat[g.key];
+      out.push({key:g.key,brand:g.brand,label:k?k.label:g.label,type:g.type,price:m?num(m.price):(pr??(k?k.price:td.p)),density:td.d,hex:g.items[0].hex,n:g.items.length,matId:m?m.id:"",lager:true});seen.add(g.key)})}
+  Object.entries(kat).forEach(([key,k])=>{if(seen.has(key))return;const td=TYPE_DEFAULTS[typeKey(k.type)]||{p:20,d:1.24};const m=S.cfg.materials.find(y=>y.kindKey===key);
+    out.push({key,brand:k.brand,label:k.label,type:k.type,price:m?num(m.price):k.price,density:td.d,hex:"#888888",matId:m?m.id:"",katalog:true});seen.add(key)});
+  S.cfg.materials.forEach(m=>{if(m.kindKey&&seen.has(m.kindKey))return;const brand=mpLagerBrand(m)||MP_ALLG;let label=m.name||"";if(brand!==MP_ALLG&&label.toLowerCase().startsWith(brand.toLowerCase()+" "))label=label.slice(brand.length+1);
+    out.push({key:"m:"+m.id,brand,label,type:m.type,price:num(m.price),hex:m.hex,matId:m.id})});
+  return out}
+function mpBrands(kinds){const b=[...new Set(kinds.map(k=>k.brand))];return b.sort((a,c)=>a===MP_ALLG?-1:c===MP_ALLG?1:a.localeCompare(c,"de"))}
+function mpResolve(k){if(k.matId)return k.matId;const m={id:uid(),name:(k.brand===MP_ALLG?"":k.brand+" ")+k.label,brand:k.brand===MP_ALLG?"":k.brand,type:k.type,hex:k.hex||"#888888",price:k.price,density:k.density||1.24,kindKey:k.key};
+  S.cfg.materials.push(m);saveCfgSoon();return m.id}
+function matPick(target,matId,inherit,split){const kinds=mpKinds(),cur=matId?kinds.find(k=>k.matId===matId):null;const st=(S._mpBrand=S._mpBrand||{});
+  let brand=st[target]!==undefined?st[target]:(cur?cur.brand:(inherit?"":(kinds[0]?kinds[0].brand:MP_ALLG)));
+  const brands=mpBrands(kinds);const list=kinds.filter(k=>k.brand===brand).sort((a,b)=>a.label.localeCompare(b.label,"de"));
+  const eu=v=>v>0?" · "+String(r2(v)).replace(".",",")+" €/kg":"";
+  if(split){const h=`<div class="mpick">`;const html=matPick(target,matId,inherit,false);const m=html.match(/^<div class="mpick">(<select data-mp="brand"[\s\S]*?<\/select>)\s*([\s\S]*)<\/div>$/);
+    if(m)return `<label class="field"><span>Marke</span>${m[1]}</label><label class="field"><span>Filament</span>${m[2]||'<select disabled><option>–</option></select>'}</label>`;return html}
+  return `<div class="mpick"><select data-mp="brand" data-mt="${esc(target)}" aria-label="Marke">${inherit?`<option value=""${brand===""?" selected":""}>${esc(inherit)}</option>`:""}${brands.map(b=>`<option value="${esc(b)}"${b===brand?" selected":""}>${esc(b)}</option>`).join("")}</select>
+    ${brand===""&&inherit?"":`<select data-mp="kind" data-mt="${esc(target)}" aria-label="Filament">${cur&&cur.brand===brand?"":`<option value="" selected disabled>Filament wählen …</option>`}${(()=>{const o=k=>`<option value="${esc(k.key)}"${cur&&cur.key===k.key?" selected":""}>${esc(k.label)}${eu(k.price)}</option>`;const im=list.filter(k=>!k.katalog),ka=list.filter(k=>k.katalog);
+      return im.length&&ka.length?`<optgroup label="Im Lager / eigene">${im.map(o).join("")}</optgroup><optgroup label="Katalog (nicht im Lager)">${ka.map(o).join("")}</optgroup>`:list.map(o).join("")})()}</select>`}</div>`}
+function mpSet(target,id){if(target==="q"){S.quote.matId=id}else{const [pid,i]=target.split(":");const p=S.quote.parts.find(x=>x.id===pid);if(p&&p.mats[+i])p.mats[+i].matId=id}saveDraft();renderCalc($("#main"))}
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.mp)return;e.stopImmediatePropagation();const tg=t.dataset.mt;const kinds=mpKinds();(S._mpBrand=S._mpBrand||{});
+  if(t.dataset.mp==="brand"){S._mpBrand[tg]=t.value;if(t.value===""){delete S._mpBrand[tg];mpSet(tg,"");return}
+    const first=kinds.filter(k=>k.brand===t.value).sort((a,b)=>(a.katalog?1:0)-(b.katalog?1:0)||a.label.localeCompare(b.label,"de"))[0];if(first){delete S._mpBrand[tg];mpSet(tg,mpResolve(first))}else renderCalc($("#main"));return}
+  const k=kinds.find(x=>x.key===t.value);if(k){delete S._mpBrand[tg];mpSet(tg,mpResolve(k))}},true);
+async function mpEnsureLager(){if(S.lager||S._mpLaden||S.backend!=="ha")return;S._mpLaden=true;try{S.lager=await loadLager();if(S.tab==="rechner")renderCalc($("#main"))}catch(e){}finally{S._mpLaden=false}}
 function renderCalc(m){
+  mpEnsureLager();
   const q=S.quote,c=S.cfg;
   const editing=q.id?`<span class="chip">Auftrag ${esc(q.no||"")} wird bearbeitet</span>`:"";
   m.innerHTML=`
@@ -467,7 +510,7 @@ function renderCalc(m){
         </div>
         <div class="setup">
           <label class="field"><span>Drucker</span><select id="q_printer" data-bind="q.printerId" data-rerender>${opt(c.printers,q.printerId)}</select></label>
-          <label class="field"><span>Material</span><select id="q_mat" data-bind="q.matId" data-rerender>${opt(c.materials,q.matId)}</select></label>
+          ${matPick("q",q.matId,null,true)}
           <label class="field"><span>Verkaufskanal</span><select id="q_ch" data-bind="q.channelId">${c.channels.map(x=>`<option value="${x.id}"${x.id===q.channelId?" selected":""}>${esc(x.name)}${num(x.pct)||num(x.fix)?` · ${N1.format(x.pct)} %`:""}</option>`).join("")}</select></label>
           <label class="field"><span>Zahlung</span><select id="q_pay" data-bind="q.paymentId">${c.payments.map(x=>`<option value="${x.id}"${x.id===q.paymentId?" selected":""}>${esc(x.name)}${num(x.pct)||num(x.fix)?` · ${N1.format(x.pct)} %`:""}</option>`).join("")}</select></label>
         </div>
@@ -519,7 +562,7 @@ function partHTML(p){
       </div>
       <div class="mats">
         ${p.mats.map((m,i)=>`<div class="matline">
-          <label class="field">${i===0?`<span>${multi?"Filamente":"Material"}</span>`:""}<select id="pm_${p.id}_${i}" data-mbind="matId" data-i="${i}">${opt(c.materials,m.matId,"wie oben ("+(matOf({},q).name)+")")}</select></label>
+          <label class="field">${i===0?`<span>${multi?"Filamente":"Material"}</span>`:""}${matPick(p.id+":"+i,m.matId,"wie oben ("+(matOf({},q).name)+")")}</label>
           <label class="field">${i===0?"<span>Gewicht</span>":""}<div class="unit"><input type="text" inputmode="decimal" id="pg_${p.id}_${i}" data-mbind="g" data-i="${i}" value="${inV(m.g)}"><em>g</em></div></label>
         </div>${m.label?`<div class="hint" style="margin-top:-2px">Aus Datei: ${esc(m.label)}${m.color?` <span class="dot" style="display:inline-block;vertical-align:-1px;background:${esc(m.color)}"></span>`:""}</div>`:""}`).join("")}
       </div>
@@ -776,7 +819,7 @@ function renderSettings(m){
           <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
           <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
-      <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","Schichtlohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
+      <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
     </section>
 
@@ -928,7 +971,7 @@ async function importFiles(files,target="quote"){
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
   const r=await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"});
-  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
+  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
 }
 async function lagerModal(){
   modal("Aus FilamentLager übernehmen",`<div class="hint">Wähle Filamente aus deinem FilamentLager. Ist dort kein Preis hinterlegt, wird der übliche Preis je Typ vorgeschlagen. Du kannst ihn danach ändern.</div><input type="search" id="lagerSearch" placeholder="Hersteller, Typ oder Farbe"><div class="pick" id="lagerList"><div class="empty">Lädt…</div></div>`,`<button class="btn ghost" data-act="close">Fertig</button>`);
@@ -1077,7 +1120,7 @@ document.addEventListener("click",async e=>{
     case "lagerAdd":{const x=S.lager.find(l=>l.uid===b.dataset.uid);if(!x)break;if(S.cfg.materials.some(m=>m.lagerUid===x.uid)){toast("Schon übernommen");break}
       const tk=typeKey(x.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};
       S.cfg.materials.push({id:uid(),name:x.name,type:x.type||tk,hex:x.hex,price:x.price?r2(x.price/x.weight*1000):td.p,density:td.d,lagerUid:x.uid});saveCfgSoon();drawLager($("#lagerSearch").value);renderSettings($("#main"));toast(`${x.name} übernommen`);break}
-    case "exportJson":{const data={app:"Schichtlohn",v:1,exported:new Date().toISOString(),cfg:S.cfg,portfolio:S.portfolio,orders:S.orders};await deliverFile(`Schichtlohn_Backup_${today()}.json`,new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));break}
+    case "exportJson":{const data={app:"SchichtLohn",v:1,exported:new Date().toISOString(),cfg:S.cfg,portfolio:S.portfolio,orders:S.orders};await deliverFile(`SchichtLohn_Backup_${today()}.json`,new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));break}
     case "importJson":$("#backupIn").click();break;
     case "resetCfg":confirmBox("Kosten, Drucker, Materialien, Kanäle und Zahlungsarten auf die Standardwerte zurücksetzen? Portfolio und Aufträge bleiben erhalten.","Zurücksetzen",async()=>{const co=S.cfg.company,no=S.cfg.nextNo;S.cfg=defaultCfg();S.cfg.company=co;S.cfg.nextNo=no;await Store.saveCfg();fixRefs();render();toast("Standardwerte wiederhergestellt")});break;
   }
@@ -1100,7 +1143,7 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
     confirmBox(`Backup vom ${dDE((d.exported||"").slice(0,10))} einspielen? Es ersetzt Einstellungen, ${d.portfolio?.length||0} Produkte und ${d.orders.length} Aufträge.`,"Einspielen",async()=>{
       if(S.backend==="claude"){for(const p of S.portfolio)await Store.delItem("p",p.id);for(const o of S.orders)await Store.delItem("o",o.id)}
       S.cfg=Object.assign(defaultCfg(),d.cfg);S.portfolio=d.portfolio||[];S.orders=d.orders;await Store.saveAll();fixRefs();render();toast("Backup eingespielt")})}
-  catch(err){toast("Das ist keine gültige Schichtlohn-Sicherung.")}});
+  catch(err){toast("Das ist keine gültige SchichtLohn-Sicherung.")}});
 
 /* ---------- Start ---------- */
 function startTabPref(){const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
@@ -1435,7 +1478,7 @@ function statusText(s){const map={unavailable:"Nicht erreichbar",unknown:"Unbeka
 function panelHTML(){
   if(loading&&!list.length)return `<div class="empty">Drucker werden aus Home Assistant geladen…</div>`;
   if(lastErr)return `<div class="note">Home Assistant konnte nicht gelesen werden: ${esc(lastErr)}</div>`;
-  if(!list.length)return `<div class="note">In Home Assistant wurden keine Bambu-Lab-Drucker gefunden. Schichtlohn erwartet die Integration „Bambu Lab“ (ha-bambulab).</div><div class="row"><button class="btn sm" data-act="haReload">Neu laden</button></div>`;
+  if(!list.length)return `<div class="note">In Home Assistant wurden keine Bambu-Lab-Drucker gefunden. SchichtLohn erwartet die Integration „Bambu Lab“ (ha-bambulab).</div><div class="row"><button class="btn sm" data-act="haReload">Neu laden</button></div>`;
   const q=hq.trim().toLowerCase();
   return `<div class="stack" style="gap:10px">${list.length>1?`<div class="hafilter"><select id="ha_pr" aria-label="Drucker wählen"><option value="">Alle Drucker</option>${list.map(p=>`<option value="${esc(p.dev)}"${p.dev===hp?" selected":""}>${esc(p.name)}</option>`).join("")}</select><input type="search" id="ha_q" placeholder="Suchen: Drucker, Status oder Druck" value="${esc(hq)}" aria-label="Drucker und Drucke suchen"></div>`:""}
     <div class="stack" id="haList" style="gap:10px">${printerCards(q)}</div>
@@ -1578,7 +1621,7 @@ function settingsHTML(){
     <div class="hint" style="margin-top:8px">Teilen sich zwei Drucker eine Steckdose, misst der Zähler beide zusammen. Druckt dann nur einer, stimmt der Wert trotzdem.</div>`:`<div class="hint">Drucker werden geladen… Falls hier nichts erscheint, tippe auf „Neu einlesen“.</div>`}
   </section>
   <section class="panel pad"><div class="sec-title"><h2>Filamentpreis je AMS-Fach</h2></div>
-    <div class="hint" style="margin-bottom:6px">Übernimmst du einen Druck vom Drucker, rechnet Schichtlohn das verbrauchte Filament mit einem Preis aus deiner Materialliste. Hier siehst du, welches Material (und damit welcher Preis) für das Filament in jedem AMS-Fach genommen wird. Das passiert automatisch über dein FilamentLager. Ändern musst du hier nur etwas, wenn ein Preis nicht stimmt.</div>
+    <div class="hint" style="margin-bottom:6px">Übernimmst du einen Druck vom Drucker, rechnet SchichtLohn das verbrauchte Filament mit einem Preis aus deiner Materialliste. Hier siehst du, welches Material (und damit welcher Preis) für das Filament in jedem AMS-Fach genommen wird. Das passiert automatisch über dein FilamentLager. Ändern musst du hier nur etwas, wenn ein Preis nicht stimmt.</div>
     ${amsRows()}</section>`;
   return h;
 }
@@ -1887,7 +1930,7 @@ function settingsHTML(){
   return `<section class="panel pad stack"><div class="sec-title"><h2>Bambu-Cloud</h2></div>
     ${a?`<div class="note">Verbunden als ${esc(a.account)}${a.region==="cn"?" (China)":""}. Die Anmeldung gilt bis etwa ${new Date(a.exp).toLocaleDateString("de-DE")} und liegt nur in diesem Browser.</div>
       <div class="row"><button class="btn" data-act="bbOpen">Druckhistorie öffnen</button><button class="btn danger" data-act="bbLogout">Abmelden</button></div>`
-    :`<div class="hint">Mit deinem Bambu-Konto holt Schichtlohn die Druckhistorie aller Drucker, auch ältere Drucke. Sie erscheinen im Reiter „Druckaufträge“.</div><div class="row"><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button></div>`}
+    :`<div class="hint">Mit deinem Bambu-Konto holt SchichtLohn die Druckhistorie aller Drucker, auch ältere Drucke. Sie erscheinen im Reiter „Druckaufträge“.</div><div class="row"><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button></div>`}
   </section>`;
 }
 
@@ -2027,7 +2070,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 (function(){
 "use strict";
 const TAG="ernsthaft-gelagert-plus-card";
-/* Schichtlohn-Design für die Karte: wird als eigenes Stylesheet in ihren Shadow-DOM gelegt und bleibt bei jedem Neuzeichnen erhalten */
+/* SchichtLohn-Design für die Karte: wird als eigenes Stylesheet in ihren Shadow-DOM gelegt und bleibt bei jedem Neuzeichnen erhalten */
 const LOOK=`:host{--fil-ok:var(--sl-acc,var(--accent))!important;--fil-rb:var(--sl-rb,1px)!important;font-family:var(--f-body)!important;color:var(--fg)!important;font-size:15px}
 ha-card{padding:0!important;background:none!important;border:0!important;box-shadow:none!important;color:var(--fg)!important}
 .hd{padding:0 0 4px!important}
@@ -2138,7 +2181,7 @@ async function wsHass(){
   const mk=()=>({states:L.states,callWS:m=>b.callWS(m),
     callService:(domain,service,data,target,notify,ret)=>b.callWS(Object.assign({type:"call_service",domain,service,service_data:data||{}},target?{target}:{},ret?{return_response:true}:{})),
     connection:{subscribeMessage:(cb,msg)=>b.__subscribe(msg,cb),subscribeEvents:(cb,ev)=>b.__subscribe(Object.assign({type:"subscribe_events"},ev?{event_type:ev}:{}),cb),sendMessagePromise:m=>b.callWS(m)},
-    user:{name:"Schichtlohn",is_admin:false},language:"de",selectedLanguage:"de",locale:{language:"de",number_format:"language",time_format:"24"},
+    user:{name:"SchichtLohn",is_admin:false},language:"de",selectedLanguage:"de",locale:{language:"de",number_format:"language",time_format:"24"},
     themes:{darkMode:!matchMedia("(prefers-color-scheme: light)").matches},entities:{},devices:{},config:{},hassUrl:p=>b.__base+(p||"")});
   try{await b.__subscribe({type:"subscribe_events",event_type:"state_changed"},ev=>{const d=ev&&ev.data;if(!d)return;if(d.new_state)L.states[d.entity_id]=d.new_state;else delete L.states[d.entity_id];L.dirty=true})}catch(e){console.warn("Zustände",e)}
   clearInterval(L.timer);L.timer=setInterval(()=>{if(!L.dirty)return;L.dirty=false;L.states=Object.assign({},L.states);L.shim=mk();if(L.el)L.el.hass=L.shim;status();if(window.LGN)LGN.onStates()},2000);
@@ -2197,7 +2240,9 @@ function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
     let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.mono?"m":c.own?"1":"";img.src=c.u};
     img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}
       /* eigene Logos sind schwarz für die Etiketten: im dunklen Design weiß, im hellen schwarz darstellen */
-      if(img.dataset.own==="m"){img.style.filter=darkUI()?"grayscale(1) invert(1) contrast(1.4)":"grayscale(1) contrast(1.4)";img.style.mixBlendMode=darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
+      if(img.dataset.clean){img.style.visibility="";return}
+      if(img.dataset.own==="1"&&opaque(img)&&cleanLogo(img))return;
+      if(img.dataset.own==="m"){img.style.filter=darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
       img.style.visibility=""};
     img.onerror=()=>{logoMiss.add(img.src);next()};gh.appendChild(img);next()})}
 function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{guard();clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
@@ -2260,7 +2305,7 @@ function render(m){
   m=m||$("#main");if(!m)return;S.lager=null;
   if(S.backend==="ha"&&nativ()&&window.LGN)return LGN.render(m);
   if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
-  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span><span class="sp"></span>${window.LGN?`<button class="btn ghost sm" data-act="lgMode" data-v="nativ">Schichtlohn-Ansicht</button>`:""}</div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
+  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span><span class="sp"></span>${window.LGN?`<button class="btn ghost sm" data-act="lgMode" data-v="nativ">SchichtLohn-Ansicht</button>`:""}</div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
   const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
   if(L.el){put();return}
   ensure().then(put).catch(e=>{const host=$("#lagerHost");if(host&&S.tab==="lager")host.innerHTML=`<div class="panel pad"><div class="note" style="border-color:var(--bad)">${esc(String(e&&e.message||e))}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="lagerRetry">Erneut versuchen</button></div></div>`});
@@ -2269,7 +2314,20 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act=lagerR
 
 let linkP=null;
 async function link(){if(L.link)return L.link;if(!linkP)linkP=findCfg().then(f=>{L.link=f.link||"";return L.link}).catch(()=>"");return linkP}
-window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,darkUI,guard,link,isWS,shims,
+/* Eigenes Logo ohne Transparenz (z. B. weißer Hintergrund)? Dann Hintergrund wegfiltern statt alles einzufärben */
+function opaque(img){try{const w=Math.min(64,img.naturalWidth||0),h=Math.min(64,img.naturalHeight||0);if(!w||!h)return false;
+  const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(img,0,0,w,h);
+  const px=[[0,0],[w-1,0],[0,h-1],[w-1,h-1],[Math.floor(w/2),0]].map(([a,b])=>x.getImageData(a,b,1,1).data);
+  return px.filter(p=>p[3]>200).length>=3}catch(e){return false}}
+/* Logo mit vollem Hintergrund: Hintergrund transparent machen, Rest einfarbig (hell im Dunkelmodus, dunkel im Hellmodus) */
+function cleanLogo(img){try{if(img.dataset.clean)return false;const sc=Math.min(1,480/(img.naturalWidth||1)),w=Math.max(1,Math.round(img.naturalWidth*sc)),h=Math.max(1,Math.round(img.naturalHeight*sc));
+  const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h),p=d.data;
+  const bg=[p[0],p[1],p[2]];const dk=darkUI(),col=dk?255:20;let minY=h,maxY=-1,minX=w,maxX=-1;
+  for(let i=0;i<p.length;i+=4){const dist=Math.max(Math.abs(p[i]-bg[0]),Math.abs(p[i+1]-bg[1]),Math.abs(p[i+2]-bg[2]));let a=Math.min(1,dist/255*1.6);if(a<.34)a=0;
+    p[i]=p[i+1]=p[i+2]=col;p[i+3]=Math.round(a*255);if(a>0){const k=i/4,yy=Math.floor(k/w),xx=k%w;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy;if(xx<minX)minX=xx;if(xx>maxX)maxX=xx}}
+  if(maxY<0)return false;x.putImageData(d,0,0);const o=document.createElement("canvas");o.width=maxX-minX+1;o.height=maxY-minY+1;o.getContext("2d").drawImage(c,minX,minY,o.width,o.height,0,0,o.width,o.height);
+  img.dataset.clean="1";img.dataset.own="";img.style.filter="";img.style.mixBlendMode="";img.src=o.toDataURL("image/png");return true}catch(e){return false}}
+window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,darkUI,guard,link,isWS,shims,opaque,cleanLogo,
   async initStates(){if(isWS()&&!L.shim)await wsHass()}};
 })();
 </script>
@@ -2524,7 +2582,7 @@ details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
 <script>
-/* ===== Lager in Schichtlohn: liest und schreibt todo.filament direkt, gleiches Datenformat wie die FilamentLager-Karte ===== */
+/* ===== Lager in SchichtLohn: liest und schreibt todo.filament direkt, gleiches Datenformat wie die FilamentLager-Karte ===== */
 (function(){
 "use strict";
 const ENT="todo.filament",META="todo.filament_verbrauch";
@@ -2775,7 +2833,7 @@ function decorate(){
     const urls=L().logoUrls(k);if(!urls.length){showName();return}
     const img=document.createElement("img");img.className="hlogo";img.alt=k;img.referrerPolicy="no-referrer";img.style.visibility="hidden";let i=0,ok=false;
     const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.mono?"m":c.own?"1":"";img.src=c.u};
-    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(1.4)":"grayscale(1) contrast(1.4)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
+    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.clean){img.style.visibility="";return}if(img.dataset.own==="1"&&L().opaque&&L().opaque(img)&&L().cleanLogo(img))return;if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="";
 function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
@@ -2858,7 +2916,7 @@ function ozuModal(uid){const o=offen().find(x=>x.uid===uid);if(!o)return;G.ozu=o
     <div class="lghint">Sorte antippen, von der abgebucht wird. Passende Farbe und Material stehen oben.</div>${sortenPick(o.hex,String(o.material||"").toUpperCase(),o.fid,"lgOzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
 function fzuModal(id){const s=slots().find(x=>x.id===id);if(!s)return;G.fzu=s;
   modal("Fach zuordnen",`<div class="lgform"><div class="row" style="gap:10px">${spool(s.hex)}<div><div class="lgn">${esc(s.ort)}</div><div class="lgs">${esc([s.name||s.type,s.fid].filter(Boolean).join(" · "))}</div></div></div>
-    <div class="lghint">Sorte antippen, die in diesem Fach steckt. Schichtlohn merkt sich Bambu-ID und AMS-Farbe, danach wird die Sorte von allein erkannt, auch bei der Abbuchung.</div>
+    <div class="lghint">Sorte antippen, die in diesem Fach steckt. SchichtLohn merkt sich Bambu-ID und AMS-Farbe, danach wird die Sorte von allein erkannt, auch bei der Abbuchung.</div>
     <div class="row"><button class="btn sm" data-act="lgFneu">${ICON.plus} Neue Sorte aus diesem Fach</button></div>
     ${sortenPick(s.hex,String(s.type||"").split("-")[0].toUpperCase(),s.fid,"lgFzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
 function fromSlot(s){const toks=String(s.name||"").split(/\s+/).filter(Boolean);let her="";if(toks.length&&/^bambu/i.test(toks[0]))her="Bambu Lab";else if(toks.length&&!/^generic$/i.test(toks[0])&&toks[0].toUpperCase()!==String(s.type).toUpperCase())her=toks[0];
@@ -3068,7 +3126,7 @@ function feuchteCard(e){const alle=amsFeuchte();if(!alle.length)return "";const 
   return `<div class="dcard kompakt lgfeu" data-act="lgSilica" role="button" tabindex="0" title="Silica & Feuchte öffnen"><span class="di">${SV.drop}</span><div class="dt"><span class="dn">AMS-Feuchte</span>${hoch?`<span class="ds warn"><i></i>${hoch} zu feucht</span>`:`<span class="ds"><i></i>alles trocken</span>`}${trocknet?`<span class="ds"><i style="background:var(--warn)"></i>trocknet</span>`:""}</div>
     <div class="dvs"><div class="dv c${fStufe(avg,e)}"><span>Durchschnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div></div>`}
 function silicaModal(keepOpen){const e=einVoll(),alle=amsFeuchte(),w=silica();silicaStatsLaden();
-  let h=`<div class="lgform" id="lgSil"><div class="lghint">Grün unter ${e.feuchte_gruen} % · Warnung ab ${e.feuchte_warnung} %. Nach einem Silica-Tausch sucht Schichtlohn den Tiefpunkt selbst. Trocknungen im AMS Pro/HT werden automatisch erkannt.</div>`;
+  let h=`<div class="lgform" id="lgSil"><div class="lghint">Grün unter ${e.feuchte_gruen} % · Warnung ab ${e.feuchte_warnung} %. Nach einem Silica-Tausch sucht SchichtLohn den Tiefpunkt selbst. Trocknungen im AMS Pro/HT werden automatisch erkannt.</div>`;
   if(!alle.length)h+=`<div class="panel empty">Kein AMS mit Feuchtesensor gefunden.</div>`;
   const gr={};alle.forEach(f=>{(gr[f.prefix]=gr[f.prefix]||[]).push(f)});
   Object.keys(gr).forEach(p=>{const arr=gr[p],werte=arr.map(f=>f.wert).filter(v=>v!=null);const avg=werte.length?Math.round(werte.reduce((a,v)=>a+v,0)/werte.length):null;
@@ -3137,7 +3195,7 @@ document.addEventListener("click",async e=>{
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
   if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
-    confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht Schichtlohn danach selbst.`,"Getauscht",async()=>{
+    confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht SchichtLohn danach selbst.`,"Getauscht",async()=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
       try{await silicaSpeichern(w);toast("Silica-Tausch gespeichert");setTimeout(()=>silicaModal(),400)}catch(err){toast("Speichern fehlgeschlagen")}});return}
   if(a==="lgStat"){statModal();return}

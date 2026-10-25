@@ -1,4 +1,4 @@
-# Schichtlohn
+# SchichtLohn
 
 Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 
@@ -21,7 +21,7 @@ In der GitHub-Pages-Version liegen alle Daten nur im Browser des jeweiligen Ger�
 
 ## Aufs iPhone
 
-In Safari öffnen, Teilen → „Zum Home-Bildschirm“. Schichtlohn startet dann wie eine App.
+In Safari öffnen, Teilen → „Zum Home-Bildschirm“. SchichtLohn startet dann wie eine App.
 
 ## Home Assistant
 
@@ -34,7 +34,7 @@ In Home Assistant werden die Daten im HA-Benutzerkonto gespeichert (auf allen Ge
 
 ### Druckprotokoll
 
-Eine Automation schreibt jeden beendeten oder abgebrochenen Druck in die To-do-Liste `todo.druckprotokoll` (Drucker, Aufgabe, Start, Ende, Gramm je AMS-Fach mit Material und Farbe). Schichtlohn zeigt diese Drucke im Reiter **Druckaufträge**; übernommene Einträge werden in der Liste abgehakt.
+Eine Automation schreibt jeden beendeten oder abgebrochenen Druck in die To-do-Liste `todo.druckprotokoll` (Drucker, Aufgabe, Start, Ende, Gramm je AMS-Fach mit Material und Farbe). SchichtLohn zeigt diese Drucke im Reiter **Druckaufträge**; übernommene Einträge werden in der Liste abgehakt.
 
 ## Bambu-Cloud
 

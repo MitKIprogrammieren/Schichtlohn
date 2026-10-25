@@ -1,6 +1,6 @@
 {
-  "name": "Schichtlohn",
-  "short_name": "Schichtlohn",
+  "name": "SchichtLohn",
+  "short_name": "SchichtLohn",
   "description": "Preise für 3D-Drucke kalkulieren",
   "lang": "de",
   "start_url": "./",
