@@ -2,7 +2,7 @@
 
 Preisrechner für 3D-Drucke. Läuft komplett im Browser, ohne Server und ohne Konto.
 
-**Öffnen:** https://mitkiprogrammieren.github.io/schichtlohn/
+**Öffnen:** https://mitkiprogrammieren.github.io/Schichtlohn/
 
 ## Funktionen
 
@@ -25,7 +25,7 @@ In Safari öffnen, Teilen → „Zum Home-Bildschirm“. Schichtlohn startet dan
 
 `homeassistant/schichtlohn-card.js` ist eine Lovelace-Karte (`custom:schichtlohn-card`).
 
-1. Einstellungen → Dashboards → Ressourcen: `https://mitkiprogrammieren.github.io/schichtlohn/homeassistant/schichtlohn-card.js` als **JavaScript-Modul** hinzufügen.
+1. Einstellungen → Dashboards → Ressourcen: `https://mitkiprogrammieren.github.io/Schichtlohn/homeassistant/schichtlohn-card.js` als **JavaScript-Modul** hinzufügen.
 2. Ein Dashboard mit einer Ansicht vom Typ **Panel** anlegen und die Karte `type: custom:schichtlohn-card` einsetzen.
 
 In Home Assistant werden die Daten im HA-Benutzerkonto gespeichert (auf allen Geräten gleich), und Materialien lassen sich aus dem FilamentLager (`todo.filament`) übernehmen.
