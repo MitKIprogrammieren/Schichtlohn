@@ -15,6 +15,10 @@ Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
 
+## Quellen
+
+Die Liste der Filamentmarken und -sorten im Rechner (Marke, Material, Variante, Dichte) stammt aus [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT-Lizenz). Preise für Bambu Lab sind EU-Listenpreise; bei den übrigen Sorten ist der Preis ein Richtwert je Materialart (mit ≈ markiert), bis du einen eigenen Preis einträgst oder die Sorte im Lager hast.
+
 ## Daten
 
 In der GitHub-Pages-Version liegen alle Daten nur im Browser des jeweiligen Geräts (localStorage). Mit **Einstellungen → Backup exportieren / einspielen** überträgst du sie auf ein anderes Gerät oder in die Home-Assistant-Version.
