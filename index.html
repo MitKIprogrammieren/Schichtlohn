@@ -2022,7 +2022,7 @@ select option{background:var(--solid);color:var(--fg)}
 .offen .gh2{background:var(--strip);border-bottom:1px solid var(--line);padding:var(--sl-hp,7px 16px)!important;font:var(--sl-hf,600 12px/1.9 var(--f-body))!important;letter-spacing:var(--sl-hls,.06em)!important;text-transform:var(--sl-htt,uppercase)!important;color:var(--warn)!important}
 .offen .orow{padding:10px 16px!important}
 .spanel,.ein{padding:4px 16px 16px!important}
-.lst .hd{margin-bottom:4px!important}\n.gh{position:relative}\n.gh .hlogo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:24px;max-width:140px;object-fit:contain;border-radius:5px;background:#fff;padding:2px;box-sizing:border-box;pointer-events:none}\n.kompakt .grp>.row{padding:7px 16px!important}`;
+.lst .hd{margin-bottom:4px!important}\n.gh{position:relative}\n.gh .hlogo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:24px;max-width:140px;object-fit:contain;pointer-events:none}\n.kompakt .grp>.row{padding:7px 16px!important}`;
 const DEV=[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]];
 const L={el:null,p:null,err:"",cfg:null,link:"",title:"FilamentLager",shim:null,states:null,dirty:false,timer:null};
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
@@ -2101,6 +2101,7 @@ function cardPrefs(el){try{const e=el._ein&&el._ein();if(!e)return;const def=Str
   const rb={1:"1px",2:"1px",3:"2px"}[Number(e.rahmen)]||"1px";el.style.setProperty("--sl-rb",rb);
   if(Number(e.rahmen)===3||!def)el.style.setProperty("--sl-bc",def?"var(--line-2)":"color-mix(in srgb,"+e.farbe+" 55%,var(--line))");else el.style.removeProperty("--sl-bc")}catch(x){}}
 /* Quelle 1: eigene Logos in Home Assistant unter /config/www/hersteller/ (wie bei der Waage), Quelle 2: Symbol der Herstellerseite */
+function darkUI(){const cs=(document.documentElement.style.colorScheme||getComputedStyle(document.documentElement).colorScheme||"");if(/dark/.test(cs)&&!/light/.test(cs))return true;if(/light/.test(cs)&&!/dark/.test(cs))return false;return !matchMedia("(prefers-color-scheme: light)").matches}
 function logoSlug(n){return String(n||"").trim().toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}
 function haLocal(){if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
 const logoMiss=new Set();
@@ -2112,7 +2113,10 @@ function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
   r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
     const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";
     let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.own?"1":"";img.src=c.u};
-    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}img.style.visibility=""};
+    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}
+      /* eigene Logos sind schwarz für die Etiketten: im dunklen Design weiß, im hellen schwarz darstellen */
+      if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
+      img.style.visibility=""};
     img.onerror=()=>{logoMiss.add(img.src);next()};gh.appendChild(img);next()})}
 function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
 async function ensure(){
