@@ -1889,18 +1889,26 @@ document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.s
 async function thumbFor(url){
   if(!url)return "";
   try{const r=await fetch(url);if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}}catch(e){}
-  try{const r=await fetch(PROXY+"/cover?u="+encodeURIComponent(url));if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}}catch(e){}
+  try{const r=await fetch(PROXY+"/cover?u="+encodeURIComponent(url));if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}else console.warn("Vorschaubild:",r.status,await r.text().catch(()=>""),url)}catch(e){console.warn("Vorschaubild:",e,url)}
   return "";
 }
 /* Teile ohne Bild nachträglich mit dem Bild aus der Druckhistorie versehen */
-let fixing=false;
+let fixing=false;const failed=new Set();
 async function fixThumbs(){
-  if(fixing||!S.quote)return;fixing=true;let n=0;
-  try{for(const p of S.quote.parts){if(p.thumb||!p.job)continue;
-    let url=p.job.cover||"";
-    if(!url){const k=(p.job.keys||[p.job.key]).find(x=>String(x).startsWith("c:"));const c=k&&J.cloud.find(x=>x.key===k);
-      if(c)url=c.cover;else{const h=all().find(x=>(p.job.keys||[p.job.key]).includes(x.key));if(h)url=h.cover}}
-    if(!url)continue;const t=await thumbFor(url);if(t){p.thumb=t;p.job.cover=url;n++}}}
+  if(fixing||!S.quote)return;
+  const need=S.quote.parts.filter(p=>!p.thumb&&p.job);if(!need.length)return;
+  fixing=true;let n=0;
+  try{
+    if(acct()&&need.some(p=>(p.job.keys||[p.job.key]).some(k=>String(k).startsWith("c:")))){
+      const miss=()=>need.some(p=>{const k=(p.job.keys||[p.job.key]).find(x=>String(x).startsWith("c:"));return k&&!J.cloud.some(c=>c.key===k)});
+      if(!J.cloudAt)await loadCloud(true);
+      for(let i=0;i<9&&miss()&&J.more&&!J.cloudErr;i++)await loadCloud(true,true);
+    }
+    for(const p of need){
+    if(failed.has(p.id))continue;
+    const k=(p.job.keys||[p.job.key]).find(x=>String(x).startsWith("c:"));const c=k&&J.cloud.find(x=>x.key===k);
+    let url=c&&c.cover||"";if(!url){const h=all().find(x=>(p.job.keys||[p.job.key]).includes(x.key));url=h&&h.cover||p.job.cover||""}
+    if(!url){failed.add(p.id);continue}const t=await thumbFor(url);if(t){p.thumb=t;p.job.cover=url;n++}else failed.add(p.id)}}
   finally{fixing=false}
   if(n){saveDraft();if(S.tab==="rechner")renderCalc($("#main"))}
 }

@@ -35,19 +35,29 @@ function cors(req) {
 const json = (req, status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...cors(req), "Content-Type": "application/json" } });
 
 // Vorschaubilder der Druckhistorie: liegen bei Bambu auf CDN/S3 ohne CORS. Nur Bilder von Bambu-Servern, nur GET, max. 6 MB.
-const COVER_HOSTS = [/(^|\.)bambulab\.(com|cn)$/i, /(^|\.)bblmw\.com$/i, /\.amazonaws\.com(\.cn)?$/i, /\.aliyuncs\.com$/i, /(^|\.)bambu-lab\.com$/i];
+const COVER_HOSTS = [/(^|\.)bambulab\.(com|cn)$/i, /(^|\.)bblmw\.com$/i, /\.amazonaws\.com(\.cn)?$/i, /\.aliyuncs\.com$/i, /(^|\.)bambu-lab\.com$/i, /\.cloudfront\.net$/i, /(^|\.)makerworld\.(com|com\.cn)$/i];
+// S3 liefert oft "binary/octet-stream": dann am Dateianfang erkennen, ob es ein Bild ist
+function sniff(b) {
+  const u = new Uint8Array(b.slice(0, 12));
+  if (u[0] === 0x89 && u[1] === 0x50 && u[2] === 0x4e && u[3] === 0x47) return "image/png";
+  if (u[0] === 0xff && u[1] === 0xd8 && u[2] === 0xff) return "image/jpeg";
+  if (u[0] === 0x52 && u[1] === 0x49 && u[2] === 0x46 && u[3] === 0x46 && u[8] === 0x57 && u[9] === 0x45 && u[10] === 0x42 && u[11] === 0x50) return "image/webp";
+  if (u[0] === 0x47 && u[1] === 0x49 && u[2] === 0x46) return "image/gif";
+  return "";
+}
 async function cover(request) {
   if (request.method !== "GET") return json(request, 405, { message: "Methode nicht erlaubt" });
   let u;
   try { u = new URL(new URL(request.url).searchParams.get("u") || ""); } catch (e) { return json(request, 400, { message: "Adresse fehlt" }); }
-  if (u.protocol !== "https:" || !COVER_HOSTS.some((re) => re.test(u.hostname))) return json(request, 403, { message: "Nur Bilder von Bambu-Servern" });
+  if (u.protocol !== "https:" || !COVER_HOSTS.some((re) => re.test(u.hostname))) return json(request, 403, { message: "Nur Bilder von Bambu-Servern (" + u.hostname + ")" });
   let res;
   try { res = await fetch(u.toString(), { headers: { "User-Agent": HDR["User-Agent"] }, cf: { cacheTtl: 86400, cacheEverything: true } }); }
   catch (e) { return json(request, 502, { message: "Bild nicht erreichbar" }); }
-  const ct = res.headers.get("content-type") || "";
-  if (!res.ok || !/^image\//i.test(ct)) return json(request, res.ok ? 415 : res.status, { message: "Kein Bild" });
+  if (!res.ok) return json(request, res.status, { message: "Bild nicht abrufbar (HTTP " + res.status + ")" });
   const buf = await res.arrayBuffer();
   if (buf.byteLength > 6e6) return json(request, 413, { message: "Bild zu groß" });
+  const ct = sniff(buf);
+  if (!ct) return json(request, 415, { message: "Kein Bild (" + (res.headers.get("content-type") || "?") + ")" });
   return new Response(buf, { status: 200, headers: { ...cors(request), "Content-Type": ct, "Cache-Control": "public, max-age=86400" } });
 }
 
