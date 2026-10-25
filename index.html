@@ -1942,7 +1942,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 .lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
 .lagerhost ernsthaft-gelagert-plus-card{display:block}
 [data-skin="bambu"] .lagerhost{--sl-h1:20px;--sl-h1-ls:0;--sl-chip-r:4px}
-[data-skin="ha"] .lagerhost{--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
+[data-skin="ha"] .lagerhost{--sl-ldy:4px;--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
 .lstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .dcard{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--glass)}
 .dcard .dh{display:flex;align-items:center;gap:10px;min-width:0}
@@ -2022,7 +2022,7 @@ select option{background:var(--solid);color:var(--fg)}
 .offen .gh2{background:var(--strip);border-bottom:1px solid var(--line);padding:var(--sl-hp,7px 16px)!important;font:var(--sl-hf,600 12px/1.9 var(--f-body))!important;letter-spacing:var(--sl-hls,.06em)!important;text-transform:var(--sl-htt,uppercase)!important;color:var(--warn)!important}
 .offen .orow{padding:10px 16px!important}
 .spanel,.ein{padding:4px 16px 16px!important}
-.lst .hd{margin-bottom:4px!important}\n.gh{position:relative}\n.gh .hlogo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:24px;max-width:140px;object-fit:contain;pointer-events:none}\n.kompakt .grp>.row{padding:7px 16px!important}`;
+.lst .hd{margin-bottom:4px!important}\n.gh{position:relative}\n.gh .hmat{position:absolute;left:50%;top:50%;transform:translate(-50%,calc(-50% + var(--sl-ldy,0px)));display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:var(--sl-chip-r,999px);border:1px solid color-mix(in srgb,var(--mc) 55%,transparent);background:color-mix(in srgb,var(--mc) 16%,transparent);color:var(--mc);font:700 12px/1 var(--f-body);letter-spacing:.06em;text-transform:none;white-space:nowrap;pointer-events:none}\n.gh .hmat ha-icon{--mdc-icon-size:15px}\n.gh .hmat i{font-style:normal;font-weight:700;font-size:10px;padding:2px 5px;border-radius:4px;background:color-mix(in srgb,var(--mc) 28%,transparent);color:var(--fg)}\n.gh .hmat i.cf{background:repeating-linear-gradient(135deg,#2b2b2b 0 3px,#444 3px 6px);color:#eee}\n.gh .hmat i.gf{background:repeating-linear-gradient(135deg,#cfd8dc 0 3px,#eceff1 3px 6px);color:#263238}\n.gh .hlogo{position:absolute;left:50%;top:50%;transform:translate(-50%,calc(-50% + var(--sl-ldy,0px)));height:24px;max-width:140px;object-fit:contain;pointer-events:none}\n.kompakt .grp>.row{padding:7px 16px!important}`;
 const DEV=[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]];
 const L={el:null,p:null,err:"",cfg:null,link:"",title:"FilamentLager",shim:null,states:null,dirty:false,timer:null};
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
@@ -2118,8 +2118,21 @@ function guard(){if(S.tab!=="lager")return;const want=lastY;if(want<60||Date.now
   const fix=()=>{if(S.tab==="lager"&&Date.now()-userT>700&&Math.abs(scrollY-want)>40)scrollTo(0,want)};
   requestAnimationFrame(()=>{fix();requestAnimationFrame(fix);setTimeout(fix,250)})}
 {const m=document.getElementById("main");if(m)new MutationObserver(()=>{if(S.tab==="lager")guard()}).observe(m,{childList:true,subtree:true})}
+/* Material-Abzeichen in den Gruppenköpfen (wenn nach Material sortiert): Farbe und Symbol je Filamentart */
+const MATS=[[/^(pla)/,"PLA","#4caf50","mdi:leaf"],[/^(petg|pctg)/,"PETG","#29b6f6","mdi:water"],[/^(pet)$/,"PET","#4fc3f7","mdi:bottle-soda-outline"],[/^(abs)/,"ABS","#ff7043","mdi:fire"],
+  [/^(asa)/,"ASA","#ffb300","mdi:white-balance-sunny"],[/^(tpu|tpe|flex)/,"TPU","#ab47bc","mdi:sine-wave"],[/^(pa|nylon|paht|ppa)/,"PA","#26a69a","mdi:cog"],[/^(pc)/,"PC","#90a4ae","mdi:shield-half-full"],
+  [/^(pva|bvoh)/,"PVA","#64b5f6","mdi:cup-water"],[/^(hips)/,"HIPS","#bdbdbd","mdi:layers-outline"],[/^(pps)/,"PPS","#ef5350","mdi:flash"],[/^(pp)$/,"PP","#a1887f","mdi:package-variant"]];
+function matBadge(name){const raw=String(name||"").trim();if(!raw||/^ohne/i.test(raw)||raw.length>24)return null;
+  const toks=raw.toLowerCase().split(/[\s\-_+\/]+/).filter(Boolean);if(!toks.length)return null;
+  const m=MATS.find(([re])=>re.test(toks[0]));if(!m)return null;
+  const extra=toks.slice(1).concat(/cf$/i.test(toks[0])&&toks[0]!=="cf"?["cf"]:[]).filter(t=>/^(cf|gf|hf|silk|matte?|hs|ht|tough|plus|95a|85a|rapid|lite|basic)$/.test(t));
+  const base=toks[0].replace(/(cf|gf)$/,"").toUpperCase()||m[1];
+  const b=document.createElement("span");b.className="hmat";b.style.setProperty("--mc",m[2]);
+  b.innerHTML=`<ha-icon icon="${m[3]}"></ha-icon><b>${base.replace(/[^A-Z0-9]/g,"")}</b>`+[...new Set(extra)].slice(0,2).map(t=>`<i class="${t==="cf"?"cf":t==="gf"?"gf":""}">${t.toUpperCase()}</i>`).join("");
+  return b}
 function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
-  r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
+  r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hmat,.hlogo"))return;const sp=gh.querySelector("span");const b=matBadge(sp&&sp.textContent);if(b)gh.appendChild(b)});
+  r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo,.hmat"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
     const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";
     let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.own?"1":"";img.src=c.u};
     img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}
