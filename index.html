@@ -311,7 +311,7 @@ const statusName=s=>(STATUS.find(x=>x[0]===s)||STATUS[0])[1];
 const SOLD=new Set(["angenommen","druck","fertig","versendet","bezahlt"]);
 
 /* ---------- Zustand ---------- */
-const S={tab:"rechner",cfg:null,portfolio:[],orders:[],quote:null,backend:"local",hass:null,lager:null,ordFilter:"alle",pfSearch:"",addMode:"datei"};
+const S={tab:"lager",cfg:null,portfolio:[],orders:[],quote:null,backend:"local",hass:null,lager:null,ordFilter:"alle",pfSearch:"",addMode:"datei"};
 
 /* ---------- Speicher ---------- */
 const LS={get(k){try{const v=localStorage.getItem("schichtlohn_"+k)??localStorage.getItem("preiswerk_"+k);return v?JSON.parse(v):null}catch(e){return null}},set(k,v){try{localStorage.setItem("schichtlohn_"+k,JSON.stringify(v))}catch(e){}}};
@@ -769,6 +769,7 @@ function renderSettings(m){
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
       <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
+      <label class="field" style="max-width:320px"><span>Beim Öffnen anzeigen</span><select id="startTab">${[...Object.entries(TABNAMES),["einstellungen","Einstellungen"],["last","Zuletzt geöffneter Reiter"]].map(([k,t])=>`<option value="${k}"${(S.cfg.startTab||"lager")===k?" selected":""}>${esc(t)}</option>`).join("")}</select></label>
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Daten und Sicherung</h2></div>
@@ -1009,6 +1010,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
+  if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
   if(t.dataset.act==="ordStatus"){const o=S.orders.find(x=>x.id===t.dataset.id);if(o){o.status=t.value;t.className="st-"+t.value;Store.saveItem("o",o);if(S.quote.id===o.id)S.quote.status=o.status;toast(`Status: ${statusName(o.status)}`)}return}
   if(t.dataset.bind){const [scope,...rest]=t.dataset.bind.split(".");let val=t.value;if(t.dataset.bool!==undefined)val=val==="1";
@@ -1021,7 +1023,7 @@ document.addEventListener("change",e=>{
 });
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act],[data-tab]");if(!b)return;
-  if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo({top:0});return}
+  if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
   if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();render();return}
@@ -1084,8 +1086,9 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
   catch(err){toast("Das ist keine gültige Schichtlohn-Sicherung.")}});
 
 /* ---------- Start ---------- */
+function startTabPref(){const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
 async function start(){
-  S.cfg=defaultCfg();S.quote=newQuote();render();setSync("busy");
+  S.cfg=defaultCfg();S.quote=newQuote();S.tab=startTabPref();render();setSync("busy");
   await Store.init();
   try{
     const d=await Store.load();
@@ -1096,6 +1099,7 @@ async function start(){
   const dr=LS.get("draft");
   const isExample=dr&&!dr.id&&dr.name==="Beispiel: Wandhalter"&&dr.parts&&dr.parts.length===1&&dr.parts[0].name==="Wandhalter (Beispiel)";
   S.quote=(dr&&dr.parts&&!isExample)?Object.assign(newQuote(),dr):newQuote();
+  LS.set("starttab",S.cfg.startTab||"lager");S.tab=startTabPref();
   fixRefs();setSync("ok");render();
   if(window.HAP)HAP.init();
 }
