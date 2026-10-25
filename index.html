@@ -206,6 +206,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="auftraege">Aufträge</button>
       <button data-tab="drucke">Druckaufträge</button>
+      <button data-tab="lager">Lager</button>
       <button data-tab="geschaeft">Geschäft</button>
       <button data-tab="einstellungen">Einstellungen</button>
     </nav>
@@ -438,7 +439,7 @@ function roundPrice(p,mode){
 function render(){
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
   const m=$("#main");
-  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
+  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML=""),lager:m=>window.LAGER?LAGER.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
 }
 function opt(list,sel,empty){return (empty?`<option value="">${esc(empty)}</option>`:"")+list.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.name)}</option>`).join("")}
 function unitIn(bind,val,u,extra=""){return `<div class="unit"><input type="text" inputmode="decimal" data-bind="${bind}" value="${inV(val)}" ${extra}><em>${u}</em></div>`}
@@ -1214,7 +1215,7 @@ let reg=null,regAt=0,wsStates=null,timer=null;
 
 /* --- WebSocket-Verbindung für die Online-Version --- */
 class HAWS{
-  constructor(url,token){this.url=url.replace(/\/+$/,"");this.token=token;this.n=0;this.pend={};this.ws=null;this.ready=null}
+  constructor(url,token){this.url=url.replace(/\/+$/,"");this.token=token;this.n=0;this.pend={};this.subs={};this.ws=null;this.ready=null}
   open(){
     if(this.ready)return this.ready;
     this.ready=new Promise((res,rej)=>{
@@ -1224,16 +1225,20 @@ class HAWS{
         if(m.type==="auth_required")ws.send(JSON.stringify({type:"auth",access_token:this.token}));
         else if(m.type==="auth_ok"){clearTimeout(to);this.ws=ws;res(this)}
         else if(m.type==="auth_invalid"){clearTimeout(to);this.ready=null;rej(new Error("Zugangsschlüssel ungültig"))}
+        else if(m.type==="event"&&this.subs[m.id]){try{this.subs[m.id](m.event)}catch(e){console.error(e)}}
         else if(m.type==="result"&&this.pend[m.id]){const p=this.pend[m.id];delete this.pend[m.id];m.success?p.res(m.result):p.rej(new Error(m.error&&m.error.message||"Fehler"))}};
       ws.onerror=()=>{};
-      ws.onclose=()=>{clearTimeout(to);this.ws=null;this.ready=null;Object.values(this.pend).forEach(p=>p.rej(new Error("Verbindung getrennt")));this.pend={};};
+      ws.onclose=()=>{clearTimeout(to);this.ws=null;this.ready=null;Object.values(this.pend).forEach(p=>p.rej(new Error("Verbindung getrennt")));this.pend={};this.subs={};};
     });
     return this.ready;
   }
   async callWS(msg){await this.open();const id=++this.n;return new Promise((res,rej)=>{this.pend[id]={res,rej};this.ws.send(JSON.stringify(Object.assign({},msg,{id})))})}
+  async subscribe(msg,cb){await this.open();const id=++this.n;this.subs[id]=cb;
+    await new Promise((res,rej)=>{this.pend[id]={res,rej};this.ws.send(JSON.stringify(Object.assign({},msg,{id})))}).catch(e=>{delete this.subs[id];throw e});
+    return async()=>{delete this.subs[id];try{await this.callWS({type:"unsubscribe_events",subscription:id})}catch(e){}}}
 }
 function savedConn(){try{const v=JSON.parse(localStorage.getItem(CONN_KEY)||"null");return v&&v.url&&v.token?v:null}catch(e){return null}}
-async function connect(url,token){const c=new HAWS(url,token);await c.open();window.__hass={__ws:true,__base:c.url,callWS:m=>c.callWS(m)};S.hass=window.__hass;return c}
+async function connect(url,token){const c=new HAWS(url,token);await c.open();window.__hass={__ws:true,__base:c.url,callWS:m=>c.callWS(m),__subscribe:(m,cb)=>c.subscribe(m,cb)};S.hass=window.__hass;return c}
 async function connectSaved(){const c=savedConn();if(!c)throw new Error("keine Verbindung gespeichert");return connect(c.url,c.token)}
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
 
@@ -1788,6 +1793,121 @@ document.addEventListener("input",e=>{const t=e.target;if(t.id==="job_q"){J.q=t.
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.src=t.value;redraw()}else if(t.id==="job_pr"){J.printer=t.value;redraw()}else if(t.id==="job_open"){J.open=t.checked;redraw()}});
 
 window.JOBS={render,settingsHTML,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+})();
+</script>
+<style>
+.lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
+.lagerhost ernsthaft-gelagert-plus-card{display:block}
+.lstat{display:flex;flex-wrap:wrap;gap:10px}
+.lstat .dev{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);font-size:13px;color:var(--fg-2)}
+.lstat .dev b{color:var(--fg);font-size:14px;margin-right:2px}
+.lstat .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
+.lstat .dot.off{background:var(--bad)}
+.lstat .v{color:var(--fg);font-variant-numeric:tabular-nums}
+.lstat a.btn{text-decoration:none;color:var(--fg)}
+</style>
+<script>
+/* ===== Lager: die FilamentLager-Karte aus Home Assistant, live geladen ===== */
+(function(){
+"use strict";
+const TAG="ernsthaft-gelagert-plus-card";
+const DEV=[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]];
+const L={el:null,p:null,err:"",cfg:null,link:"",title:"FilamentLager",shim:null,states:null,dirty:false,timer:null};
+const isWS=()=>!!(window.__hass&&window.__hass.__ws);
+
+/* --- Platzhalter für HA-Bausteine, die es außerhalb von Home Assistant nicht gibt --- */
+function shims(){
+  if(!customElements.get("ha-icon")){
+    const cache=new Map();
+    const path=n=>{if(!cache.has(n))cache.set(n,fetch(`https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/${n}.svg`).then(r=>r.ok?r.text():"").then(t=>(t.match(/\sd="([^"]+)"/)||[])[1]||"").catch(()=>""));return cache.get(n)};
+    customElements.define("ha-icon",class extends HTMLElement{
+      static get observedAttributes(){return ["icon"]}
+      set icon(v){this.setAttribute("icon",v)} get icon(){return this.getAttribute("icon")}
+      connectedCallback(){this._r()} attributeChangedCallback(){this._r()}
+      async _r(){if(!this.shadowRoot)this.attachShadow({mode:"open"});const n=String(this.getAttribute("icon")||"").replace(/^mdi:/,"");
+        const css=`<style>:host{display:inline-flex;align-items:center;justify-content:center;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);vertical-align:middle;flex:0 0 auto}svg{width:100%;height:100%;fill:currentColor}</style>`;
+        if(!/^[a-z0-9-]+$/.test(n)){this.shadowRoot.innerHTML=css;return}
+        const d=await path(n);if(String(this.getAttribute("icon")||"").replace(/^mdi:/,"")!==n)return;
+        this.shadowRoot.innerHTML=css+`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d.replace(/"/g,"")}"/></svg>`}});
+  }
+  if(!customElements.get("ha-card"))customElements.define("ha-card",class extends HTMLElement{connectedCallback(){Object.assign(this.style,{display:"block",background:"var(--ha-card-background,var(--card-background-color))",borderRadius:"var(--ha-card-border-radius,12px)",color:"var(--primary-text-color)"})}});
+}
+
+/* --- Kartencode aus den Ressourcen von Home Assistant laden --- */
+function decodeData(u){const i=u.indexOf(",");const meta=u.slice(5,i),p=u.slice(i+1);
+  if(/;base64/i.test(meta)){const b=atob(p);const a=new Uint8Array(b.length);for(let k=0;k<b.length;k++)a[k]=b.charCodeAt(k);return new TextDecoder().decode(a)}
+  return decodeURIComponent(p)}
+async function loadCode(){
+  if(customElements.get(TAG))return;
+  const res=await hass().callWS({type:"lovelace/resources"});
+  const picks=[];
+  for(const r of res||[]){const u=String(r.url||"");let t="";
+    if(/^data:/i.test(u)){try{t=decodeData(u)}catch(e){continue}}else continue;
+    if(/__EGP|ernsthaft-gelagert-plus-card/.test(t))picks.push(u)}
+  if(!picks.length)throw new Error("Die FilamentLager-Karte (ernsthaft-gelagert-plus-card) ist in Home Assistant nicht als Ressource eingerichtet.");
+  for(const u of picks){try{await import(u)}catch(e){console.warn("FilamentLager-Teil",e)}}
+  await Promise.race([customElements.whenDefined(TAG),new Promise((_,rej)=>setTimeout(()=>rej(new Error("Die FilamentLager-Karte ließ sich nicht starten.")),10000))]);
+}
+/* --- Einstellungen der Karte aus dem HA-Dashboard übernehmen --- */
+function walk(o,fn){if(!o||typeof o!=="object")return;if(Array.isArray(o)){o.forEach(x=>walk(x,fn));return}fn(o);Object.values(o).forEach(v=>walk(v,fn))}
+async function findCfg(){
+  let list=[];try{list=await hass().callWS({type:"lovelace/dashboards/list"})}catch(e){}
+  const paths=[...(list||[]).map(d=>d.url_path).filter(p=>/filament|lager|waage|gelagert/i.test(p)),...(list||[]).map(d=>d.url_path)];
+  const seen=new Set();let card=null,link="";
+  for(const p of paths.slice(0,30)){if(seen.has(p))continue;seen.add(p);
+    let c;try{c=await hass().callWS({type:"lovelace/config",url_path:p})}catch(e){continue}
+    let found=null,ifr="";walk(c,o=>{if(!found&&o.type==="custom:"+TAG)found=o;if(!ifr&&o.type==="iframe"&&o.url&&/druck/i.test((o.title||"")+o.url))ifr=o.url});
+    if(found){card=found;link=ifr;break}}
+  const cfg=Object.assign({entity:"todo.filament",verbrauch:"todo.filament_verbrauch"},card||{});
+  delete cfg.type;delete cfg.card_mod;delete cfg.grid_options;delete cfg.view_layout;
+  return {cfg,link};
+}
+/* --- hass-Objekt für die Online-Version (Verbindung per WebSocket) --- */
+async function wsHass(){
+  const b=window.__hass;const arr=await b.callWS({type:"get_states"});L.states={};(arr||[]).forEach(x=>L.states[x.entity_id]=x);
+  const mk=()=>({states:L.states,callWS:m=>b.callWS(m),
+    callService:(domain,service,data,target,notify,ret)=>b.callWS(Object.assign({type:"call_service",domain,service,service_data:data||{}},target?{target}:{},ret?{return_response:true}:{})),
+    connection:{subscribeMessage:(cb,msg)=>b.__subscribe(msg,cb),subscribeEvents:(cb,ev)=>b.__subscribe(Object.assign({type:"subscribe_events"},ev?{event_type:ev}:{}),cb),sendMessagePromise:m=>b.callWS(m)},
+    user:{name:"Schichtlohn",is_admin:false},language:"de",selectedLanguage:"de",locale:{language:"de",number_format:"language",time_format:"24"},
+    themes:{darkMode:!matchMedia("(prefers-color-scheme: light)").matches},entities:{},devices:{},config:{},hassUrl:p=>b.__base+(p||"")});
+  try{await b.__subscribe({type:"subscribe_events",event_type:"state_changed"},ev=>{const d=ev&&ev.data;if(!d)return;if(d.new_state)L.states[d.entity_id]=d.new_state;else delete L.states[d.entity_id];L.dirty=true})}catch(e){console.warn("Zustände",e)}
+  clearInterval(L.timer);L.timer=setInterval(()=>{if(!L.dirty)return;L.dirty=false;L.states=Object.assign({},L.states);L.shim=mk();if(L.el)L.el.hass=L.shim;status()},2000);
+  L.shim=mk();return L.shim;
+}
+async function ensure(){
+  if(L.el)return;if(L.p)return L.p;
+  L.p=(async()=>{shims();await loadCode();const f=await findCfg();L.cfg=f.cfg;L.link=f.link;L.title=f.cfg.title||"FilamentLager";
+    const el=document.createElement(TAG);el.setConfig(Object.assign({},L.cfg));el.hass=isWS()?await wsHass():window.__hass;L.el=el})();
+  try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
+}
+window.addEventListener("pw-hass-update",()=>{if(L.el&&!isWS()&&window.__hass){L.el.hass=window.__hass;if(S.tab==="lager")statusSoon()}});
+let stT;function statusSoon(){clearTimeout(stT);stT=setTimeout(status,1500)}
+
+/* --- Zustand von Waage und Druckbrücke --- */
+function stateMap(){return isWS()?(L.states||{}):((window.__hass&&window.__hass.states)||{})}
+function fmtVal(s){const u=(s.attributes||{}).unit_of_measurement||"";let v=s.state;const n=Number(v);
+  if(isFinite(n)&&v!==""){if(/^(h|min|s|d)$/.test(u)){const mins=u==="h"?n*60:u==="d"?n*1440:u==="s"?n/60:n;return mins>=1440?N1.format(mins/1440)+" Tage":dur(mins)}v=N1.format(n)}
+  return v+(u?" "+u:"")}
+function status(){
+  const el=$("#lagerStatus");if(!el)return;const st=stateMap();
+  el.innerHTML=DEV.map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_")).sort();if(!ids.length)return "";
+    const off=ids.every(id=>["unavailable","unknown"].includes(st[id].state));
+    return `<div class="dev"><span class="dot${off?" off":""}"></span><b>${esc(name)}</b>${off?"<span>offline</span>":ids.map(id=>{const s=st[id];let nm=String((s.attributes||{}).friendly_name||id).replace(new RegExp("^(Waage|Druckbrücke|"+name+")\\s*","i"),"");return `<span>${esc(nm)} <span class="v">${esc(fmtVal(s))}</span></span>`}).join("")}</div>`}).join("")
+    +(L.link?`<a class="btn sm" href="${esc(L.link)}" target="_blank" rel="noopener" title="Nur im Heimnetz erreichbar">${ICON.link} Druckbrücke öffnen</a>`:"");
+}
+
+/* --- Reiter --- */
+function render(m){
+  m=m||$("#main");if(!m)return;S.lager=null;
+  if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
+  m.innerHTML=`<div class="stack"><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
+  const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
+  if(L.el){put();return}
+  ensure().then(put).catch(e=>{const host=$("#lagerHost");if(host&&S.tab==="lager")host.innerHTML=`<div class="panel pad"><div class="note" style="border-color:var(--bad)">${esc(String(e&&e.message||e))}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="lagerRetry">Erneut versuchen</button></div></div>`});
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act=lagerRetry]");if(b){L.err="";render()}});
+
+window.LAGER={render,_L:L};
 })();
 </script>
 
