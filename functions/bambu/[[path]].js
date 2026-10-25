@@ -34,9 +34,27 @@ function cors(req) {
 }
 const json = (req, status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...cors(req), "Content-Type": "application/json" } });
 
+// Vorschaubilder der Druckhistorie: liegen bei Bambu auf CDN/S3 ohne CORS. Nur Bilder von Bambu-Servern, nur GET, max. 6 MB.
+const COVER_HOSTS = [/(^|\.)bambulab\.(com|cn)$/i, /(^|\.)bblmw\.com$/i, /\.amazonaws\.com(\.cn)?$/i, /\.aliyuncs\.com$/i, /(^|\.)bambu-lab\.com$/i];
+async function cover(request) {
+  if (request.method !== "GET") return json(request, 405, { message: "Methode nicht erlaubt" });
+  let u;
+  try { u = new URL(new URL(request.url).searchParams.get("u") || ""); } catch (e) { return json(request, 400, { message: "Adresse fehlt" }); }
+  if (u.protocol !== "https:" || !COVER_HOSTS.some((re) => re.test(u.hostname))) return json(request, 403, { message: "Nur Bilder von Bambu-Servern" });
+  let res;
+  try { res = await fetch(u.toString(), { headers: { "User-Agent": HDR["User-Agent"] }, cf: { cacheTtl: 86400, cacheEverything: true } }); }
+  catch (e) { return json(request, 502, { message: "Bild nicht erreichbar" }); }
+  const ct = res.headers.get("content-type") || "";
+  if (!res.ok || !/^image\//i.test(ct)) return json(request, res.ok ? 415 : res.status, { message: "Kein Bild" });
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > 6e6) return json(request, 413, { message: "Bild zu groß" });
+  return new Response(buf, { status: 200, headers: { ...cors(request), "Content-Type": ct, "Cache-Control": "public, max-age=86400" } });
+}
+
 export async function onRequest({ request, params }) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(request) });
   const path = [].concat(params.path || []).join("/");
+  if (path === "cover") return cover(request);
   const r = ROUTES[path];
   if (!r) return json(request, 404, { message: "Unbekannter Pfad" });
   if (request.method !== r.m) return json(request, 405, { message: "Methode nicht erlaubt" });

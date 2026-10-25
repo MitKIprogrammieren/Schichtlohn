@@ -1224,6 +1224,15 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 .amsrow{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(140px,1fr);gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
 .amsrow:first-child{border-top:0}
 .swatch{width:20px;height:20px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.4)}
+.phist{grid-column:1/-1;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.phist .label{margin-bottom:2px}
+.hafilter{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);gap:8px}
+@media (max-width:520px){.hafilter{grid-template-columns:minmax(0,1fr)}}
+.ph{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center}
+.ph .thumb{width:44px;height:44px}
+.ph .pt{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph.used{opacity:.6}
+.phist>.btn{align-self:flex-start}
 @media (max-width:620px){.hamap{grid-template-columns:minmax(0,1fr)}.amsrow{grid-template-columns:22px minmax(0,1fr)}.amsrow select{grid-column:1/-1}}
 </style>
 <script>
@@ -1397,23 +1406,43 @@ function panelHTML(){
   if(lastErr)return `<div class="note">Home Assistant konnte nicht gelesen werden: ${esc(lastErr)}</div>`;
   if(!list.length)return `<div class="note">In Home Assistant wurden keine Bambu-Lab-Drucker gefunden. Schichtlohn erwartet die Integration „Bambu Lab“ (ha-bambulab).</div><div class="row"><button class="btn sm" data-act="haReload">Neu laden</button></div>`;
   const q=hq.trim().toLowerCase();
-  return `<div class="stack" style="gap:10px">${list.length>2?`<input type="search" id="ha_q" placeholder="Drucker suchen: Name, Modell, Status oder Druck" value="${esc(hq)}" aria-label="Drucker suchen">`:""}
+  return `<div class="stack" style="gap:10px">${list.length>1?`<div class="hafilter"><select id="ha_pr" aria-label="Drucker wählen"><option value="">Alle Drucker</option>${list.map(p=>`<option value="${esc(p.dev)}"${p.dev===hp?" selected":""}>${esc(p.name)}</option>`).join("")}</select><input type="search" id="ha_q" placeholder="Suchen: Drucker, Status oder Druck" value="${esc(hq)}" aria-label="Drucker und Drucke suchen"></div>`:""}
     <div class="stack" id="haList" style="gap:10px">${printerCards(q)}</div>
     <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler.</span><span class="sp"></span><button class="btn sm ghost" data-act="haReload">Aktualisieren</button></div></div>`;
 }
-let hq="";
+let hq="",hp="";
 function printerCards(q){
-  const vis=list.filter(p=>{if(!q)return true;const s=p.snap||snapshot(p);return [p.name,p.model,statusText(s.status),s.status,s.task].join(" ").toLowerCase().includes(q)});
+  const vis=list.filter(p=>{if(hp&&p.dev!==hp)return false;if(!q)return true;const s=p.snap||snapshot(p);if([p.name,p.model,statusText(s.status),s.status,s.task].join(" ").toLowerCase().includes(q))return true;
+    return window.JOBS&&JOBS.jobsFor(serialOf(p)).some(j=>j.title.toLowerCase().includes(q))});
   if(!vis.length)return `<div class="empty">Kein Drucker passt zu „${esc(hq)}“.</div>`;
-  return `${vis.map(p=>{const s=p.snap||snapshot(p);const cls=s.running?"st-run":s.status==="finish"?"st-fin":s.status==="failed"?"st-fail":"";
+  return `${vis.map(p=>{const s=p.snap||snapshot(p);const histHTML=hist(p,q);const cls=s.running?"st-run":s.status==="finish"?"st-fin":s.status==="failed"?"st-fail":"";
     const hasJob=s.weight>0;
     return `<div class="prn"><div class="thumb" data-cover="${esc(p.dev)}">${ICON.cube}</div><div style="min-width:0">
       <div class="row" style="gap:8px"><h3>${esc(p.name)}</h3><span class="chip ${cls}">${esc(statusText(s.status))}${s.running?` · ${N0.format(s.progress)} %`:""}</span></div>
       <div class="meta">${s.task?`<span>${esc(s.task)}</span>`:""}${hasJob?`<span class="num">${g(s.weight)}</span>`:""}${s.mats.length>1?`<span>${s.mats.length} Filamente</span>`:""}${s.running&&s.remaining?`<span>noch ${dur(s.remaining*60)}</span>`:""}</div>
       ${s.running?`<div class="pbar"><i style="width:${Math.min(100,s.progress)}%"></i></div>`:""}
       <div class="acts">${hasJob?`<button class="btn sm pri" data-act="haImport" data-dev="${esc(p.dev)}">${ICON.plus} ${s.running?"Laufenden Druck übernehmen":"Letzten Druck übernehmen"}</button>`:`<span class="hint">Noch kein Druck gespeichert.</span>`}</div>
-    </div></div>`}).join("")}`;
+    ${histHTML}</div></div>`}).join("")}`;
 }
+const serialOf=p=>(p.roles.status.split(".")[1].split("_")[1]||"").toUpperCase();
+const openHist=new Set();
+function hist(p,q){
+  if(!window.JOBS)return "";
+  const all=JOBS.jobsFor(serialOf(p));
+  if(!all.length)return JOBS.busy()?`<div class="phist"><span class="hint">Druckhistorie wird geladen…</span></div>`:"";
+  const nameHit=q&&p.name.toLowerCase().includes(q);
+  const items=q&&!nameHit?all.filter(j=>j.title.toLowerCase().includes(q)):all;
+  const showAll=openHist.has(p.dev)||(q&&!nameHit)||!!hp;
+  const shown=showAll?items.slice(0,200):items.slice(0,3);
+  const when=iso=>iso?new Date(iso).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+  return `<div class="phist"><div class="label">Druckhistorie · ${items.length}</div>${shown.map(j=>{const u=JOBS.usedOf(j);
+    return `<div class="ph${u?" used":""}"><div class="thumb" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}">${j.cover?"":ICON.cube}</div>
+      <div style="min-width:0"><div class="pt" title="${esc(j.title)}">${esc(j.title)}</div><div class="hint">${esc(when(j.end||j.start))} · ${g(j.grams)}${j.minutes?" · "+dur(j.minutes):""}${j.failed?' · <span class="st-fail">abgebrochen</span>':""}${u?` · ${esc(u)}`:""}</div></div>
+      <button class="btn sm" data-act="haJob" data-key="${esc(j.key)}" title="In die Kalkulation übernehmen" aria-label="${esc(j.title)} übernehmen">${ICON.plus}</button></div>`}).join("")}
+    ${items.length>3&&!showAll?`<button class="btn ghost sm" data-act="haHist" data-dev="${esc(p.dev)}">Alle ${items.length} Drucke anzeigen</button>`:""}
+    ${showAll&&items.length>3&&!(q&&!nameHit)?`<button class="btn ghost sm" data-act="haHist" data-dev="${esc(p.dev)}">Weniger anzeigen</button>`:""}</div>`;
+}
+function histLoad(){if(window.JOBS&&S.addMode==="drucker"){const was=JOBS.busy();JOBS.ensure().then(()=>{if(S.tab==="rechner"&&S.addMode==="drucker"){const box=document.getElementById("haList");if(box){box.innerHTML=printerCards(hq.trim().toLowerCase());loadCovers()}}})}}
 function redrawPanel(){if(S.tab!=="rechner"||S.addMode!=="drucker")return;const sec=document.querySelector('[aria-label="Teil hinzufügen"]');if(!sec)return;
   const old=sec.querySelector(".ha-panel");const html=`<div class="ha-panel">${panelHTML()}</div>`;
   if(old)old.outerHTML=html;else{const seg=sec.querySelector(".row");seg.insertAdjacentHTML("afterend",html);[...sec.children].forEach(ch=>{if(ch!==seg&&!ch.classList.contains("ha-panel"))ch.remove()})}
@@ -1535,6 +1564,8 @@ function amsRows(){
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
   if(a==="haReload"){await reload()}
+  else if(a==="haHist"){const d=b.dataset.dev;openHist.has(d)?openHist.delete(d):openHist.add(d);const box=document.getElementById("haList");if(box){box.innerHTML=printerCards(hq.trim().toLowerCase());loadCovers()}}
+  else if(a==="haJob"){if(window.JOBS)await JOBS.takeKeys([b.dataset.key],"quote")}
   else if(a==="haImport"){await importJob(b.dataset.dev)}
   else if(a==="haWatch"){const row=b.closest("[data-part]");if(row)await watchModal(row.dataset.part)}
   else if(a==="haWatchPick"){const p=S.quote.parts.find(x=>x.id===S._haWatchPart);const pr=list.find(x=>x.dev===b.dataset.dev);closeModal();if(!p||!pr)return;
@@ -1548,13 +1579,14 @@ document.addEventListener("click",async e=>{
     catch(err){msg.textContent="Verbindung fehlgeschlagen: "+(err&&err.message||err)}}
   else if(a==="haDisconnect"){confirmBox("Verbindung zu Home Assistant trennen? Diese Seite nutzt danach wieder die Daten, die nur in diesem Browser liegen.","Trennen",()=>{try{localStorage.removeItem(CONN_KEY)}catch(e){}location.reload()})}
 });
+document.addEventListener("change",e=>{const t=e.target;if(t.id!=="ha_pr")return;hp=t.value;const box=document.getElementById("haList");if(box){box.innerHTML=printerCards(hq.trim().toLowerCase());loadCovers()}});
 document.addEventListener("input",e=>{const t=e.target;if(t.id!=="ha_q")return;hq=t.value;const box=document.getElementById("haList");if(box){box.innerHTML=printerCards(hq.trim().toLowerCase());loadCovers()}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.dataset.hamap){cfgMap(t.dataset.hamap)[t.dataset.k]=t.value;saveCfgSoon();toast("Gespeichert")}
   else if(t.dataset.amskey){S.cfg.amsMap=S.cfg.amsMap||{};if(t.value)S.cfg.amsMap[t.dataset.amskey]=t.value;else delete S.cfg.amsMap[t.dataset.amskey];saveCfgSoon();toast("Gespeichert")}
 });
 /* Panel neu zeichnen, wenn der Rechner neu aufgebaut wird */
-const _rc=renderCalc;renderCalc=function(m){_rc(m);if(S.addMode==="drucker"&&S.backend==="ha"){if(!list.length&&!loading)reload();else loadCovers()}};
+const _rc=renderCalc;renderCalc=function(m){_rc(m);if(S.addMode==="drucker"&&S.backend==="ha"){if(!list.length&&!loading)reload();else loadCovers();histLoad()}if(window.JOBS)JOBS.fixThumbs()};
 const _rs=renderSettings;renderSettings=function(m){_rs(m);if(S.backend==="ha"&&!list.length&&!loading){loadRegistry(false).then(()=>{list=printers();autoMap(list);if(S.tab==="einstellungen")_rs($("#main"))}).catch(()=>{})}};
 
 function init(){if(S.backend!=="ha")return;loadRegistry(false).then(()=>{list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}).catch(()=>{});
@@ -1786,9 +1818,9 @@ async function partFromJob(j){
   if(!printerId){const nm=String(j.printer||"").toLowerCase().replace(/[\s_-]+/g,"");const md=String(j.model||"").toLowerCase().replace(/[\s_-]+/g,"");
     const hit=S.cfg.printers.find(x=>{const n=x.name.toLowerCase().replace(/[\s_-]+/g,"");return n===nm||(md&&n.startsWith(md)&&(md.includes("mini")===n.includes("mini")))});printerId=hit?hit.id:""}
   let kwh=0;if(pr&&j.start&&j.end){try{kwh=await HAP.kwhFor(pr.dev,j.start,j.end)}catch(e){}}
-  let thumb="";if(j.cover){try{const r=await fetch(j.cover);if(r.ok)thumb=await blobToThumb(await r.blob())}catch(e){}}
+  const thumb=await thumbFor(j.cover);
   return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"?"Druckprotokoll":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
-    mats:mats.length?mats:[{matId:"",g:0}],job:{key:j.key,keys:keysOf(j),printer:j.printer,start:j.start,end:j.end,failed:j.failed}});
+    mats:mats.length?mats:[{matId:"",g:0}],job:{key:j.key,keys:keysOf(j),printer:j.printer,start:j.start,end:j.end,failed:j.failed,cover:j.cover||""}});
 }
 async function markHa(jobs){if(S.backend!=="ha")return;for(const j of jobs)if(j.src==="ha"&&j.uid&&!j.done){try{await hass().callWS({type:"call_service",domain:"todo",service:"update_item",target:{entity_id:TODO},service_data:{item:j.uid,status:"completed"}});j.done=true;const o=J.ha.find(x=>x.uid===j.uid);if(o)o.done=true}catch(e){console.warn("Druckprotokoll",e)}}}
 async function take(mode,orderId,ok){
@@ -1853,6 +1885,40 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.closest&&e.
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="job_q"){J.q=t.value;redraw()}else if(t.id==="jobOrdQ"){$("#jobOrdList").innerHTML=ordPickHTML(t.value)}});
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.src=t.value;redraw()}else if(t.id==="job_pr"){J.printer=t.value;redraw()}else if(t.id==="job_open"){J.open=t.checked;redraw()}});
 
+/* Vorschaubild holen: direkt, sonst über die Weiterleitung (Bambu-Bilder erlauben keinen Abruf aus dem Browser) */
+async function thumbFor(url){
+  if(!url)return "";
+  try{const r=await fetch(url);if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}}catch(e){}
+  try{const r=await fetch(PROXY+"/cover?u="+encodeURIComponent(url));if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}}catch(e){}
+  return "";
+}
+/* Teile ohne Bild nachträglich mit dem Bild aus der Druckhistorie versehen */
+let fixing=false;
+async function fixThumbs(){
+  if(fixing||!S.quote)return;fixing=true;let n=0;
+  try{for(const p of S.quote.parts){if(p.thumb||!p.job)continue;
+    let url=p.job.cover||"";
+    if(!url){const k=(p.job.keys||[p.job.key]).find(x=>String(x).startsWith("c:"));const c=k&&J.cloud.find(x=>x.key===k);
+      if(c)url=c.cover;else{const h=all().find(x=>(p.job.keys||[p.job.key]).includes(x.key));if(h)url=h.cover}}
+    if(!url)continue;const t=await thumbFor(url);if(t){p.thumb=t;p.job.cover=url;n++}}}
+  finally{fixing=false}
+  if(n){saveDraft();if(S.tab==="rechner")renderCalc($("#main"))}
+}
+/* Druckhistorie vollständig laden (Druckprotokoll und bis zu 1000 Cloud-Drucke) */
+let ensP=null;
+function ensure(){
+  if(ensP)return ensP;
+  ensP=(async()=>{
+    const ps=[];if(S.backend==="ha")ps.push(loadHa(false));
+    if(acct()){ps.push((async()=>{if(!J.cloudAt)await loadCloud(true);for(let i=0;i<9&&J.more&&!J.cloudErr;i++)await loadCloud(true,true)})())}
+    await Promise.all(ps);fixThumbs();
+  })().finally(()=>{setTimeout(()=>{ensP=null},30000)});
+  return ensP;
+}
+const busy=()=>J.haLoading||J.cloudLoading;
+function jobsFor(serial){serial=String(serial||"").toUpperCase();if(!serial)return [];return all().filter(j=>!j.running&&String(j.serial||"").toUpperCase()===serial)}
+function usedOf(j){const u=usedMap();return keysOf(j).map(k=>u[k]).find(Boolean)||(j.done?"übernommen":"")}
+async function takeKeys(keys,mode){J_list=all();J.sel=new Set(keys);await take(mode||"quote")}
 let coverP=null;
 async function coverFor(serial){
   if(!serial||!acct())return "";
@@ -1860,7 +1926,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={render,settingsHTML,cloudStatus,coverFor,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
