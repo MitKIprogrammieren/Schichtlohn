@@ -55,7 +55,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--header-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .topin{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:12px}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.02em}
-.brand svg{width:28px;height:28px;color:var(--accent)}
+.brand svg{width:32px;height:32px;color:var(--accent)}
 .brand small{display:block;font:500 11px/1 var(--f-body);color:var(--fg-3);letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
 nav.tabs{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none;max-width:100%}
 nav.tabs::-webkit-scrollbar{display:none}
@@ -201,7 +201,7 @@ table.list tr.click:hover td{background:var(--glass)}
 <header class="top">
   <div class="wrap topin">
     <div class="brand">
-      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="2"/><rect x="9" y="19" width="14" height="3" rx="1.5" fill="currentColor"/><rect x="10.5" y="14.5" width="11" height="3" rx="1.5" fill="currentColor" opacity=".8"/><rect x="12" y="10" width="8" height="3" rx="1.5" fill="currentColor" opacity=".6"/></svg>
+      <svg viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="slTag"><path d="M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z"/></clipPath><mask id="slHole"><rect width="48" height="48" fill="#fff"/><circle cx="33.5" cy="15.5" r="4.4" fill="#000"/></mask></defs><g clip-path="url(#slTag)" mask="url(#slHole)" fill="currentColor"><rect x="0" y="8.0" width="48" height="2.4"/><rect x="0" y="11.4" width="48" height="2.4"/><rect x="0" y="14.8" width="48" height="2.4"/><rect x="0" y="18.2" width="48" height="2.4"/><rect x="0" y="21.6" width="48" height="2.4"/><rect x="0" y="25.0" width="48" height="2.4"/><rect x="0" y="28.4" width="48" height="2.4"/><rect x="0" y="31.8" width="48" height="2.4"/><rect x="0" y="35.2" width="48" height="2.4"/><rect x="0" y="38.6" width="48" height="2.4"/></g><circle cx="33.5" cy="15.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M33.5 12.9V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
       <div>Schichtlohn<small>Druckpreise kalkulieren</small></div>
     </div>
     <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>Bambu Cloud</span></button></span>
@@ -767,6 +767,7 @@ function renderSettings(m){
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
+      <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
     </section>
 
@@ -1031,6 +1032,7 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
+  if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();render();return}
   if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();render();return}
   switch(a){
     case "close":closeModal();break;
@@ -1963,6 +1965,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 [data-skin="bambu"] .lagerhost{--sl-h1:20px;--sl-h1-ls:0;--sl-chip-r:4px}
 [data-skin="ha"] .lagerhost{--sl-ldy:4px;--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
 .lstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.lstat:empty{display:none}
 .dcard{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--glass)}
 .dcard .dh{display:flex;align-items:center;gap:10px;min-width:0}
 .dcard .di{width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--r-s);background:var(--accent-soft);color:var(--accent)}
@@ -1981,6 +1984,11 @@ cloudStatus();setTimeout(cloudStatus,500);
 .dcard .mt.mid b{color:var(--warn)}.dcard .mt.hi b{color:var(--bad)}
 .dcard a.btn{text-decoration:none;color:var(--fg);align-self:flex-start;margin-top:-2px}
 .dcard .doff{font-size:13px;color:var(--fg-3)}
+.dcard .dw{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:10px 12px;border-radius:var(--r-s);background:var(--sunken,rgba(127,127,127,.08))}
+.dcard .dw span{font-size:12px;color:var(--fg-3);flex-basis:100%}
+.dcard .dw b{font-size:28px;font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums;line-height:1.1}
+.dcard .dw small{font-size:12px;color:var(--fg-3)}
+.dcard .dw.none b{font-size:20px;color:var(--fg-3)}
 [data-skin="bambu"] .dcard{border-radius:var(--r)}
 </style>
 <script>
@@ -2180,18 +2188,23 @@ const DICON={
   filamentwaage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/></svg>',
   druckbruecke:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>'};
 function pick(st,pre,res){for(const re of res){const id=Object.keys(st).find(i=>i.startsWith("sensor."+pre+"_")&&re.test(i.slice(7+pre.length+1)));if(id)return st[id]}return null}
+function gewichtHTML(s){const v=s?Number(s.state):NaN;
+  if(!s)return `<div class="dw none"><span>Auf der Waage</span><b>–</b><small>Kommt mit Waagen-Firmware 2.14.1</small></div>`;
+  return `<div class="dw"><span>Auf der Waage</span><b>${isFinite(v)?Math.round(v).toLocaleString("de-DE")+" g":"–"}</b><small>mit Spule · wird jede Minute aktualisiert</small></div>`}
 function meter(label,s,unit,warn,hi,max){
   const v=s?Number(s.state):NaN;if(!s||!isFinite(v))return `<div class="mt"><span>${label}</span><b>–</b><div class="tr"><i style="width:0"></i></div></div>`;
   const cls=v>=hi?" hi":v>=warn?" mid":"";
   return `<div class="mt${cls}"><span>${label}</span><b>${N1.format(v)} ${unit}</b><div class="tr"><i style="width:${Math.max(2,Math.min(100,v/max*100))}%"></i></div></div>`}
 function status(){
   const el=$("#lagerStatus");if(!el)return;const st=stateMap();
-  el.innerHTML=DEV.map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
+  const aus=(S.cfg&&Array.isArray(S.cfg.lagerAus))?S.cfg.lagerAus:[];
+  el.innerHTML=DEV.filter(([pre])=>!aus.includes(pre)).map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
     const off=ids.every(id=>["unavailable","unknown"].includes(st[id].state));
     const temp=pick(st,pre,[/^temperatur/,/temp/]);
     const load=pre==="druckbruecke"?pick(st,pre,[/^auslastung/,/cpu|load/]):pick(st,pre,[/^arbeitsspeicher/,/speicher|ram|memory/]);
     const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
     return `<div class="dcard${off?" off":""}"><div class="dh"><span class="di">${DICON[pre]||ICON.cube}</span><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span></div>
+      ${!off&&pre==="filamentwaage"?gewichtHTML(st[`sensor.${pre}_gewicht`]):""}
       ${off?`<div class="doff">Keine Verbindung zu Home Assistant.</div>`:`<div class="dm">${meter("Temperatur",temp,"°C",65,80,90)}${meter(loadLabel,load,"%",75,90,100)}</div>`}
       ${pre==="druckbruecke"&&L.link?`<a class="btn ghost sm" href="${esc(L.link)}" target="_blank" rel="noopener" title="Nur im Heimnetz erreichbar">${ICON.link} Druckbrücke öffnen</a>`:""}</div>`}).join("");
 }
@@ -2362,6 +2375,27 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgdots button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-2);cursor:pointer;padding:0}
 .lgdots button.on{outline:2px solid var(--fg);outline-offset:1px}
 .lgtg,.tabtg{display:flex;flex-wrap:wrap;gap:6px}
+.lgcam{position:relative;border-radius:var(--r-s);overflow:hidden;background:#000;aspect-ratio:4/3;max-height:50vh;width:100%}
+.lgcam video{width:100%;height:100%;object-fit:cover;display:block}
+.lgcam .lgframe{position:absolute;inset:24% 12%;border:3px solid var(--accent);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.32);transition:border-color .15s}
+.lgcam.ok .lgframe{border-color:#4caf50}.lgcam.neu .lgframe{border-color:#ef5350}
+.lgflash{padding:12px;border-radius:var(--r-s);text-align:center;font-weight:700;background:var(--panel-2,rgba(127,127,127,.12));color:var(--fg-2)}
+.lgflash small{display:block;font-weight:500;margin-top:3px;opacity:.9}
+.lgflash.ok{background:rgba(76,175,80,.18);color:#4caf50}.lgflash.neu{background:rgba(239,83,80,.18);color:#ef5350}
+.lgbig{border-radius:var(--r);padding:26px 16px;text-align:center}
+.lgbig.ok{background:rgba(76,175,80,.16);color:#4caf50}.lgbig.neu{background:rgba(239,83,80,.16);color:#ef5350}
+.lgbig .g{font-size:30px;font-weight:800;line-height:1.15}.lgbig .n{color:var(--fg);font-weight:600;margin-top:10px}.lgbig .z{color:var(--fg-2);font-size:13px;margin-top:4px}
+.lgsh{display:flex;justify-content:space-between;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-2);margin-top:4px}
+.lgsh.neu{color:var(--warn)}
+.lgsl{border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden}
+.lgsr{display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.lgsr:first-child{border-top:0}
+.lgsr .acts{display:flex;gap:4px;align-items:center}
+.lgzahl{display:flex;align-items:center;gap:2px}.lgzahl b{min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
+.lgsw.lgq{display:grid;place-items:center;font-weight:700;color:var(--fg-3);box-shadow:inset 0 0 0 1px var(--line);background:transparent}
+.lgsbtn svg{width:16px;height:16px}
+.lgso{border-left:3px solid var(--accent)}
+@media (max-width:620px){.lgsr{grid-template-columns:30px minmax(0,1fr);row-gap:6px}.lgsr .lgzahl{grid-column:2}.lgsr .acts{grid-column:2;justify-content:flex-start}}
 .lgtg button,.tabtg button{cursor:pointer}
 .tabtg button{padding:6px 12px;font-size:13px;gap:6px}.tabtg button svg{width:14px;height:14px}
 .lgtg button.on,.tabtg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -2407,23 +2441,46 @@ const besOf=b=>{const m=BES.find(x=>x[0].test(String(b).trim()));return m?{k:m[1
   css+=`.lgc .chip.bx.bx-${k},.chip.bx.bx-${k},.lgp .hmat.bx-${k}{background:${bg};color:${fg==="inherit"?"var(--fg)":fg};border:1px ${k==="trans"?"dashed":"solid"} ${bd?(bd==="currentColor"?"color-mix(in srgb,var(--fg) 45%,transparent)":bd):"transparent"}${sh}${ts}}\n`});
   css+=".chip.bx{font-weight:600;gap:4px}.chip.bx ha-icon{--mdc-icon-size:13px;display:inline-flex}.lgp .hmat.bx{padding:0 11px 0 9px;letter-spacing:.03em}.lgp .hmat.bx b{font-weight:700}\n";
   const st=document.createElement("style");st.textContent=css;document.head.appendChild(st)})();
-const spool=(hex,cls="lgsw")=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
-  if(S.cfg&&S.cfg.lagerFarbe==="quadrat")return `<span class="${cls}" style="background:${c}"></span>`;
-  return `<span class="${cls} lgspool" role="img" aria-label="Filamentfarbe"><svg viewBox="0 0 44 44" aria-hidden="true"><g transform="rotate(-16 22 22)" stroke-linejoin="round">
+const spool=(hex,cls="lgsw",bes)=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
+  const fl=(bes||[]).map(x=>String(x).toLowerCase());const has=re=>fl.some(x=>re.test(x));
+  const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/);
+  if(S.cfg&&S.cfg.lagerFarbe==="quadrat"){const lay=[];
+    if(seide)lay.push("linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 62%)");
+    if(metal)lay.push("linear-gradient(180deg,rgba(255,255,255,.35),rgba(0,0,0,.15) 50%,rgba(255,255,255,.25))");
+    if(cf)lay.push("repeating-linear-gradient(35deg,rgba(0,0,0,.28) 0 1px,transparent 1px 4px)");
+    if(gf)lay.push("repeating-linear-gradient(35deg,rgba(255,255,255,.35) 0 1px,transparent 1px 4px)");
+    if(glitzer)lay.push("radial-gradient(circle,rgba(255,255,255,.9) 0 .8px,transparent 1.3px) 0 0/6px 6px");
+    if(trans){const ca=c+"99";return `<span class="${cls}" style="background:${lay.concat(["linear-gradient("+ca+","+ca+")","conic-gradient(#cfd3d8 25%,#8d939b 0 50%,#cfd3d8 0 75%,#8d939b 0) 0 0/8px 8px"]).join(",")}"></span>`}
+    return `<span class="${cls}" style="background:${lay.concat([c]).join(",")}"></span>`}
+  const ov=[];if(seide)ov.push("url(#lgFxSilk)");if(metal)ov.push("url(#lgFxMetal)");if(cf)ov.push("url(#lgFxCf)");if(gf)ov.push("url(#lgFxGf)");if(glitzer)ov.push("url(#lgFxGlit)");
+  const BAND="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z";
+  const lay=(shape)=>ov.map(u=>shape.replace("FILL",u)).join("");
+  return `<span class="${cls} lgspool" role="img" aria-label="Filamentfarbe"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>
+<linearGradient id="lgSpSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></linearGradient>
+<linearGradient id="lgSpShM" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".02"/><stop offset=".6" stop-color="#000" stop-opacity=".12"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
+<linearGradient id="lgFxSilk" x1="0" y1="0" x2="1" y2="1"><stop offset=".22" stop-color="#fff" stop-opacity="0"/><stop offset=".42" stop-color="#fff" stop-opacity=".62"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset=".6" stop-color="#fff" stop-opacity=".45"/><stop offset=".78" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="lgFxMetal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".3" stop-color="#000" stop-opacity=".12"/><stop offset=".5" stop-color="#fff" stop-opacity=".35"/><stop offset=".75" stop-color="#000" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity=".25"/></linearGradient>
+<pattern id="lgFxCf" width="2.8" height="2.8" patternUnits="userSpaceOnUse" patternTransform="rotate(32)"><path d="M.1 .5h1.1M1.3 1.75h.8" stroke="#000" stroke-opacity=".26" stroke-width=".3"/><path d="M.6 1.15h.6" stroke="#fff" stroke-opacity=".1" stroke-width=".25"/></pattern>
+<pattern id="lgFxGf" width="2.8" height="2.8" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)"><path d="M.1 .5h1.1M1.3 1.75h.8" stroke="#fff" stroke-opacity=".3" stroke-width=".26"/><path d="M.6 1.15h.5" stroke="#000" stroke-opacity=".08" stroke-width=".25"/></pattern>
+<pattern id="lgFxChk" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#c9cdd3"/><rect width="1.5" height="1.5" fill="#868c94"/><rect x="1.5" y="1.5" width="1.5" height="1.5" fill="#868c94"/></pattern>
+<pattern id="lgFxGlit" width="3.2" height="3.2" patternUnits="userSpaceOnUse"><circle cx=".7" cy=".8" r=".32" fill="#fff" fill-opacity=".95"/><circle cx="2.3" cy="2.2" r=".22" fill="#fff" fill-opacity=".75"/><circle cx="2.6" cy=".5" r=".16" fill="#ffe9a8" fill-opacity=".85"/></pattern>
+</defs><g transform="rotate(-16 22 22)" stroke-linejoin="round">
 <ellipse cx="27" cy="22" rx="9.4" ry="17.4" fill="#2b2f35" stroke="#7d8591" stroke-width="1"/>
-<defs><linearGradient id="lgSpSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></linearGradient></defs>
-<path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z" fill="${c}"/>
-<path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z" fill="url(#lgSpSh)"/>
+${trans?`<path d="${BAND}" fill="url(#lgFxChk)"/>`:""}<path d="${BAND}" fill="${c}"${trans?' fill-opacity=".58"':""}/>
+<path d="${BAND}" fill="url(#${matt?"lgSpShM":"lgSpSh"})"/>
+${lay(`<path d="${BAND}" fill="FILL"/>`)}
 <path d="M21.5 6.4A8.3 15.6 0 0 1 21.5 37.6M25 6.4A8.3 15.6 0 0 1 25 37.6" fill="none" stroke="#000" stroke-opacity=".1" stroke-width=".55"/>
 <path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18" fill="none" stroke="#000" stroke-opacity=".45" stroke-width=".7" stroke-linecap="round"/>
 <ellipse cx="18" cy="22" rx="9.4" ry="17.4" fill="#33373e" stroke="#a3abb6" stroke-width="1"/>
-<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="${c}"/>
+${trans?`<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="url(#lgFxChk)"/>`:""}<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="${c}"${trans?' fill-opacity=".58"':""}/>
+${matt?`<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="#000" fill-opacity=".06"/>`:""}
+${lay(`<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="FILL"/>`)}
 <ellipse cx="18" cy="22" rx="6.9" ry="12.9" fill="none" stroke="#000" stroke-opacity=".14" stroke-width=".6"/>
 <ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".7"/>
 <ellipse cx="18" cy="22" rx="5.2" ry="9.6" fill="#4b5058" stroke="#000" stroke-opacity=".45" stroke-width=".8"/>
 <ellipse cx="18" cy="22" rx="2.6" ry="4.8" fill="#1d2024" stroke="#a3abb6" stroke-width=".7"/>
 <ellipse cx="18" cy="22" rx="1" ry="1.9" fill="#0b0c0e"/>
-<path d="M12.2 11.6c1.3-2.9 3.1-4.7 4.9-5.1" stroke="#fff" stroke-opacity=".5" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg></span>`};
+${matt?"":`<path d="M12.2 11.6c1.3-2.9 3.1-4.7 4.9-5.1" stroke="#fff" stroke-opacity="${seide||metal?".85":".5"}" stroke-width="${seide||metal?"1.3":".9"}" fill="none" stroke-linecap="round"/>`}</g></svg></span>`};
 const SORTS=[["material","Material"],["hersteller","Marke"],["farbe","Farbe"],["besonderheit","Besonderheit"],["drucker","Drucker"],["bestand","Bestand"]];
 const TOL=19200;
 const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,showF:false,zu:[],openFach:false,openOffen:false,sub:false,form:null};
@@ -2532,7 +2589,7 @@ function rowHTML(e,orte,fu,E){
   if(e.spulen<=0)ch+=`<span class="chip c-bad">aufgebraucht</span>`;else if(E.knapp_g>0&&tot<E.knapp_g)ch+=`<span class="chip c-bad">knapp</span>`;
   (orte||[]).forEach(s=>{ch+=`<span class="chip c-ok">${SV.ams}${esc(s.ort)}</span>`;const f=fu[s.ams];if(f!=null)ch+=`<span class="chip ${stufe(f,E)}">${SV.drop}${f} %</span>`});
   const tech=[e.duese_min!=null||e.duese_max!=null?"Druck "+[e.duese_min,e.duese_max].filter(x=>x!=null).join("–")+" °C":"",e.preis>0?e.preis.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €/kg":""].filter(Boolean).join(" · ");
-  return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex)}
+  return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}
     <div style="min-width:0"><div class="lgn">${esc(name(e))}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
 function body(){return body0().replace("__ALLZU__",G._allZu?"Alle aufklappen":"Alle einklappen")}
@@ -2552,7 +2609,7 @@ function body0(){G._allZu=false;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   let h=`<div class="lgsum"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen (${spulen-refills} mit Spule, ${refills} Refill)</span><span class="sp"></span>
-    <button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div>
+    <button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div>
     <div class="lgbar"><input type="search" id="lgq" placeholder="Suchen: Farbe, Marke, Material, Code, AMS …" value="${esc(G.q)}">
       <select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}">Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -2562,6 +2619,7 @@ function body0(){G._allZu=false;
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
   if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
+  if(G.serie&&G.serie.length){const sg=serieGruppen();h+=`<section class="panel lgp lgo lgso"><div class="row pad"><span class="gl">Serienscan: ${plural(serieSumme(),"Rolle","Rollen")} offen</span><span class="sp"></span><span class="dim" style="font-size:12px;margin-right:10px">${sg.bekannt.length} bekannt · ${sg.unbekannt.length} unbekannt</span><button class="btn sm pri" data-act="lgSerieListe">Liste öffnen</button></div></section>`}
   if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird aus Home Assistant geladen…</div>`;
   const of=offen();
   if(of.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Nicht zugeordnet (${of.length})</span></div>${(G.openOffen?of:of.slice(0,4)).map(o=>`<div class="lgor">${spool(o.hex)}
@@ -2666,12 +2724,13 @@ async function save(f,silent){
     if(!f.uid){const key=x=>[x.hersteller,x.material,x.farbe,[...x.besonderheiten].sort().join(",")].join("|").toLowerCase();const dup=entries().find(x=>key(x)===key(f));
       if(dup){closeModal();confirmBox(`„${summary(f)}“ gibt es schon (${dup.spulen} Rollen). ${f.spulen} Rolle(n) dazuzählen?`,"Dazuzählen",async()=>{
         await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt")});return}}
-    await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt")
+    await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt");
+    if(f.serieCode){serieWeg(f.serieCode);setTimeout(()=>serieModal(),300)}
   }catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 
 /* --- Zuordnen --- */
 function sortenPick(hex,mat,fid,act){const E=entries().filter(e=>e.spulen>0).map(e=>({e,d:Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)))+(fid&&e.bambu_id===fid?0:1e6)+(mat&&!e.material.toUpperCase().startsWith(mat)?1e7:0)})).sort((a,b)=>a.d-b.d);
-  return `<input type="search" id="lgpq" placeholder="Sorte suchen"><div class="lgpick" id="lgpick">${E.map(({e})=>`<div class="lgr" data-act="${act}" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}">${spool(e.hex)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>${e.bambu_id?`<div class="lgs">Bambu-ID ${esc(e.bambu_id)}</div>`:""}</div><div class="lgrt"><b>${kg(total(e))}</b></div></div>`).join("")}</div>`}
+  return `<input type="search" id="lgpq" placeholder="Sorte suchen"><div class="lgpick" id="lgpick">${E.map(({e})=>`<div class="lgr" data-act="${act}" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>${e.bambu_id?`<div class="lgs">Bambu-ID ${esc(e.bambu_id)}</div>`:""}</div><div class="lgrt"><b>${kg(total(e))}</b></div></div>`).join("")}</div>`}
 function ozuModal(uid){const o=offen().find(x=>x.uid===uid);if(!o)return;G.ozu=o;const fidOk=o.fid&&!generic(o.fid);
   modal("Verbrauch zuordnen",`<div class="lgform"><div class="lghint">${esc([o.drucker,o.ort,o.name||o.material,o.fid].filter(Boolean).join(" · "))}</div>
     <div class="g2"><label class="field"><span>Abbuchen</span><div class="unit"><input type="text" inputmode="decimal" id="lo_g" value="${String(Math.round(o.gramm*10)/10).replace(".",",")}"><em>g</em></div></label></div>
@@ -2687,6 +2746,135 @@ function fromSlot(s){const toks=String(s.name||"").split(/\s+/).filter(Boolean);
   let best=FARBEN[0],bd=1e15;FARBEN.forEach(p=>{const d=dist(p[1],s.hex);if(d<bd){bd=d;best=p}});
   const rest=Number.isFinite(s.remain)&&s.remain>=0&&s.remain<100?[Math.round(s.remain*10)]:[];
   formModal(null,{hersteller:her||G.lastH||"",material,farbe:best[0],hex:s.hex,besonderheiten:bes,reste:rest,bambu_id:generic(s.fid)?"":s.fid,ams_farben:generic(s.fid)||!s.fid?[]:[s.hex],hinweis:`Übernommen aus ${s.ort}, bitte prüfen`})}
+
+/* --- Scannen und Serienscan (wie in der FilamentLager-Karte, gleiche Daten und gleiche Serienliste) --- */
+const CODES_BEKANNT={
+ "6975337032106":{hersteller:"Bambu Lab",material:"PLA",farbe:"Copper Brown Metallic",hex:"#a0603f",besonderheiten:["Metallic"],gewicht:1000,durchmesser:1.75,ausfuehrung:"spule",duese_min:190,duese_max:230,trocknen_c:55,trocknen_h:8,fcode:"13800"},
+ "6977252428200":{hersteller:"Bambu Lab",material:"PLA",farbe:"Nardo Gray",hex:"#787a7a",besonderheiten:["Matt"],gewicht:1000,durchmesser:1.75,ausfuehrung:"refill"}};
+const SERIE_KEY="ernsthaft_gelagert_plus_serie";
+const BC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg>`;
+const BCS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 9v6M10 9v6M13 9v6"/><path d="M16.5 10.5h3M18 9v3"/></svg>`;
+function serieLaden(){try{const a=JSON.parse(localStorage.getItem(SERIE_KEY)||"[]");return Array.isArray(a)?a.filter(x=>x&&x.code&&x.n>0).map(x=>({code:String(x.code),n:Math.round(x.n)})):[]}catch(e){return []}}
+G.serie=serieLaden();
+const serieSichern=()=>{try{localStorage.setItem(SERIE_KEY,JSON.stringify(G.serie))}catch(e){}};
+const serieSumme=()=>G.serie.reduce((a,x)=>a+x.n,0);
+const serieWeg=code=>{G.serie=G.serie.filter(x=>x.code!==code);serieSichern()};
+const codeSorte=code=>entries().find(e=>e.codes.includes(code));
+function serieGruppen(){const bekannt=[],unbekannt=[];G.serie.forEach(x=>{const e=codeSorte(x.code);if(e)bekannt.push(Object.assign({},x,{e,refill:e.codes_refill.includes(x.code)}));else unbekannt.push(Object.assign({},x,{k:CODES_BEKANNT[x.code]||null}))});return {bekannt,unbekannt}}
+const plural=(n,a,b)=>n+" "+(n===1?a:b);
+const brumm=()=>{try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}};
+
+/* Kamera im Browser: BarcodeDetector, sonst ZXing */
+let cam={on:false,token:0,stream:null,timer:null,zx:null,watch:null};
+const camMsg=t=>{const m=document.getElementById("lgsmsg");if(m)m.textContent=t};
+function camStop(){cam.on=false;cam.token++;clearTimeout(cam.timer);clearInterval(cam.watch);cam.timer=null;cam.watch=null;
+  if(cam.zx){try{cam.zx.stop()}catch(e){}cam.zx=null}if(cam.stream){cam.stream.getTracks().forEach(t=>t.stop());cam.stream=null}}
+async function camStart(onHit){
+  const v=document.getElementById("lgvid");if(!v)return;camStop();cam.on=true;const token=cam.token;
+  const alive=()=>cam.on&&token===cam.token&&document.getElementById("lgvid")===v;
+  cam.watch=setInterval(()=>{if(!alive())camStop()},400);
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camMsg("Die Kamera ist hier nicht verfügbar (nur über https). Code bitte unten eintippen.");camStop();return}
+  try{
+    if("BarcodeDetector" in window){
+      cam.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+      if(!alive())return camStop();v.srcObject=cam.stream;await v.play();
+      const det=new window.BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e","code_128","code_39","qr_code","data_matrix"]});camMsg("Suche Code …");
+      const loop=async()=>{if(!alive())return;try{const r=await det.detect(v);if(r&&r.length)onHit(r[0].rawValue)}catch(e){}if(cam.on&&token===cam.token)cam.timer=setTimeout(loop,250)};loop();
+    }else{
+      camMsg("Lade Scanner …");const m=await import("https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm");if(!alive())return camStop();
+      const reader=new m.BrowserMultiFormatReader();camMsg("Suche Code …");
+      cam.zx=await reader.decodeFromConstraints({video:{facingMode:"environment"},audio:false},v,res=>{if(res&&alive())onHit(res.getText())});
+      if(!alive())camStop();
+    }
+  }catch(e){camMsg(/import|fetch/i.test(String(e&&e.message))?"Der Scanner konnte nicht geladen werden (keine Internetverbindung?). Code bitte unten eintippen.":"Kamera nicht nutzbar: "+(e.message||e.name||e)+". Code bitte unten eintippen.");camStop()}}
+
+/* Scanner der Home-Assistant-App (iPhone/Android) */
+function extern(){const h=window.__hass;const x=h&&h.auth&&h.auth.external;return x&&x.config&&x.config.hasBarCodeScanner&&typeof x.fireMessage==="function"?x:null}
+function busWin(){try{if(window.parent&&window.parent!==window&&window.parent.document)return window.parent}catch(e){}return window}
+function nativScan(titel,text,alt,onCode,onAbort){
+  const ext=extern(),W=busWin(),orig=W.externalBus;let fertig=false;
+  const restore=()=>{if(!fertig){fertig=true;if(W.externalBus===hook)W.externalBus=orig}};
+  const hook=msg=>{let m=msg;try{if(typeof m==="string")m=JSON.parse(m)}catch(e){}
+    if(m&&m.type==="command"&&(m.command==="bar_code/scan_result"||m.command==="bar_code/aborted")){
+      try{ext.fireMessage({id:m.id,type:"result",success:true,result:null})}catch(e){}restore();
+      if(m.command==="bar_code/scan_result"){try{ext.fireMessage({type:"bar_code/close"})}catch(e){}onCode(m.payload&&m.payload.rawValue)}
+      else onAbort(m.payload&&m.payload.reason);return}
+    return typeof orig==="function"?orig(msg):undefined};
+  W.externalBus=hook;
+  try{ext.fireMessage({type:"bar_code/scan",payload:{title:titel,description:text,alternative_option_label:alt}})}catch(e){restore();return false}
+  return true}
+
+/* Einzelscan */
+function scanStart(){if(extern()&&nativScan("Filament scannen","Strichcode, QR- oder Data-Matrix-Code auf Karton oder Spule","Code eintippen",c=>onCode(c),r=>{if(r==="alternative_options")scanModal(false)}))return;scanModal(false)}
+function scanModal(serie){
+  G.serieAktiv=!!serie;G.serieZuletzt=null;
+  const foot=serie?`<span class="sp"></span><button class="btn pri" data-act="lgSerieEnde"><span>Fertig, Liste zeigen (<span id="lgscount">${serieSumme()}</span>)</span></button>`:`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`;
+  modal(serie?"Serienscan":"Code scannen",`<div class="lgform">
+    <div class="lghint">${serie?"Einen Karton nach dem anderen in den Rahmen halten. Jeder Code wird gezählt, zum Schluss „Fertig“.":"Strichcode, QR- oder Data-Matrix-Code auf Karton oder Spule in den Rahmen halten."}</div>
+    <div class="lgcam" id="lgcam"><video id="lgvid" playsinline muted autoplay></video><div class="lgframe"></div></div>
+    ${serie?`<div class="lgflash" id="lgflash">Bereit, Karton in den Rahmen halten</div><div class="lghint" id="lgletzt">${esc(G.serieLetzt||"")}</div>`:""}
+    <div class="lghint" id="lgsmsg">Kamera wird gestartet …</div>
+    <div class="row" style="gap:8px"><input type="text" id="lgctxt" inputmode="numeric" placeholder="… oder Zahlen unter dem Strichcode eintippen" style="flex:1"><button class="btn" data-act="lgCodeOk">${serie?"Dazu":"OK"}</button></div></div>`,foot);
+  setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgctxt")ae.blur()},60);
+  camStart(code=>{if(G.serieAktiv)serieAdd(code,false);else onCode(code)})}
+function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();
+  const e=codeSorte(code);if(e)return hitModal(code,e);neuModal(code,1,false)}
+function hitModal(code,e){const ref=e.codes_refill.includes(code);G.hit={code,uid:e.uid};
+  modal("Erkannt",`<div class="lgform"><div class="lgr" style="border:1px solid var(--line);border-radius:var(--r-s)" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>
+    <div class="lgs">Bestand: ${plural(e.spulen,"Rolle","Rollen")} (${Math.max(0,e.spulen-e.refills)} mit Spule, ${e.refills} Refill) · ${kg(total(e))}</div></div><div></div></div>
+    <div class="lghint">Code ${esc(code)} · ${ref?"Refill (ohne Spule)":"mit Spule"}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
+    `<button class="btn ghost" data-act="lgHitEdit">Bearbeiten</button><button class="btn ghost" data-act="lgScan">Weiter scannen</button><span class="sp"></span><button class="btn pri" data-act="lgHitPlus">${ICON.plus} 1 ${ref?"Refill":"Spule"}</button>`)}
+function neuModal(code,anzahl,ausSerie){const k=CODES_BEKANNT[code]||null;G.neu={code,k,anzahl:anzahl||1,serie:!!ausSerie,refill:!!(k&&k.ausfuehrung==="refill")};
+  const all=entries().sort((a,b)=>summary(a).localeCompare(summary(b),"de"));const n=G.neu.anzahl;
+  modal("Neuer Strichcode",`<div class="lgform">
+    <div class="note">Code ${esc(code)} ist noch keiner Sorte zugeordnet${k?`. Erkannt als ${esc(summary(k))}`:""}.${n>1?` Gescannt: ${n}×`:""}</div>
+    <div class="row" style="flex-wrap:wrap;gap:10px"><button class="btn pri" data-act="lgNcNeu">${ICON.plus} Neue Sorte anlegen</button>
+      <label class="row" style="gap:8px"><input type="checkbox" id="lgncref"${G.neu.refill?" checked":""} style="width:18px;height:18px;accent-color:var(--accent)"> Refill (ohne Spule)</label></div>
+    <div class="lghint">… oder die Sorte antippen, zu der der Karton gehört. Der Code wird dort gespeichert, ${n>1?n+" Rollen werden":"1 Rolle wird"} dazugezählt, und ab dann wird er beim Scannen erkannt.</div>
+    <input type="search" id="lgpq" placeholder="Sorte suchen: Farbe, Hersteller, Material …"><div class="lgpick" id="lgpick">${all.map(e=>`<div class="lgr" data-act="lgNcPick" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">${e.codes.length?plural(e.codes.length,"Strichcode","Strichcodes")+" gespeichert":"noch ohne Strichcode"}</div></div><div class="lgrt"><b>${e.spulen>0?kg(total(e)):"aufgebraucht"}</b></div></div>`).join("")||`<div class="empty">Noch keine Sorten vorhanden.</div>`}</div>
+    <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`${ausSerie?`<button class="btn ghost" data-act="lgSerieListe">Zurück zur Liste</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>`);
+  setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgpq")ae.blur()},60)}
+
+/* Serienscan */
+function serieStart(){G.serieAktiv=true;G.serieLetzt="";G.serieZuletzt=null;if(extern())return serieNativ();scanModal(true)}
+function serieAdd(raw,vonHand){const code=String(raw||"").trim();if(!code)return null;const jetzt=Date.now();
+  if(!vonHand&&G.serieZuletzt&&G.serieZuletzt.code===code&&jetzt-G.serieZuletzt.t<3000){G.serieZuletzt.t=jetzt;return null}
+  G.serieZuletzt={code,t:jetzt};let x=G.serie.find(y=>y.code===code);if(x)x.n+=1;else{x={code,n:1};G.serie.push(x)}serieSichern();brumm();
+  const e=codeSorte(code),k=CODES_BEKANNT[code];const nm=e?summary(e):k?summary(k)+" (neu)":"Unbekannter Code "+code;
+  G.serieLetzt=`Zuletzt: ${nm} · ${x.n}× · insgesamt ${serieSumme()}`;G.serieInfo={name:nm,n:x.n,bekannt:!!e};
+  const a=document.getElementById("lgletzt"),c=document.getElementById("lgscount");if(a)a.textContent=G.serieLetzt;if(c)c.textContent=serieSumme();
+  const fl=document.getElementById("lgflash"),cm=document.getElementById("lgcam");
+  if(fl){fl.className="lgflash "+(e?"ok":"neu");fl.innerHTML=(e?"✓ Bekannt, Code erfasst":"NEU, zur Seite legen")+`<small>${esc(nm)} · ${x.n}×</small>`}
+  if(cm){cm.classList.remove("ok","neu");cm.classList.add(e?"ok":"neu")}
+  clearTimeout(G.blinkT);G.blinkT=setTimeout(()=>{const f2=document.getElementById("lgflash"),c2=document.getElementById("lgcam");if(f2){f2.className="lgflash";f2.textContent="Bereit für den nächsten Karton"}if(c2)c2.classList.remove("ok","neu")},3000);
+  draw(0);return G.serieLetzt}
+function serieNativ(){
+  const ende=()=>{G.serieAktiv=false;clearTimeout(G.reopenT);G.serie.length?serieModal():closeModal();draw(0)};
+  const ok=nativScan("Serienscan","Einen Karton nach dem anderen scannen. Zum Schluss schließen oder „Fertig“ tippen.","Fertig, Liste zeigen",c=>{
+    const t=serieAdd(c,true);if(!t)return serieNativ();serieBlitz()},()=>ende());
+  if(!ok)scanModal(true)}
+function serieBlitz(){const i=G.serieInfo||{name:"",n:0,bekannt:true};
+  modal("Serienscan",`<div class="lgbig ${i.bekannt?"ok":"neu"}"><div class="g">${i.bekannt?"✓ BEKANNT":"NEU<br>zur Seite legen"}</div><div class="n">${esc(i.name)}</div><div class="z">${i.n}× diese Sorte · insgesamt ${plural(serieSumme(),"Rolle","Rollen")}</div></div><div class="lghint" style="text-align:center">Scanner öffnet gleich wieder …</div>`,
+    `<span class="sp"></span><button class="btn pri" data-act="lgSerieEnde">Fertig, Liste zeigen (${serieSumme()})</button>`);
+  clearTimeout(G.reopenT);G.reopenT=setTimeout(()=>{if(G.serieAktiv&&document.querySelector(".lgbig"))serieNativ()},2000)}
+function serieModal(){camStop();G.serieAktiv=false;const {bekannt,unbekannt}=serieGruppen(),sum=serieSumme();
+  if(!G.serie.length){closeModal();toast("Serienscan-Liste ist leer");draw(0);return}
+  const zahl=x=>`<div class="lgzahl"><button class="btn icon ghost" data-act="lgSrMinus" data-c="${esc(x.code)}" aria-label="Weniger">−</button><b>${x.n}</b><button class="btn icon ghost" data-act="lgSrPlus" data-c="${esc(x.code)}" aria-label="Mehr">+</button></div>`;
+  let h=`<div class="lgform"><div class="lghint">${plural(sum,"Rolle","Rollen")} gescannt · ${bekannt.length} bekannt, ${unbekannt.length} unbekannt. Die Liste bleibt auf diesem Gerät gespeichert, bis du sie übernimmst oder verwirfst.</div>`;
+  if(bekannt.length){const n=bekannt.reduce((a,x)=>a+x.n,0);
+    h+=`<div class="lgsh"><span>Bekannt</span><span>${plural(n,"Rolle","Rollen")}</span></div><div class="lgsl">${bekannt.map(x=>`<div class="lgsr">${spool(x.e.hex,undefined,x.e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(x.e))}</div><div class="lgs">${x.refill?"Refill":"mit Spule"} · Bestand jetzt ${plural(x.e.spulen,"Rolle","Rollen")} · Code ${esc(x.code)}</div></div>${zahl(x)}<div class="acts"><button class="btn sm pri" data-act="lgSrOk" data-c="${esc(x.code)}">Übernehmen</button><button class="btn icon ghost danger" data-act="lgSrWeg" data-c="${esc(x.code)}" aria-label="Verwerfen">${ICON.x}</button></div></div>`).join("")}</div>
+      <div class="row"><span class="sp"></span><button class="btn pri" data-act="lgSrAlle">Alle bekannten übernehmen (${n})</button></div>`}
+  if(unbekannt.length){
+    h+=`<div class="lgsh neu"><span>Unbekannt</span><span>${plural(unbekannt.length,"Code","Codes")}</span></div><div class="lgsl">${unbekannt.map(x=>`<div class="lgsr">${x.k?spool(x.k.hex,undefined,x.k.besonderheiten):`<span class="lgsw lgq">?</span>`}<div style="min-width:0"><div class="lgn">${x.k?esc(summary(x.k)):"Unbekannter Code"}</div><div class="lgs">Code ${esc(x.code)}${x.k?" · Daten bekannt, Sorte noch nicht im Lager":" · noch keiner Sorte zugeordnet"}</div></div>${zahl(x)}<div class="acts"><button class="btn sm" data-act="lgSrNeu" data-c="${esc(x.code)}">Anlegen</button><button class="btn icon ghost danger" data-act="lgSrWeg" data-c="${esc(x.code)}" aria-label="Verwerfen">${ICON.x}</button></div></div>`).join("")}</div>
+      <div class="lghint">„Anlegen“ öffnet die Wahl: neue Sorte oder einer vorhandenen Sorte zuordnen, mit der gescannten Anzahl.</div>
+      <div class="row"><span class="sp"></span><button class="btn ghost sm danger" data-act="lgSrWegUnb">Alle unbekannten verwerfen</button></div>`}
+  h+=`<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`;
+  modal("Serienscan",h,`<button class="btn ghost danger" data-act="lgSrLeer">Ganze Liste verwerfen</button><span class="sp"></span><button class="btn" data-act="lgSerie">${BC} Weiter scannen</button>`)}
+async function serieUebernehmen(codes){const {bekannt}=serieGruppen();const je={};
+  bekannt.filter(x=>codes.includes(x.code)).forEach(x=>{const j=je[x.e.uid]||(je[x.e.uid]={e:x.e,n:0,rf:0,codes:[]});j.n+=x.n;if(x.refill)j.rf+=x.n;j.codes.push(x.code)});
+  try{for(const j of Object.values(je)){await write(j.e,{spulen:Math.max(0,j.e.spulen)+j.n,refills:j.e.refills+j.rf});j.codes.forEach(c=>serieWeg(c))}}
+  catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err));return}
+  const n=Object.values(je).reduce((a,j)=>a+j.n,0);toast(plural(n,"Rolle","Rollen")+" ins Lager übernommen");setTimeout(()=>serieModal(),250)}
 
 /* --- Ereignisse --- */
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.value;draw()}
@@ -2704,6 +2892,29 @@ document.addEventListener("click",async e=>{
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}
+  if(a==="lgScan"){scanStart();return}
+  if(a==="lgSerie"){serieStart();return}
+  if(a==="lgSerieListe"){serieModal();return}
+  if(a==="lgSerieEnde"){clearTimeout(G.reopenT);G.serieAktiv=false;camStop();if(G.serie.length)serieModal();else{closeModal();draw(0)}return}
+  if(a==="lgCodeOk"){const t=document.getElementById("lgctxt");const v=t?t.value.replace(/\s+/g,""):"";if(!v)return;if(G.serieAktiv){serieAdd(v,true);t.value="";return}onCode(v);return}
+  if(a==="lgHitEdit"){const x=entries().find(y=>G.hit&&y.uid===G.hit.uid);if(x)formModal(x);return}
+  if(a==="lgHitPlus"){const x=entries().find(y=>G.hit&&y.uid===G.hit.uid);if(!x)return;const ref=x.codes_refill.includes(G.hit.code);
+    try{await write(x,{spulen:Math.max(0,x.spulen)+1,refills:x.refills+(ref?1:0)});closeModal();toast(`${ref?"Refill":"Spule"} dazugezählt: ${summary(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}return}
+  if(a==="lgNcNeu"){const n=G.neu;if(!n)return;const rb=document.getElementById("lgncref");const refill=rb?rb.checked:n.refill;const k=n.k||{};
+    formModal(null,Object.assign({},k,{besonderheiten:[...(k.besonderheiten||[])],codes:[n.code],codes_refill:refill?[n.code]:[],spulen:n.anzahl,refills:refill?n.anzahl:0,serieCode:n.serie?n.code:undefined,
+      hinweis:n.k?`Code ${n.code} erkannt, bitte prüfen und speichern`:`Neuer Code ${n.code}. Einmal ausfüllen, danach wird er beim Scannen erkannt.`}));return}
+  if(a==="lgNcPick"){const n=G.neu;const x=entries().find(y=>y.uid===b.dataset.uid);if(!n||!x)return;const rb=document.getElementById("lgncref");const refill=rb?rb.checked:n.refill;
+    const anz=n.anzahl||1,art=refill?(anz===1?"Refill":"Refills"):(anz===1?"Rolle":"Rollen");
+    confirmBox(`Code ${n.code} bei „${summary(x)}“ speichern und ${anz} ${art} dazuzählen?`,"Speichern",async()=>{
+      try{await write(x,{codes:[...new Set([...x.codes,n.code])],codes_refill:refill?[...new Set([...x.codes_refill,n.code])]:x.codes_refill,spulen:Math.max(0,x.spulen)+anz,refills:x.refills+(refill?anz:0)});
+        toast("Code gespeichert, "+anz+" "+art+" dazugezählt");if(n.serie){serieWeg(n.code);setTimeout(()=>serieModal(),250)}draw(0)}catch(err){toast("Speichern fehlgeschlagen")}});return}
+  if(a==="lgSrPlus"||a==="lgSrMinus"){const x=G.serie.find(y=>y.code===b.dataset.c);if(x){x.n=Math.max(1,x.n+(a==="lgSrPlus"?1:-1));serieSichern()}serieModal();return}
+  if(a==="lgSrOk"){await serieUebernehmen([b.dataset.c]);return}
+  if(a==="lgSrAlle"){await serieUebernehmen(serieGruppen().bekannt.map(x=>x.code));return}
+  if(a==="lgSrNeu"){const x=G.serie.find(y=>y.code===b.dataset.c);if(x)neuModal(x.code,x.n,true);return}
+  if(a==="lgSrWeg"){serieWeg(b.dataset.c);serieModal();draw(0);return}
+  if(a==="lgSrWegUnb"){const unb=serieGruppen().unbekannt;if(!unb.length)return;confirmBox(`${plural(unb.length,"unbekannten Code","unbekannte Codes")} verwerfen?`,"Verwerfen",()=>{unb.forEach(x=>serieWeg(x.code));serieModal();draw(0)});return}
+  if(a==="lgSrLeer"){confirmBox("Ganze Serienscan-Liste verwerfen? Es wird nichts übernommen.","Verwerfen",()=>{G.serie=[];serieSichern();toast("Liste verworfen");draw(0)});return}
   if(a==="lgEdit"){const x=entries().find(y=>y.uid===b.dataset.uid);if(x)formModal(x);return}
   if(a==="lgDot"){const f=collect();f.hex=b.dataset.x;if(!f.farbe||FARBEN.some(([n])=>n===f.farbe))f.farbe=b.dataset.n;const hx=document.getElementById("lf_hex"),fn=document.getElementById("lf_f");if(hx)hx.value=f.hex;if(fn)fn.value=f.farbe;
     document.querySelectorAll(".lgdots button").forEach(x=>x.classList.toggle("on",x===b));return}

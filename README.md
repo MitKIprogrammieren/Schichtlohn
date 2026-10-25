@@ -10,7 +10,7 @@ Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 - **Datei-Import:** `.gcode.3mf` und `.3mf` aus Bambu Studio oder Orca Slicer (Druckzeit, Gewicht je Filament, Vorschaubild), `.gcode`, sowie `.stl` und ungeslicte `.3mf` als Schätzung über das Volumen.
 - **Portfolio:** häufige Produkte mit Bild, Gewicht und Druckzeit speichern.
 - **Aufträge:** Status vom Angebot bis zur Bezahlung verfolgen.
-- **Lager:** eigene Ansicht im Schichtlohn-Design für das FilamentLager aus Home Assistant (`todo.filament`): Suche, Sortierung, Filter, Sorten anlegen und bearbeiten, Rollen +/−, Reste, offene Verbräuche und AMS-Fächer zuordnen, dazu Waage und Druckbrücke. Liest und schreibt nur die HA-Daten. Über „HA-Karte“ lässt sich die originale Karte einblenden.
+- **Lager:** eigene Ansicht im Schichtlohn-Design für das FilamentLager aus Home Assistant (`todo.filament`): Suche, Sortierung, Filter, Sorten anlegen und bearbeiten, Rollen +/−, Reste, offene Verbräuche und AMS-Fächer zuordnen, dazu Waage und Druckbrücke. Mit Scannen und Serienscan (Kamera im Browser oder Scanner der HA-App), Filamentrollen mit Oberflächen (matt, Seide, Fasern, transparent …) und Gramm-Anzeige der Waage. Liest und schreibt nur die HA-Daten. Über „HA-Karte“ lässt sich die originale Karte einblenden.
 - **Druckaufträge:** fertige Drucke aus dem Home-Assistant-Druckprotokoll und der Bambu-Cloud-Historie übernehmen, auch mehrere in einen Auftrag.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
