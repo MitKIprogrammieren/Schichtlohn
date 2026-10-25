@@ -1126,6 +1126,13 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
   --solid:#ffffff;--header-bg:#ffffff;--strip:#f3f3f5;--sunken:#f5f5f6;--track:#d3d3d8;color-scheme:light}}
 [data-skin="bambu"] .panel,[data-skin="bambu"] header.top,[data-skin="bambu"] .mbar{backdrop-filter:none;-webkit-backdrop-filter:none}
 [data-skin="bambu"] .brand{font-weight:600;font-size:18px;letter-spacing:0}
+[data-skin="bambu"] .topin{flex-wrap:nowrap;gap:12px}
+[data-skin="bambu"] .brand{flex:none}
+[data-skin="bambu"] nav.tabs{order:2;margin-left:auto;flex:none;min-width:0;width:auto;gap:2px}
+@media (min-width:1241px){[data-skin="bambu"] .topin nav.tabs button{padding:6px 11px}[data-skin="bambu"] .syncs .sync{padding:3px 9px}}
+[data-skin="bambu"] .syncs{order:3;flex:none;gap:6px}
+@media (max-width:1240px){[data-skin="bambu"] .topin{flex-wrap:wrap;row-gap:10px}[data-skin="bambu"] .syncs{order:1;margin-left:auto}[data-skin="bambu"] nav.tabs{order:3;margin-left:-6px;width:calc(100% + 6px);flex:1 1 100%;gap:4px}}
+@media (max-width:620px){[data-skin="bambu"] .syncs{margin-left:0;width:100%}}
 [data-skin="bambu"] .brand small{letter-spacing:.04em}
 [data-skin="bambu"] nav.tabs button{border-radius:5px;padding:6px 14px}
 [data-skin="bambu"] nav.tabs button[aria-current="page"]{background:var(--accent);color:#fff}
