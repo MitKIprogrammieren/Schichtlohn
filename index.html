@@ -1051,8 +1051,8 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
     if(!d.cfg||Store._migrate)await Store.saveAll();
   }catch(e){console.error(e);toast("Gespeicherte Daten konnten nicht geladen werden.")}
   const dr=LS.get("draft");
-  if(dr&&dr.parts){S.quote=Object.assign(newQuote(),dr)}
-  else{S.quote=newQuote();S.quote.name="Beispiel: Wandhalter";S.quote.parts=[newPart({name:"Wandhalter (Beispiel)",qty:2,time:105,mats:[{matId:"",g:62}]})]}
+  const isExample=dr&&!dr.id&&dr.name==="Beispiel: Wandhalter"&&dr.parts&&dr.parts.length===1&&dr.parts[0].name==="Wandhalter (Beispiel)";
+  S.quote=(dr&&dr.parts&&!isExample)?Object.assign(newQuote(),dr):newQuote();
   fixRefs();setSync("ok");render();
 })();
 </script>
