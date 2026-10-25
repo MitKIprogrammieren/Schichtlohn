@@ -2139,6 +2139,43 @@ document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.tar
 const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).observe(m,{childList:true});
 })();
 </script>
+<style>
+.cfold>:first-child{cursor:default}
+.cfold .cchev{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0 4px 0 -4px;padding:0;border:0;background:none;color:var(--fg-3);cursor:pointer;border-radius:4px;vertical-align:middle}
+.cfold .cchev:hover{color:var(--fg);background:var(--glass-2)}
+.cfold .cchev svg{width:16px;height:16px;transition:transform .15s}
+.cfold.czu .cchev svg{transform:rotate(-90deg)}
+.cfold.czu>:not(:first-child){display:none!important}
+.panel.pad.cfold.czu{padding-bottom:16px}
+[data-skin="bambu"] .panel.pad.cfold.czu{padding-bottom:0}
+[data-skin="bambu"] .panel.pad.cfold.czu>:first-child{border-bottom:0;border-radius:var(--r);margin-bottom:0}
+[data-skin="bambu"] .panel.cfold.czu>.row.pad:first-child{border-bottom:0;border-radius:var(--r)}
+.panel.pad.cfold.czu.stack{gap:0}
+</style>
+<script>
+/* ===== Rechner: Abschnitte per Doppelklick (oder Pfeil) einklappen, Zustand je Gerät gemerkt ===== */
+(function(){
+const KEY="schichtlohn_calcfold",SECS=["Teile","Teil hinzufügen","Weitere Angaben"];
+let zu={};try{zu=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(zu))}catch(e){}};
+const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+function apply(){
+  if(S.tab!=="rechner")return;
+  for(const name of SECS){const sec=document.querySelector(`#main section.panel[aria-label="${name}"]`);if(!sec)continue;
+    const head=sec.firstElementChild;const h=head&&(head.matches("h2")?head:head.querySelector("h2"));if(!h)continue;
+    if(!sec.classList.contains("cfold")){sec.classList.add("cfold");sec.dataset.cfold=name;
+      h.insertAdjacentHTML("afterbegin",`<button type="button" class="cchev" data-act="cfold" aria-label="${name} ein- oder ausklappen" title="Einklappen (oder Doppelklick auf die Leiste)">${CHEV}</button>`);head.title="Doppelklick: ein- oder ausklappen"}
+    sec.classList.toggle("czu",!!zu[name]);const b=h.querySelector(".cchev");if(b)b.setAttribute("aria-expanded",String(!zu[name]))}
+}
+function toggle(sec,want){const n=sec.dataset.cfold;zu[n]=want===undefined?!zu[n]:want;save();apply()}
+document.addEventListener("dblclick",e=>{const sec=e.target.closest("#main section.cfold");if(!sec)return;const head=sec.firstElementChild;
+  if(!head.contains(e.target)||e.target.closest(".seg,input,select,textarea,a,[data-act]:not(.cchev)"))return;
+  e.preventDefault();try{getSelection().removeAllRanges()}catch(x){}toggle(sec)});
+document.addEventListener("click",e=>{const b=e.target.closest("#main .cchev");if(b){e.stopPropagation();toggle(b.closest("section.cfold"));return}
+  const m=e.target.closest('#main section.cfold.czu [data-act="addMode"]');if(m){const sec=m.closest("section.cfold");setTimeout(()=>toggle(sec,false),0)}},true);
+const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).observe(m,{childList:true,subtree:true});
+})();
+</script>
 
 </body>
 </html>
