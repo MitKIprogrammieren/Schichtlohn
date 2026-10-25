@@ -66,6 +66,10 @@ nav.tabs button[aria-current="page"]{color:var(--accent-ink);background:var(--ac
 .sync i{width:7px;height:7px;border-radius:50%;background:var(--fg-3)}
 .sync.ok i{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .sync.busy i{background:var(--warn)}
+.syncs{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+button.sync{background:none;cursor:pointer;font:inherit;font-size:12px;color:var(--fg-3)}
+button.sync:hover{color:var(--fg);border-color:var(--line-2)}
+.sync.err i{background:var(--bad)}
 main{padding-top:20px}
 h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:.01em;margin:0;text-wrap:balance}
 h1{font-size:26px}h2{font-size:18px}h3{font-size:15px}
@@ -200,7 +204,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="2"/><rect x="9" y="19" width="14" height="3" rx="1.5" fill="currentColor"/><rect x="10.5" y="14.5" width="11" height="3" rx="1.5" fill="currentColor" opacity=".8"/><rect x="12" y="10" width="8" height="3" rx="1.5" fill="currentColor" opacity=".6"/></svg>
       <div>Schichtlohn<small>Druckpreise kalkulieren</small></div>
     </div>
-    <span class="sync" id="sync"><i></i><span>Lädt…</span></span>
+    <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>Bambu Cloud</span></button></span>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button data-tab="rechner" aria-current="page">Rechner</button>
       <button data-tab="portfolio">Portfolio</button>
@@ -379,7 +383,7 @@ function setSync(st){
   const el=$("#sync");if(!el)return;
   const where={ha:"Home Assistant",claude:"Claude",local:"Nur dieses Gerät"}[S.backend];
   el.className="sync "+(st==="ok"?"ok":st==="busy"?"busy":"");
-  el.querySelector("span").textContent=st==="busy"?"Speichert…":st==="err"?"Nicht gespeichert":(S.backend==="local"?where:"Gespeichert · "+where);
+  el.querySelector("span").textContent=st==="busy"?"Speichert…":st==="err"?"Nicht gespeichert":where;
   if(S.backend==="local"&&S.haConnError&&st==="ok"){el.className="sync";el.querySelector("span").textContent="HA nicht erreichbar"}
   el.title=S.backend==="local"?"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup.":"Daten werden in "+where+" gespeichert und auf allen Geräten synchronisiert.";
 }
@@ -1179,7 +1183,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 [data-skin="ha"] .chip{border:0;background:var(--sunken)}
 [data-skin="ha"] .modal{border-radius:24px}
 [data-skin="ha"] input[type=range]{accent-color:var(--accent)}
-@media (max-width:620px){[data-skin="ha"] .sync{order:-2;width:100%;justify-content:flex-end;padding-top:8px}}
+@media (max-width:620px){[data-skin="ha"] .syncs{order:-2;width:100%;justify-content:flex-end;padding-top:8px;gap:14px}}
 </style>
 <style>
 .prn{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--sunken)}
@@ -1552,7 +1556,10 @@ async function api(path,o={}){
   if(!r.ok){const e=new Error((d&&(d.message||d.error||d.msg))||("HTTP "+r.status));e.status=r.status;throw e}
   return d||{};
 }
-function saveToken(d,login){const exp=Date.now()+(num(d.expiresIn)||7776000)*1000;setAcct({token:d.accessToken,region:login.region,account:login.account,exp});J.login=null;J.cloud=[];J.cloudAt=0}
+function saveToken(d,login){const exp=Date.now()+(num(d.expiresIn)||7776000)*1000;setAcct({token:d.accessToken,region:login.region,account:login.account,exp});J.login=null;J.cloud=[];J.cloudAt=0;J.cloudErr="";cloudStatus()}
+function cloudStatus(){const el=document.getElementById("cloudst");if(!el)return;const a=acct();
+  const st=J.cloudLoading?"busy":J.cloudErr?"err":a?"ok":"off";el.className="sync "+st;
+  el.title=st==="busy"?"Bambu Cloud: lädt…":st==="err"?"Bambu Cloud: "+J.cloudErr:a?`Bambu Cloud verbunden (${a.account}) · antippen für die Druckaufträge`:"Bambu Cloud nicht verbunden · antippen zum Verbinden"}
 async function loginStep(kind,vals){
   const L=J.login;
   if(kind==="pw"){L.account=vals.account;L.region=vals.region;
@@ -1625,13 +1632,13 @@ async function loadHa(force){
 }
 async function loadCloud(force,more){
   const a=acct();if(!a||J.cloudLoading)return;if(!force&&!more&&J.cloudAt&&Date.now()-J.cloudAt<300000)return;
-  J.cloudLoading=true;J.cloudErr="";redraw();
+  J.cloudLoading=true;J.cloudErr="";redraw();cloudStatus();
   try{const after=more&&J.cloud.length?J.cloud[J.cloud.length-1].id:undefined;
     const d=await api("my/tasks",{token:a.token,region:a.region,query:{limit:100,after}});
     const hits=(d.hits||[]).map(fromCloud);const seen=new Set(more?J.cloud.map(x=>x.id):[]);const fresh=hits.filter(h=>!seen.has(h.id));
     J.cloud=more?J.cloud.concat(fresh):hits;J.more=fresh.length>=100&&num(d.total)>J.cloud.length;J.cloudAt=Date.now()}
   catch(e){if(e.status===401||e.status===403){J.cloudErr="Die Anmeldung bei Bambu ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else J.cloudErr=String(e&&e.message||e)}
-  J.cloudLoading=false;redraw();
+  J.cloudLoading=false;redraw();cloudStatus();
 }
 
 /* --- Zusammenführen und Filtern --- */
@@ -1784,15 +1791,17 @@ document.addEventListener("click",async e=>{
   else if(a==="bbLogin"){J.login={step:"pw",account:(acct()||{}).account||"",region:"global"};loginModal()}
   else if(a==="bbNext"){await loginSubmit(J.login?J.login.step:"pw")}
   else if(a==="bbResend"){await loginSubmit("resend")}
-  else if(a==="bbLogout"){confirmBox("Von der Bambu-Cloud abmelden? Der Anmeldeschlüssel wird aus diesem Browser gelöscht.","Abmelden",()=>{setAcct(null);J.cloud=[];J.cloudAt=0;render0();toast("Abgemeldet")})}
-  else if(a==="bbOpen"){S.tab="drucke";render0()}
+  else if(a==="bbLogout"){confirmBox("Von der Bambu-Cloud abmelden? Der Anmeldeschlüssel wird aus diesem Browser gelöscht.","Abmelden",()=>{setAcct(null);J.cloud=[];J.cloudAt=0;J.cloudErr="";cloudStatus();render0();toast("Abgemeldet")})}
+  else if(a==="bbOpen"||(a==="bbStatus"&&acct())){S.tab="drucke";render0()}
+  else if(a==="bbStatus"){J.login={step:"pw",account:"",region:"global"};loginModal()}
 });
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.closest&&e.target.closest("#modal")&&$('[data-act="bbNext"]')&&e.target.tagName==="INPUT"){e.preventDefault();$('[data-act="bbNext"]').click()}
   if((e.key===" "||e.key==="Enter")&&e.target.classList&&e.target.classList.contains("job")){e.preventDefault();e.target.click()}});
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="job_q"){J.q=t.value;redraw()}else if(t.id==="jobOrdQ"){$("#jobOrdList").innerHTML=ordPickHTML(t.value)}});
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.src=t.value;redraw()}else if(t.id==="job_pr"){J.printer=t.value;redraw()}else if(t.id==="job_open"){J.open=t.checked;redraw()}});
 
-window.JOBS={render,settingsHTML,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={render,settingsHTML,cloudStatus,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
 <style>
