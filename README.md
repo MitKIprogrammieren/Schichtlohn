@@ -2,7 +2,7 @@
 
 Preisrechner für 3D-Drucke. Läuft komplett im Browser, ohne Server und ohne Konto.
 
-**Öffnen:** https://mitkiprogrammieren.github.io/Schichtlohn/
+**Öffnen:** https://schichtlohn.pages.dev/ (alternativ https://mitkiprogrammieren.github.io/Schichtlohn/)
 
 ## Funktionen
 
