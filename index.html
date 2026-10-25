@@ -1984,6 +1984,18 @@ cloudStatus();setTimeout(cloudStatus,500);
 .dcard .mt.mid b{color:var(--warn)}.dcard .mt.hi b{color:var(--bad)}
 .dcard a.btn{text-decoration:none;color:var(--fg);align-self:flex-start;margin-top:-2px}
 .dcard .doff{font-size:13px;color:var(--fg-3)}
+.dcard.kompakt{flex-direction:row;align-items:center;gap:12px;padding:10px 14px}
+.dcard.kompakt .di{width:32px;height:32px}.dcard.kompakt .di svg{width:18px;height:18px}
+.dcard.kompakt{position:relative}
+.dcard.kompakt .dt{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.dcard.kompakt .dt .ds{margin-left:0;font-size:11px;padding:1px 7px}
+.dcard.kompakt .dvs{margin-left:auto;display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.dcard .dv span{display:block;font-size:11px;color:var(--fg-3);white-space:nowrap}
+.dcard .dv b{display:block;font-size:15px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dcard .dv b.dim{color:var(--fg-3);font-weight:500}
+.dcard .dv.mid b{color:var(--warn)}.dcard .dv.hi b{color:var(--bad)}
+.dcard.kompakt a.btn{margin:0;flex:none}
+@media (max-width:620px){.dcard.kompakt{flex-wrap:wrap;row-gap:8px}.dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:space-between}.dcard.kompakt a.btn{position:absolute;top:8px;right:8px}}
 .dcard .dw{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:10px 12px;border-radius:var(--r-s);background:var(--sunken,rgba(127,127,127,.08))}
 .dcard .dw span{font-size:12px;color:var(--fg-3);flex-basis:100%}
 .dcard .dw b{font-size:28px;font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums;line-height:1.1}
@@ -2203,11 +2215,18 @@ function status(){
     const temp=pick(st,pre,[/^temperatur/,/temp/]);
     const load=pre==="druckbruecke"?pick(st,pre,[/^auslastung/,/cpu|load/]):pick(st,pre,[/^arbeitsspeicher/,/speicher|ram|memory/]);
     const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
-    return `<div class="dcard${off?" off":""}"><div class="dh"><span class="di">${DICON[pre]||ICON.cube}</span><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span></div>
-      ${!off&&pre==="filamentwaage"?gewichtHTML(st[`sensor.${pre}_gewicht`]):""}
-      ${off?`<div class="doff">Keine Verbindung zu Home Assistant.</div>`:`<div class="dm">${meter("Temperatur",temp,"°C",65,80,90)}${meter(loadLabel,load,"%",75,90,100)}</div>`}
-      ${pre==="druckbruecke"&&L.link?`<a class="btn ghost sm" href="${esc(L.link)}" target="_blank" rel="noopener" title="Nur im Heimnetz erreichbar">${ICON.link} Druckbrücke öffnen</a>`:""}</div>`}).join("");
+    const wt=pre==="filamentwaage"?st[`sensor.${pre}_gewicht`]:null;
+    const vals=off?`<div class="dv"><span>Status</span><b class="dim">keine Verbindung</b></div>`:
+      (pre==="filamentwaage"?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0):"")+zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90);
+    return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[pre]||ICON.cube}</span>
+      <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span></div>
+      <div class="dvs">${vals}</div>
+      ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}</div>`}).join("");
 }
+function zahl(label,s,unit,warn,hi,leer,dez){const v=s?Number(s.state):NaN;
+  if(!s||!isFinite(v))return `<div class="dv"${leer?` title="${esc(leer)}"`:""}><span>${label}</span><b class="dim">–</b></div>`;
+  const cls=hi!=null&&v>=hi?" hi":warn!=null&&v>=warn?" mid":"";
+  return `<div class="dv${cls}"><span>${label}</span><b>${dez===0?Math.round(v).toLocaleString("de-DE"):N1.format(v)} ${unit}</b></div>`}
 
 /* --- Reiter --- */
 const nativ=()=>{try{return localStorage.getItem("schichtlohn_lagermodus")!=="karte"}catch(e){return true}};
@@ -2316,6 +2335,14 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfx{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lgfx select{width:auto;flex:0 1 auto;max-width:190px}
 .lgfx select.on{border-color:var(--accent);color:var(--accent)}
+.lghead{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px 16px}
+.lghead .lgact{flex-wrap:nowrap}
+.lghead h1{margin:0}
+.lghead .lgsum{justify-self:center;text-align:center}
+.lghead .lgact{justify-self:end;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.lghead .lgact select{width:auto;max-width:170px}
+@media (max-width:1100px){.lghead{grid-template-columns:auto 1fr}.lghead .lgact{flex-wrap:wrap}.lghead .lgsum{justify-self:end;text-align:right}.lghead .lgact{grid-column:1/-1;justify-self:stretch;justify-content:flex-start}}
+@media (max-width:620px){.lghead .lgact select{flex:1 1 100%;max-width:none}.lghead .lgact .btn{flex:1 1 auto}}
 .lgsum{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
 .lgsum .big{font:600 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
 .lgp{overflow:hidden}
@@ -2608,13 +2635,14 @@ function body0(){G._allZu=false;
   const leerN=all.filter(e=>e.spulen<=0).length;const nF=Object.values(fl).filter(Boolean).length;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
-  let h=`<div class="lgsum"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen (${spulen-refills} mit Spule, ${refills} Refill)</span><span class="sp"></span>
-    <button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div>
+  let h=`<div class="lghead"><h1>Lager</h1>
+    <div class="lgsum" title="${spulen-refills} mit Spule, ${refills} Refill"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen</span></div>
+    <div class="lgact"><select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
+      <button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div></div>\u0001
     <div class="lgbar"><input type="search" id="lgq" placeholder="Suchen: Farbe, Marke, Material, Code, AMS …" value="${esc(G.q)}">
-      <select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}">Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn ghost sm" data-act="lgAllZu">__ALLZU__</button>
-      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>
+      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}<button class="btn ghost sm" data-act="lgMode" data-v="karte" title="Die Karte aus Home Assistant anzeigen">HA-Karte</button></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
@@ -2660,15 +2688,16 @@ function decorate(){
     const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.mono?"m":c.own?"1":"";img.src=c.u};
     img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(1.4)":"grayscale(1) contrast(1.4)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
-let drawT=null,drawDue=0,lastHTML="";
-function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const h=body();if(h===lastHTML)return;
+let drawT=null,drawDue=0,lastHTML="",lastHead="";
+function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
+  const hb=$("#lgHead");if(hb&&hd!==lastHead){const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=hd}}
+  if(h===lastHTML)return;
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
   if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
 function render(m){
-  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">aus Home Assistant</span><span class="sp"></span><button class="btn ghost sm" data-act="lgMode" data-v="karte" title="Die Karte aus Home Assistant anzeigen">HA-Karte</button></div>
-    <div class="lstat" id="lagerStatus"></div><div class="stack" id="lgList"></div></div>`;
-  lastHTML="";if(L())L().status();start();draw()}
+  m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lstat" id="lagerStatus"></div><div class="stack" id="lgList"></div></div>`;
+  lastHTML="";lastHead="";if(L())L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
