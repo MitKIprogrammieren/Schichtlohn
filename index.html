@@ -2810,7 +2810,7 @@ function body0(){G._allZu=false;
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
-      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Sorte</button></span></div>
+      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
