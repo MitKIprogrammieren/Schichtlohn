@@ -1942,6 +1942,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 .lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
 .lagerhost ernsthaft-gelagert-plus-card{display:block}
 [data-skin="bambu"] .lagerhost{--sl-h1:20px;--sl-h1-ls:0;--sl-chip-r:4px}
+[data-skin="ha"] .lagerhost{--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
 .lstat{display:flex;flex-wrap:wrap;gap:10px}
 .lstat .dev{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);font-size:13px;color:var(--fg-2)}
 .lstat .dev b{color:var(--fg);font-size:14px;margin-right:2px}
@@ -1997,7 +1998,18 @@ select option{background:var(--solid);color:var(--fg)}
 .cam{border-radius:var(--r)!important}.cam .rahmen{border-color:var(--accent)!important}
 .c-ok{color:var(--good)!important}.c-mid{color:var(--warn)!important}.c-hi{color:var(--bad)!important}
 .hint,.err{color:var(--bad)!important}
-@container (max-width:560px){.lst .ti{flex:0 0 auto!important}}`;
+@container (max-width:560px){.lst .ti{flex:0 0 auto!important}}
+/* Gruppen wie die Panels der App: Kopfleiste oben, Inhalt darunter */
+.gh{background:var(--strip)!important;border:1px solid var(--line)!important;border-bottom:0!important;border-radius:var(--r) var(--r) 0 0!important;margin:16px 0 0!important;padding:var(--sl-hp,7px 16px)!important;font:var(--sl-hf,600 12px/1.9 var(--f-body))!important;letter-spacing:var(--sl-hls,.06em)!important;text-transform:var(--sl-htt,uppercase)!important;color:var(--sl-hc,var(--fg-2))!important}
+.gh+.grp{border-radius:0 0 var(--r) var(--r)!important;border-top:1px solid var(--line)!important}
+.grp{padding:0!important}
+.grp>.row{padding:12px 16px!important;margin:0!important}
+.grp>.row:hover{background:var(--sunken)}
+.offen{padding:0!important;overflow:hidden;border:1px solid var(--line)!important;border-left:3px solid var(--warn)!important}
+.offen .gh2{background:var(--strip);border-bottom:1px solid var(--line);padding:var(--sl-hp,7px 16px)!important;font:var(--sl-hf,600 12px/1.9 var(--f-body))!important;letter-spacing:var(--sl-hls,.06em)!important;text-transform:var(--sl-htt,uppercase)!important;color:var(--warn)!important}
+.offen .orow{padding:10px 16px!important}
+.spanel,.ein{padding:4px 16px 16px!important}
+.lst .hd{margin-bottom:4px!important}`;
 const DEV=[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]];
 const L={el:null,p:null,err:"",cfg:null,link:"",title:"FilamentLager",shim:null,states:null,dirty:false,timer:null};
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
@@ -2064,7 +2076,7 @@ async function wsHass(){
 function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true}catch(e){console.warn("Lager-Design",e)}}
 async function ensure(){
   if(L.el)return;if(L.p)return L.p;
-  L.p=(async()=>{shims();await loadCode();const f=await findCfg();L.cfg=f.cfg;L.link=f.link;L.title=f.cfg.title||"FilamentLager";
+  L.p=(async()=>{shims();await loadCode();const f=await findCfg();L.title=f.cfg.title||"FilamentLager";L.cfg=Object.assign({},f.cfg,{title:""});L.link=f.link;
     const el=document.createElement(TAG);el.setConfig(Object.assign({},L.cfg));look(el);el.hass=isWS()?await wsHass():window.__hass;L.el=el})();
   try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
 }
@@ -2088,7 +2100,7 @@ function status(){
 function render(m){
   m=m||$("#main");if(!m)return;S.lager=null;
   if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
-  m.innerHTML=`<div class="stack"><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
+  m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span></div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
   const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
   if(L.el){put();return}
   ensure().then(put).catch(e=>{const host=$("#lagerHost");if(host&&S.tab==="lager")host.innerHTML=`<div class="panel pad"><div class="note" style="border-color:var(--bad)">${esc(String(e&&e.message||e))}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="lagerRetry">Erneut versuchen</button></div></div>`});
