@@ -766,6 +766,10 @@ function renderSettings(m){
       <label class="field"><span>Schlusssatz</span><input type="text" id="co_f" data-bind="c.company.footer" value="${esc(c.company.footer)}"></label>
     </section>
 
+    <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
+      <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
+    </section>
+
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
       <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
@@ -1010,6 +1014,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
+  if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
   if(t.dataset.act==="ordStatus"){const o=S.orders.find(x=>x.id===t.dataset.id);if(o){o.status=t.value;t.className="st-"+t.value;Store.saveItem("o",o);if(S.quote.id===o.id)S.quote.status=o.status;toast(`Status: ${statusName(o.status)}`)}return}
@@ -2327,6 +2332,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgr:hover{background:var(--sunken)}
 .lgr.leer{opacity:.55}
 .lgsw{width:30px;height:30px;border-radius:var(--r-s);box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
+.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
 .lgn{font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
 .lgn small{color:var(--fg-2);font-weight:400;font-size:13px}
 .lgs{font-size:12.5px;color:var(--fg-2);margin-top:2px}
@@ -2401,6 +2407,23 @@ const besOf=b=>{const m=BES.find(x=>x[0].test(String(b).trim()));return m?{k:m[1
   css+=`.lgc .chip.bx.bx-${k},.chip.bx.bx-${k},.lgp .hmat.bx-${k}{background:${bg};color:${fg==="inherit"?"var(--fg)":fg};border:1px ${k==="trans"?"dashed":"solid"} ${bd?(bd==="currentColor"?"color-mix(in srgb,var(--fg) 45%,transparent)":bd):"transparent"}${sh}${ts}}\n`});
   css+=".chip.bx{font-weight:600;gap:4px}.chip.bx ha-icon{--mdc-icon-size:13px;display:inline-flex}.lgp .hmat.bx{padding:0 11px 0 9px;letter-spacing:.03em}.lgp .hmat.bx b{font-weight:700}\n";
   const st=document.createElement("style");st.textContent=css;document.head.appendChild(st)})();
+const spool=(hex,cls="lgsw")=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
+  if(S.cfg&&S.cfg.lagerFarbe==="quadrat")return `<span class="${cls}" style="background:${c}"></span>`;
+  return `<span class="${cls} lgspool" role="img" aria-label="Filamentfarbe"><svg viewBox="0 0 44 44" aria-hidden="true"><g transform="rotate(-16 22 22)" stroke-linejoin="round">
+<ellipse cx="27" cy="22" rx="9.4" ry="17.4" fill="#2b2f35" stroke="#7d8591" stroke-width="1"/>
+<defs><linearGradient id="lgSpSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></linearGradient></defs>
+<path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z" fill="${c}"/>
+<path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z" fill="url(#lgSpSh)"/>
+<path d="M21.5 6.4A8.3 15.6 0 0 1 21.5 37.6M25 6.4A8.3 15.6 0 0 1 25 37.6" fill="none" stroke="#000" stroke-opacity=".1" stroke-width=".55"/>
+<path d="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18" fill="none" stroke="#000" stroke-opacity=".45" stroke-width=".7" stroke-linecap="round"/>
+<ellipse cx="18" cy="22" rx="9.4" ry="17.4" fill="#33373e" stroke="#a3abb6" stroke-width="1"/>
+<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="${c}"/>
+<ellipse cx="18" cy="22" rx="6.9" ry="12.9" fill="none" stroke="#000" stroke-opacity=".14" stroke-width=".6"/>
+<ellipse cx="18" cy="22" rx="8.3" ry="15.6" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".7"/>
+<ellipse cx="18" cy="22" rx="5.2" ry="9.6" fill="#4b5058" stroke="#000" stroke-opacity=".45" stroke-width=".8"/>
+<ellipse cx="18" cy="22" rx="2.6" ry="4.8" fill="#1d2024" stroke="#a3abb6" stroke-width=".7"/>
+<ellipse cx="18" cy="22" rx="1" ry="1.9" fill="#0b0c0e"/>
+<path d="M12.2 11.6c1.3-2.9 3.1-4.7 4.9-5.1" stroke="#fff" stroke-opacity=".5" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg></span>`};
 const SORTS=[["material","Material"],["hersteller","Marke"],["farbe","Farbe"],["besonderheit","Besonderheit"],["drucker","Drucker"],["bestand","Bestand"]];
 const TOL=19200;
 const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,showF:false,zu:[],openFach:false,openOffen:false,sub:false,form:null};
@@ -2509,7 +2532,7 @@ function rowHTML(e,orte,fu,E){
   if(e.spulen<=0)ch+=`<span class="chip c-bad">aufgebraucht</span>`;else if(E.knapp_g>0&&tot<E.knapp_g)ch+=`<span class="chip c-bad">knapp</span>`;
   (orte||[]).forEach(s=>{ch+=`<span class="chip c-ok">${SV.ams}${esc(s.ort)}</span>`;const f=fu[s.ams];if(f!=null)ch+=`<span class="chip ${stufe(f,E)}">${SV.drop}${f} %</span>`});
   const tech=[e.duese_min!=null||e.duese_max!=null?"Druck "+[e.duese_min,e.duese_max].filter(x=>x!=null).join("–")+" °C":"",e.preis>0?e.preis.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €/kg":""].filter(Boolean).join(" · ");
-  return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}"><span class="lgsw" style="background:${e.hex}"></span>
+  return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex)}
     <div style="min-width:0"><div class="lgn">${esc(name(e))}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
 function body(){return body0().replace("__ALLZU__",G._allZu?"Alle aufklappen":"Alle einklappen")}
@@ -2541,12 +2564,12 @@ function body0(){G._allZu=false;
   if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
   if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird aus Home Assistant geladen…</div>`;
   const of=offen();
-  if(of.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Nicht zugeordnet (${of.length})</span></div>${(G.openOffen?of:of.slice(0,4)).map(o=>`<div class="lgor"><span class="lgsw" style="background:${o.hex}"></span>
+  if(of.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Nicht zugeordnet (${of.length})</span></div>${(G.openOffen?of:of.slice(0,4)).map(o=>`<div class="lgor">${spool(o.hex)}
       <div style="min-width:0"><div class="lgn">${String(Math.round(o.gramm*10)/10).replace(".",",")} g · ${esc([o.drucker,o.ort].filter(Boolean).join(" · "))}</div><div class="lgs">${esc([o.name||o.material,o.fid,o.zeit?new Date(o.zeit).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"",o.anlass].filter(Boolean).join(" · "))}</div></div>
       <div class="acts"><button class="btn sm" data-act="lgOzu" data-uid="${esc(o.uid)}">Zuordnen</button><button class="btn icon ghost danger" data-act="lgOweg" data-uid="${esc(o.uid)}" title="Merkzeile löschen" aria-label="Merkzeile löschen">${ICON.x}</button></div></div>`).join("")}
       ${of.length>4?`<div class="lgmore"><button class="btn ghost sm" data-act="lgMore" data-k="openOffen">${G.openOffen?"Weniger anzeigen":`Alle ${of.length} anzeigen`}</button></div>`:""}</section>`}
   const fo=faecherOffen(all,sl);
-  if(fo.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Fächer ohne Zuordnung (${fo.length})</span></div>${(G.openFach?fo:fo.slice(0,3)).map(f=>`<div class="lgor"><span class="lgsw" style="background:${f.hex}"></span>
+  if(fo.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Fächer ohne Zuordnung (${fo.length})</span></div>${(G.openFach?fo:fo.slice(0,3)).map(f=>`<div class="lgor">${spool(f.hex)}
       <div style="min-width:0"><div class="lgn">${esc(f.ort)}</div><div class="lgs">${esc([f.name||f.type,f.fid].filter(Boolean).join(" · "))}</div><div class="lgs">${esc(f.grund)}</div></div>
       <div class="acts">${f.generic?"":`<button class="btn sm" data-act="lgFzu" data-id="${esc(f.id)}">Zuordnen</button>`}</div></div>`).join("")}
       ${fo.length>3?`<div class="lgmore"><button class="btn ghost sm" data-act="lgMore" data-k="openFach">${G.openFach?"Weniger anzeigen":`Alle ${fo.length} anzeigen`}</button></div>`:""}</section>`}
@@ -2648,14 +2671,14 @@ async function save(f,silent){
 
 /* --- Zuordnen --- */
 function sortenPick(hex,mat,fid,act){const E=entries().filter(e=>e.spulen>0).map(e=>({e,d:Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)))+(fid&&e.bambu_id===fid?0:1e6)+(mat&&!e.material.toUpperCase().startsWith(mat)?1e7:0)})).sort((a,b)=>a.d-b.d);
-  return `<input type="search" id="lgpq" placeholder="Sorte suchen"><div class="lgpick" id="lgpick">${E.map(({e})=>`<div class="lgr" data-act="${act}" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}"><span class="lgsw" style="background:${e.hex}"></span><div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>${e.bambu_id?`<div class="lgs">Bambu-ID ${esc(e.bambu_id)}</div>`:""}</div><div class="lgrt"><b>${kg(total(e))}</b></div></div>`).join("")}</div>`}
+  return `<input type="search" id="lgpq" placeholder="Sorte suchen"><div class="lgpick" id="lgpick">${E.map(({e})=>`<div class="lgr" data-act="${act}" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}">${spool(e.hex)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>${e.bambu_id?`<div class="lgs">Bambu-ID ${esc(e.bambu_id)}</div>`:""}</div><div class="lgrt"><b>${kg(total(e))}</b></div></div>`).join("")}</div>`}
 function ozuModal(uid){const o=offen().find(x=>x.uid===uid);if(!o)return;G.ozu=o;const fidOk=o.fid&&!generic(o.fid);
   modal("Verbrauch zuordnen",`<div class="lgform"><div class="lghint">${esc([o.drucker,o.ort,o.name||o.material,o.fid].filter(Boolean).join(" · "))}</div>
     <div class="g2"><label class="field"><span>Abbuchen</span><div class="unit"><input type="text" inputmode="decimal" id="lo_g" value="${String(Math.round(o.gramm*10)/10).replace(".",",")}"><em>g</em></div></label></div>
     ${fidOk?`<label class="row" style="gap:8px"><input type="checkbox" id="lo_m" checked style="width:18px;height:18px;accent-color:var(--accent)"> Bambu-ID ${esc(o.fid)} bei der Sorte merken, damit es nächstes Mal automatisch geht</label>`:""}
     <div class="lghint">Sorte antippen, von der abgebucht wird. Passende Farbe und Material stehen oben.</div>${sortenPick(o.hex,String(o.material||"").toUpperCase(),o.fid,"lgOzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
 function fzuModal(id){const s=slots().find(x=>x.id===id);if(!s)return;G.fzu=s;
-  modal("Fach zuordnen",`<div class="lgform"><div class="row" style="gap:10px"><span class="lgsw" style="background:${s.hex}"></span><div><div class="lgn">${esc(s.ort)}</div><div class="lgs">${esc([s.name||s.type,s.fid].filter(Boolean).join(" · "))}</div></div></div>
+  modal("Fach zuordnen",`<div class="lgform"><div class="row" style="gap:10px">${spool(s.hex)}<div><div class="lgn">${esc(s.ort)}</div><div class="lgs">${esc([s.name||s.type,s.fid].filter(Boolean).join(" · "))}</div></div></div>
     <div class="lghint">Sorte antippen, die in diesem Fach steckt. Schichtlohn merkt sich Bambu-ID und AMS-Farbe, danach wird die Sorte von allein erkannt, auch bei der Abbuchung.</div>
     <div class="row"><button class="btn sm" data-act="lgFneu">${ICON.plus} Neue Sorte aus diesem Fach</button></div>
     ${sortenPick(s.hex,String(s.type||"").split("-")[0].toUpperCase(),s.fid,"lgFzuPick")}<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`)}
@@ -2706,7 +2729,7 @@ document.addEventListener("click",async e=>{
     const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});closeModal();toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}};
     if(x.bambu_id&&x.bambu_id!==s.fid){closeModal();confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go)}else await go();return}
 });
-window.LGN={render,onStates,_G:G,besOf};
+window.LGN={render,onStates,_G:G,besOf,spool};
 })();
 </script>
 
