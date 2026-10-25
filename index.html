@@ -2148,7 +2148,7 @@ async function ensure(){
   try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
 }
 window.addEventListener("pw-hass-update",()=>{if(!isWS()&&window.__hass){if(L.el)L.el.hass=window.__hass;if(S.tab==="lager")statusSoon();if(window.LGN)LGN.onStates()}});
-let stT;function statusSoon(){clearTimeout(stT);stT=setTimeout(status,1500)}
+let stT=null;function statusSoon(){if(stT)return;stT=setTimeout(()=>{stT=null;status()},1500)}
 
 /* --- Zustand von Waage und Druckbrücke --- */
 function stateMap(){return isWS()?(L.states||{}):((window.__hass&&window.__hass.states)||{})}
@@ -2277,6 +2277,11 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgbar input[type=search]{flex:1 1 220px;width:auto;min-width:160px}
 .lgbar select{width:auto;flex:0 1 auto;max-width:190px}
 .lgbar select.on{border-color:var(--accent);color:var(--accent)}
+.lgbar .lgfb.on{border-color:var(--accent);color:var(--accent)}
+.lgbar .lgfb b{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px}
+.lgfx{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lgfx select{width:auto;flex:0 1 auto;max-width:190px}
+.lgfx select.on{border-color:var(--accent);color:var(--accent)}
 .lgsum{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
 .lgsum .big{font:600 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
 .lgp{overflow:hidden}
@@ -2334,7 +2339,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgpick .lgr{padding:9px 12px}
 .lghint{font-size:12px;color:var(--fg-3)}
 details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
-@media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
+@media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
 <script>
 /* ===== Lager in Schichtlohn: liest und schreibt todo.filament direkt, gleiches Datenformat wie die FilamentLager-Karte ===== */
@@ -2348,9 +2353,9 @@ const BES_MAP={basic:"Basic",matte:"Matt",matt:"Matt",silk:"Seide",glow:"Leuchte
 const FAM=["Schwarz","Grau","Weiß","Braun","Beige","Rot","Orange","Gelb","Grün","Türkis","Blau","Lila","Pink"];
 const SORTS=[["material","Material"],["hersteller","Marke"],["farbe","Farbe"],["besonderheit","Besonderheit"],["drucker","Drucker"],["bestand","Bestand"]];
 const TOL=19200;
-const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,openFach:false,openOffen:false,sub:false,form:null};
+const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,showF:false,openFach:false,openOffen:false,sub:false,form:null};
 const PREF="schichtlohn_lager_ui";try{Object.assign(G,JSON.parse(localStorage.getItem(PREF)||"{}"))}catch(e){}
-const savePref=()=>{try{localStorage.setItem(PREF,JSON.stringify({sort:G.sort,f:G.f,showLeer:G.showLeer}))}catch(e){}};
+const savePref=()=>{try{localStorage.setItem(PREF,JSON.stringify({sort:G.sort,f:G.f,showLeer:G.showLeer,showF:G.showF}))}catch(e){}};
 
 /* --- Hilfen wie in der Karte --- */
 const fNum=v=>{if(v===""||v==null)return null;const n=Number(String(v).replace(",","."));return Number.isFinite(n)?n:null};
@@ -2469,17 +2474,18 @@ function body(){
   const sicht=(q||zeigLeer||fl.ort==="leer")?all:all.filter(e=>e.spulen>0);
   const list=sicht.filter(e=>passt(e)&&worte.every(w=>txt(e).includes(w)));
   const sum=all.reduce((a,e)=>a+total(e),0),spulen=all.reduce((a,e)=>a+Math.max(0,e.spulen),0),refills=all.reduce((a,e)=>a+Math.max(0,Math.min(e.refills,e.spulen)),0);
-  const leerN=all.filter(e=>e.spulen<=0).length;
+  const leerN=all.filter(e=>e.spulen<=0).length;const nF=Object.values(fl).filter(Boolean).length;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   let h=`<div class="lgsum"><span class="big">${kg(sum)}</span><span class="dim">${all.length} Sorten · ${spulen} Rollen (${spulen-refills} mit Spule, ${refills} Refill)</span><span class="sp"></span>
     <button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div>
     <div class="lgbar"><input type="search" id="lgq" placeholder="Suchen: Farbe, Marke, Material, Code, AMS …" value="${esc(G.q)}">
       <select data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
-      ${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
+      <button class="btn sm lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}">Filter${nF?`<b>${nF}</b>`:""}</button>
+      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>
+    ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
-      ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}
-      ${(q||Object.values(fl).some(Boolean))?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>`;
+      ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
   if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
   if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird aus Home Assistant geladen…</div>`;
   const of=offen();
@@ -2495,7 +2501,7 @@ function body(){
   if(!all.length)return h+`<div class="panel empty">Noch kein Filament erfasst. Mit „Sorte“ legst du die erste an.</div>`;
   if(!list.length)return h+`<div class="panel empty">${q||Object.values(fl).some(Boolean)?"Nichts gefunden.":"Alle Sorten sind aufgebraucht."}</div>`+(leerN?`<div class="row"><span class="sp"></span><button class="btn ghost sm" data-act="lgLeer">${zeigLeer?"Aufgebrauchte ausblenden":`Aufgebrauchte anzeigen (${leerN})`}</button><span class="sp"></span></div>`:"");
   const ortKey=e=>{const o=imFach[e.uid]||[];return o.length?o[0].ort.split(" · ")[0]:"Im Lager"};
-  const gk=e=>sort==="hersteller"?(e.hersteller||"Ohne Hersteller"):sort==="farbe"?fam(e.hex):sort==="besonderheit"?(e.besonderheiten[0]||"Ohne Besonderheit"):sort==="drucker"?ortKey(e):sort==="bestand"?"Nach Bestand":(e.material||"Ohne Material");
+  const gk=e=>sort==="hersteller"?(e.hersteller||"Ohne Marke"):sort==="farbe"?fam(e.hex):sort==="besonderheit"?(e.besonderheiten[0]||"Ohne Besonderheit"):sort==="drucker"?ortKey(e):sort==="bestand"?"Nach Bestand":(e.material||"Ohne Material");
   const groups={};list.forEach(e=>{(groups[gk(e)]=groups[gk(e)]||[]).push(e)});
   const ord=k=>sort==="farbe"?String(FAM.indexOf(k)).padStart(2,"0"):sort==="drucker"?(k==="Im Lager"?"zz":k):(/^Ohne /.test(k)?"zzz":k);
   const hell=x=>{const c=fHex(x);return parseInt(c.slice(1,3),16)*.3+parseInt(c.slice(3,5),16)*.59+parseInt(c.slice(5,7),16)*.11};
@@ -2517,8 +2523,8 @@ function decorate(){
     const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.own?"1":"";img.src=c.u};
     img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
-let drawT=null,lastHTML="";
-function draw(){clearTimeout(drawT);drawT=setTimeout(()=>{if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const h=body();if(h===lastHTML)return;
+let drawT=null,drawDue=0,lastHTML="";
+function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const h=body();if(h===lastHTML)return;
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
   if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
@@ -2526,7 +2532,7 @@ function render(m){
   m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">aus Home Assistant</span><span class="sp"></span><button class="btn ghost sm" data-act="lgMode" data-v="karte" title="Die Karte aus Home Assistant anzeigen">HA-Karte</button></div>
     <div class="lstat" id="lagerStatus"></div><div class="stack" id="lgList"></div></div>`;
   lastHTML="";if(L())L().status();start();draw()}
-function onStates(){if(S.tab==="lager"){draw();if(L())L().status()}}
+function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
 function known(k){const s=new Set();entries().forEach(e=>{const v=e[k];if(Array.isArray(v))v.forEach(x=>x&&s.add(x));else if(v)s.add(v)});return [...s].sort((a,b)=>a.localeCompare(b,"de"))}
@@ -2613,6 +2619,7 @@ document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^lg/.test(a))return;
   if(a==="lgMode"){try{localStorage.setItem("schichtlohn_lagermodus",b.dataset.v)}catch(x){}window.render&&window.render();return}
   if(a==="lgReset"){G.q="";G.f={};savePref();draw();return}
+  if(a==="lgFilt"){G.showF=!G.showF;savePref();draw(0);return}
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}
