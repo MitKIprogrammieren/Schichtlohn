@@ -1798,6 +1798,7 @@ window.JOBS={render,settingsHTML,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 <style>
 .lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
 .lagerhost ernsthaft-gelagert-plus-card{display:block}
+[data-skin="bambu"] .lagerhost{--sl-h1:20px;--sl-h1-ls:0;--sl-chip-r:4px}
 .lstat{display:flex;flex-wrap:wrap;gap:10px}
 .lstat .dev{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);font-size:13px;color:var(--fg-2)}
 .lstat .dev b{color:var(--fg);font-size:14px;margin-right:2px}
@@ -1811,6 +1812,49 @@ window.JOBS={render,settingsHTML,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 (function(){
 "use strict";
 const TAG="ernsthaft-gelagert-plus-card";
+/* Schichtlohn-Design für die Karte: wird als eigenes Stylesheet in ihren Shadow-DOM gelegt und bleibt bei jedem Neuzeichnen erhalten */
+const LOOK=`:host{--fil-ok:var(--accent)!important;--fil-rb:1px!important;font-family:var(--f-body)!important;color:var(--fg)!important;font-size:15px}
+ha-card{padding:0!important;background:none!important;border:0!important;box-shadow:none!important;color:var(--fg)!important}
+.hd{padding:0 0 4px!important}
+.t{font-family:var(--f-display)!important;font-size:var(--sl-h1,26px)!important;font-weight:600!important;letter-spacing:var(--sl-h1-ls,.01em)!important}
+.sum,.f2{color:var(--fg-2)!important;font-size:13px!important}
+.btns{gap:6px!important}
+.ib{border-radius:var(--r-s)!important;border:1px solid var(--line-2)!important;background:var(--glass-2)!important;color:var(--fg)!important}
+.ib:hover{border-color:var(--accent)!important}
+.ib ha-icon{--mdc-icon-size:18px!important}.ib svg{width:18px!important;height:18px!important}
+.ib.on{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important}
+.ib.akt,.ib.w-mid{border-color:var(--warn)!important;color:var(--warn)!important}.ib.w-hi{border-color:var(--bad)!important;color:var(--bad)!important}
+.tot{font-family:var(--f-display)!important;color:var(--fg)!important}
+.grp,.spanel,.ein,.sbanner,.stz div{background:var(--glass)!important;border:1px solid var(--line)!important;border-radius:var(--r)!important}
+.offen{background:var(--glass)!important;border:1px solid var(--warn)!important;border-radius:var(--r)!important}
+.offen .gh2{color:var(--warn)!important}
+.grp{padding:0 14px!important}
+.gh,.eh{font-size:11px!important;letter-spacing:.09em!important;text-transform:uppercase!important;color:var(--fg-3)!important;font-weight:600!important}
+.gh{margin:16px 4px 6px!important}
+.row,.orow{border-bottom-color:var(--line)!important}
+.nm{font-weight:500!important;color:var(--fg)!important}
+.sub,.info,.zinfo,.sfuss,.lb,.frm label,.sortbar .lbl{color:var(--fg-2)!important}
+.sw,.dot,.fb{border-radius:var(--r-s)!important;border-color:var(--line-2)!important}
+.chip{border-radius:var(--sl-chip-r,999px)!important;font-size:12px!important;padding:2px 9px!important;background:var(--sunken)!important;border:1px solid var(--line-2)!important;color:var(--fg-2)!important}
+.chip.sp{background:none!important}
+.chip.an,.chip.fa,.chip.hu-mid{color:var(--warn)!important;border-color:color-mix(in srgb,var(--warn) 45%,transparent)!important;background:color-mix(in srgb,var(--warn) 12%,transparent)!important}
+.chip.leer,.chip.knapp,.chip.hu-hi{color:var(--bad)!important;border-color:color-mix(in srgb,var(--bad) 45%,transparent)!important;background:color-mix(in srgb,var(--bad) 12%,transparent)!important}
+.chip.ort,.chip.rf,.chip.hu-ok{color:var(--accent)!important;border-color:color-mix(in srgb,var(--accent) 40%,transparent)!important;background:var(--accent-soft)!important}
+.kg{font-variant-numeric:tabular-nums;color:var(--fg)!important}
+.bar,.hbar,.sbar .bk{background:var(--track)!important}
+.inp,input[type=text],input[type=number],input[type=search],select{background:var(--sunken)!important;border:1px solid var(--line-2)!important;border-radius:var(--r-s)!important;color:var(--fg)!important;font-family:var(--f-body)!important}
+.inp:focus,input:focus,select:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important;outline:none!important}
+select option{background:var(--solid);color:var(--fg)}
+.sb,.kn,.tg{border:1px solid var(--line-2)!important;background:var(--glass-2)!important;border-radius:var(--r-s)!important;color:var(--fg)!important;font-weight:500!important}
+.sb:hover,.kn:hover{border-color:var(--accent)!important}
+.pb,.seg .sb.on,.kn.on,.tg.on,.sb.cp.on{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important;border-radius:var(--r-s)!important;font-weight:600!important}
+.sb.cp{border-color:var(--accent)!important}
+.sb.del{border-color:var(--bad)!important;color:var(--bad)!important}
+.ask{border:1px solid var(--warn)!important;border-radius:var(--r)!important}
+.cam{border-radius:var(--r)!important}.cam .rahmen{border-color:var(--accent)!important}
+.c-ok{color:var(--good)!important}.c-mid{color:var(--warn)!important}.c-hi{color:var(--bad)!important}
+.hint,.err{color:var(--bad)!important}
+@container (max-width:560px){.lst .ti{flex:0 0 auto!important}}`;
 const DEV=[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]];
 const L={el:null,p:null,err:"",cfg:null,link:"",title:"FilamentLager",shim:null,states:null,dirty:false,timer:null};
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
@@ -1874,10 +1918,11 @@ async function wsHass(){
   clearInterval(L.timer);L.timer=setInterval(()=>{if(!L.dirty)return;L.dirty=false;L.states=Object.assign({},L.states);L.shim=mk();if(L.el)L.el.hass=L.shim;status()},2000);
   L.shim=mk();return L.shim;
 }
+function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true}catch(e){console.warn("Lager-Design",e)}}
 async function ensure(){
   if(L.el)return;if(L.p)return L.p;
   L.p=(async()=>{shims();await loadCode();const f=await findCfg();L.cfg=f.cfg;L.link=f.link;L.title=f.cfg.title||"FilamentLager";
-    const el=document.createElement(TAG);el.setConfig(Object.assign({},L.cfg));el.hass=isWS()?await wsHass():window.__hass;L.el=el})();
+    const el=document.createElement(TAG);el.setConfig(Object.assign({},L.cfg));look(el);el.hass=isWS()?await wsHass():window.__hass;L.el=el})();
   try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
 }
 window.addEventListener("pw-hass-update",()=>{if(L.el&&!isWS()&&window.__hass){L.el.hass=window.__hass;if(S.tab==="lager")statusSoon()}});
