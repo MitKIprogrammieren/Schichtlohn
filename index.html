@@ -1996,6 +1996,12 @@ cloudStatus();setTimeout(cloudStatus,500);
 .dcard .dv b{display:block;font-size:15px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
 .dcard .dv b.dim{color:var(--fg-3);font-weight:500}
 .dcard .dv.mid b{color:var(--warn)}.dcard .dv.hi b{color:var(--bad)}
+.dcard .dv b small{font-size:12px;font-weight:500;color:var(--fg-3)}
+.dcard .dv.alt b{opacity:.55}
+.dcard .ds.m20.weg i{background:var(--fg-3)}
+.dcard .ds.m20.weg{color:var(--fg-3)}
+.dcard.kompakt:has(a.btn) .dt{padding-right:34px}
+.dcard.kompakt .dt{flex:1 1 auto}
 .dcard.kompakt a.btn{margin:0;flex:none}
 @media (max-width:620px){.dcard.kompakt{flex-wrap:wrap;row-gap:8px}.dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:space-between}.dcard.kompakt a.btn{position:absolute;top:8px;right:8px}}
 .dcard .dw{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:10px 12px;border-radius:var(--r-s);background:var(--sunken,rgba(127,127,127,.08))}
@@ -2219,12 +2225,19 @@ function status(){
     const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
     const wt=pre==="filamentwaage"?st[`sensor.${pre}_gewicht`]:null;
     const vals=off?`<div class="dv"><span>Status</span><b class="dim">keine Verbindung</b></div>`:
-      (pre==="filamentwaage"?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0):"")+zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90);
+      (pre==="filamentwaage"?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0):"")+zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90)+(pre==="druckbruecke"?m20vals(st):"");
+    const m20=pre==="druckbruecke"?st["binary_sensor.m20_pro_verbunden"]:null;
     return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[pre]||ICON.cube}</span>
-      <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span></div>
+      <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span>${m20?`<span class="ds m20${m20.state==="on"?"":" weg"}" title="${m20.state==="on"?"Etikettendrucker verbunden":"Etikettendrucker nicht verbunden – Werte vom letzten Kontakt"}"><i></i>M20 Pro</span>`:""}</div>
       <div class="dvs">${vals}</div>
       ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}</div>`}).join("");
 }
+function m20vals(st){const on=(st["binary_sensor.m20_pro_verbunden"]||{}).state==="on";const et=st["sensor.m20_pro_etiketten"],ak=st["sensor.m20_pro_akku"];let h="";
+  const alt=on?"":" alt",tip=on?"":` title="Vom letzten Kontakt mit dem M20 Pro"`;
+  if(et&&isFinite(Number(et.state))){const n=Number(et.state),g=Number((et.attributes||{}).gesamt);h+=`<div class="dv${n<20?" mid":""}${alt}"${tip}><span>Etiketten</span><b>${n}${g>0?`<small> / ${g}</small>`:""}</b></div>`}
+  if(ak&&ak.state!=null&&!["unknown","unavailable",""].includes(ak.state)){const n=Number(ak.state),pz=(ak.attributes||{}).unit_of_measurement==="%";
+    h+=`<div class="dv${pz&&n<10?" hi":pz&&n<25?" mid":""}${alt}"${tip}><span>Akku</span><b>${isFinite(n)?n+(pz?" %":""):esc(ak.state)}</b></div>`}
+  return h}
 function zahl(label,s,unit,warn,hi,leer,dez){const v=s?Number(s.state):NaN;
   if(!s||!isFinite(v))return `<div class="dv"${leer?` title="${esc(leer)}"`:""}><span>${label}</span><b class="dim">–</b></div>`;
   const cls=hi!=null&&v>=hi?" hi":warn!=null&&v>=warn?" mid":"";
@@ -2343,9 +2356,11 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgbar .lgtb{height:36px;padding:0 12px;gap:6px;border-radius:999px;font-size:13px}
 [data-skin="bambu"] .lgbar .lgtb{border-radius:8px}
 .lgbar .lgtb svg{width:15px;height:15px}
+.lgbar .lgact2{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+#lgHead:empty{display:none}
 .lgbar select.lgsort{width:auto;flex:0 0 auto;max-width:200px;height:36px;border-radius:999px;padding:0 32px 0 14px;font-size:13px;background-color:var(--sunken,rgba(127,127,127,.08))}
 [data-skin="bambu"] .lgbar select.lgsort{border-radius:8px}
-@media (max-width:620px){.lgsearch{flex:1 1 100%}.lgbar .lgtb{flex:1 1 0;justify-content:center}.lgbar select.lgsort{flex:1 1 100%;max-width:none}}
+@media (max-width:620px){.lgsearch{flex:1 1 100%}.lgbar .lgtb{flex:1 1 0;justify-content:center}.lgbar .lgact2{margin-left:0;width:100%}.lgbar select.lgsort{flex:1 1 100%;max-width:none}}
 .lgbar select{width:auto;flex:0 1 auto;max-width:190px}
 .lgbar select.on{border-color:var(--accent);color:var(--accent)}
 .lgbar .lgfb.on{border-color:var(--accent);color:var(--accent)}
@@ -2359,8 +2374,12 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgbestw{display:contents}
 .lgbest .dt{flex:none}
 .lgtop .dcard.kompakt{flex-wrap:wrap;row-gap:10px;align-content:flex-start}
-.lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:space-between;flex-wrap:nowrap;gap:12px}
+.lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:12px 36px}
+@media (max-width:620px){.lgtop .dcard.kompakt .dvs{justify-content:space-between;gap:12px}}
 .lgtop .dcard.kompakt a.btn{position:absolute;top:10px;right:10px}
+.lgtop:has(.lstat:empty) .lgbest{flex-wrap:nowrap}
+.lgtop:has(.lstat:empty) .lgbest .dvs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;width:auto;gap:40px;justify-content:center}
+@media (max-width:620px){.lgtop:has(.lstat:empty) .lgbest{flex-wrap:wrap}.lgtop:has(.lstat:empty) .lgbest .dvs{position:static;transform:none;margin-left:0;width:100%;justify-content:space-between}}
 .lghead .lgact{flex-wrap:nowrap}
 .lghead h1{margin:0}
 .lghead .lgsum{justify-self:center;text-align:center}
@@ -2661,13 +2680,13 @@ function body0(){G._allZu=false;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   let h=`<div class="dcard kompakt lgbest"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>\u0002<div class="lghead">
-    <div class="lgact"><button class="btn sm lgsbtn" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgsbtn" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm" data-act="lgNew">${ICON.plus} Sorte</button></div></div>\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
-      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}</div>
+      ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
+      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Sorte</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
