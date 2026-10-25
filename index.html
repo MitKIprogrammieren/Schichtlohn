@@ -1943,13 +1943,26 @@ cloudStatus();setTimeout(cloudStatus,500);
 .lagerhost ernsthaft-gelagert-plus-card{display:block}
 [data-skin="bambu"] .lagerhost{--sl-h1:20px;--sl-h1-ls:0;--sl-chip-r:4px}
 [data-skin="ha"] .lagerhost{--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
-.lstat{display:flex;flex-wrap:wrap;gap:10px}
-.lstat .dev{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);font-size:13px;color:var(--fg-2)}
-.lstat .dev b{color:var(--fg);font-size:14px;margin-right:2px}
-.lstat .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
-.lstat .dot.off{background:var(--bad)}
-.lstat .v{color:var(--fg);font-variant-numeric:tabular-nums}
-.lstat a.btn{text-decoration:none;color:var(--fg)}
+.lstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.dcard{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--glass)}
+.dcard .dh{display:flex;align-items:center;gap:10px;min-width:0}
+.dcard .di{width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--r-s);background:var(--accent-soft);color:var(--accent)}
+.dcard.off .di{background:var(--sunken);color:var(--fg-3)}
+.dcard .di svg{width:20px;height:20px}
+.dcard .dn{font-weight:600;font-size:15px;color:var(--fg)}
+.dcard .ds{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-2);border:1px solid var(--line-2);border-radius:var(--sl-chip-r,999px);padding:2px 9px;white-space:nowrap}
+.dcard .ds i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.dcard.off .ds i{background:var(--bad)}
+.dcard .dm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dcard .mt span{display:block;font-size:12px;color:var(--fg-3)}
+.dcard .mt b{display:block;font-size:18px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums;margin:1px 0 5px}
+.dcard .mt .tr{height:5px;border-radius:3px;background:var(--track);overflow:hidden}
+.dcard .mt .tr i{display:block;height:100%;border-radius:3px;background:var(--good)}
+.dcard .mt.mid .tr i{background:var(--warn)}.dcard .mt.hi .tr i{background:var(--bad)}
+.dcard .mt.mid b{color:var(--warn)}.dcard .mt.hi b{color:var(--bad)}
+.dcard a.btn{text-decoration:none;color:var(--fg);align-self:flex-start;margin-top:-2px}
+.dcard .doff{font-size:13px;color:var(--fg-3)}
+[data-skin="bambu"] .dcard{border-radius:var(--r)}
 </style>
 <script>
 /* ===== Lager: die FilamentLager-Karte aus Home Assistant, live geladen ===== */
@@ -1963,9 +1976,9 @@ ha-card{padding:0!important;background:none!important;border:0!important;box-sha
 .t{font-family:var(--f-display)!important;font-size:var(--sl-h1,26px)!important;font-weight:600!important;letter-spacing:var(--sl-h1-ls,.01em)!important}
 .sum,.f2{color:var(--fg-2)!important;font-size:13px!important}
 .btns{gap:6px!important}
-.ib{border-radius:var(--r-s)!important;border:1px solid var(--line-2)!important;background:var(--glass-2)!important;color:var(--fg)!important}
+.ib{width:36px!important;height:36px!important;border-radius:var(--r-s)!important;border:1px solid var(--line-2)!important;background:var(--glass-2)!important;color:var(--fg)!important}
 .ib:hover{border-color:var(--accent)!important}
-.ib ha-icon{--mdc-icon-size:18px!important}.ib svg{width:18px!important;height:18px!important}
+.ib ha-icon{--mdc-icon-size:18px!important}.ib svg{width:18px!important;height:18px!important}\n.ib[data-a="new"]{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important}\n.ib[data-a="new"]:hover{filter:brightness(1.08)}\n.btns{gap:6px!important;align-items:center}\n@container (max-width:560px){.lst .ib{width:auto!important;height:40px!important}}
 .ib.on{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important}
 .ib.akt,.ib.w-mid{border-color:var(--warn)!important;color:var(--warn)!important}.ib.w-hi{border-color:var(--bad)!important;color:var(--bad)!important}
 .tot{font-family:var(--f-display)!important;color:var(--fg)!important}
@@ -2088,12 +2101,24 @@ function stateMap(){return isWS()?(L.states||{}):((window.__hass&&window.__hass.
 function fmtVal(s){const u=(s.attributes||{}).unit_of_measurement||"";let v=s.state;const n=Number(v);
   if(isFinite(n)&&v!==""){if(/^(h|min|s|d)$/.test(u)){const mins=u==="h"?n*60:u==="d"?n*1440:u==="s"?n/60:n;return mins>=1440?N1.format(mins/1440)+" Tage":dur(mins)}v=N1.format(n)}
   return v+(u?" "+u:"")}
+const DICON={
+  filamentwaage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/></svg>',
+  druckbruecke:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>'};
+function pick(st,pre,res){for(const re of res){const id=Object.keys(st).find(i=>i.startsWith("sensor."+pre+"_")&&re.test(i.slice(7+pre.length+1)));if(id)return st[id]}return null}
+function meter(label,s,unit,warn,hi,max){
+  const v=s?Number(s.state):NaN;if(!s||!isFinite(v))return `<div class="mt"><span>${label}</span><b>–</b><div class="tr"><i style="width:0"></i></div></div>`;
+  const cls=v>=hi?" hi":v>=warn?" mid":"";
+  return `<div class="mt${cls}"><span>${label}</span><b>${N1.format(v)} ${unit}</b><div class="tr"><i style="width:${Math.max(2,Math.min(100,v/max*100))}%"></i></div></div>`}
 function status(){
   const el=$("#lagerStatus");if(!el)return;const st=stateMap();
-  el.innerHTML=DEV.map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_")).sort();if(!ids.length)return "";
+  el.innerHTML=DEV.map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
     const off=ids.every(id=>["unavailable","unknown"].includes(st[id].state));
-    return `<div class="dev"><span class="dot${off?" off":""}"></span><b>${esc(name)}</b>${off?"<span>offline</span>":ids.map(id=>{const s=st[id];let nm=String((s.attributes||{}).friendly_name||id).replace(new RegExp("^(Waage|Druckbrücke|"+name+")\\s*","i"),"");return `<span>${esc(nm)} <span class="v">${esc(fmtVal(s))}</span></span>`}).join("")}</div>`}).join("")
-    +(L.link?`<a class="btn sm" href="${esc(L.link)}" target="_blank" rel="noopener" title="Nur im Heimnetz erreichbar">${ICON.link} Druckbrücke öffnen</a>`:"");
+    const temp=pick(st,pre,[/^temperatur/,/temp/]);
+    const load=pre==="druckbruecke"?pick(st,pre,[/^auslastung/,/cpu|load/]):pick(st,pre,[/^arbeitsspeicher/,/speicher|ram|memory/]);
+    const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
+    return `<div class="dcard${off?" off":""}"><div class="dh"><span class="di">${DICON[pre]||ICON.cube}</span><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span></div>
+      ${off?`<div class="doff">Keine Verbindung zu Home Assistant.</div>`:`<div class="dm">${meter("Temperatur",temp,"°C",65,80,90)}${meter(loadLabel,load,"%",75,90,100)}</div>`}
+      ${pre==="druckbruecke"&&L.link?`<a class="btn ghost sm" href="${esc(L.link)}" target="_blank" rel="noopener" title="Nur im Heimnetz erreichbar">${ICON.link} Druckbrücke öffnen</a>`:""}</div>`}).join("");
 }
 
 /* --- Reiter --- */
