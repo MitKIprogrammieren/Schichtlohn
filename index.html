@@ -767,7 +767,15 @@ function renderSettings(m){
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
-      <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
+      <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["feuchte","AMS-Feuchte"],["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
+      ${(()=>{if(S.backend!=="ha"||!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;
+        if(!I.meta)return `<div class="hint">Die gemeinsamen Lager-Einstellungen liegen in der HA-Liste todo.filament_verbrauch. Sie fehlt in Home Assistant.</div>`;
+        if(!I.ok)return `<div class="hint">Lager-Einstellungen werden aus Home Assistant geladen …</div>`;
+        return `<div class="lgein"><div class="lgein-t">Gemeinsam mit der FilamentLager-Karte, gilt auf allen Geräten</div>
+          <div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
+          <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
+          <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
+          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","Schichtlohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
     </section>
@@ -1968,6 +1976,9 @@ cloudStatus();setTimeout(cloudStatus,500);
 [data-skin="ha"] .lagerhost{--sl-ldy:4px;--sl-hp:12px 16px 4px;--sl-hf:500 16px/1.4 var(--f-body);--sl-hls:0;--sl-htt:none;--sl-hc:var(--fg)}
 .lstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .lstat:empty{display:none}
+.lgein{border:1px solid var(--line);border-radius:var(--r-s);padding:14px;display:flex;flex-direction:column;gap:12px}
+.lgein-t{font-size:12px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em}
+.lgein .field small.hint{display:block;margin-top:4px;font-size:11.5px}
 .dcard{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--glass)}
 .dcard .dh{display:flex;align-items:center;gap:10px;min-width:0}
 .dcard .di{width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--r-s);background:var(--accent-soft);color:var(--accent)}
@@ -2370,6 +2381,9 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfx select.on{border-color:var(--accent);color:var(--accent)}
 .lghead{display:flex;justify-content:flex-end;align-items:center;gap:10px}
 .lgtop{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.lgtop[data-n="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}.lgtop[data-n="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}.lgtop[data-n="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}.lgtop[data-n="1"]{grid-template-columns:1fr}
+@media (max-width:1100px){.lgtop[data-n="3"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:620px){.lgtop[data-n]{grid-template-columns:1fr}}
 .lgtop .lstat{display:contents}
 .lgbestw{display:contents}
 .lgbest .dt{flex:none}
@@ -2377,9 +2391,9 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:12px 36px}
 @media (max-width:620px){.lgtop .dcard.kompakt .dvs{justify-content:space-between;gap:12px}}
 .lgtop .dcard.kompakt a.btn{position:absolute;top:10px;right:10px}
-.lgtop:has(.lstat:empty) .lgbest{flex-wrap:nowrap}
-.lgtop:has(.lstat:empty) .lgbest .dvs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;width:auto;gap:40px;justify-content:center}
-@media (max-width:620px){.lgtop:has(.lstat:empty) .lgbest{flex-wrap:wrap}.lgtop:has(.lstat:empty) .lgbest .dvs{position:static;transform:none;margin-left:0;width:100%;justify-content:space-between}}
+.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest{flex-wrap:nowrap}
+.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;width:auto;gap:40px;justify-content:center}
+@media (max-width:620px){.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest{flex-wrap:wrap}.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{position:static;transform:none;margin-left:0;width:100%;justify-content:space-between}}
 .lghead .lgact{flex-wrap:nowrap}
 .lghead h1{margin:0}
 .lghead .lgsum{justify-self:center;text-align:center}
@@ -2466,6 +2480,36 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgsw.lgq{display:grid;place-items:center;font-weight:700;color:var(--fg-3);box-shadow:inset 0 0 0 1px var(--line);background:transparent}
 .lgsbtn svg{width:16px;height:16px}
 .lgso{border-left:3px solid var(--accent)}
+.lgfeu{cursor:pointer;transition:border-color .15s}.lgfeu:hover{border-color:var(--accent)}
+.dcard .ds.warn{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}.dcard .ds.warn i{background:var(--bad)}
+.dcard .dv.cok b{color:var(--good)}.dcard .dv.cmid b{color:var(--warn)}.dcard .dv.chi b{color:var(--bad)}
+.lgbest .lgstat{position:absolute;top:10px;right:10px}
+.modal.lgwide{width:min(1000px,100%)}
+.lgsilg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.lgsil{border:1px solid var(--line);border-radius:var(--r-s);padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--glass)}
+.lgsil-h{display:flex;align-items:center;gap:10px}.lgsil-h .lgn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgsil-h .btn{padding:4px 10px;font-size:12px}
+.lgsil .lgs{font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lgsil .hum{font:700 22px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:52px}
+.lgsil .hum small{font-size:12px;font-weight:600;margin-left:1px}
+.cok{color:var(--good)}.cmid{color:var(--warn)}.chi{color:var(--bad)}.cna{color:var(--fg-3)}
+.lgsil .hbar{height:4px;border-radius:3px;background:var(--track);overflow:hidden}
+.lgsil .hbar i{display:block;height:100%;border-radius:3px}
+.lgsil .hbar i.cok{background:var(--good)}.lgsil .hbar i.cmid{background:var(--warn)}.lgsil .hbar i.chi{background:var(--bad)}
+.lgtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.lgtiles>div{border:1px solid var(--line);border-radius:var(--r-s);padding:12px 14px;background:var(--glass)}
+.lgtiles b{display:block;font:700 20px/1.15 var(--f-display);font-variant-numeric:tabular-nums}
+.lgtiles span{display:block;font-size:12px;color:var(--fg-3);margin-top:3px}
+.lgbars{padding:6px 14px}
+.lgbr{display:grid;grid-template-columns:minmax(90px,30%) minmax(0,1fr) auto;gap:12px;align-items:center;padding:6px 0;font-size:13px}
+.lgbr .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.lgbr .n i{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
+.lgbr .bk{height:8px;border-radius:4px;background:var(--track);overflow:hidden}.lgbr .bk div{height:100%;border-radius:4px;background:var(--accent)}
+.lgbr .w{font-variant-numeric:tabular-nums;color:var(--fg-2);white-space:nowrap}
+.lgamsr{cursor:pointer}.lgamsr:hover{background:var(--sunken,rgba(127,127,127,.08))}
+@media (max-width:620px){.lgtiles{grid-template-columns:1fr}.lgsilg{grid-template-columns:1fr}.lgbr{grid-template-columns:1fr auto}.lgbr .bk{grid-column:1/-1;grid-row:2}}
+.lgbest .dt{padding-right:34px}
+
 @media (max-width:620px){.lgsr{grid-template-columns:30px minmax(0,1fr);row-gap:6px}.lgsr .lgzahl{grid-column:2}.lgsr .acts{grid-column:2;justify-content:flex-start}}
 .lgtg button,.tabtg button{cursor:pointer}
 .tabtg button{padding:6px 12px;font-size:13px;gap:6px}.tabtg button svg{width:14px;height:14px}
@@ -2602,7 +2646,7 @@ async function start(){
   if(G.sub)return;G.sub=true;G.err="";
   try{if(L()){L().shims();await L().initStates()}
     G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw()});
-    try{if(states()[META])G.unsubM=await subscribe(META,items=>{G.meta=items;draw()})}catch(e){}
+    try{if(states()[META])G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L())L().link().then(()=>{if(S.tab==="lager")L().status()});
   }catch(e){G.err=String(e&&e.message||e);G.sub=false;draw()}
@@ -2679,8 +2723,9 @@ function body0(){G._allZu=false;
   const leerN=all.filter(e=>e.spulen<=0).length;const nF=Object.values(fl).filter(Boolean).length;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
-  let h=`<div class="dcard kompakt lgbest"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>\u0002\u0001
+  const EV=einVoll();
+  let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -2734,14 +2779,15 @@ function decorate(){
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="";
 function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
-  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb)bb.innerHTML=p[0];const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=p[1]||""}}
+  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb){bb.innerHTML=p[0];fitTop()}const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=p[1]||""}}
   if(h===lastHTML)return;
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
   if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
+function fitTop(){const t=document.getElementById("lgTop");if(t)t.dataset.n=String(t.querySelectorAll(".dcard").length)}
 function render(m){
-  m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
-  lastHTML="";lastHead="";if(L())L().status();start();draw()}
+  m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop" id="lgTop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
+  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L())L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
@@ -2754,6 +2800,7 @@ function formModal(e,prefill){
   const v=x=>x==null?"":esc(String(x));
   modal(isNew?"Filament hinzufügen":"Filament bearbeiten",`<div class="lgform">
     ${f.hinweis?`<div class="note">${esc(f.hinweis)}</div>`:""}
+    ${isNew&&!f.hinweis?`<div class="row"><button type="button" class="btn sm" data-act="lgAms">${SV.ams} Aus dem AMS übernehmen</button><span class="lghint">oder unten von Hand ausfüllen</span></div>`:""}
     <div class="g2"><label class="field"><span>Hersteller</span><input type="text" id="lf_h" list="lf_hl" value="${v(f.hersteller)}" placeholder="z. B. Bambu Lab"><datalist id="lf_hl">${known("hersteller").map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label>
       <label class="field"><span>Material</span><input type="text" id="lf_m" list="lf_ml" value="${v(f.material)}" placeholder="PLA"><datalist id="lf_ml">${mats.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label></div>
     <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
@@ -2949,6 +2996,123 @@ async function serieUebernehmen(codes){const {bekannt}=serieGruppen();const je={
   catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err));return}
   const n=Object.values(je).reduce((a,j)=>a+j.n,0);toast(plural(n,"Rolle","Rollen")+" ins Lager übernommen");setTimeout(()=>serieModal(),250)}
 
+/* --- Phase 2: Feuchte/Silica, Verbrauch, AMS-Import, gemeinsame Einstellungen (gleiche Daten wie die FilamentLager-Karte) --- */
+const EIN_STD={gruppe:"material",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35,silica_trocknung_h:24,silica_nachlauf_h:6};
+const EIN_ZAHLEN=[["feuchte_gruen","Feuchte grün unter","%",1,100,"Darunter ist ein AMS grün"],["feuchte_warnung","Feuchte-Warnung ab","%",1,100,"Ab hier wird ein AMS rot"],
+  ["silica_trocknung_h","Trocknungszeit nach Silica-Tausch","h",1,168,"So lange wird nach einem Tausch noch der Tiefpunkt gesucht"],["silica_nachlauf_h","Abkühlzeit nach AMS-Trocknung","h",1,48,"Nach einer Filamenttrocknung im AMS Pro/HT, bis der Tiefpunkt feststeht"],
+  ["knapp_g","Bestand knapp unter","g",0,100000,"Sorten darunter bekommen ein rotes „knapp“, 0 = aus"]];
+const einItem=()=>G.meta.find(i=>desc(i).typ==="einstellungen_plus")||null;
+const einGespeichert=()=>{const it=einItem();const d=it?desc(it):{};return (d.werte&&typeof d.werte==="object")?d.werte:{}};
+function einVoll(){const g=einGespeichert(),e=Object.assign({},EIN_STD);Object.keys(EIN_STD).forEach(k=>{const v=g[k];if(v!==undefined&&v!==null&&v!=="")e[k]=typeof EIN_STD[k]==="number"?(fNum(v)??e[k]):v});return e}
+async function einSpeichern(neu){const it=einItem();const werte=Object.assign({},einGespeichert(),neu);const d=JSON.stringify({typ:"einstellungen_plus",v:1,werte});
+  if(it)return svc("update_item",{item:it.uid,description:d},META);return svc("add_item",{item:"⚙ Einstellungen (Ernsthaft gelagert Plus)",description:d},META)}
+const amsName=n=>Number(n)>=128?"AMS HT "+(Number(n)-127):"AMS "+("ABCDEFGH"[Number(n)-1]||n);
+const normPre=p=>{const t=String(p).split("_");return t.length>2&&t[0]===t[1]?t.slice(1).join("_"):p};
+function druckerNr(prefix){const p=normPre(prefix).split("_").slice(0,2).join("_");const name=druckerName(p);const m=p.split("_")[0];
+  const alle=[...new Set(Object.keys(states()).map(id=>{const x=id.match(/^sensor\.(.+?)_ams_\d+_(luftfeuchtigkeit|humidity)/);return x?normPre(x[1]).split("_").slice(0,2).join("_"):null}).filter(x=>x&&x.split("_")[0]===m))].sort();
+  return alle.length>1&&name===druckerName(m)?name+" "+(alle.indexOf(p)+1):name}
+function amsFeuchte(){const st=states();return Object.keys(st).map(id=>({id,m:id.match(/^sensor\.(.+)_ams_(\d+)_(luftfeuchtigkeit|humidity)(?:_\d+)?$/)})).filter(x=>x.m).map(({id,m})=>{
+  const v=fNum(st[id].state),key=m[1]+"_ams_"+m[2];const tid=["trocknen","drying"].map(s=>`binary_sensor.${key}_${s}`).find(x=>st[x])||null;
+  const pre=normPre(m[1]).split("_").slice(0,2).join("_");return {id,key,tid,prefix:pre,drucker:druckerNr(m[1]),nr:Number(m[2]),name:amsName(m[2]),wert:v==null?null:Math.round(v)}})
+  .sort((a,b)=>a.drucker.localeCompare(b.drucker,"de")||a.prefix.localeCompare(b.prefix)||a.nr-b.nr)}
+const silicaItem=()=>G.meta.find(i=>desc(i).typ==="silica_plus")||null;
+function silica(){const it=silicaItem(),d=it?desc(it):{};if(d.wechsel&&typeof d.wechsel==="object")return d.wechsel;
+  const alt=G.meta.map(i=>desc(i)).find(x=>x.typ==="silica"&&x.log);const w={};if(alt)Object.entries(alt.log).forEach(([k,z])=>{if(z&&!isNaN(new Date(z)))w[k]={zeit:z,feuchte:null,art:"tausch"}});return w}
+async function silicaSpeichern(w){const it=silicaItem();const d=it?desc(it):{};const s=JSON.stringify(Object.assign({},d,{typ:"silica_plus",v:1,wechsel:w}));
+  if(it)return svc("update_item",{item:it.uid,description:s},META);return svc("add_item",{item:"⚙ Silica-Wechsel (Ernsthaft gelagert Plus)",description:s},META)}
+const fStufe=(v,e)=>v==null?"na":v<e.feuchte_gruen?"ok":v<e.feuchte_warnung?"mid":"hi";
+const komma=(v,n=1)=>Number(v).toLocaleString("de-DE",{maximumFractionDigits:n});
+const plusMinus=d=>d===0?"±0 %":(d>0?"+":"−")+Math.abs(d)+" %";
+function datumTage(z){const d=new Date(z);if(isNaN(d))return "";const h=new Date();const t=Math.round((new Date(h.getFullYear(),h.getMonth(),h.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
+  return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"})+" · "+(t<=0?"heute":t===1?"gestern":"vor "+t+" Tagen")}
+function trockner(f){if(!f.tid)return null;const st=states();const g=n=>{for(const s of n){const x=st[`sensor.${f.key}_${s}`];if(x&&!["unknown","unavailable",""].includes(String(x.state)))return x.state}return null};
+  return {an:st[f.tid].state==="on",rest:fNum(g(["verbleibende_trocknungszeit","remaining_drying_time"])),temp:g(["trocknungstemperatur","drying_temperature"]),fil:g(["trocknendes_filament","drying_filament"]),dauer:g(["trocknungsdauer","drying_duration"])}}
+const laufText=(fil,temp,dauer)=>{const t=[fil,temp!=null&&temp!==""?komma(temp,0)+" °C":"",dauer!=null&&dauer!==""?komma(dauer)+" h":""].filter(Boolean);return t.length?` (${t.join(", ")})`:""};
+function silicaVerlauf(f,x,e){const st=(G.sStats||{})[f.key];let tief=st&&st.tief!=null?st.tief:null,tiefZeit=st?st.zeit:null;
+  if(f.wert!=null&&(tief==null||f.wert<=tief)){tief=f.wert;tiefZeit=Date.now()}
+  if(tief==null)return f.wert==null?" · Drucker aus":"";
+  const tr=x.art==="trocknung";const std=(Date.now()-new Date(x.zeit).getTime())/36e5,phase=tr?e.silica_nachlauf_h:e.silica_trocknung_h;
+  const dat=z=>new Date(z).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"});
+  if(std<phase){const rest=Math.max(1,Math.round(phase-std)),wort=tr?"kühlt ab":"trocknet";const start=x.feuchte!=null?x.feuchte+" % → ":"";
+    if(f.wert==null)return ` · ${wort}, bisher tiefster Wert ${tief} % · Drucker aus`;
+    if(f.wert<=tief)return ` · ${wort}: ${start}${f.wert} %, fällt noch (noch ca. ${rest} h)`;
+    return ` · ${wort}: ${start}${f.wert} % · Tiefpunkt bisher ${tief} %, steigt wieder (noch ca. ${rest} h)`}
+  const trocken=x.feuchte!=null?` (von ${x.feuchte} %)`:"";
+  if(f.wert==null)return ` · Tiefpunkt ${tief} %${trocken} am ${dat(tiefZeit)} · Drucker aus`;
+  return ` · Tiefpunkt ${tief} %${trocken} am ${dat(tiefZeit)} · seitdem ${plusMinus(f.wert-tief)}`}
+const ws=m=>window.__hass&&window.__hass.callWS?window.__hass.callWS(m):Promise.reject(new Error("keine Verbindung"));
+async function trockenLaeufe(feu){const st=states(),ids=[];const extra={fil:["trocknendes_filament","drying_filament"],temp:["trocknungstemperatur","drying_temperature"],dauer:["trocknungsdauer","drying_duration"]};
+  const eid=(f,n)=>n.map(s=>`sensor.${f.key}_${s}`).find(x=>st[x])||null;
+  feu.forEach(f=>{ids.push(f.tid,f.id);Object.keys(extra).forEach(k=>{const x=eid(f,extra[k]);if(x)ids.push(x)})});
+  const r=await ws({type:"history/history_during_period",start_time:new Date(Date.now()-30*864e5).toISOString(),entity_ids:ids,minimal_response:true,no_attributes:true,significant_changes_only:false});
+  const pts=id=>((r&&id&&r[id])||[]).map(p=>({s:String(p.s??p.state??""),t:p.lc!=null?p.lc*1000:p.lu!=null?p.lu*1000:new Date(p.last_changed||p.last_updated).getTime()})).sort((a,b)=>a.t-b.t);
+  const out={};feu.forEach(f=>{let an=null,lauf=null;pts(f.tid).forEach(p=>{if(p.s==="on"){if(an==null)an=p.t}else if(p.s==="off"&&an!=null){lauf={start:an,ende:p.t};an=null}});if(!lauf)return;
+    let vorher=null;pts(f.id).forEach(p=>{const n=fNum(p.s);if(p.t<=lauf.start&&n!=null)vorher=Math.round(n)});
+    const imLauf=id=>{let v=null;pts(id).forEach(p=>{if(p.t>=lauf.start-120000&&p.t<=lauf.ende&&!["unknown","unavailable",""].includes(p.s))v=p.s});return v};
+    out[f.key]=Object.assign({},lauf,{feuchte:vorher,fil:imLauf(eid(f,extra.fil)),temp:imLauf(eid(f,extra.temp)),dauer:imLauf(eid(f,extra.dauer))})});return out}
+async function silicaStatsLaden(force){if(G.sLaden)return;const w=silica(),sig=JSON.stringify(w);
+  if(!force&&G.sStatsSig===sig&&Date.now()-(G.sStatsAt||0)<600000)return;G.sLaden=true;
+  try{const tfeu=amsFeuchte().filter(f=>f.tid);
+    if(tfeu.length){try{const runs=await trockenLaeufe(tfeu),w2=Object.assign({},w);let neu=false;
+      Object.keys(runs).forEach(k=>{const r=runs[k],alt=w2[k],altT=alt&&alt.zeit?new Date(alt.zeit).getTime():0;if(altT>=r.ende-60000)return;
+        w2[k]={zeit:new Date(r.ende).toISOString(),feuchte:r.feuchte,art:"trocknung",start:new Date(r.start).toISOString(),filament:r.fil||"",temp:fNum(r.temp),dauer:fNum(r.dauer)};neu=true});
+      if(neu){await silicaSpeichern(w2);return}}catch(x){}}
+    const feu=amsFeuchte().filter(f=>w[f.key]&&w[f.key].zeit);const neu={};
+    await Promise.all(feu.map(async f=>{const r=await ws({type:"recorder/statistics_during_period",start_time:new Date(w[f.key].zeit).toISOString(),statistic_ids:[f.id],period:"hour",types:["min"]});
+      let tief=null,zeit=null;((r&&r[f.id])||[]).forEach(p=>{const m=fNum(p.min);if(m!=null&&(tief==null||m<tief)){tief=Math.round(m);zeit=new Date(p.start).getTime()}});neu[f.key]={tief,zeit}}));
+    G.sStats=neu}catch(x){}finally{G.sStatsSig=sig;G.sStatsAt=Date.now();G.sLaden=false}
+  if(document.getElementById("lgSil"))silicaModal(true)}
+function feuchteCard(e){const alle=amsFeuchte();if(!alle.length)return "";const werte=alle.map(f=>f.wert).filter(v=>v!=null);
+  const avg=werte.length?Math.round(werte.reduce((a,v)=>a+v,0)/werte.length):null;const max=alle.filter(f=>f.wert!=null).sort((a,b)=>b.wert-a.wert)[0];
+  const hoch=alle.filter(f=>f.wert!=null&&f.wert>=e.feuchte_warnung).length;const trocknet=alle.some(f=>{const t=trockner(f);return t&&t.an});
+  return `<div class="dcard kompakt lgfeu" data-act="lgSilica" role="button" tabindex="0" title="Silica & Feuchte öffnen"><span class="di">${SV.drop}</span><div class="dt"><span class="dn">AMS-Feuchte</span>${hoch?`<span class="ds warn"><i></i>${hoch} zu feucht</span>`:`<span class="ds"><i></i>alles trocken</span>`}${trocknet?`<span class="ds"><i style="background:var(--warn)"></i>trocknet</span>`:""}</div>
+    <div class="dvs"><div class="dv c${fStufe(avg,e)}"><span>Durchschnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div></div>`}
+function silicaModal(keepOpen){const e=einVoll(),alle=amsFeuchte(),w=silica();silicaStatsLaden();
+  let h=`<div class="lgform" id="lgSil"><div class="lghint">Grün unter ${e.feuchte_gruen} % · Warnung ab ${e.feuchte_warnung} %. Nach einem Silica-Tausch sucht Schichtlohn den Tiefpunkt selbst. Trocknungen im AMS Pro/HT werden automatisch erkannt.</div>`;
+  if(!alle.length)h+=`<div class="panel empty">Kein AMS mit Feuchtesensor gefunden.</div>`;
+  const gr={};alle.forEach(f=>{(gr[f.prefix]=gr[f.prefix]||[]).push(f)});
+  Object.keys(gr).forEach(p=>{const arr=gr[p],werte=arr.map(f=>f.wert).filter(v=>v!=null);const avg=werte.length?Math.round(werte.reduce((a,v)=>a+v,0)/werte.length):null;
+    h+=`<div class="lgsh"><span>${esc(arr[0].drucker)}</span><span>${avg==null?"aus":"Ø "+avg+" %"}</span></div><div class="lgsilg">`;
+    arr.forEach(f=>{const s=fStufe(f.wert,e),x=w[f.key],tr=trockner(f);let sub;
+      if(tr&&tr.an)sub="Trocknet gerade"+laufText(tr.fil,tr.temp,tr.dauer)+(tr.rest!=null&&tr.rest>0?` · noch ca. ${komma(tr.rest)} h`:"")+" · Feuchte währenddessen nicht vergleichbar";
+      else if(!x||!x.zeit)sub=f.wert==null?"Drucker aus, kein Messwert":f.tid?"Noch keine Trocknung erfasst. Silica wird beim Filamenttrocknen mitgetrocknet":"Silica-Wechsel noch nicht erfasst";
+      else if(x.art==="trocknung")sub="Getrocknet "+datumTage(x.zeit)+laufText(x.filament,x.temp,x.dauer)+silicaVerlauf(f,x,e);
+      else sub="Getauscht "+datumTage(x.zeit)+silicaVerlauf(f,x,e);
+      h+=`<div class="lgsil"><div class="lgsil-h"><span class="hum c${s}">${f.wert==null?"–":f.wert+"<small>%</small>"}</span><span class="lgn">${esc(f.name)}</span><button class="btn sm ghost" data-act="lgSilTausch" data-k="${esc(f.key)}" title="Silica getauscht">Getauscht</button></div>
+        <div class="hbar"><i class="c${s}" style="width:${f.wert==null?0:Math.max(2,Math.min(100,f.wert))}%"></i></div><div class="lgs" title="${esc(sub)}">${esc(sub)}</div></div>`});
+    h+=`</div>`});
+  h+=`<div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`;
+  if(keepOpen){const b=document.querySelector("#modal .mb");if(b){b.innerHTML=h;return}return}
+  modal("Silica & Feuchte",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("lgwide")}
+
+/* Verbrauch */
+function statModal(){const zr=G.statZeit||"12m";const daten0=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch");
+  const ab=zr==="30t"?Date.now()-30*864e5:zr==="12m"?new Date(new Date().getFullYear(),new Date().getMonth()-11,1).getTime():0;
+  const daten=daten0.filter(d=>{const t=Date.parse(d.zeit);return !isNaN(t)&&t>=ab});
+  let h=`<div class="lgform" id="lgStat"><div class="lgtg">${[["30t","30 Tage"],["12m","12 Monate"],["alle","Alles"]].map(([k,n])=>`<button type="button" class="chip${zr===k?" on":""}" data-act="lgStatZeit" data-z="${k}">${n}</button>`).join("")}</div>`;
+  if(!states()[META])h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt in Home Assistant.</div>`;
+  else if(!daten.length)h+=`<div class="panel empty">Noch kein Verbrauch in diesem Zeitraum. Jede Abbuchung nach einem Druck wird hier gezählt.</div>`;
+  else{const g=daten.reduce((a,d)=>a+(Number(d.gramm)||0),0),k=daten.reduce((a,d)=>a+(Number(d.kosten)||0),0),ohne=daten.filter(d=>!(Number(d.kosten)>0)).reduce((a,d)=>a+(Number(d.gramm)||0),0);
+    const eur=x=>x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
+    h+=`<div class="lgtiles"><div><b>${kg(g)}</b><span>verbraucht</span></div><div><b>${eur(k)}</b><span>Kosten${ohne>0?`, ${kg(ohne)} ohne Preis`:""}</span></div><div><b>${daten.length}</b><span>Abbuchungen</span></div></div>`;
+    const block=(titel,key,nachName,farbe)=>{const m={};daten.forEach(d=>{const s=key(d)||"–";m[s]=m[s]||{g:0,k:0,hex:d.hex};m[s].g+=Number(d.gramm)||0;m[s].k+=Number(d.kosten)||0});
+      let rows=Object.entries(m);rows=nachName?rows.sort((a,b)=>a[0].localeCompare(b[0])):rows.sort((a,b)=>b[1].g-a[1].g).slice(0,10);const max=Math.max(...rows.map(r=>r[1].g),1);
+      return `<div class="lgsh"><span>${titel}</span></div><div class="lgsl lgbars">${rows.map(([n,v])=>`<div class="lgbr"><span class="n" title="${esc(n)}">${farbe&&v.hex?`<i style="background:${esc(v.hex)}"></i>`:""}${esc(n)}</span><div class="bk"><div style="width:${Math.max(2,Math.round(v.g/max*100))}%"></div></div><span class="w">${kg(v.g)}${v.k>0?" · "+eur(v.k):""}</span></div>`).join("")}</div>`};
+    const monat=d=>{const t=new Date(d.zeit);return t.toLocaleDateString("de-DE",{month:"short",year:"numeric"})};const mkey=d=>{const t=new Date(d.zeit);return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}`};
+    const mm={};daten.forEach(d=>{mm[mkey(d)]=monat(d)});
+    h+=block("Pro Monat",d=>mkey(d),true).replace(/title="(\d{4}-\d{2})">([^<]*)<\/span>/g,(x,k)=>`title="${mm[k]||k}">${mm[k]||k}</span>`);
+    h+=block("Pro Drucker",d=>d.drucker);h+=block("Pro Material",d=>d.material);h+=block("Meistgenutzte Sorten",d=>d.sorte,false,true)}
+  h+=`</div>`;
+  const b=document.querySelector("#modal #lgStat");if(b){b.outerHTML=h;return}
+  modal("Verbrauch",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
+
+/* Aus dem AMS übernehmen */
+function amsModal(){const sl=slots();const all=entries();
+  const h=`<div class="lgform"><div class="lghint">Fach antippen, dann Daten prüfen und speichern. Ein Haken zeigt, dass die Sorte schon im Lager erkannt wird.</div>
+    ${sl.length?`<div class="lgsl">${sl.map(s=>{const t=treffer(s,all);return `<div class="lgsr lgamsr" data-act="lgAmsPick" data-id="${esc(s.id)}" role="button">${spool(s.hex)}<div style="min-width:0"><div class="lgn">${esc(s.name)}</div><div class="lgs">${esc([s.ort,s.type,s.fid].filter(Boolean).join(" · "))}${t?` · <span style="color:var(--good)">✓ ${esc(summary(t))}</span>`:""}</div></div><div class="lgrt">${Number.isFinite(s.remain)&&s.remain>=0?`<b>${Math.round(s.remain)} %</b>`:""}</div><span></span></div>`}).join("")}</div>`
+      :`<div class="panel empty">Gerade meldet kein AMS ein Filament. Die Drucker müssen eingeschaltet und online sein.</div>`}</div>`;
+  modal("Aus dem AMS übernehmen",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>`)}
+
 /* --- Ereignisse --- */
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.value;draw()}
   else if(t.id==="lgpq"){const q=t.value.trim().toLowerCase();document.querySelectorAll("#lgpick .lgr").forEach(r=>{r.hidden=!!q&&!r.dataset.s.includes(q)})}});
@@ -2966,6 +3130,20 @@ document.addEventListener("click",async e=>{
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}
+  if(a==="lgEinSave"){const g={},msgEl=document.getElementById("lge_msg");const say=t=>{if(msgEl)msgEl.textContent=t};
+    for(const [k,t,,min,max] of EIN_ZAHLEN){const el=document.querySelector(`[data-lge="${k}"]`);const n=fNum(el?el.value:"");if(n==null||n<min||n>max)return say(`„${t}“: bitte eine Zahl von ${min} bis ${max}.`);g[k]=n}
+    if(g.feuchte_gruen>=g.feuchte_warnung)return say("„Grün unter“ muss kleiner sein als „Warnung ab“.");
+    const gs=document.getElementById("lge_gruppe"),ls=document.getElementById("lge_leer");if(gs)g.gruppe=gs.value;if(ls)g.leer_zeigen=ls.value==="1";
+    try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
+  if(a==="lgSilica"){silicaModal();return}
+  if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
+    confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht Schichtlohn danach selbst.`,"Getauscht",async()=>{
+      const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
+      try{await silicaSpeichern(w);toast("Silica-Tausch gespeichert");setTimeout(()=>silicaModal(),400)}catch(err){toast("Speichern fehlgeschlagen")}});return}
+  if(a==="lgStat"){statModal();return}
+  if(a==="lgStatZeit"){G.statZeit=b.dataset.z;statModal();return}
+  if(a==="lgAms"){amsModal();return}
+  if(a==="lgAmsPick"){const s=slots().find(x=>x.id===b.dataset.id);if(s)fromSlot(s);return}
   if(a==="lgScan"){scanStart();return}
   if(a==="lgSerie"){serieStart();return}
   if(a==="lgSerieListe"){serieModal();return}
@@ -3014,7 +3192,8 @@ document.addEventListener("click",async e=>{
     const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});closeModal();toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}};
     if(x.bambu_id&&x.bambu_id!==s.fid){closeModal();confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go)}else await go();return}
 });
-window.LGN={render,onStates,_G:G,besOf,spool};
+window.LGN={render,onStates,_G:G,besOf,spool,
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:!!states()[META],sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
 
