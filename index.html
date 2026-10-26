@@ -205,7 +205,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <svg viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="slTag"><path d="M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z"/></clipPath><mask id="slHole"><rect width="48" height="48" fill="#fff"/><circle cx="33.5" cy="15.5" r="4.4" fill="#000"/></mask></defs><g clip-path="url(#slTag)" mask="url(#slHole)" fill="currentColor"><rect x="0" y="8.0" width="48" height="2.4"/><rect x="0" y="11.4" width="48" height="2.4"/><rect x="0" y="14.8" width="48" height="2.4"/><rect x="0" y="18.2" width="48" height="2.4"/><rect x="0" y="21.6" width="48" height="2.4"/><rect x="0" y="25.0" width="48" height="2.4"/><rect x="0" y="28.4" width="48" height="2.4"/><rect x="0" y="31.8" width="48" height="2.4"/><rect x="0" y="35.2" width="48" height="2.4"/><rect x="0" y="38.6" width="48" height="2.4"/></g><circle cx="33.5" cy="15.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M33.5 12.9V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
       <div>SchichtLohn<small>Druckpreise kalkulieren</small></div>
     </div>
-    <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>Bambu Cloud</span></button></span>
+    <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>BC</span></button><button class="sync off" id="crst" type="button" data-act="crStatus" title="Creality Cloud nicht verbunden"><i></i><span>CC</span></button></span>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button data-tab="lager">Lager</button>
       <button data-tab="drucke">Druckaufträge</button>
@@ -382,11 +382,12 @@ async function haGet(key){const r=await hass().callWS({type:"frontend/get_user_d
 async function haSet(key,value){await hass().callWS({type:"frontend/set_user_data",key,value})}
 function setSync(st){
   const el=$("#sync");if(!el)return;
-  const where={ha:"Home Assistant",claude:"Claude",local:"Nur dieses Gerät"}[S.backend];
+  const where={ha:"HA",claude:"Claude",local:window.SYNC&&SYNC.aktiv()?"Sync":"Nur dieses Gerät"}[S.backend];
+  const lang={ha:"Home Assistant",claude:"Claude",local:"diesem Browser"}[S.backend];
   el.className="sync "+(st==="ok"?"ok":st==="busy"?"busy":"");
   el.querySelector("span").textContent=st==="busy"?"Speichert…":st==="err"?"Nicht gespeichert":where;
   if(S.backend==="local"&&S.haConnError&&st==="ok"){el.className="sync";el.querySelector("span").textContent="HA nicht erreichbar"}
-  el.title=S.backend==="local"?"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup.":"Daten werden in "+where+" gespeichert und auf allen Geräten synchronisiert.";
+  el.title=S.backend==="local"?(window.SYNC&&SYNC.aktiv()?"Daten liegen in diesem Browser und werden verschlüsselt mit deinen anderen Geräten abgeglichen (Einstellungen → Sync).":"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup oder schalte den Sync ein."):"Daten werden in "+lang+" gespeichert und auf allen Geräten synchronisiert.";
 }
 let draftT;function saveDraft(){clearTimeout(draftT);draftT=setTimeout(()=>LS.set("draft",S.quote),300)}
 let cfgT;function saveCfgSoon(){clearTimeout(cfgT);cfgT=setTimeout(()=>Store.saveCfg(),600)}
@@ -806,6 +807,7 @@ function renderSettings(m){
     ${window.HAP?HAP.settingsHTML():""}
     ${window.JOBS?JOBS.settingsHTML():""}
     ${window.CRE?CRE.settingsHTML():""}
+    ${window.SYNC?SYNC.settingsHTML():""}
     <div class="grid-2p">
     ${["channels","payments"].map(k=>`<section class="panel pad"><div class="sec-title"><h2>${k==="channels"?"Verkaufskanäle":"Zahlungsarten"}</h2><span class="sp"></span><button class="btn sm" data-act="addRow" data-list="${k}">${ICON.plus} Neu</button></div>
       <div class="setlist">${c[k].map((p,i)=>`<div class="setrow sr-ch">
@@ -2249,7 +2251,7 @@ async function load(force){
   catch(e){fail(e)}
   C.loading=false;rerender()}
 function fail(e){if(e.status===401){C.err="Die Anmeldung bei Creality ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else C.err=String(e&&e.message||e)}
-function rerender(){if(S.tab==="drucke"&&window.JOBS){const q=document.getElementById("job_q");const foc=q&&document.activeElement===q;if(!foc)JOBS.render()}else if(S.tab==="einstellungen"&&window.render&&!document.querySelector("#modal.open, #modal[open]"))window.render()}
+function rerender(){crStatus();if(S.tab==="drucke"&&window.JOBS){const q=document.getElementById("job_q");const foc=q&&document.activeElement===q;if(!foc)JOBS.render()}else if(S.tab==="einstellungen"&&window.render&&!document.querySelector("#modal.open, #modal[open]"))window.render()}
 setInterval(()=>{if(on()&&acct()&&S.tab==="drucke"&&!document.hidden)loadStatus(false)},30000);
 
 /* --- Abbuchen im Lager (nur neue, fertige Drucke seit dem Verbinden; jeder Druck nur einmal) --- */
@@ -2334,9 +2336,15 @@ function diagModal(){
     <textarea readonly style="width:100%;min-height:320px;font:12px/1.4 ui-monospace,monospace">${esc(txt.length>60000?txt.slice(0,60000)+"\n…":txt)}</textarea></div>`,
     `<button class="btn ghost" data-act="close">Schließen</button><button class="btn" data-act="crCopy">Kopieren</button>`)}
 
+/* Anzeige „CC“ oben neben HA und BC */
+function crStatus(){const el=document.getElementById("crst");if(!el)return;if(!on()){el.hidden=true;return}el.hidden=false;const a=acct();
+  const st=C.loading?"busy":C.err?"err":a?"ok":"off";el.className="sync "+st;
+  el.title=st==="busy"?"Creality Cloud: lädt …":st==="err"?"Creality Cloud: "+C.err:a?"Creality Cloud verbunden · antippen für die Druckaufträge":"Creality Cloud nicht verbunden · antippen zum Verbinden"}
+setTimeout(crStatus,300);setInterval(crStatus,5000);
 /* --- Ereignisse --- */
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^cr[A-Z]/.test(a))return;
+  if(a==="crStatus"){if(acct()){S.tab="drucke";window.render&&window.render()}else loginModal();return}
   if(a==="crConnect")loginModal();
   else if(a==="crMode"){C.login.mode=b.dataset.m;stopPoll();drawLogin();if(C.login.mode==="qr")qrStart()}
   else if(a==="crQrNew")qrStart();
@@ -2355,6 +2363,253 @@ window.CRE={on,jobs:()=>on()&&acct()?C.jobs:[],load,loadStatus,statusHTML,chipHT
   bucheJetzt,istGebucht,coverUrl:u=>/(^|\.)(creality|crealitycloud)\.(com|cn)\//i.test(String(u).replace(/^https?:\/\//,""))?PROXY+"/cover?u="+encodeURIComponent(u):"",buchen,_C:C,_parseDevice:parseDevice,_parseRecord:parseRecord};
 })();
 </script>
+<style>
+.syqr{display:grid;place-items:center;gap:10px;padding:4px 0}
+.syqr .box{background:#fff;padding:10px;border-radius:12px;line-height:0}
+.syqr svg{width:210px;height:210px}
+.sycode{font:600 18px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-align:center;padding:8px 12px;border:1px dashed var(--line-2);border-radius:10px;user-select:all}
+.sypaar{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.sypaar b{flex:1;min-width:0;font-weight:600}
+.syst{font-size:13px;color:var(--muted)}
+.syst.bad{color:var(--bad)}
+</style>
+<script>
+/* ===== Sync zwischen Geräten (ohne Home Assistant) und „Handy als Scanner“ =====
+   Daten werden im Browser mit AES-GCM verschlüsselt. Der Schlüssel steckt im Sync-Code bzw. im Kopplungs-QR-Code
+   und geht nie an den Server. Server: functions/sync (Cloudflare KV „SYNC“). */
+(function(){
+"use strict";
+const SK="schichtlohn_sync",PK="schichtlohn_handys";
+const BASE=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev");
+const ST={busy:false,err:"",pushT:null,key:null,keyFor:"",renderLater:false,lastOk:0,paarT:null,paarAktiv:false};
+
+/* --- Verschlüsselung --- */
+const te=new TextEncoder(),td=new TextDecoder();
+const b64=u=>{u=new Uint8Array(u);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const unb64=s=>Uint8Array.from(atob(String(s).replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));
+const b64url=u=>b64(u).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const sha=async t=>new Uint8Array(await crypto.subtle.digest("SHA-256",te.encode(t)));
+const hex=u=>[...u].map(x=>x.toString(16).padStart(2,"0")).join("");
+const keyOf=raw=>crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt","decrypt"]);
+async function encr(key,obj){const iv=crypto.getRandomValues(new Uint8Array(12));const c=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,te.encode(JSON.stringify(obj))));const o=new Uint8Array(12+c.length);o.set(iv);o.set(c,12);return b64(o)}
+async function decr(key,s){const u=unb64(s);return JSON.parse(td.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(0,12)},key,u.slice(12))))}
+
+/* --- Sync-Code: 20 Zeichen (100 Bit), daraus Datensatz-ID und Schlüssel --- */
+const ALPH="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const norm=c=>String(c||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+function neuerCode(){const r=crypto.getRandomValues(new Uint8Array(20));return [...r].map(x=>ALPH[x%32]).join("").match(/.{4}/g).join("-")}
+async function ableiten(code){const n=norm(code);return {sid:hex(await sha("schichtlohn-sid|"+n)).slice(0,40),key:await keyOf(await sha("schichtlohn-key|"+n))}}
+function conf(){try{const c=JSON.parse(localStorage.getItem(SK)||"null");return c&&c.code?c:null}catch(e){return null}}
+function setConf(c){try{c?localStorage.setItem(SK,JSON.stringify(c)):localStorage.removeItem(SK)}catch(e){}}
+async function schluessel(c){if(ST.keyFor!==c.code){ST.key=(await ableiten(c.code)).key;ST.keyFor=c.code}return ST.key}
+const aktiv=()=>S.backend==="local"&&!!conf();
+
+/* Konto (Creality oder Bambu), falls der Sync daran gebunden ist oder gebunden werden soll */
+function kontoInfo(){
+  try{const a=JSON.parse(localStorage.getItem("schichtlohn_creality")||"null");if(a&&a.token&&a.uid)return {art:"creality",token:a.token,uid:a.uid,region:a.region||"global"}}catch(e){}
+  try{const a=JSON.parse(localStorage.getItem("schichtlohn_bambu")||"null");if(a&&a.token)return {art:"bambu",token:a.token,region:a.region==="cn"?"cn":"global"}}catch(e){}
+  return null}
+async function call(path,body){
+  let r;try{r=await fetch(BASE+"/sync/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}catch(e){throw new Error("Sync-Server nicht erreichbar. Prüfe die Internetverbindung.")}
+  let d=null;try{d=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error((d&&d.message)||("HTTP "+r.status));e.status=r.status;e.d=d;throw e}
+  return d||{}}
+
+/* --- Datenteile: Einstellungen, Lager, Logos, je Auftrag und je Portfolio-Teil einzeln --- */
+function teile(){const c=Object.assign({},S.cfg||{});const lager=c.lagerLokal,logos=c.logos;delete c.lagerLokal;delete c.logos;
+  const o={cfg:c};if(lager)o.lager=lager;if(logos&&Object.keys(logos).length)o.logos=logos;
+  (S.portfolio||[]).forEach(p=>{if(p&&p.id)o["p_"+p.id]=p});(S.orders||[]).forEach(x=>{if(x&&x.id)o["o_"+x.id]=x});return o}
+const hash=v=>{const s=JSON.stringify(v);let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)+"."+s.length};
+function anwenden(n,val){
+  if(n==="cfg"){const keep={lagerLokal:S.cfg&&S.cfg.lagerLokal,logos:S.cfg&&S.cfg.logos};S.cfg=Object.assign({},val);if(keep.lagerLokal)S.cfg.lagerLokal=keep.lagerLokal;if(keep.logos)S.cfg.logos=keep.logos}
+  else if(n==="lager")S.cfg.lagerLokal=val;
+  else if(n==="logos")S.cfg.logos=val;
+  else if(/^[po]_/.test(n)){const list=n[0]==="p"?S.portfolio:S.orders;const i=list.findIndex(x=>x&&x.id===val.id);if(i>=0)list[i]=val;else list.push(val)}}
+function entfernen(n){
+  if(/^[po]_/.test(n)){const id=n.slice(2);const list=n[0]==="p"?S.portfolio:S.orders;const i=list.findIndex(x=>x&&x.id===id);if(i>=0)list.splice(i,1)}
+  else if(n==="logos"&&S.cfg)delete S.cfg.logos}
+function lokalSpeichern(){LS.set("cfg",S.cfg);LS.set("portfolio",S.portfolio);LS.set("orders",S.orders)}
+function neuZeichnen(){
+  try{if(window.LGN&&LGN._lokPush)LGN._lokPush()}catch(e){}
+  const ae=document.activeElement;const tippt=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&!ae.closest("#modal");
+  if(tippt||document.querySelector("#modal.open,#modal[open],.modal.open")){ST.renderLater=true;return}
+  ST.renderLater=false;if(window.render)window.render()}
+document.addEventListener("focusout",()=>{if(ST.renderLater)setTimeout(()=>{if(ST.renderLater)neuZeichnen()},400)});
+
+/* --- Abgleich --- */
+async function push(){
+  const c=conf();if(!c||S.backend!=="local"||!S.cfg)return;const key=await schluessel(c);const t=teile(),jetzt=Date.now();
+  const put={},del=[],neu={};
+  for(const [n,v] of Object.entries(t)){const h=hash(v);if(c.synced[n]!==h){put[n]={t:jetzt,d:await encr(key,v)};neu[n]=h}}
+  for(const n of Object.keys(c.synced))if(!(n in t))del.push({n,t:jetzt});
+  if(!Object.keys(put).length&&!del.length)return;
+  const r=await call("push",{sid:c.sid,put,del,konto:c.gebunden?kontoInfo():undefined});
+  const c2=conf();if(!c2||c2.sid!==c.sid)return;Object.assign(c2.synced,neu);del.forEach(x=>delete c2.synced[x.n]);c2.owner=r.owner||null;c2.dirtyAt=0;setConf(c2)}
+async function pull(voll){
+  const c=conf();if(!c||S.backend!=="local"||!S.cfg)return false;const key=await schluessel(c);
+  const r=await call("pull",{sid:c.sid,v:voll?0:c.v,since:voll?0:c.since,konto:c.gebunden||c.owner?kontoInfo():undefined});
+  if(r.same)return false;
+  if(!voll&&r.v<(c.since||0))return pull(true);
+  const lokal=teile();let geaendert=false;
+  for(const [n,doc] of Object.entries(r.docs||{})){let val;try{val=await decr(key,doc.d)}catch(e){console.warn("Sync: Teil nicht lesbar",n);continue}
+    const h=hash(val);if(c.synced[n]===h)continue;
+    const lh=n in lokal?hash(lokal[n]):null;
+    if(lh===h){c.synced[n]=h;continue}
+    // hier geändert und noch nicht hochgeladen, und neuer als der Stand vom Server: eigener Stand gewinnt
+    if(lh!==null&&c.synced[n]!==undefined&&lh!==c.synced[n]&&(c.dirtyAt||0)>doc.t)continue;
+    anwenden(n,val);c.synced[n]=h;geaendert=true}
+  const idx=r.idx||{};
+  for(const n of Object.keys(c.synced))if(!(n in idx)&&(r.del||{})[n]){const lh=n in lokal?hash(lokal[n]):null;if(lh===null||lh===c.synced[n]){entfernen(n);geaendert=true}delete c.synced[n]}
+  c.v=r.v;c.since=r.v;c.owner=r.owner||null;if(r.owner)c.gebunden=true;setConf(c);
+  if(geaendert){lokalSpeichern();neuZeichnen()}
+  return geaendert}
+async function abgleichen(){
+  if(!aktiv()||ST.busy)return;ST.busy=true;
+  try{await pull(false);await push();ST.err="";ST.lastOk=Date.now()}
+  catch(e){ST.err=e.status===403?String(e.message):String(e&&e.message||e);console.warn("Sync",e)}
+  finally{ST.busy=false;statusZeigen()}}
+function bald(){if(!aktiv())return;const c=conf();if(c&&!c.dirtyAt){c.dirtyAt=Date.now();setConf(c)}clearTimeout(ST.pushT);ST.pushT=setTimeout(abgleichen,2500)}
+/* Nach jedem Speichern im Browser kurz danach hochladen */
+["saveCfg","saveItem","delItem"].forEach(f=>{const alt=Store[f].bind(Store);Store[f]=async function(...a){const r=await alt(...a);try{bald()}catch(e){}return r}});
+setInterval(()=>{if(aktiv()&&!document.hidden)abgleichen()},20000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&aktiv())abgleichen()});
+window.addEventListener("focus",()=>{if(aktiv())abgleichen()});
+function statusZeigen(){try{if(typeof setSync==="function")setSync(ST.err?"err":ST.busy?"busy":"ok")}catch(e){}const el=document.getElementById("syst");if(!el)return;el.className="syst"+(ST.err?" bad":"");el.textContent=statusText()}
+function statusText(){if(ST.err)return "Fehler: "+ST.err;if(ST.busy)return "Gleicht ab …";if(!ST.lastOk)return "Noch nicht abgeglichen";const s=Math.round((Date.now()-ST.lastOk)/1000);return "Abgeglichen "+(s<10?"gerade eben":s<120?"vor "+s+" s":"vor "+Math.round(s/60)+" min")}
+
+/* --- Einschalten, Beitreten, Ausschalten --- */
+async function einschalten(){
+  const code=neuerCode();const {sid}=await ableiten(code);
+  setConf({code,sid,v:0,since:0,synced:{},owner:null,gebunden:false,dirtyAt:Date.now()});
+  try{await abgleichen();toast("Sync ist eingeschaltet");geraetModal()}catch(e){toast("Fehler: "+e.message)}
+  window.render&&window.render()}
+async function beitreten(code,ohneFrage){
+  code=norm(code);if(code.length!==20){toast("Der Sync-Code hat 20 Zeichen.");return}
+  code=code.match(/.{4}/g).join("-");const {sid,key}=await ableiten(code);
+  let r;try{r=await call("pull",{sid,since:0,konto:kontoInfo()||undefined})}catch(e){toast(e.message);return}
+  const n=Object.keys(r.idx||{}).length;
+  const los=async()=>{
+    const synced={};
+    if(n){const neu={cfg:null,lager:null,logos:null,p:[],o:[]};
+      for(const [name,doc] of Object.entries(r.docs||{})){let val;try{val=await decr(key,doc.d)}catch(e){toast("Der Sync-Code passt nicht zu den Daten.");return}synced[name]=hash(val);
+        if(name==="cfg")neu.cfg=val;else if(name==="lager")neu.lager=val;else if(name==="logos")neu.logos=val;else if(name.startsWith("p_"))neu.p.push(val);else if(name.startsWith("o_"))neu.o.push(val)}
+      if(neu.cfg)S.cfg=neu.cfg;if(neu.lager)S.cfg.lagerLokal=neu.lager;else delete S.cfg.lagerLokal;if(neu.logos)S.cfg.logos=neu.logos;
+      S.portfolio=neu.p;S.orders=neu.o;lokalSpeichern()}
+    setConf({code,sid,v:r.v,since:r.v,synced,owner:r.owner||null,gebunden:!!r.owner,dirtyAt:n?0:Date.now()});
+    try{if(window.LGN&&LGN._lokPush)LGN._lokPush()}catch(e){}
+    await abgleichen();closeModal&&closeModal();toast(n?"Verbunden – Daten übernommen":"Verbunden – deine Daten werden hochgeladen");window.render&&window.render()};
+  if(n&&!ohneFrage)confirmBox(`Mit diesem Sync verbinden? Die Daten auf diesem Gerät (Lager, Aufträge, Portfolio, Einstellungen) werden durch die Daten aus dem Sync ersetzt.`,"Verbinden",los);
+  else await los()}
+function ausschalten(){confirmBox("Sync auf diesem Gerät ausschalten? Die Daten bleiben hier und auf den anderen Geräten erhalten, werden aber nicht mehr abgeglichen.","Ausschalten",()=>{setConf(null);ST.lastOk=0;ST.err="";statusZeigen();window.render&&window.render();toast("Sync ausgeschaltet")})}
+async function binden(los){const c=conf();const k=kontoInfo();if(!c||!k)return;
+  try{const r=await call("push",{sid:c.sid,put:{},del:[],konto:k,binden:!los,loesen:!!los});c.owner=r.owner||null;c.gebunden=!!r.owner;setConf(c);toast(los?"Bindung gelöst":"Sync ist jetzt an dein "+(k.art==="creality"?"Creality":"Bambu")+"-Konto gebunden");window.render&&window.render()}
+  catch(e){toast("Fehler: "+e.message)}}
+
+/* --- QR-Code --- */
+let qrLib=null;
+function loadQr(){if(window.qrcode)return Promise.resolve(window.qrcode);if(qrLib)return qrLib;
+  qrLib=new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";s.onload=()=>window.qrcode?ok(window.qrcode):no(new Error("QR fehlt"));s.onerror=()=>{qrLib=null;no(new Error("QR-Code konnte nicht geladen werden"))};document.head.appendChild(s)});return qrLib}
+async function qrSvg(text){const qrcode=await loadQr();const q=qrcode(0,"M");q.addData(text);q.make();const n=q.getModuleCount();let p="";for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q.isDark(y,x))p+=`M${x} ${y}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="QR-Code"><path d="${p}" fill="#000"/></svg>`}
+const appUrl=()=>"https://schichtlohn.pages.dev/";
+async function geraetModal(){const c=conf();if(!c)return;const link=appUrl()+"#sync="+norm(c.code);
+  modal("Gerät hinzufügen",`<div class="stack"><p class="muted" style="margin:0">Auf dem anderen Gerät (z. B. Handy) diesen QR-Code mit der Kamera scannen oder den Link öffnen. SchichtLohn fragt dann, ob es sich verbinden soll.</p>
+    <div class="syqr"><div class="box">${await qrSvg(link)}</div><div class="hint">Oder in SchichtLohn unter Einstellungen → Sync → „Mit Sync-Code verbinden“ eingeben:</div><div class="sycode">${esc(c.code)}</div></div>
+    <div class="note"><b>Wie ein Passwort behandeln:</b> Wer den Code hat, kommt an deine Daten. Er ist zugleich der Schlüssel – ohne ihn lassen sich die verschlüsselten Daten nicht öffnen.</div></div>`,
+    `<button class="btn" data-act="syCopy">Code kopieren</button><button class="btn pri" data-act="close">Fertig</button>`)}
+function codeModal(){modal("Mit Sync-Code verbinden",`<div class="stack"><p class="muted" style="margin:0">Den 20-stelligen Code findest du auf dem anderen Gerät unter Einstellungen → Sync → „Gerät hinzufügen“.</p>
+  <label class="field"><span>Sync-Code</span><input type="text" id="sy_code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" style="font-family:ui-monospace,monospace;letter-spacing:.05em"></label>
+  <div class="note">Die Daten auf diesem Gerät werden durch die Daten aus dem Sync ersetzt.</div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="syJoin">Verbinden</button>`);setTimeout(()=>{const i=document.getElementById("sy_code");i&&i.focus()},50)}
+
+/* --- Einstellungen --- */
+function settingsHTML(){
+  if(S.backend==="ha")return `<section class="panel pad stack"><div class="sec-title"><h2>Sync zwischen Geräten</h2></div><div class="hint">Mit Home Assistant liegen deine Daten schon in Home Assistant und sind auf allen Geräten gleich. Ein eigener Sync ist dafür nicht nötig.</div>${paarHTML()}</section>`;
+  if(S.backend!=="local")return "";
+  const c=conf(),k=kontoInfo();
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Sync zwischen Geräten</h2></div>
+    ${c?`<div class="note">Sync ist an. Lager, Aufträge, Portfolio, Logos und Einstellungen werden verschlüsselt mit deinen anderen Geräten abgeglichen.${c.owner?` Gebunden an dein ${c.owner==="creality"?"Creality":"Bambu"}-Konto.`:""}</div>
+      <div class="syst" id="syst">${esc(statusText())}</div>
+      <div class="row" style="flex-wrap:wrap"><button class="btn pri" data-act="syAdd">Gerät hinzufügen</button><button class="btn" data-act="syNow">Jetzt abgleichen</button>
+        ${!c.owner&&k?`<button class="btn" data-act="syBind" title="Dann kommt nur noch an die Daten, wer zusätzlich mit diesem Konto angemeldet ist">An ${k.art==="creality"?"Creality":"Bambu"}-Konto binden</button>`:""}
+        ${c.owner&&k?`<button class="btn ghost" data-act="syUnbind">Kontobindung lösen</button>`:""}
+        <button class="btn danger" data-act="syOff">Auf diesem Gerät ausschalten</button></div>`
+    :`<div class="hint">Ohne Home Assistant liegen deine Daten nur in diesem Browser. Mit dem Sync nutzt du SchichtLohn auf PC, Handy und Tablet mit denselben Daten. Alles wird vorher im Browser verschlüsselt – auf dem Server liegen nur unlesbare Daten.</div>
+      <div class="row" style="flex-wrap:wrap"><button class="btn pri" data-act="syOn">Sync einschalten</button><button class="btn" data-act="syCode">Mit Sync-Code verbinden</button></div>`}
+    ${paarHTML()}
+  </section>`}
+
+/* ===== Handy als Scanner ===== */
+function paare(){try{const a=JSON.parse(localStorage.getItem(PK)||"[]");return Array.isArray(a)?a.filter(p=>p&&p.pid&&p.k&&(p.dauer||p.bis>Date.now())):[]}catch(e){return []}}
+function setPaare(a){try{localStorage.setItem(PK,JSON.stringify(a))}catch(e){}}
+function paarHTML(){const l=paare().filter(p=>p.dauer);
+  return `<div class="field"><span>Handy als Scanner</span>${l.length?l.map(p=>`<div class="sypaar"><b>${esc(p.name||"Handy")}</b><span class="hint">gekoppelt ${new Date(p.seit||Date.now()).toLocaleDateString("de-DE")}</span><button class="btn ghost sm danger" data-act="syPaarWeg" data-pid="${esc(p.pid)}">Entfernen</button></div>`).join(""):`<div class="hint">Noch kein Handy dauerhaft gekoppelt. Im Lager auf „Handy“ tippen.</div>`}</div>`}
+const scanUrl=p=>"https://schichtlohn.pages.dev/scan.html#p="+p.pid+"&k="+p.k+(p.name?"&n="+encodeURIComponent(p.name):"");
+async function handyModal(){
+  let p=paare().find(x=>!x.dauer&&x.bis>Date.now()+60000);
+  if(!p){p={pid:hex(crypto.getRandomValues(new Uint8Array(16))),k:b64url(crypto.getRandomValues(new Uint8Array(16))),dauer:false,bis:Date.now()+30*60000,seq:0,seit:Date.now(),name:""};setPaare(paare().concat(p))}
+  ST.paarAktiv=true;starteAbruf();
+  modal("Mit dem Handy scannen",`<div class="stack"><p class="muted" style="margin:0">QR-Code mit der Handy-Kamera scannen. Auf dem Handy öffnet sich der SchichtLohn-Scanner – jeder gescannte Strichcode erscheint hier sofort.</p>
+    <div class="syqr"><div class="box">${await qrSvg(scanUrl(p))}</div><div class="hint" id="sy_pstat">Wartet auf das Handy … (gilt 30 Minuten)</div></div>
+    <label class="field"><span>Dauerhaft koppeln (optional)</span><div class="row" style="gap:8px"><input type="text" id="sy_pname" placeholder="Name, z. B. Bennys iPhone" style="flex:1"><button class="btn" data-act="syPaarDauer" data-pid="${p.pid}">Dauerhaft koppeln</button></div>
+      <small class="hint">Dann vor dem Scannen des QR-Codes koppeln und auf dem Handy die Scanner-Seite zum Home-Bildschirm hinzufügen. Gekoppelte Handys siehst und entfernst du unter Einstellungen → Sync.</small></label></div>`,
+    `<button class="btn pri" data-act="close">Fertig</button>`)}
+/* Abruf der Codes vom Handy: alle 2,5 s, solange eine Kopplung gilt und SchichtLohn sichtbar ist */
+const keyCache={};
+async function paarKey(p){if(!keyCache[p.pid])keyCache[p.pid]=await keyOf(unb64(p.k));return keyCache[p.pid]}
+function starteAbruf(){if(ST.paarT)return;ST.paarT=setInterval(abruf,2500);abruf()}
+let abrufLaeuft=false;
+async function abruf(){
+  const l=paare();if(!l.length){clearInterval(ST.paarT);ST.paarT=null;return}
+  if(document.hidden||abrufLaeuft)return;
+  // dauerhafte Kopplungen nur abfragen, solange das Lager offen ist; einmalige solange gültig
+  const jetzt=l.filter(p=>!p.dauer||S.tab==="lager");if(!jetzt.length)return;
+  abrufLaeuft=true;
+  try{for(const p of jetzt){let r;try{r=await call("scan/poll",{pid:p.pid,after:p.seq||0})}catch(e){continue}
+      const items=(r.items||[]).sort((a,b)=>a.i-b.i);if(!items.length){if(r.seq<(p.seq||0)){p.seq=r.seq;speichereSeq(p)}continue}
+      const key=await paarKey(p);
+      for(const it of items){p.seq=Math.max(p.seq||0,it.i);let code;try{code=(await decr(key,it.d)).c}catch(e){continue}
+        const st=document.getElementById("sy_pstat");if(st)st.textContent="Verbunden – zuletzt: "+code;
+        if(String(code||"").trim())empfangen(String(code).trim())}
+      speichereSeq(p)}}
+  finally{abrufLaeuft=false}}
+function speichereSeq(p){const a=paare();const x=a.find(y=>y.pid===p.pid);if(x){x.seq=p.seq;setPaare(a)}}
+function empfangen(code){
+  if(!window.LGN||!LGN.scanCode)return;
+  const m=document.querySelector("#modal");const hm=m&&m.querySelector("#sy_pstat");if(hm&&window.closeModal)closeModal();
+  if(S.tab!=="lager"){S.tab="lager";window.render&&window.render()}
+  setTimeout(()=>LGN.scanCode(code),S.tab==="lager"?50:400)}
+if(paare().length)setTimeout(starteAbruf,3000);
+
+/* --- Link „#sync=…“ von einem anderen Gerät --- */
+function hashPruefen(){const m=location.hash.match(/[#&]sync=([A-Za-z0-9-]{20,30})/);if(!m)return;const code=m[1];history.replaceState(null,"",location.pathname+location.search);
+  const go=()=>{if(S.backend==="ha"){toast("Mit Home Assistant wird kein eigener Sync gebraucht.");return}const c=conf();if(c&&norm(c.code)===norm(code)){toast("Dieses Gerät ist schon verbunden.");return}beitreten(code)};
+  const warte=()=>{if(S.cfg&&window.confirmBox)go();else setTimeout(warte,300)};warte()}
+setTimeout(hashPruefen,800);window.addEventListener("hashchange",hashPruefen);
+
+/* --- Ereignisse --- */
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^sy[A-Z]/.test(a))return;
+  if(a==="syOn")await einschalten();
+  else if(a==="syCode")codeModal();
+  else if(a==="syJoin"){const v=(document.getElementById("sy_code")||{}).value;closeModal();await beitreten(v,true)}
+  else if(a==="syAdd")await geraetModal();
+  else if(a==="syNow"){await abgleichen();toast(ST.err?"Fehler: "+ST.err:"Abgeglichen")}
+  else if(a==="syOff")ausschalten();
+  else if(a==="syBind")await binden(false);
+  else if(a==="syUnbind")await binden(true);
+  else if(a==="syCopy"){const c=conf();try{await navigator.clipboard.writeText(c.code);toast("Code kopiert")}catch(x){toast(c.code)}}
+  else if(a==="syHandy")await handyModal();
+  else if(a==="syPaarDauer"){const a2=paare();const p=a2.find(x=>x.pid===b.dataset.pid);if(!p)return;p.dauer=true;p.name=(document.getElementById("sy_pname").value||"").trim()||"Handy";setPaare(a2);
+    const box=document.querySelector("#modal .syqr .box");if(box)box.innerHTML=await qrSvg(scanUrl(p));toast("Gekoppelt – jetzt den QR-Code mit dem Handy scannen")}
+  else if(a==="syPaarWeg"){const pid=b.dataset.pid;confirmBox("Dieses Handy entfernen? Es kann danach keine Codes mehr schicken.","Entfernen",()=>{setPaare(paare().filter(p=>p.pid!==pid));window.render&&window.render()})}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target&&e.target.id==="sy_code"){e.preventDefault();const b=document.querySelector('[data-act="syJoin"]');b&&b.click()}});
+setInterval(()=>{if(S.tab==="einstellungen")statusZeigen()},5000);
+if(aktiv())setTimeout(abgleichen,1500);else setTimeout(()=>{if(aktiv())abgleichen()},4000);
+
+window.SYNC={settingsHTML,aktiv,abgleichen,handyModal,_conf:conf,_ableiten:ableiten,_hash:hash,_encr:encr,_decr:decr,_keyOf:keyOf,_unb64:unb64};
+})();
+</script>
+
 
 <style>
 .lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
@@ -3158,7 +3413,7 @@ function body0(){G._allZu=false;
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
-      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
+      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
@@ -3659,7 +3914,7 @@ const BOOK={ready:()=>!!G.loaded&&(lokal()||!!window.__hass),start:()=>{start()}
   abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
   offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
     description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
-window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
+window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>

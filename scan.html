@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SL Scanner">
+<meta name="theme-color" content="#16181d">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>SchichtLohn Scanner</title>
+<style>
+:root{--bg:#16181d;--card:#1f2229;--fg:#eef0f3;--muted:#9aa1ad;--line:#2e333c;--acc:#16b24b;--bad:#e5484d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:max(14px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom))}
+main{max-width:520px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}main>*{min-width:0}
+h1{font-size:19px;margin:2px 0 0;display:flex;align-items:center;gap:8px}
+h1 small{font-size:12px;font-weight:500;color:var(--muted)}
+.cam{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:3/4;max-height:58vh;width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .rahmen{position:absolute;inset:22% 10%;border:3px solid rgba(255,255,255,.85);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.25);transition:border-color .15s}
+.cam.ok .rahmen{border-color:var(--acc)}
+.cam .info{position:absolute;left:0;right:0;bottom:0;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-size:14px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:11px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:8px}
+input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:11px 12px;font:inherit}
+.liste{display:grid;gap:6px}
+.it{display:flex;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-variant-numeric:tabular-nums}
+.it span{color:var(--muted);font-size:13px}
+.it.err span{color:var(--bad)}
+.hint{color:var(--muted);font-size:13px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>SchichtLohn Scanner <small id="name"></small></h1>
+  <div id="ohne" class="note" hidden>Dieser Scanner ist nicht gekoppelt. Öffne in SchichtLohn am PC das Lager, tippe auf „Handy“ und scanne den QR-Code mit der Kamera.</div>
+  <div id="haupt" hidden>
+    <div class="cam" id="cam"><video id="vid" playsinline muted></video><div class="rahmen"></div><div class="info" id="info">Kamera wird gestartet …</div></div>
+    <div class="row" style="margin-top:10px"><input id="hand" inputmode="numeric" placeholder="Code eintippen" autocomplete="off"><button class="btn" id="senden">Senden</button></div>
+    <div class="hint" style="margin-top:8px">Jeder gescannte Code erscheint sofort in SchichtLohn am PC. Tipp: Seite zum Home-Bildschirm hinzufügen, dann ist der Scanner wie eine App.</div>
+    <div class="liste" id="liste" style="margin-top:10px"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const BASE="https://schichtlohn.pages.dev";
+const KEY="schichtlohn_scanner";
+// Kopplung aus dem QR-Code (#p=…&k=…); für den Home-Bildschirm zusätzlich merken
+function kopplung(){const h=new URLSearchParams(location.hash.slice(1));let p=h.get("p"),k=h.get("k"),n=h.get("n")||"";
+  if(p&&k){try{localStorage.setItem(KEY,JSON.stringify({p,k,n}))}catch(e){}return {p,k,n}}
+  try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.p&&s.k)return s}catch(e){}return null}
+const K=kopplung();
+const $=id=>document.getElementById(id);
+if(!K||!/^[0-9a-f]{32}$/.test(K.p)){$("ohne").hidden=false}else{$("haupt").hidden=false;$("name").textContent=K.n?"· "+K.n:"";start()}
+function unb64(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+function b64(u){let s="";u.forEach(x=>s+=String.fromCharCode(x));return btoa(s)}
+let key=null;
+async function verschl(obj){if(!key)key=await crypto.subtle.importKey("raw",unb64(K.k),"AES-GCM",false,["encrypt"]);
+  const iv=crypto.getRandomValues(new Uint8Array(12));const c=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(obj))));
+  const o=new Uint8Array(12+c.length);o.set(iv);o.set(c,12);return b64(o)}
+/* Senden mit Warteschlange (der Briefkasten nimmt höchstens einen Code pro Sekunde an) */
+const q=[];let laeuft=false;
+function eintrag(code){const el=document.createElement("div");el.className="it";el.innerHTML=`<b></b><span>wird gesendet …</span>`;el.firstChild.textContent=code;$("liste").prepend(el);return el}
+function senden(code){code=String(code||"").trim();if(!code)return;q.push({code,el:eintrag(code)});pumpe()}
+async function pumpe(){if(laeuft)return;laeuft=true;
+  while(q.length){const x=q[0];try{const r=await fetch(BASE+"/sync/scan/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pid:K.p,d:await verschl({c:x.code,t:Date.now()})})});
+      if(!r.ok)throw new Error("HTTP "+r.status);x.el.lastChild.textContent="gesendet ✓";q.shift()}
+    catch(e){x.el.className="it err";x.el.lastChild.textContent="Fehler – neuer Versuch …";await new Promise(o=>setTimeout(o,2500));x.el.className="it"}
+    await new Promise(o=>setTimeout(o,1100))}
+  laeuft=false}
+$("senden").onclick=()=>{senden($("hand").value);$("hand").value=""};
+$("hand").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("senden").click()}});
+/* Kamera: BarcodeDetector, sonst ZXing */
+let letzter="",letzteZeit=0;
+function treffer(code){const t=Date.now();if(code===letzter&&t-letzteZeit<2500)return;letzter=code;letzteZeit=t;
+  try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}const c=$("cam");c.classList.add("ok");setTimeout(()=>c.classList.remove("ok"),500);$("info").textContent="Gescannt: "+code;senden(code)}
+async function start(){const v=$("vid");
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:960}},audio:false})}
+  catch(e){$("info").textContent="Keine Kamera erlaubt – Code unten eintippen.";return}
+  v.srcObject=stream;await v.play().catch(()=>{});$("info").textContent="Strichcode in den Rahmen halten";
+  if("BarcodeDetector" in window){try{const fm=await BarcodeDetector.getSupportedFormats();const det=new BarcodeDetector({formats:fm.filter(f=>/ean|upc|code_|qr|data_matrix|itf|codabar/.test(f))});
+      const tick=async()=>{try{const r=await det.detect(v);if(r&&r[0])treffer(r[0].rawValue)}catch(e){}setTimeout(tick,220)};tick();return}catch(e){}}
+  try{const m=await import("https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm");const r=new m.BrowserMultiFormatReader();
+    r.decodeFromVideoElement(v,(res)=>{if(res)treffer(res.getText())})}catch(e){$("info").textContent="Scanner konnte nicht geladen werden – Code unten eintippen."}}
+</script>
+</body>
+</html>
