@@ -2593,7 +2593,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgtg button,.tabtg button{cursor:pointer}
 .tabtg button{padding:6px 12px;font-size:13px;gap:6px}.tabtg button svg{width:14px;height:14px}
 .lgtg button.on,.tabtg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.lgcol{display:flex;gap:8px;align-items:center}
+.lgcol{display:flex;gap:8px;align-items:center}.lgother{margin-top:6px}
 .lgcol input[type=color]{width:46px;height:40px;padding:2px;border:1px solid var(--line-2);border-radius:var(--r-s);background:var(--sunken);flex:none}
 .lgask{border:1px solid var(--warn);border-radius:var(--r-s);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .lgpick{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-s)}
@@ -2871,6 +2871,19 @@ function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
 function known(k){const s=new Set();entries().forEach(e=>{const v=e[k];if(Array.isArray(v))v.forEach(x=>x&&s.add(x));else if(v)s.add(v)});return [...s].sort((a,b)=>a.localeCompare(b,"de"))}
+/* Auswahllisten statt Freitext: eigene Marken/Materialien, dazu die Liste aus SpoolmanDB; „Andere …“ für Freitext */
+const ANDERE="__andere__";
+function sdbBrand(b){const S2=typeof MP_SDB!=="undefined"?MP_SDB:{};const n=String(b||"").toLowerCase().replace(/[^a-z0-9]/g,"");return Object.keys(S2).find(k=>k.toLowerCase().replace(/[^a-z0-9]/g,"")===n)}
+function herstOpts(cur){const S2=typeof MP_SDB!=="undefined"?MP_SDB:{};const own=known("hersteller");const nn=x=>x.toLowerCase().replace(/[^a-z0-9]/g,"");const ownN=new Set(own.map(nn));
+  if(cur&&!ownN.has(nn(cur))&&!sdbBrand(cur)){own.push(cur);ownN.add(nn(cur))}
+  const more=Object.keys(S2).filter(b=>!ownN.has(nn(b))).sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}));
+  const o=x=>`<option value="${esc(x)}"${cur&&nn(x)===nn(cur)?" selected":""}>${esc(x)}</option>`;
+  return `${cur?"":`<option value="" selected disabled>Hersteller wählen …</option>`}${own.length?`<optgroup label="Im Lager">${own.map(o).join("")}</optgroup>`:""}${more.length?`<optgroup label="Weitere Marken">${more.map(o).join("")}</optgroup>`:""}<option value="${ANDERE}">Andere …</option>`}
+function matOpts(brand,cur){const S2=typeof MP_SDB!=="undefined"?MP_SDB:{};const sb=sdbBrand(brand);const fromB=sb?[...new Set(S2[sb].map(r=>r[1]))]:[];
+  const base=[...new Set([...MATERIALIEN,...known("material")])];const up=x=>String(x).toUpperCase();const baseU=new Set(base.map(up));
+  const extra=fromB.filter(x=>!baseU.has(up(x))).sort((a,b)=>a.localeCompare(b,"de"));if(cur&&!baseU.has(up(cur))&&!extra.some(x=>up(x)===up(cur)))extra.push(cur);
+  const o=x=>`<option value="${esc(x)}"${cur&&up(x)===up(cur)?" selected":""}>${esc(x)}</option>`;
+  return `${cur?"":`<option value="" selected disabled>Material wählen …</option>`}<optgroup label="Häufig">${base.map(o).join("")}</optgroup>${extra.length?`<optgroup label="${esc(sb||brand||"Weitere")}">${extra.map(o).join("")}</optgroup>`:""}<option value="${ANDERE}">Andere …</option>`}
 function formModal(e,prefill){
   const isNew=!e;const f=e?Object.assign({},e,{besonderheiten:[...e.besonderheiten],codes:[...e.codes],codes_refill:[...e.codes_refill],reste:[...e.reste]})
     :Object.assign({uid:null,raw:{},hersteller:G.lastH||known("hersteller")[0]||"Bambu Lab",material:"PLA",farbe:"",hex:"#808080",besonderheiten:[],codes:[],codes_refill:[],gewicht:1000,spulen:1,refills:0,reste:[],durchmesser:1.75,ams_farben:[]},prefill||{});
@@ -2880,8 +2893,8 @@ function formModal(e,prefill){
   modal(isNew?"Filament hinzufügen":"Filament bearbeiten",`<div class="lgform">
     ${f.hinweis?`<div class="note">${esc(f.hinweis)}</div>`:""}
     ${isNew&&!f.hinweis?`<div class="row"><button type="button" class="btn sm" data-act="lgAms">${SV.ams} Aus dem AMS übernehmen</button><span class="lghint">oder unten von Hand ausfüllen</span></div>`:""}
-    <div class="g2"><label class="field"><span>Hersteller</span><input type="text" id="lf_h" list="lf_hl" value="${v(f.hersteller)}" placeholder="z. B. Bambu Lab"><datalist id="lf_hl">${known("hersteller").map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label>
-      <label class="field"><span>Material</span><input type="text" id="lf_m" list="lf_ml" value="${v(f.material)}" placeholder="PLA"><datalist id="lf_ml">${mats.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label></div>
+    <div class="g2"><label class="field"><span>Hersteller</span><select id="lf_h">${herstOpts(f.hersteller)}</select><input type="text" id="lf_hx" class="lgother" placeholder="Hersteller eingeben" hidden></label>
+      <label class="field"><span>Material</span><select id="lf_m">${matOpts(f.hersteller,f.material)}</select><input type="text" id="lf_mx" class="lgother" placeholder="Material eingeben" hidden></label></div>
     <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
     <div class="lgdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>
     <div class="field"><span>Besonderheiten</span><div class="lgtg" id="lf_bes">${bes.map(b=>`<button type="button" class="chip${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`).join("")}</div></div>
@@ -2909,7 +2922,7 @@ function formModal(e,prefill){
 }
 function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};
-  set("hersteller","lf_h",x=>x.trim());set("material","lf_m",x=>x.trim());set("farbe","lf_f",x=>x.trim());set("hex","lf_hex");set("gewicht","lf_g",x=>fNum(x)||0);set("spulen","lf_s",x=>Math.max(0,Math.round(fNum(x)||0)));
+  set("hersteller","lf_h",x=>(x===ANDERE?(val("lf_hx")||""):x).trim());set("material","lf_m",x=>(x===ANDERE?(val("lf_mx")||""):x).trim());set("farbe","lf_f",x=>x.trim());set("hex","lf_hex");set("gewicht","lf_g",x=>fNum(x)||0);set("spulen","lf_s",x=>Math.max(0,Math.round(fNum(x)||0)));
   set("reste","lf_r",x=>fReste(x,fNum(val("lf_g"))));set("bambu_id","lf_bid",x=>x.trim());set("preis","lf_p",fNum);set("refills","lf_rf",x=>Math.max(0,Math.round(fNum(x)||0)));
   set("duese_min","lf_d1",fNum);set("duese_max","lf_d2",fNum);set("bett_min","lf_b1",fNum);set("bett_max","lf_b2",fNum);set("trocknen_c","lf_tc",fNum);set("trocknen_h","lf_th",fNum);set("durchmesser","lf_dm",fNum);set("fcode","lf_fc",x=>x.trim());
   return f}
@@ -3196,6 +3209,8 @@ function amsModal(){const sl=slots();const all=entries();
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.value;draw()}
   else if(t.id==="lgpq"){const q=t.value.trim().toLowerCase();document.querySelectorAll("#lgpick .lgr").forEach(r=>{r.hidden=!!q&&!r.dataset.s.includes(q)})}});
 document.addEventListener("change",e=>{const t=e.target;
+  if(t.id==="lf_h"||t.id==="lf_m"){const x=document.getElementById(t.id+"x");if(x){x.hidden=t.value!==ANDERE;if(!x.hidden)x.focus()}
+    if(t.id==="lf_h"&&t.value!==ANDERE){const m=document.getElementById("lf_m");if(m&&m.value!==ANDERE){const cur=m.value;m.innerHTML=matOpts(t.value,cur)}}return}
   if(t.matches&&t.matches("[data-lgsort]")){G.sort=t.value;savePref();draw()}
   else if(t.dataset&&t.dataset.lgf!==undefined){G.f=Object.assign({},G.f,{[t.dataset.lgf]:t.value});savePref();draw()}});
 document.addEventListener("click",async e=>{
