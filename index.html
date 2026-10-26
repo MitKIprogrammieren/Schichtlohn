@@ -2178,12 +2178,21 @@ function parseRecord(r,pr){
     start,end,minutes:Math.round(minutes||0),failed:st==="failed"||st==="stopped",running:st==="printing"||st==="paused",progress:nOf(r.printProgress),
     grams:Math.round(mats.reduce((a,m)=>a+m.g,0)*10)/10,mats,cover:r.thumbnailUrl||"",mat:matTyp}}
 
+/* Creality-Drucker automatisch in die Druckerliste des Rechners übernehmen (Werte je Modell, danach in den Einstellungen anpassbar) */
+const MODELLE=[[/k2\s*plus/i,{watt:250,price:1499,gph:30}],[/k2\s*pro/i,{watt:220,price:1099,gph:28}],[/k2/i,{watt:200,price:899,gph:26}],[/k1\s*max/i,{watt:220,price:699,gph:24}],[/k1c|k1\s*se|k1/i,{watt:150,price:449,gph:20}],
+  [/hi\b|ender[-\s]*3\s*v3/i,{watt:130,price:299,gph:16}],[/ender/i,{watt:120,price:229,gph:14}]];
+function druckerAnlegen(){const neu=[];
+  C.printers.forEach(p=>{if(!p.id)return;const nn=String(p.name).toLowerCase().replace(/[\s_-]+/g,"");
+    if(S.cfg.printers.some(x=>x.crealityId===p.id||String(x.name).toLowerCase().replace(/[\s_-]+/g,"")===nn))return;
+    const m=(MODELLE.find(([re])=>re.test(p.model))||[0,{watt:200,price:600,gph:20}])[1];
+    S.cfg.printers.push({id:uid(),name:p.name,watt:m.watt,price:m.price,life:6000,maint:0.05,gph:m.gph,crealityId:p.id});neu.push(p.name)});
+  if(neu.length){saveCfgSoon();toast((neu.length>1?"Drucker ":"Drucker ")+neu.join(", ")+" hinzugefügt. Strom und Preis unter Einstellungen → Drucker prüfen.")}}
 /* --- Laden --- */
 async function loadStatus(force){
   if(!on()||!acct()||C.stLoading)return;if(!force&&C.stAt&&Date.now()-C.stAt<25000)return;
   C.stLoading=true;
   try{const r=await api("devices",{})||{};let list=[...(r.ungroupedList||[])];(r.groupList||[]).forEach(g=>{list=list.concat(g.list||g.devices||[])});
-    C.raw.devices=list.slice(0,3);C.printers=list.map(parseDevice);C.stAt=Date.now();C.err=""}
+    C.raw.devices=list.slice(0,3);C.printers=list.map(parseDevice);C.stAt=Date.now();C.err="";druckerAnlegen()}
   catch(e){fail(e)}
   C.stLoading=false;rerender()}
 async function load(force){
