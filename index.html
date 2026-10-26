@@ -198,6 +198,8 @@ table.list tr.click:hover td{background:var(--glass)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
+<!--SL_BAMBUDDY-->
+<script src="bambuddy/adapter.js"></script>
 <script>document.documentElement.dataset.skin=window.__PW_HA?"ha":"bambu"</script>
 <header class="top">
   <div class="wrap topin">
@@ -3407,13 +3409,20 @@ function lokSvc(service,data,entity){const st=lokStore();const l=st[entity]||(st
   else return Promise.reject(new Error("Nicht unterstützt: "+service));
   saveCfgSoon();setTimeout(()=>lokPush(entity),0);return Promise.resolve()}
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
-const states=()=>L()?L().stateMap():{};
+const states=()=>window.BBY&&BBY.on()?BBY.states():L()?L().stateMap():{};
 async function svc(service,data,entity){
+  if(window.BBY&&BBY.on()&&(entity||ENT)===ENT&&BBY.istSorte(service,data))return BBY.svc(service,data);
   if(lokal())return lokSvc(service,data,entity||ENT);
   const h=window.__hass;if(!h)throw new Error("Keine Verbindung zu Home Assistant");
   if(!isWS()&&h.callService)return h.callService("todo",service,data,{entity_id:entity||ENT});
   return h.callWS({type:"call_service",domain:"todo",service,service_data:data,target:{entity_id:entity||ENT}})}
-async function subscribe(entity,cb){if(lokal()){(LOK.subs[entity]=LOK.subs[entity]||[]).push(cb);setTimeout(()=>lokPush(entity),0);return ()=>{LOK.subs[entity]=(LOK.subs[entity]||[]).filter(f=>f!==cb)}}const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
+async function subscribe(entity,cb){if(window.BBY&&BBY.on()){
+  /* Bambuddy-Modus: Sorten und Verbrauch aus Bambuddy, „Nicht zugeordnet“ und Einstellungen im Browser */
+  let lok=[],bb=[];const push=()=>cb([...bb,...lok]);const istTyp=i=>{try{return !!JSON.parse(i.description||"{}").typ}catch(e){return false}};
+  const f=l=>{lok=entity===ENT?l.filter(istTyp):l;push()};(LOK.subs[entity]=LOK.subs[entity]||[]).push(f);setTimeout(()=>lokPush(entity),0);
+  const un=BBY.subscribe(entity===ENT?"ent":"meta",l=>{bb=l;push()});
+  return ()=>{un();LOK.subs[entity]=(LOK.subs[entity]||[]).filter(x=>x!==f)}}
+  if(lokal()){(LOK.subs[entity]=LOK.subs[entity]||[]).push(cb);setTimeout(()=>lokPush(entity),0);return ()=>{LOK.subs[entity]=(LOK.subs[entity]||[]).filter(f=>f!==cb)}}const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
   if(isWS())return h.__subscribe(msg,ev=>cb((ev&&ev.items)||[]));
   return h.connection.subscribeMessage(ev=>cb((ev&&ev.items)||[]),msg)}
 async function start(){
@@ -3450,6 +3459,7 @@ async function logVerbrauch(e,o,g0){if(!metaDa())return;const preis=Number(e.pre
 
 /* --- AMS --- */
 function druckerName(prefix){const p2=String(prefix||"").split("_").slice(0,2).join("_");
+  if(window.BBY&&BBY.on()){const n=BBY.name(String(prefix||"").split("_")[0]);if(n)return n}
   const pr=window.HAP&&HAP._printers?HAP._printers().find(p=>p.roles.status==="sensor."+p2+"_druckstatus"):null;if(pr)return pr.name;
   const m=p2.split("_")[0];return ({h2c:"H2C",h2d:"H2D",h2s:"H2S",p1s:"P1S",p1p:"P1P",x1c:"X1C",x1e:"X1E",a1:"A1",a1mini:"A1 mini"})[m]||m.toUpperCase()}
 const platz=(n,f)=>Number(n)>=128?"HT"+(Number(n)-127):(("ABCDEFGH"[Number(n)-1])||n+"-")+f;
@@ -4014,5 +4024,13 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 })();
 </script>
 
+<script>
+/* Ansicht „nur Lager“ (index.html?ansicht=lager), z. B. als Seitenleisten-Eintrag in Bambuddy */
+(function(){if(new URLSearchParams(location.search).get("ansicht")!=="lager")return;
+  document.documentElement.classList.add("nurlager");
+  const st=document.createElement("style");st.textContent=".nurlager header.top{display:none!important}";document.head.appendChild(st);
+  const go=()=>{const b=document.querySelector('#tabs [data-tab="lager"]');if(b&&S.tab!=="lager")b.click()};
+  setTimeout(go,0);setTimeout(go,600)})();
+</script>
 </body>
 </html>

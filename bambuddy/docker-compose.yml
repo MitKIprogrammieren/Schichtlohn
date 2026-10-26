@@ -1,0 +1,25 @@
+# SchichtLohn-FilamentLager neben Bambuddy
+# Liefert SchichtLohn aus diesem Repo aus und leitet /api/ an Bambuddy weiter (gleiche Adresse, kein CORS nötig).
+# Bambuddy selbst bleibt unverändert und wird wie gewohnt aktualisiert.
+#
+#   cd Schichtlohn/bambuddy && docker compose up -d
+#   Lager:      http://<server>:8091/            (nur Lager, für Bambuddys Seitenleiste)
+#   SchichtLohn: http://<server>:8091/index.html  (alle Reiter, Lager aus Bambuddy)
+services:
+  filamentlager:
+    image: nginx:alpine
+    container_name: filamentlager
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    volumes:
+      - ../:/usr/share/nginx/html:ro
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      # Bambuddy läuft mit network_mode: host auf Port 8000 desselben Rechners
+      BAMBUDDY_URL: "http://host.docker.internal:8000"
+      # Nur nötig, wenn in Bambuddy die Anmeldung eingeschaltet ist: API-Schlüssel (bb_…) mit
+      # „Status lesen“ und „Inventar verwalten“. Der Schlüssel bleibt im Container und geht nie an den Browser.
+      BAMBUDDY_API_KEY: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
