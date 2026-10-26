@@ -2881,13 +2881,13 @@ function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
   r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo,.hmat"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
     const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";
     let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.dunkel?"d":c.mono?"m":c.own?"1":"";img.src=c.u};
-    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}
+    img.onload=()=>{if(!img.naturalWidth||!img.naturalHeight||(!img.dataset.own&&img.naturalWidth<=16)){logoMiss.add(img.src);next();return}
       /* eigene Logos sind schwarz für die Etiketten: im dunklen Design weiß, im hellen schwarz darstellen */
       if(img.dataset.clean){img.style.visibility="";return}
       if(img.dataset.own==="1"){const op=opaque(img);if(op&&cleanLogo(img))return}
       if(img.dataset.own==="m"){img.style.filter=darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
       img.style.visibility=""};
-    img.onerror=()=>{logoMiss.add(img.src);next()};gh.appendChild(img);next()})}
+    img.onerror=()=>{img.style.visibility="hidden";logoMiss.add(img.src);next()};gh.appendChild(img);next();setTimeout(()=>{if(img.isConnected&&!(img.complete&&img.naturalWidth>0))img.remove()},6000)})}
 function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{guard();clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
 async function ensure(){
   if(L.el)return;if(L.p)return L.p;
@@ -3502,8 +3502,8 @@ function decorate(){
     const urls=L().logoUrls(k);if(!urls.length){showName();return}
     const img=document.createElement("img");img.className="hlogo";img.alt=k;img.referrerPolicy="no-referrer";img.style.visibility="hidden";let i=0,ok=false;
     const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.dunkel?"d":c.mono?"m":c.own?"1":"";img.src=c.u};
-    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.clean){img.style.visibility="";return}if(img.dataset.own==="1"&&L().opaque){const op=L().opaque(img);if(op&&L().cleanLogo(img))return}if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&L().bunt&&L().bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
-    img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
+    img.onload=()=>{if(!img.naturalWidth||!img.naturalHeight||(!img.dataset.own&&img.naturalWidth<=16)){next();return}ok=true;nm.remove();if(img.dataset.clean){img.style.visibility="";return}if(img.dataset.own==="1"&&L().opaque){const op=L().opaque(img);if(op&&L().cleanLogo(img))return}if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&L().bunt&&L().bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
+    img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500);setTimeout(()=>{if(img.isConnected&&!(img.complete&&img.naturalWidth>0)){img.remove();if(!nm.isConnected)head.appendChild(nm);showName()}},6000)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="";
 function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
   const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb){bb.innerHTML=p[0];fitTop()}const fo=document.activeElement&&document.activeElement.matches&&document.activeElement.matches("[data-lgsort]");if(!fo){lastHead=hd;hb.innerHTML=p[1]||""}}
