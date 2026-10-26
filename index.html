@@ -2150,7 +2150,7 @@ async function pwLogin(){
   finally{if(btn)btn.disabled=false}}
 
 /* --- Normalisieren --- */
-const hexOf=c=>{c=String(c==null?"":c).trim().split(/[,;]/)[0].trim();if(/^#?[0-9a-f]{7}$/i.test(c))return "#"+c.replace("#","").slice(-6).toLowerCase();if(/^#?[0-9a-f]{6}$/i.test(c))return "#"+c.replace("#","").slice(0,6).toLowerCase();if(/^#?[0-9a-f]{8}$/i.test(c))return "#"+c.replace("#","").slice(2,8).toLowerCase();const n=Number(c);return Number.isFinite(n)&&n>0&&n<=0xffffff&&/^\d+$/.test(c)?"#"+n.toString(16).padStart(6,"0"):""};
+const hexOf=c=>{c=String(c==null?"":c).trim().split(/[,;]/)[0].trim();if(/^#?[0-9a-f]{7,8}$/i.test(c))return "#"+c.replace("#","").slice(-6).toLowerCase();if(/^#?[0-9a-f]{6}$/i.test(c))return "#"+c.replace("#","").slice(0,6).toLowerCase();const n=Number(c);return Number.isFinite(n)&&n>0&&n<=0xffffff&&/^\d+$/.test(c)?"#"+n.toString(16).padStart(6,"0"):""};
 const nOf=v=>{const x=Number(v);return Number.isFinite(x)?x:null};
 const tIso=v=>{const x=Number(v);if(!x)return "";return new Date(x>1e12?x:x*1000).toISOString()};
 const STATES={0:"idle",1:"printing",2:"finished",3:"failed",4:"stopped",5:"paused"};
@@ -2209,11 +2209,20 @@ const SLOTS_K="schichtlohn_creality_faecher";
 function findBoxes(o,d){if(d>7||o==null)return null;if(typeof o==="string"&&/^[\[{]/.test(o.trim())){try{return findBoxes(JSON.parse(o),d+1)}catch(e){return null}}
   if(Array.isArray(o)){for(const x of o){const r=findBoxes(x,d+1);if(r)return r}return null}
   if(typeof o!=="object")return null;if(Array.isArray(o.materialBoxs))return o.materialBoxs;for(const k of Object.keys(o)){const r=findBoxes(o[k],d+1);if(r)return r}return null}
+/* Format der Cloud-Abfrage „cfsList“ (wie in Creality Print): cfsList[].portList[] und rackFilament */
+function findCfsList(o,d){if(d>7||o==null)return null;if(typeof o==="string"&&/^[\[{]/.test(o.trim())){try{return findCfsList(JSON.parse(o),d+1)}catch(e){return null}}
+  if(typeof o!=="object")return null;
+  if(Array.isArray(o.cfsList)||o.rackFilament){const out=[];
+    (o.cfsList||[]).forEach((c,i)=>out.push({id:i+1,type:0,temp:c.temp??c.temperature,humidity:c.humidity,materials:(c.portList||[]).map((m,k)=>({id:k,type:m.filamentType||"",name:m.filamentName||"",vendor:m.vendor||"",color:m.filamentsColor||"",percent:m.filamentProgress!=null?Number(m.filamentProgress)*(Number(m.filamentProgress)<=1?100:1):null,state:m.filamentType?1:0,selected:m.selected?1:0}))}));
+    const rk=o.rackFilament;if(rk&&(rk.filamentType||rk.filamentsColor))out.push({id:0,type:1,materials:[{id:0,type:rk.filamentType||"",name:"",vendor:"",color:rk.filamentsColor||"",percent:null,state:1,selected:rk.selected?1:0}]});
+    return out}
+  if(Array.isArray(o)){for(const x of o){const r=findCfsList(x,d+1);if(r)return r}return null}
+  for(const k of Object.keys(o)){const r=findCfsList(o[k],d+1);if(r)return r}return null}
 function boxesOf(list){let n=0;return list.filter(b=>b&&Array.isArray(b.materials)).map(b=>{const ext=Number(b.type)===1;if(!ext)n++;
   return {name:ext?"Extern":"CFS "+(n),temp:nOf(b.temp),hum:nOf(b.humidity),slots:b.materials.filter(m=>m&&Number(m.state)!==0||m&&m.type).map(m=>({nr:(ext?"E":String(n))+String.fromCharCode(65+Number(m.id||0)),type:String(m.type||""),name:String(m.name||""),vendor:String(m.vendor||""),color:hexOf(m.color),pct:nOf(m.percent),sel:Number(m.selected)===1}))}})}
 async function loadCfs(){
   for(const p of C.printers){if(!p.tbId||!p.online||!p.cfsDa)continue;const w=C.cfsAt[p.id]||0;if(Date.now()-w<(C.cfsFail[p.id]?600000:55000))continue;C.cfsAt[p.id]=Date.now();
-    try{const r=await api("rpc",{tbId:p.tbId,get:"boxsInfo"});if(!C.raw.rpc)C.raw.rpc=r;const b=findBoxes(r,0);
+    try{const r=await api("rpc",{tbId:p.tbId,get:"cfsList"});C.raw.rpc=r;const b=findCfsList(r,0)||findBoxes(r,0);
       if(b&&b.length){p.boxes=boxesOf(b);p.cfsInfo="";delete C.cfsFail[p.id];merkFaecher(p)}else{C.cfsFail[p.id]=1;p.cfsInfo="CFS angeschlossen – Creality liefert über die Cloud keine Fachdaten"}}
     catch(e){C.cfsFail[p.id]=1;C.raw.rpcFehler=String(e&&e.message||e);p.cfsInfo="CFS angeschlossen – Fachdaten über die Cloud nicht abrufbar"}}
   rerender()}

@@ -96,7 +96,7 @@ export async function onRequest(ctx) {
     if (path === "rpc") {
       const tb = String(body.tbId || "");
       if (!/^[0-9a-f-]{20,40}$/i.test(tb)) return json(request, 400, { message: "Ungültige Drucker-ID" });
-      const ERLAUBT = ["boxsInfo", "ReqPrinterPara", "reqMaterials"];
+      const ERLAUBT = ["cfsList", "boxsInfo", "ReqPrinterPara", "reqMaterials"];
       const k = String(body.get || "");
       if (!ERLAUBT.includes(k)) return json(request, 400, { message: "Abfrage nicht erlaubt" });
       ziel = r.to + encodeURIComponent(tb);
