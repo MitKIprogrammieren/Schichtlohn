@@ -841,9 +841,10 @@ function renderSettings(m){
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
-        return `<div class="field"><span>Logos der Marken</span><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl];
-          return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div></div>`}).join("")}</div>
-          <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund, einfarbige Logos werden im dunklen Design weiß. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/.":""}</small></div>`})()}
+        return `<div class="field"><span>Logos der Marken</span><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl],ud=lg[sl+"-dunkel"];
+          return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
+            ${u?`<div class="row" style="gap:6px;align-items:center">${ud?`<span class="lglgp lglgd"><img src="${ud}" alt=""></span>`:""}<label class="btn ghost sm" style="cursor:pointer" title="Helle Version für das dunkle Design, z. B. mit weißer Schrift">${ud?"Dunkel ändern":"+ Version fürs dunkle Design"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}-dunkel"></label>${ud?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}-dunkel">Entfernen</button>`:""}</div>`:""}</div>`}).join("")}</div>
+          <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund. Einfarbige Logos werden im dunklen Design automatisch weiß, farbige bleiben farbig – für dunkle Schrift kannst du eine helle Version fürs dunkle Design hinzufügen. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/ (helle Version: Name mit „-dunkel“, z. B. das-filament-dunkel.png).":""}</small></div>`})()}
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
@@ -2050,7 +2051,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
 <style>
-.lglogos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}.lglg{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px}.lglgp{height:44px;border-radius:8px;background:#1c1f26;display:grid;place-items:center;padding:6px;color:#ddd;font-size:13px;font-weight:600}.lglgp img{max-height:32px;max-width:100%}.lglgn{font-size:13px;color:var(--muted)}
+.lglogos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}.lglg{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px}.lglgp.lglgd{height:30px;padding:4px 8px;background:#1c1f26;display:inline-grid}.lglgp.lglgd img{max-height:22px;max-width:110px}.lglgp{height:44px;border-radius:8px;background:#f3f4f6;color:#333 !important;display:grid;place-items:center;padding:6px;color:#ddd;font-size:13px;font-weight:600}.lglgp img{max-height:32px;max-width:100%}.lglgn{font-size:13px;color:var(--muted)}
 .crgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
 .crp{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 .crp .thumb{width:52px;height:52px;border-radius:10px;background:var(--bg2,rgba(127,127,127,.12)) center/cover no-repeat;display:grid;place-items:center;color:var(--muted)}
@@ -2846,8 +2847,11 @@ function haLocal(){if(!window.__hass)return "";return isWS()?window.__hass.__bas
 const logoMiss=new Set();
 function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
   /* eigenes Logo aus den Einstellungen (geht auch ohne Home Assistant) */
-  const eig=sl&&S.cfg&&S.cfg.logos&&S.cfg.logos[sl];if(eig)out.push({u:eig,own:true});
-  if(sl&&base){const cv="?v="+Math.floor(Date.now()/36e5);for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext+cv,own:true})}
+  /* im Dunkelmodus zuerst die helle Variante (Name „…-dunkel“), farbig wie hochgeladen */
+  const dk=darkUI(),lg=(S.cfg&&S.cfg.logos)||{};
+  if(sl&&dk&&lg[sl+"-dunkel"])out.push({u:lg[sl+"-dunkel"],own:true,dunkel:true});
+  const eig=sl&&lg[sl];if(eig)out.push({u:eig,own:true});
+  if(sl&&base){const cv="?v="+Math.floor(Date.now()/36e5);if(dk)for(const ext of ["png","webp"])out.push({u:base+sl+"-dunkel."+ext+cv,own:true,dunkel:true});for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext+cv,own:true})}
   const li=LOGO_IMG[String(name||"").trim().toLowerCase()];if(li)out.push({u:li,own:true,mono:true});
   const d=logoDomain(name);if(d)out.push({u:"https://www.google.com/s2/favicons?sz=128&domain="+encodeURIComponent(d),own:false});
   return out.filter(x=>!logoMiss.has(x.u))}
@@ -2876,12 +2880,12 @@ function logos(el){const r=el.shadowRoot;if(!r)return;cardPrefs(el);
   r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hmat,.hlogo"))return;const sp=gh.querySelector("span");const b=matBadge(sp&&sp.textContent);if(b)gh.appendChild(b)});
   r.querySelectorAll(".gh").forEach(gh=>{if(gh.querySelector(".hlogo,.hmat"))return;const sp=gh.querySelector("span");const urls=logoUrls(sp&&sp.textContent);if(!urls.length)return;
     const img=document.createElement("img");img.className="hlogo";img.alt="";img.referrerPolicy="no-referrer";img.style.visibility="hidden";
-    let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.mono?"m":c.own?"1":"";img.src=c.u};
+    let i=0;const next=()=>{if(i>=urls.length){img.remove();return}const c=urls[i++];img.dataset.own=c.dunkel?"d":c.mono?"m":c.own?"1":"";img.src=c.u};
     img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){logoMiss.add(img.src);next();return}
       /* eigene Logos sind schwarz für die Etiketten: im dunklen Design weiß, im hellen schwarz darstellen */
       if(img.dataset.clean){img.style.visibility="";return}
       if(img.dataset.own==="1"){const op=opaque(img);if(op&&cleanLogo(img))return}
-      if(img.dataset.own==="m"){img.style.filter=darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
+      if(img.dataset.own==="m"){img.style.filter=darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";
       img.style.visibility=""};
     img.onerror=()=>{logoMiss.add(img.src);next()};gh.appendChild(img);next()})}
 function look(el){try{const r=el.shadowRoot;if(!r||r.__slLook)return;const sh=new CSSStyleSheet();sh.replaceSync(LOOK);r.adoptedStyleSheets=[...r.adoptedStyleSheets,sh];r.__slLook=true;let lt;new MutationObserver(()=>{guard();clearTimeout(lt);lt=setTimeout(()=>logos(el),30)}).observe(r,{childList:true,subtree:true});logos(el)}catch(e){console.warn("Lager-Design",e)}}
@@ -2954,6 +2958,9 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act=lagerR
 let linkP=null;
 async function link(){if(L.link)return L.link;if(!linkP)linkP=findCfg().then(f=>{L.link=f.link||"";return L.link}).catch(()=>"");return linkP}
 /* Eigenes Logo ohne Transparenz (z. B. weißer Hintergrund)? Dann Hintergrund wegfiltern statt alles einzufärben */
+/* farbiges Logo (nicht nur Schwarz/Grau)? Dann Farben behalten statt einfarbig darzustellen */
+function bunt(img){try{const w=Math.min(96,img.naturalWidth||0),h=Math.min(96,img.naturalHeight||0);if(!w||!h)return false;const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data;
+  let n=0,f=0;for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;n++;const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);if(mx>60&&(mx-mn)/mx>.35)f++}return n>0&&f/n>.06}catch(e){return false}}
 function opaque(img){let x,w,h;try{w=Math.min(96,img.naturalWidth||0);h=Math.min(96,img.naturalHeight||0);if(!w||!h)return false;
   const c=document.createElement("canvas");c.width=w;c.height=h;x=c.getContext("2d");x.drawImage(img,0,0,w,h)}catch(e){return null}
   let d;try{d=x.getImageData(0,0,w,h).data}catch(e){return null}
@@ -2972,7 +2979,7 @@ function cleanLogo(img){try{if(img.dataset.clean)return false;const sc=Math.min(
     p[i]=p[i+1]=p[i+2]=col;p[i+3]=Math.round(a*255);if(a>0){const k=i/4,yy=Math.floor(k/w),xx=k%w;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy;if(xx<minX)minX=xx;if(xx>maxX)maxX=xx}}
   if(maxY<0)return false;x.putImageData(d,0,0);const o=document.createElement("canvas");o.width=maxX-minX+1;o.height=maxY-minY+1;o.getContext("2d").drawImage(c,minX,minY,o.width,o.height,0,0,o.width,o.height);
   img.dataset.clean="1";img.dataset.own="";img.style.filter="";img.style.mixBlendMode="";img.src=o.toDataURL("image/png");return true}catch(e){return false}}
-window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,logoSlug,darkUI,guard,link,isWS,shims,opaque,cleanLogo,
+window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,logoSlug,darkUI,guard,link,isWS,shims,opaque,cleanLogo,bunt,
   async initStates(){if(isWS()&&!L.shim)await wsHass()}};
 })();
 </script>
@@ -3494,8 +3501,8 @@ function decorate(){
     const showName=()=>{nm.style.visibility=""};
     const urls=L().logoUrls(k);if(!urls.length){showName();return}
     const img=document.createElement("img");img.className="hlogo";img.alt=k;img.referrerPolicy="no-referrer";img.style.visibility="hidden";let i=0,ok=false;
-    const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.mono?"m":c.own?"1":"";img.src=c.u};
-    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.clean){img.style.visibility="";return}if(img.dataset.own==="1"&&L().opaque){const op=L().opaque(img);if(op&&L().cleanLogo(img))return}if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
+    const next=()=>{if(i>=urls.length){img.remove();showName();return}const c=urls[i++];img.dataset.own=c.dunkel?"d":c.mono?"m":c.own?"1":"";img.src=c.u};
+    img.onload=()=>{if(!img.dataset.own&&img.naturalWidth<=16){next();return}ok=true;nm.remove();if(img.dataset.clean){img.style.visibility="";return}if(img.dataset.own==="1"&&L().opaque){const op=L().opaque(img);if(op&&L().cleanLogo(img))return}if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&L().bunt&&L().bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";img.style.visibility=""};
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="";
 function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
