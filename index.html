@@ -2500,10 +2500,48 @@ async function beitreten(code,ohneFrage){
     await abgleichen();closeModal&&closeModal();toast(n?"Verbunden – Daten übernommen":"Verbunden – deine Daten werden hochgeladen");window.render&&window.render()};
   if(n&&!ohneFrage)confirmBox(`Mit diesem Sync verbinden? Die Daten auf diesem Gerät (Lager, Aufträge, Portfolio, Einstellungen) werden durch die Daten aus dem Sync ersetzt.`,"Verbinden",los);
   else await los()}
-function ausschalten(){confirmBox("Sync auf diesem Gerät ausschalten? Die Daten bleiben hier und auf den anderen Geräten erhalten, werden aber nicht mehr abgeglichen.","Ausschalten",()=>{setConf(null);ST.lastOk=0;ST.err="";statusZeigen();window.render&&window.render();toast("Sync ausgeschaltet")})}
+function ausschalten(){confirmBox("Sync auf diesem Gerät ausschalten? Die Daten bleiben hier und auf den anderen Geräten erhalten, werden aber nicht mehr abgeglichen.","Ausschalten",()=>{setConf(null);setAutoAus(true);ST.lastOk=0;ST.err="";statusZeigen();window.render&&window.render();toast("Sync ausgeschaltet")})}
 async function binden(los){const c=conf();const k=kontoInfo();if(!c||!k)return;
   try{const r=await call("push",{sid:c.sid,put:{},del:[],konto:k,binden:!los,loesen:!!los});c.owner=r.owner||null;c.gebunden=!!r.owner;setConf(c);toast(los?"Bindung gelöst":"Sync ist jetzt an dein "+(k.art==="creality"?"Creality":"Bambu")+"-Konto gebunden");window.render&&window.render()}
   catch(e){toast("Fehler: "+e.message)}}
+
+/* --- Automatisch über die Anmeldung (Creality oder Bambu) ---
+   Gleiches Konto = gleicher Sync. Kein Code, kein QR-Code nötig. */
+const AK="schichtlohn_sync_auto";
+const autoAus=()=>{try{return localStorage.getItem(AK)==="aus"}catch(e){return false}};
+const setAutoAus=v=>{try{v?localStorage.setItem(AK,"aus"):localStorage.removeItem(AK)}catch(e){}};
+const kontoId=k=>k.art+":"+(k.uid||hash(k.token));
+function hatDaten(){return (S.orders||[]).length>0||(S.portfolio||[]).length>0||Object.values((S.cfg&&S.cfg.lagerLokal)||{}).some(a=>Array.isArray(a)&&a.length>0)}
+async function fernHatDaten(code){const {sid,key}=await ableiten(code);const r=await call("pull",{sid,since:0});
+  for(const [n,doc] of Object.entries(r.docs||{})){if(/^[po]_/.test(n))return true;
+    if(n==="lager"){try{const v=await decr(key,doc.d);if(Object.values(v||{}).some(a=>Array.isArray(a)&&a.length))return true}catch(e){return true}}}
+  return false}
+async function autoKonto(){
+  if(ST.autoLaeuft||S.backend!=="local"||!S.cfg||!window.confirmBox||autoAus())return;
+  const k=kontoInfo();if(!k)return;const id=kontoId(k);const c=conf();
+  if(c&&c.konto===id)return;if(ST.autoGefragt===id)return;
+  ST.autoLaeuft=true;
+  try{
+    const r=await call("konto",{konto:k,code:c?c.code:neuerCode()});
+    if(!r.code)return;
+    if(c&&norm(c.code)===norm(r.code)){c.konto=id;setConf(c);window.render&&window.render();return}
+    if(c){ST.autoGefragt=id;return} // schon mit einem anderen Sync verbunden: nichts überschreiben
+    if(r.neu){const {sid}=await ableiten(r.code);
+      setConf({code:r.code,sid,v:0,since:0,synced:{},owner:null,gebunden:false,dirtyAt:Date.now(),konto:id});
+      await abgleichen();toast("Sync ist an – über dein "+(k.art==="creality"?"Creality":"Bambu")+"-Konto");window.render&&window.render();return}
+    // Für das Konto gibt es schon einen Sync von einem anderen Gerät
+    const nimm=async()=>{await beitreten(r.code,true);const c2=conf();if(c2){c2.konto=id;setConf(c2)}window.render&&window.render()};
+    // Wenn auf dem Konto noch nichts Wichtiges liegt (nur Einstellungen), gewinnt dieses Gerät ohne Frage
+    const fern=await fernHatDaten(r.code);
+    if(!fern&&hatDaten()){const {sid}=await ableiten(r.code);
+      setConf({code:r.code,sid,v:0,since:0,synced:{},owner:null,gebunden:false,dirtyAt:Date.now(),konto:id});
+      await push();await abgleichen();toast("Sync ist an – über dein "+(k.art==="creality"?"Creality":"Bambu")+"-Konto");window.render&&window.render();return}
+    if(!hatDaten())await nimm();
+    else{ST.autoGefragt=id;confirmBox(`Für dein ${k.art==="creality"?"Creality":"Bambu"}-Konto gibt es schon Daten von einem anderen Gerät. Sollen sie hier übernommen werden? Lager, Aufträge, Portfolio und Einstellungen auf diesem Gerät werden dabei ersetzt.`,"Übernehmen",nimm)}
+  }catch(e){if(e.status!==401&&e.status!==503)console.warn("Sync-Konto",e)}
+  finally{ST.autoLaeuft=false}}
+setTimeout(autoKonto,1500);setInterval(()=>{if(!document.hidden)autoKonto()},15000);
+window.addEventListener("focus",()=>autoKonto());
 
 /* --- QR-Code --- */
 let qrLib=null;
@@ -2527,13 +2565,13 @@ function settingsHTML(){
   if(S.backend!=="local")return "";
   const c=conf(),k=kontoInfo();
   return `<section class="panel pad stack"><div class="sec-title"><h2>Sync zwischen Geräten</h2></div>
-    ${c?`<div class="note">Sync ist an. Lager, Aufträge, Portfolio, Logos und Einstellungen werden verschlüsselt mit deinen anderen Geräten abgeglichen.${c.owner?` Gebunden an dein ${c.owner==="creality"?"Creality":"Bambu"}-Konto.`:""}</div>
+    ${c?`<div class="note">Sync ist an. Lager, Aufträge, Portfolio, Logos und Einstellungen werden verschlüsselt mit deinen anderen Geräten abgeglichen.${c.owner?` Gebunden an dein ${c.owner==="creality"?"Creality":"Bambu"}-Konto.`:""}${c.konto?` Läuft automatisch über dein ${c.konto.startsWith("creality")?"Creality":"Bambu"}-Konto: Auf jedem Gerät, auf dem du dich damit anmeldest, sind dieselben Daten.`:""}</div>
       <div class="syst" id="syst">${esc(statusText())}</div>
       <div class="row" style="flex-wrap:wrap"><button class="btn pri" data-act="syAdd">Gerät hinzufügen</button><button class="btn" data-act="syNow">Jetzt abgleichen</button>
-        ${!c.owner&&k?`<button class="btn" data-act="syBind" title="Dann kommt nur noch an die Daten, wer zusätzlich mit diesem Konto angemeldet ist">An ${k.art==="creality"?"Creality":"Bambu"}-Konto binden</button>`:""}
+        ${!c.owner&&!c.konto&&k?`<button class="btn" data-act="syBind" title="Dann kommt nur noch an die Daten, wer zusätzlich mit diesem Konto angemeldet ist">An ${k.art==="creality"?"Creality":"Bambu"}-Konto binden</button>`:""}
         ${c.owner&&k?`<button class="btn ghost" data-act="syUnbind">Kontobindung lösen</button>`:""}
         <button class="btn danger" data-act="syOff">Auf diesem Gerät ausschalten</button></div>`
-    :`<div class="hint">Ohne Home Assistant liegen deine Daten nur in diesem Browser. Mit dem Sync nutzt du SchichtLohn auf PC, Handy und Tablet mit denselben Daten. Alles wird vorher im Browser verschlüsselt – auf dem Server liegen nur unlesbare Daten.</div>
+    :`<div class="hint">Ohne Home Assistant liegen deine Daten nur in diesem Browser. <b>Am einfachsten:</b> Melde dich auf jedem Gerät mit deinem Creality- oder Bambu-Konto an – dann gleicht SchichtLohn automatisch ab. Ohne Konto geht es über „Sync einschalten“ und einen QR-Code.</div>
       <div class="row" style="flex-wrap:wrap"><button class="btn pri" data-act="syOn">Sync einschalten</button><button class="btn" data-act="syCode">Mit Sync-Code verbinden</button></div>`}
     ${paarHTML()}
   </section>`}
@@ -2588,9 +2626,9 @@ setTimeout(hashPruefen,800);window.addEventListener("hashchange",hashPruefen);
 
 /* --- Ereignisse --- */
 document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^sy[A-Z]/.test(a))return;
-  if(a==="syOn")await einschalten();
+  if(a==="syOn"){setAutoAus(false);if(kontoInfo()){ST.autoGefragt="";await autoKonto();if(conf())return}await einschalten()}
   else if(a==="syCode")codeModal();
-  else if(a==="syJoin"){const v=(document.getElementById("sy_code")||{}).value;closeModal();await beitreten(v,true)}
+  else if(a==="syJoin"){setAutoAus(false);const v=(document.getElementById("sy_code")||{}).value;closeModal();await beitreten(v,true)}
   else if(a==="syAdd")await geraetModal();
   else if(a==="syNow"){await abgleichen();toast(ST.err?"Fehler: "+ST.err:"Abgeglichen")}
   else if(a==="syOff")ausschalten();

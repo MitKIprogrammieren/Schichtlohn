@@ -57,6 +57,22 @@ export async function onRequest(ctx) {
   try { b = await request.json(); } catch (e) { b = {}; }
   if (!b || typeof b !== "object") b = {};
 
+  /* ---- Sync über die Anmeldung: je Creality-/Bambu-Konto ein Sync-Code ----
+     Wer sich mit demselben Konto anmeldet, bekommt denselben Code. Der Code liegt dafür im eigenen KV-Speicher. */
+  if (path === "konto") {
+    let wer = null;
+    try { wer = await konto(b.konto); } catch (e) { wer = null; }
+    if (!wer) return json(request, 401, { message: "Anmeldung bei Creality bzw. Bambu ist abgelaufen. Bitte neu anmelden." });
+    const key = "a:" + wer;
+    const alt = await env.SYNC.get(key);
+    if (alt) return json(request, 200, { code: alt, neu: false });
+    const code = String(b.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-HJ-NP-Z2-9]{20}$/.test(code)) return json(request, 200, { code: null });
+    const fein = code.match(/.{4}/g).join("-");
+    await env.SYNC.put(key, fein);
+    return json(request, 200, { code: fein, neu: true });
+  }
+
   /* ---- Datensatz abgleichen ---- */
   if (path === "pull" || path === "push") {
     const sid = String(b.sid || "");
