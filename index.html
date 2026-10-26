@@ -3158,7 +3158,7 @@ function body0(){G._allZu=false;
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
-      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
+      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
@@ -3634,6 +3634,22 @@ document.addEventListener("click",async e=>{
     const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});closeModal();toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}};
     if(x.bambu_id&&x.bambu_id!==s.fid){closeModal();confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go)}else await go();return}
 });
+/* Handscanner per USB/Bluetooth: er „tippt“ den Code sehr schnell und drückt Enter. Im Lager ohne Klick ins Feld erkennen. */
+const HS={buf:"",t0:0,last:0};
+document.addEventListener("keydown",e=>{
+  if(S.tab!=="lager"||e.ctrlKey||e.metaKey||e.altKey)return;
+  const t=e.target;const feld=t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  if(feld&&!(t.id==="lgq"||t.id==="lgctxt"))return;
+  const now=performance.now();
+  if(e.key==="Enter"||e.key==="Tab"){const b=HS.buf.trim(),dauer=HS.last-HS.t0;HS.buf="";
+    if(b.length>=6&&dauer<=b.length*35){e.preventDefault();e.stopPropagation();
+      if(t&&t.id==="lgq"&&t.value.endsWith(b)){t.value=t.value.slice(0,-b.length);G.q=t.value;draw()}
+      if(t&&t.id==="lgctxt"&&t.value.endsWith(b))t.value=t.value.slice(0,-b.length);
+      if(G.serieAktiv)serieAdd(b,true);else onCode(b)}
+    return}
+  if(e.key.length!==1)return;
+  if(now-HS.last>60){HS.buf="";HS.t0=now}
+  HS.buf+=e.key;HS.last=now},true);
 /* Für die Creality-Cloud: fertige Drucke im Lager abbuchen (gleiche Logik wie beim Zuordnen von Hand) */
 const normMat=x=>String(x||"").toUpperCase().replace(/[\s_-]+/g,"");
 const BOOK={ready:()=>!!G.loaded&&(lokal()||!!window.__hass),start:()=>{start()},
