@@ -121,7 +121,7 @@ select option{background:var(--solid);color:var(--fg)}
 .part-head input{font-weight:600}
 .part-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
 .mats{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-.matline{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:center}
+.matline{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:end}.matline:has(.matdel){grid-template-columns:minmax(0,1fr) 110px 40px}.matline .matdel{margin-bottom:2px}
 .part-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:13px;color:var(--fg-2);gap:8px;flex-wrap:wrap}
 .drop{border:1.5px dashed var(--line-2);border-radius:var(--r);padding:22px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
 .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
@@ -579,6 +579,7 @@ function partHTML(p){
         ${p.mats.map((m,i)=>`<div class="matline">
           <label class="field">${i===0?`<span>${multi?"Filamente":"Material"}</span>`:""}${matPick(p.id+":"+i,m.matId,"wie oben ("+(matOf({},q).name)+")")}</label>
           <label class="field">${i===0?"<span>Gewicht</span>":""}<div class="unit"><input type="text" inputmode="decimal" id="pg_${p.id}_${i}" data-mbind="g" data-i="${i}" value="${inV(m.g)}"><em>g</em></div></label>
+          ${p.mats.length>1?`<button type="button" class="btn icon ghost danger matdel" data-act="delMat" data-i="${i}" title="Filament entfernen" aria-label="Filament entfernen">${ICON.trash}</button>`:""}
         </div>${m.label?`<div class="hint" style="margin-top:-2px">Aus Datei: ${esc(m.label)}${m.color?` <span class="dot" style="display:inline-block;vertical-align:-1px;background:${esc(m.color)}"></span>`:""}</div>`:""}`).join("")}
       </div>
       <div class="part-foot"><span>${p.src&&p.src!=="manuell"?`<span class="chip">${esc(p.src)}</span>`:""} <button class="btn ghost sm" data-act="addMat">${ICON.plus} Filament</button>${window.HAP&&S.backend==="ha"?HAP.partExtra(p):""}</span><span class="num" data-ptotal></span></div>
@@ -827,7 +828,7 @@ function renderSettings(m){
 
     <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
       <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["feuchte","AMS-Feuchte"],["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
-      ${(()=>{if(S.backend!=="ha"||!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;
+      ${(()=>{if(!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;
         if(!I.meta)return `<div class="hint">Die gemeinsamen Lager-Einstellungen liegen in der HA-Liste todo.filament_verbrauch. Sie fehlt in Home Assistant.</div>`;
         if(!I.ok)return `<div class="hint">Lager-Einstellungen werden aus Home Assistant geladen …</div>`;
         return `<div class="lgein"><div class="lgein-t">Gemeinsam mit der FilamentLager-Karte, gilt auf allen Geräten</div>
@@ -837,6 +838,10 @@ function renderSettings(m){
           <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
+      ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
+        return `<div class="field"><span>Logos der Marken</span><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl];
+          return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div></div>`}).join("")}</div>
+          <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund, einfarbige Logos werden im dunklen Design weiß. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/.":""}</small></div>`})()}
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
@@ -1082,6 +1087,11 @@ document.addEventListener("input",e=>{
 });
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(t.dataset&&t.dataset.logo&&t.files&&t.files[0]){const sl=t.dataset.logo,f=t.files[0];
+    const img=new Image();const url=URL.createObjectURL(f);img.onload=()=>{try{const w0=img.naturalWidth||img.width||480,h0=img.naturalHeight||img.height||160;const sc=Math.min(1,480/w0,160/h0);
+      const c=document.createElement("canvas");c.width=Math.max(1,Math.round(w0*sc));c.height=Math.max(1,Math.round(h0*sc));c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      S.cfg.logos=Object.assign({},S.cfg.logos||{},{[sl]:c.toDataURL("image/png")});saveCfgSoon();toast("Logo gespeichert");render()}catch(e){toast("Logo konnte nicht gelesen werden")}finally{URL.revokeObjectURL(url)}};
+    img.onerror=()=>{URL.revokeObjectURL(url);toast("Das Bild konnte nicht geöffnet werden")};img.src=url;return}
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
   if(t.id==="lagerModus"){try{localStorage.setItem("schichtlohn_lagermodus",t.value)}catch(e){}toast("Gespeichert");return}
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");return}
@@ -1102,6 +1112,7 @@ document.addEventListener("click",async e=>{
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
   if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();render();return}
+  if(a==="logoWeg"){const l=Object.assign({},S.cfg.logos||{});delete l[b.dataset.s];S.cfg.logos=l;saveCfgSoon();render();return}
   if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();render();return}
   switch(a){
     case "close":closeModal();break;
@@ -1115,6 +1126,7 @@ document.addEventListener("click",async e=>{
     case "delPart":S.quote.parts=S.quote.parts.filter(x=>x!==part);saveDraft();renderCalc($("#main"));break;
     case "dupPart":{const c2=clone(part);c2.id=uid();S.quote.parts.splice(S.quote.parts.indexOf(part)+1,0,c2);saveDraft();renderCalc($("#main"));break}
     case "addMat":part.mats.push({matId:"",g:0});saveDraft();renderCalc($("#main"));break;
+    case "delMat":{const i=+b.dataset.i;if(part.mats.length>1&&i>=0&&i<part.mats.length){part.mats.splice(i,1);if(S._mpBrand)Object.keys(S._mpBrand).filter(k=>k.startsWith(part.id+":")).forEach(k=>delete S._mpBrand[k]);saveDraft();renderCalc($("#main"))}break}
     case "toPortfolio":{const p=clone(part);p.id=uid();p.qty=1;p.mats=p.mats.map(m=>({matId:m.matId||S.quote.matId,g:m.g}));S.portfolio.push(p);await Store.saveItem("p",p);toast(`„${p.name}“ im Portfolio gespeichert`);break}
     case "pfAdd":case "pfToQuote":{const p=clone(byId(S.portfolio,b.dataset.id));p.id=uid();p.src="Portfolio";S.quote.parts.push(p);saveDraft();S.tab="rechner";render();toast("Aus Portfolio übernommen");break}
     case "pfNew":pfModal(null);break;
@@ -1876,7 +1888,7 @@ function render(m){
           <div class="meta"><span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
             <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
             ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
-            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>`:""}
+            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
     body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
@@ -1884,6 +1896,7 @@ function render(m){
   const selJ=list.filter(j=>J.sel.has(j.key));
   const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
     <button class="btn ghost sm" data-act="jobClear">Auswahl aufheben</button>
+    ${window.CRE&&selJ.some(j=>j.src==="creality")?`<button class="btn sm" data-act="jobBuchen" title="Verbrauch dieser Creality-Drucke im Lager abziehen">Im Lager abbuchen</button>`:""}
     <button class="btn sm" data-act="jobToOrder">Zu Auftrag hinzufügen</button>
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
     <button class="btn pri sm" data-act="jobNewOrder">${ICON.save} Neuer Auftrag</button></div>`:"";
@@ -1966,6 +1979,7 @@ document.addEventListener("click",async e=>{
   else if(a==="jobToQuote")await take("quote");
   else if(a==="jobNewOrder")await take("new");
   else if(a==="jobToOrder")orderPick();
+  else if(a==="jobBuchen"){const ks=J_list.filter(j=>J.sel.has(j.key)&&j.src==="creality").map(j=>j.key);if(window.CRE)await CRE.bucheJetzt(ks)}
   else if(a==="jobOrdPick"){closeModal();await take("order",b.dataset.id)}
   else if(a==="bbLogin"){J.login={step:"pw",account:(acct()||{}).account||"",region:"global"};loginModal()}
   else if(a==="bbNext"){await loginSubmit(J.login?J.login.step:"pw")}
@@ -2034,6 +2048,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
 <style>
+.lglogos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}.lglg{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px}.lglgp{height:44px;border-radius:8px;background:#1c1f26;display:grid;place-items:center;padding:6px;color:#ddd;font-size:13px;font-weight:600}.lglgp img{max-height:32px;max-width:100%}.lglgn{font-size:13px;color:var(--muted)}
 .crgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
 .crp{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 .crp .thumb{width:52px;height:52px;border-radius:10px;background:var(--bg2,rgba(127,127,127,.12)) center/cover no-repeat;display:grid;place-items:center;color:var(--muted)}
@@ -2200,7 +2215,7 @@ async function load(force){
   C.loading=true;C.err="";rerender();
   try{await loadStatus(true);const jobs=[];
     for(const pr of C.printers){const r=await api("history",{deviceName:pr.id,page:1,pageSize:50})||{};const l=r.list||[];if(l.length&&!C.raw.history)C.raw.history=l.slice(0,3);l.forEach(x=>jobs.push(parseRecord(x,pr)))}
-    C.jobs=jobs;C.at=Date.now();buchen()}
+    const seen=new Set();C.jobs=jobs.filter(j=>!seen.has(j.key)&&seen.add(j.key));C.at=Date.now();buchen()}
   catch(e){fail(e)}
   C.loading=false;rerender()}
 function fail(e){if(e.status===401){C.err="Die Anmeldung bei Creality ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else C.err=String(e&&e.message||e)}
@@ -2211,19 +2226,36 @@ setInterval(()=>{if(on()&&acct()&&S.tab==="drucke"&&!document.hidden)loadStatus(
 function gebucht(){try{return new Set(JSON.parse(localStorage.getItem(DONE_K)||"[]"))}catch(e){return new Set()}}
 function merk(set){try{localStorage.setItem(DONE_K,JSON.stringify([...set].slice(-500)))}catch(e){}}
 let bucht=false;
+async function buchenListe(liste){
+  const B=LGN._book;const done=gebucht();const r={ab:0,offen:0};const stand={};
+  for(const j of liste){for(const m of j.mats){if(!(m.g>0.05))continue;
+      const o={zeit:j.end,drucker:j.printer,ort:"CFS",anlass:j.failed?"Druck abgebrochen (Creality)":"Druck fertig (Creality)",quelle:j.key};
+      let e=B.finde(m.type||j.mat,m.color);if(e&&stand[e.uid])e=stand[e.uid];
+      if(e){const neuW=B.abbuchen(e,m.g);Object.assign(e,neuW);stand[e.uid]=e;await B.write(e,neuW);await B.log(e,o,m.g);r.ab++}
+      else{await B.offen(Object.assign({},o,{gramm:m.g,farbe:m.color,material:m.type||j.mat,name:m.name||m.type||"",grund:m.color?"Keine Sorte mit "+(m.type||"diesem Material")+" in dieser Farbe im Lager":"Mehrere oder keine Sorte mit "+(m.type||j.mat||"diesem Material")+" – bitte zuordnen"}));r.offen++}}
+    done.add(j.key);merk(done)}
+  return r}
+async function lagerBereit(){if(!window.LGN||!LGN._book)return false;const B=LGN._book;if(B.ready())return true;B.start();for(let i=0;i<30&&!B.ready();i++)await new Promise(ok=>setTimeout(ok,200));return B.ready()}
 async function buchen(){
   if(bucht||!autoBuchen()||!window.LGN||!LGN._book)return;const B=LGN._book;if(!B.ready()){B.start();return}
   const a=acct();if(!a)return;const seit=a.since||"";const done=gebucht();const schon=B.quellen();
   const neu=C.jobs.filter(j=>!j.running&&j.end&&j.end>=seit&&j.grams>0&&!done.has(j.key)&&!schon.has(j.key));if(!neu.length)return;
   bucht=true;
-  try{for(const j of neu){for(const m of j.mats){if(!(m.g>0.05))continue;
-      const o={zeit:j.end,drucker:j.printer,ort:"CFS",anlass:j.failed?"Druck abgebrochen (Creality)":"Druck fertig (Creality)",quelle:j.key};
-      const e=B.finde(m.type||j.mat,m.color);
-      if(e){const neuW=B.abbuchen(e,m.g);await B.write(e,neuW);await B.log(e,o,m.g)}
-      else await B.offen(Object.assign({},o,{gramm:m.g,farbe:m.color,material:m.type||j.mat,name:m.name||m.type||"",grund:m.color?"Keine Sorte mit "+(m.type||"diesem Material")+" in dieser Farbe im Lager":"Creality meldet keine Farbe – bitte zuordnen"}))}
-    done.add(j.key);merk(done)}}
+  try{const r=await buchenListe(neu);if(r.ab||r.offen)toast(`Creality: ${r.ab} abgebucht${r.offen?`, ${r.offen} unter „Nicht zugeordnet“ im Lager`:""}`)}
   catch(e){console.warn("Creality abbuchen",e)}
   finally{bucht=false}}
+/* Von Hand: ausgewählte Drucke jetzt abbuchen (auch ältere als das Verbinden) */
+async function bucheJetzt(keys){
+  if(bucht)return toast("Es wird gerade abgebucht, einen Moment …");
+  if(!(await lagerBereit()))return toast("Das Lager ist noch nicht geladen. Öffne einmal den Reiter Lager.");
+  const done=gebucht();const schon=LGN._book.quellen();const ks=new Set(keys);
+  const l=C.jobs.filter(j=>ks.has(j.key)&&!j.running);const neu=l.filter(j=>!done.has(j.key)&&!schon.has(j.key)&&j.grams>0);
+  const leer=l.filter(j=>!(j.grams>0)).length,doppelt=l.length-neu.length-leer;
+  if(!neu.length)return toast(doppelt?"Diese Drucke sind schon abgebucht.":"Creality meldet für diese Drucke kein Gewicht.");
+  bucht=true;try{const r=await buchenListe(neu);toast(`${r.ab} Filament${r.ab===1?"":"e"} abgebucht${r.offen?`, ${r.offen} unter „Nicht zugeordnet“ im Lager – dort zuordnen`:""}${doppelt?`, ${doppelt} waren schon abgebucht`:""}`)}
+  catch(e){toast("Abbuchen fehlgeschlagen: "+(e.message||e))}finally{bucht=false;gbC=null;rerender()}}
+let gbC=null,gbT=0;
+const istGebucht=k=>{if(!gbC||Date.now()-gbT>2000){gbC=new Set(gebucht());try{if(window.LGN&&LGN._book&&LGN._book.ready())LGN._book.quellen().forEach(x=>gbC.add(x))}catch(e){}gbT=Date.now()}return gbC.has(k)};
 
 /* --- Darstellung für Druckaufträge --- */
 const ICONP=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M9 11h6l-3 5z"/></svg>`;
@@ -2285,7 +2317,7 @@ document.addEventListener("change",e=>{if(e.target.id==="cr_reg"&&C.login){C.log
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="cr_pw"){e.preventDefault();pwLogin()}});
 
 window.CRE={on,jobs:()=>on()&&acct()?C.jobs:[],load,loadStatus,statusHTML,chipHTML,settingsHTML,connected:()=>on()&&!!acct(),busy:()=>C.loading,
-  coverUrl:u=>/(^|\.)(creality|crealitycloud)\.(com|cn)\//i.test(String(u).replace(/^https?:\/\//,""))?PROXY+"/cover?u="+encodeURIComponent(u):"",buchen,_C:C,_parseDevice:parseDevice,_parseRecord:parseRecord};
+  bucheJetzt,istGebucht,coverUrl:u=>/(^|\.)(creality|crealitycloud)\.(com|cn)\//i.test(String(u).replace(/^https?:\/\//,""))?PROXY+"/cover?u="+encodeURIComponent(u):"",buchen,_C:C,_parseDevice:parseDevice,_parseRecord:parseRecord};
 })();
 </script>
 
@@ -2485,6 +2517,8 @@ function logoSlug(n){return String(n||"").trim().toLowerCase().replace(/ä/g,"ae
 function haLocal(){if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
 const logoMiss=new Set();
 function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
+  /* eigenes Logo aus den Einstellungen (geht auch ohne Home Assistant) */
+  const eig=sl&&S.cfg&&S.cfg.logos&&S.cfg.logos[sl];if(eig)out.push({u:eig,own:true});
   if(sl&&base){const cv="?v="+Math.floor(Date.now()/36e5);for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext+cv,own:true})}
   const li=LOGO_IMG[String(name||"").trim().toLowerCase()];if(li)out.push({u:li,own:true,mono:true});
   const d=logoDomain(name);if(d)out.push({u:"https://www.google.com/s2/favicons?sz=128&domain="+encodeURIComponent(d),own:false});
@@ -2610,7 +2644,7 @@ function cleanLogo(img){try{if(img.dataset.clean)return false;const sc=Math.min(
     p[i]=p[i+1]=p[i+2]=col;p[i+3]=Math.round(a*255);if(a>0){const k=i/4,yy=Math.floor(k/w),xx=k%w;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy;if(xx<minX)minX=xx;if(xx>maxX)maxX=xx}}
   if(maxY<0)return false;x.putImageData(d,0,0);const o=document.createElement("canvas");o.width=maxX-minX+1;o.height=maxY-minY+1;o.getContext("2d").drawImage(c,minX,minY,o.width,o.height,0,0,o.width,o.height);
   img.dataset.clean="1";img.dataset.own="";img.style.filter="";img.style.mixBlendMode="";img.src=o.toDataURL("image/png");return true}catch(e){return false}}
-window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,darkUI,guard,link,isWS,shims,opaque,cleanLogo,
+window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,logoSlug,darkUI,guard,link,isWS,shims,opaque,cleanLogo,
   async initStates(){if(isWS()&&!L.shim)await wsHass()}};
 })();
 </script>
@@ -3574,7 +3608,7 @@ const BOOK={ready:()=>!!G.loaded&&(lokal()||!!window.__hass),start:()=>{start()}
   abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
   offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
     description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
-window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,
+window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
