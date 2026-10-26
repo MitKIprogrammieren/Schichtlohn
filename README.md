@@ -15,6 +15,10 @@ Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
 
+## Creality-Cloud
+
+Unter **Einstellungen → Creality-Cloud** verbindest du dein Creality-Konto, am sichersten per QR-Code mit Bestätigung in der Creality-Cloud-App (zweiter Faktor, ohne Passwort), alternativ mit E-Mail und Passwort (wird nicht gespeichert). Dann zeigt SchichtLohn im Reiter **Druckaufträge** den Status deiner Creality-Drucker (Fortschritt, Restzeit, Temperaturen, CFS-Farben) und die Druckhistorie. Fertige Drucke seit dem Verbinden werden einmal im Lager abgebucht; ohne passende Sorte landen sie unter „Nicht zugeordnet“. Beides lässt sich in den Einstellungen abschalten. Der Abruf läuft über `functions/creality/` auf schichtlohn.pages.dev, speichert nichts und nutzt eine inoffizielle Schnittstelle.
+
 ## Quellen
 
 Die Liste der Filamentmarken und -sorten im Rechner (Marke, Material, Variante, Dichte) stammt aus [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT-Lizenz). Preise für Bambu Lab sind EU-Listenpreise; bei den übrigen Sorten ist der Preis ein Richtwert je Materialart (mit ≈ markiert), bis du einen eigenen Preis einträgst oder die Sorte im Lager hast.

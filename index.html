@@ -804,6 +804,7 @@ function renderSettings(m){
 
     ${window.HAP?HAP.settingsHTML():""}
     ${window.JOBS?JOBS.settingsHTML():""}
+    ${window.CRE?CRE.settingsHTML():""}
     <div class="grid-2p">
     ${["channels","payments"].map(k=>`<section class="panel pad"><div class="sec-title"><h2>${k==="channels"?"Verkaufskanäle":"Zahlungsarten"}</h2><span class="sp"></span><button class="btn sm" data-act="addRow" data-list="${k}">${ICON.plus} Neu</button></div>
       <div class="setlist">${c[k].map((p,i)=>`<div class="setrow sr-ch">
@@ -1825,19 +1826,21 @@ function all(){
     if(c){used.add(c.id);h.cloud=c;h.cover=c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
     out.push(h)}
   J.cloud.forEach(c=>{if(!used.has(c.id))out.push(c)});
-  return out.sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""));
+  if(window.CRE)CRE.jobs().forEach(c=>out.push(c));
+  const tv=j=>{const t=new Date(j.end||j.start||0).getTime();return isNaN(t)?0:t};
+  return out.sort((a,b)=>tv(b)-tv(a));
 }
 const keysOf=j=>[j.key].concat(j.cloud?[j.cloud.key]:[]);
 function visible(list,used){
   const q=J.q.trim().toLowerCase();
   return list.filter(j=>{if(j.running)return false;
-    if(J.src==="ha"&&j.src!=="ha")return false;if(J.src==="cloud"&&!(j.src==="cloud"||j.cloud))return false;
+    if(J.src==="ha"&&j.src!=="ha")return false;if(J.src==="cloud"&&!(j.src==="cloud"||j.cloud))return false;if(J.src==="creality"&&j.src!=="creality")return false;
     if(J.printer&&j.printer!==J.printer)return false;
     if(J.open&&(j.done||keysOf(j).some(k=>used[k])))return false;
     if(q&&!(j.title+" "+j.printer+" "+j.mats.map(m=>m.name+" "+m.type).join(" ")).toLowerCase().includes(q))return false;
     return true});
 }
-const dayKey=iso=>iso?iso.slice(0,10):"";
+const dayKey=iso=>{if(!iso)return "";const d=new Date(iso);return isNaN(d)?String(iso).slice(0,10):d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()};
 function dayLabel(iso){if(!iso)return "Ohne Datum";const d=new Date(iso);const t=new Date();const y=new Date(Date.now()-864e5);
   if(d.toDateString()===t.toDateString())return "Heute";if(d.toDateString()===y.toDateString())return "Gestern";
   return d.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:d.getFullYear()===t.getFullYear()?undefined:"numeric"})}
@@ -1848,18 +1851,19 @@ let J_list=[];
 function render(m){
   m=m||$("#main");if(!m)return;
   const a=acct(),isHa=S.backend==="ha";
-  if(isHa)loadHa(false);if(a)loadCloud(false);
+  if(isHa)loadHa(false);if(a)loadCloud(false);const cre=!!(window.CRE&&CRE.connected());if(cre)CRE.load(false);
   const used=usedMap();const list=all();J_list=list;const vis=visible(list,used);
   for(const k of [...J.sel])if(!list.some(j=>j.key===k))J.sel.delete(k);
   const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
   const sources=`<div class="jsrc">
     ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll · ${J.ha.length}`}</span>`:`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`}
     ${a?`<span class="chip cl">${J.cloudLoading?"Bambu-Cloud lädt…":J.cloudErr?`<span class="bad">Bambu-Cloud: ${esc(J.cloudErr)}</span>`:`Bambu-Cloud · ${J.cloud.length}`}</span>`:`<button class="btn sm" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button>`}
+    ${window.CRE?CRE.chipHTML():""}
   </div>`;
   let body;
-  if(!isHa&&!a&&!J.cloudErr)body=`<div class="panel empty"><h3>Druckaufträge übernehmen</h3>Hier erscheinen deine fertigen Drucke mit Gewicht je Filament, Druckzeit und Drucker. Du kannst einzelne oder mehrere davon in eine Kalkulation oder einen Auftrag übernehmen.<br><br>
+  if(!isHa&&!a&&!cre&&!J.cloudErr)body=`<div class="panel empty"><h3>Druckaufträge übernehmen</h3>Hier erscheinen deine fertigen Drucke mit Gewicht je Filament, Druckzeit und Drucker. Du kannst einzelne oder mehrere davon in eine Kalkulation oder einen Auftrag übernehmen.<br><br>
       Quellen sind das Druckprotokoll aus Home Assistant (in den Einstellungen verbinden) und die Druckhistorie deines Bambu-Kontos.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button><span class="sp"></span></div></div>`;
-  else if(!list.length&&(J.haLoading||J.cloudLoading))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
+  else if(!list.length&&(J.haLoading||J.cloudLoading||(cre&&CRE.busy())))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
   else if(!list.length)body=`<div class="panel empty"><h3>Noch keine Drucke</h3>${isHa?"Sobald ein Drucker einen Druck beendet, trägt Home Assistant ihn ins Druckprotokoll ein.":""}${a?"":" Für ältere Drucke verbinde die Bambu-Cloud."}</div>`;
   else if(!vis.length)body=`<div class="panel empty">${J.open?"Alle Drucke sind schon übernommen. Schalte „Nur offene“ aus, um sie zu sehen.":"Kein Druck passt zum Filter."}</div>`;
   else{let html="",lastDay=null;
@@ -1872,7 +1876,7 @@ function render(m){
           <div class="meta"><span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
             <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
             ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
-            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}
+            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
     body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
@@ -1887,9 +1891,10 @@ function render(m){
     <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
       <button class="btn ghost sm" data-act="jobReload">Aktualisieren</button></div>
     ${sources}
+    ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
-      <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option><option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option></select>
+      <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option><option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option>${cre?`<option value="creality"${J.src==="creality"?" selected":""}>Creality-Cloud</option>`:""}</select>
       <select id="job_pr" aria-label="Drucker"><option value="">Alle Drucker</option>${printers.map(p=>`<option${p===J.printer?" selected":""}>${esc(p)}</option>`).join("")}</select>
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="job_open" ${J.open?"checked":""} style="margin:0 4px 0 0;accent-color:var(--accent)">Nur offene</label>
       <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
@@ -1908,7 +1913,7 @@ async function partFromJob(j){
     const hit=S.cfg.printers.find(x=>{const n=x.name.toLowerCase().replace(/[\s_-]+/g,"");return n===nm||(md&&n.startsWith(md)&&(md.includes("mini")===n.includes("mini")))});printerId=hit?hit.id:""}
   let kwh=0;if(pr&&j.start&&j.end){try{kwh=await HAP.kwhFor(pr.dev,j.start,j.end)}catch(e){}}
   const thumb=await thumbFor(j.cover);
-  return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"?"Druckprotokoll":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
+  return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"?"Druckprotokoll":j.src==="creality"?"Creality-Cloud":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
     mats:mats.length?mats:[{matId:"",g:0}],job:{key:j.key,keys:keysOf(j),printer:j.printer,start:j.start,end:j.end,failed:j.failed,cover:j.cover||""}});
 }
 async function markHa(jobs){if(S.backend!=="ha")return;for(const j of jobs)if(j.src==="ha"&&j.uid&&!j.done){try{await hass().callWS({type:"call_service",domain:"todo",service:"update_item",target:{entity_id:TODO},service_data:{item:j.uid,status:"completed"}});j.done=true;const o=J.ha.find(x=>x.uid===j.uid);if(o)o.done=true}catch(e){console.warn("Druckprotokoll",e)}}}
@@ -1956,7 +1961,7 @@ document.addEventListener("click",async e=>{
   if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
   else if(a==="jobAll"){visible(J_list,usedMap()).slice(0,400).forEach(j=>J.sel.add(j.key));redraw()}
   else if(a==="jobClear"){J.sel.clear();redraw()}
-  else if(a==="jobReload"){loadHa(true);loadCloud(true)}
+  else if(a==="jobReload"){loadHa(true);loadCloud(true);if(window.CRE&&CRE.connected())CRE.load(true)}
   else if(a==="jobMore"){loadCloud(true,true)}
   else if(a==="jobToQuote")await take("quote");
   else if(a==="jobNewOrder")await take("new");
@@ -1978,7 +1983,8 @@ document.addEventListener("change",e=>{const t=e.target;if(t.id==="job_src"){J.s
 async function thumbFor(url){
   if(!url)return "";
   try{const r=await fetch(url);if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}}catch(e){}
-  try{const r=await fetch(PROXY+"/cover?u="+encodeURIComponent(url));if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}else console.warn("Vorschaubild:",r.status,await r.text().catch(()=>""),url)}catch(e){console.warn("Vorschaubild:",e,url)}
+  const cu=window.CRE?CRE.coverUrl(url):"";
+  try{const r=await fetch(cu||(PROXY+"/cover?u="+encodeURIComponent(url)));if(r.ok){const t=await blobToThumb(await r.blob());if(t)return t}else console.warn("Vorschaubild:",r.status,await r.text().catch(()=>""),url)}catch(e){console.warn("Vorschaubild:",e,url)}
   return "";
 }
 /* Teile ohne Bild nachträglich mit dem Bild aus der Druckhistorie versehen */
@@ -2027,6 +2033,247 @@ window.JOBS={render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,take
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
+<style>
+.crgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.crp{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.crp .thumb{width:52px;height:52px;border-radius:10px;background:var(--bg2,rgba(127,127,127,.12)) center/cover no-repeat;display:grid;place-items:center;color:var(--muted)}
+.crp .thumb svg{width:24px;height:24px}
+.crp h3{margin:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crp .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--muted);margin-top:2px}
+.crp .bar{grid-column:1/-1;height:6px;border-radius:99px;background:rgba(127,127,127,.18);overflow:hidden}
+.crp .bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.crp .cfs{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.crp .cfs i{width:16px;height:16px;border-radius:50%;border:1px solid rgba(127,127,127,.4);display:inline-block}
+.crst{font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;background:rgba(127,127,127,.16)}
+.crst.run{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+.crst.err{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
+.crqr{display:grid;place-items:center;gap:8px;padding:6px 0}
+.crqr .box{background:#fff;padding:10px;border-radius:12px;line-height:0}
+.crqr svg{width:200px;height:200px}
+.crtabs{display:flex;gap:6px}
+</style>
+<script>
+/* ===== Creality-Cloud: Druckerstatus, Druckhistorie und Abbuchen im Lager (in den Einstellungen abschaltbar) ===== */
+(function(){
+"use strict";
+const CK="schichtlohn_creality",DONE_K="schichtlohn_creality_gebucht";
+const PROXY=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev")+"/creality";
+const C={printers:[],jobs:[],at:0,stAt:0,loading:false,stLoading:false,err:"",login:null,poll:null,raw:{devices:null,history:null}};
+const on=()=>S.cfg.creality!==false;
+const autoBuchen=()=>S.cfg.crealityBuchen!==false;
+
+/* --- Konto (nur in diesem Browser; das Passwort wird nie gespeichert) --- */
+function acct(){try{const v=JSON.parse(localStorage.getItem(CK)||"null");return v&&v.token&&v.uid?v:null}catch(e){return null}}
+function setAcct(v){try{v?localStorage.setItem(CK,JSON.stringify(v)):localStorage.removeItem(CK)}catch(e){}}
+async function api(path,body,o={}){
+  const a=o.noAuth?null:acct();const u=new URL(PROXY+"/"+path);const region=o.region||(a&&a.region)||"global";if(region==="cn")u.searchParams.set("region","cn");
+  const h={"Content-Type":"application/json"};if(a){h.Authorization="Bearer "+a.token;h["X-Creality-Uid"]=String(a.uid)}
+  let r;try{r=await fetch(u,{method:"POST",headers:h,body:JSON.stringify(body||{})})}catch(e){throw new Error("Creality-Cloud nicht erreichbar. Prüfe die Internetverbindung.")}
+  let d=null;try{d=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error((d&&d.message)||("HTTP "+r.status));e.status=r.status;throw e}
+  return d?d.result:null}
+function saveLogin(res,account,region){
+  if(!res||!res.token||!res.userId)throw new Error("Creality hat keinen Anmeldeschlüssel geliefert");
+  const alt=acct();setAcct({token:res.token,uid:res.userId,region,account:account||"",since:(alt&&alt.since)||new Date().toISOString(),at:Date.now()});
+  C.printers=[];C.jobs=[];C.at=0;C.stAt=0;C.err=""}
+
+/* --- QR-Code (Bestätigung in der Creality-Cloud-App) --- */
+let qrLib=null;
+function loadQr(){if(window.qrcode)return Promise.resolve(window.qrcode);if(qrLib)return qrLib;
+  qrLib=new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";s.onload=()=>window.qrcode?ok(window.qrcode):no(new Error("QR-Bibliothek fehlt"));s.onerror=()=>{qrLib=null;no(new Error("QR-Code konnte nicht geladen werden"))};document.head.appendChild(s)});return qrLib}
+async function qrSvg(text){const qrcode=await loadQr();const q=qrcode(0,"M");q.addData(text);q.make();const n=q.getModuleCount();let p="";
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q.isDark(y,x))p+=`M${x} ${y}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="QR-Code zum Anmelden"><path d="${p}" fill="#000"/></svg>`}
+function stopPoll(){if(C.poll){clearInterval(C.poll);C.poll=null}}
+async function qrStart(){
+  const L=C.login;stopPoll();L.qr=null;L.qrState=0;L.qrMsg="";drawLogin();
+  try{const r=await api("qr/new",{}, {noAuth:true,region:L.region});if(!r||!r.identical)throw new Error("Kein QR-Code erhalten");
+    const url=(L.region==="cn"?"https://share.crealitycloud.cn/scan-code?geo=zh&i=":"https://share.crealitycloud.com/scan-code?geo=en&i=")+r.identical;
+    L.qr={id:r.identical,url,svg:await qrSvg(url),bis:Date.now()+Math.max(60,(Number(r.expireTime)-Number(r.nowTime))||180)*1000};drawLogin();
+    C.poll=setInterval(qrPoll,2000)}
+  catch(e){L.qrMsg="Fehler: "+e.message;drawLogin()}}
+async function qrPoll(){
+  const L=C.login;if(!L||!L.qr||!document.getElementById("cr_login")){stopPoll();return}
+  if(Date.now()>L.qr.bis){stopPoll();L.qrState=4;drawLogin();return}
+  try{const r=await api("qr/query",{identical:L.qr.id},{noAuth:true,region:L.region})||{};const st=Number(r.state);
+    if(st===2&&L.qrState!==2){L.qrState=2;L.nick=(r.confirmUserInfo&&r.confirmUserInfo.nickName)||"";drawLogin()}
+    else if(st===3){stopPoll();saveLogin({token:r.token,userId:r.userId},L.nick||"",L.region);closeModal();toast("Creality-Cloud verbunden");load(true);rerender()}
+    else if(st===4||st===5){stopPoll();L.qrState=st;drawLogin()}}
+  catch(e){/* nächster Versuch */}}
+
+/* --- Anmeldefenster --- */
+function loginModal(){C.login={mode:"qr",region:"global",account:(acct()||{}).account||""};drawLogin(true);qrStart()}
+function drawLogin(first){
+  const L=C.login;if(!L)return;
+  const tabs=`<div class="tabtg">${tg("crMode",L.mode==="qr","Mit der App bestätigen").replace('data-act="crMode"','data-act="crMode" data-m="qr"')}${tg("crMode",L.mode==="pw","E-Mail und Passwort").replace('data-act="crMode"','data-act="crMode" data-m="pw"')}</div>`;
+  const reg=`<label class="field"><span>Region</span><select id="cr_reg"><option value="global"${L.region!=="cn"?" selected":""}>Europa und Welt (crealitycloud.com)</option><option value="cn"${L.region==="cn"?" selected":""}>China (crealitycloud.cn)</option></select></label>`;
+  let body;
+  if(L.mode==="qr"){
+    const st=L.qrState;
+    const inner=!L.qr?`<div class="hint">${esc(L.qrMsg||"QR-Code wird erzeugt…")}</div>`
+      :st===4||st===5?`<div class="note">${st===4?"Der QR-Code ist abgelaufen.":"Die Anmeldung wurde in der App abgelehnt."}</div><button class="btn" data-act="crQrNew">Neuen QR-Code erzeugen</button>`
+      :st===2?`<div class="note">Gescannt${L.nick?" von <b>"+esc(L.nick)+"</b>":""}. Bitte die Anmeldung jetzt in der Creality-Cloud-App bestätigen.</div>`
+      :`<div class="box">${L.qr.svg}</div><div class="hint">Öffne die Creality-Cloud-App, tippe auf „Scannen“ und bestätige die Anmeldung in der App.</div><a class="btn ghost sm" href="${esc(L.qr.url)}" target="_blank" rel="noopener">Auf diesem Handy in der App öffnen</a>`;
+    body=`${tabs}<p class="muted" style="margin:0">Zwei-Faktor-Anmeldung: Du scannst den Code mit der Creality-Cloud-App auf deinem Handy und gibst die Anmeldung dort frei. SchichtLohn bekommt dein Passwort dabei nie zu sehen.</p>
+      <div class="crqr">${inner}</div>${reg}`}
+  else body=`${tabs}<p class="muted" style="margin:0">Das Passwort wird nur für die Anmeldung gesendet und nicht gespeichert. In diesem Browser bleibt danach nur der Anmeldeschlüssel.</p>
+      <label class="field"><span>E-Mail</span><input type="email" id="cr_acc" autocomplete="username" value="${esc(L.account)}"></label>
+      <label class="field"><span>Passwort</span><input type="password" id="cr_pw" autocomplete="current-password"></label>${reg}
+      <div class="hint">Sicherer ist „Mit der App bestätigen“: Dann ist zusätzlich dein Handy nötig (zweiter Faktor). Mit E-Mail und Passwort fragt Creality keinen zweiten Faktor ab.</div>`;
+  const html=`<div class="stack" id="cr_login">${body}<div class="hint">Creality bietet dafür keine offizielle Schnittstelle. Der Abruf läuft über eine kleine Weiterleitung auf schichtlohn.pages.dev, die nichts speichert. Ändert Creality etwas, kann der Abruf ausfallen.</div><div class="hint" id="cr_msg" role="status"></div></div>`;
+  const foot=`<button class="btn ghost" data-act="close">Abbrechen</button>${L.mode==="pw"?`<button class="btn pri" data-act="crLogin">Anmelden</button>`:""}`;
+  if(!first&&!document.getElementById("cr_login"))return;
+  modal("Creality-Cloud verbinden",html,foot)}
+async function pwLogin(){
+  const msg=$("#cr_msg");const btn=$('[data-act="crLogin"]');const account=$("#cr_acc").value.trim(),password=$("#cr_pw").value;const region=$("#cr_reg").value;
+  if(!/.+@.+/.test(account)||!password){msg.textContent="Gib E-Mail und Passwort ein.";return}
+  if(btn)btn.disabled=true;msg.textContent="Prüfe…";
+  try{const r=await api("login",{account,password},{noAuth:true,region});saveLogin(r,account,region);closeModal();toast("Creality-Cloud verbunden");load(true);rerender()}
+  catch(e){msg.textContent=(e.status===400?"Anmeldung abgelehnt: ":"Fehler: ")+e.message}
+  finally{if(btn)btn.disabled=false}}
+
+/* --- Normalisieren --- */
+const hexOf=c=>{c=String(c==null?"":c).trim();if(/^#?[0-9a-f]{6}/i.test(c))return "#"+c.replace("#","").slice(0,6).toLowerCase();if(/^#?[0-9a-f]{8}$/i.test(c))return "#"+c.replace("#","").slice(2,8).toLowerCase();const n=Number(c);return Number.isFinite(n)&&n>0&&n<=0xffffff&&/^\d+$/.test(c)?"#"+n.toString(16).padStart(6,"0"):""};
+const nOf=v=>{const x=Number(v);return Number.isFinite(x)?x:null};
+const tIso=v=>{const x=Number(v);if(!x)return "";return new Date(x>1e12?x:x*1000).toISOString()};
+const STATES={0:"idle",1:"printing",2:"finished",3:"failed",4:"stopped",5:"paused"};
+const STN={idle:"Bereit",printing:"Druckt",finished:"Fertig",failed:"Fehler",stopped:"Abgebrochen",paused:"Pausiert",offline:"Offline",unknown:"Unbekannt"};
+const JOB_RE=/[._]([A-Z][A-Z0-9+-]{1,9})(?:_(0\.\d+))?_(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:\.gcode)?$/;
+function jobInfo(name){const n=String(name||"");const m=n.match(JOB_RE);const sec=m&&[3,4,5,6].some(i=>m[i])?((+m[3]||0)*86400+(+m[4]||0)*3600+(+m[5]||0)*60+(+m[6]||0)):0;
+  const title=(m?n.slice(0,m.index):n).replace(/\.(gcode|3mf|bgcode|stl)$/i,"").replace(/\.(stl|3mf|obj|step)$/i,"").split("/").pop()||"Druck";
+  return {title,mat:m?m[1]:"",sec}}
+/* Farb-/Materialangaben (CFS) irgendwo in den Daten finden: Objekte mit Farbe und Material */
+function findSlots(obj,ort,out,depth){out=out||[];if(depth>6||obj==null)return out;
+  if(typeof obj==="string"&&/^[\[{]/.test(obj.trim())){try{return findSlots(JSON.parse(obj),ort,out,depth+1)}catch(e){return out}}
+  if(Array.isArray(obj)){obj.forEach((x,i)=>findSlots(x,ort,out,depth+1));return out}
+  if(typeof obj!=="object")return out;
+  const col=obj.color??obj.colour??obj.materialColor??obj.colorCode;const typ=obj.type??obj.materialType??obj.filamentType??obj.material;
+  if(col!=null&&typ!=null&&typeof typ!=="object"&&hexOf(col)){out.push({type:String(typ),color:hexOf(col),name:String(obj.name||obj.materialName||obj.vendor||typ),
+    remain:nOf(obj.percent??obj.remain??obj.remainLen),g:nOf(obj.weight??obj.usedWeight??obj.useWeight??obj.consumeWeight),len:nOf(obj.length??obj.usedLength??obj.useLength)});return out}
+  Object.keys(obj).forEach(k=>{if(/box|cfs|material|filament|slot|tray|consum/i.test(k)||depth>0)findSlots(obj[k],ort,out,depth+1)});return out}
+function parseDevice(d){
+  const a={};(d.iotAttr||[]).forEach(x=>{if(x&&x.key!=null)a[x.key]=x.value});const p=d.printInfo||{};
+  let state=STATES[a.state]||"unknown";const online=d.deviceState===1&&(a.connect??d.connect)===1;if(!online)state="offline";
+  const active=state==="printing"||state==="paused";const job=active?(p.modelName||a.print||""):"";
+  let progress=active?nOf(p.printProgress):null,left=active?nOf(p.printLeftTime):null;const started=active?nOf(a.printStartTime):null;
+  if(state==="printing"&&progress==null&&left==null&&started){const s=jobInfo(job).sec;if(s){const el=Math.max(0,Date.now()/1000-started);progress=Math.min(99,Math.round(el/s*100));left=Math.max(0,s-el)}}
+  const cfs=[];Object.keys(a).forEach(k=>{if(/box|cfs|material/i.test(k))findSlots(a[k],k,cfs,0)});
+  return {id:String(d.deviceName||d.id||""),name:d.aliasName||d.deviceName||"Creality-Drucker",model:(d.deviceType&&d.deviceType.name)||d.model||"Creality",online,state,job:jobInfo(job).title||job,
+    progress,left,nozzle:nOf(d.nozzleTemp),bed:nOf(d.bedTemp),chamber:nOf(d.boxTemp),thumb:active?(p.gcodeThumbnail||""):"",cfs:cfs.slice(0,16)}}
+const DENS={PLA:1.24,PETG:1.27,ABS:1.04,ASA:1.07,TPU:1.21,PA:1.14,PC:1.2,PET:1.3,PVA:1.23,HIPS:1.04};
+const lenToG=(mm,type)=>{const t=String(type||"PLA").toUpperCase();const dn=DENS[Object.keys(DENS).find(k=>t.startsWith(k))]||1.24;return mm*Math.PI*0.875*0.875*dn/1000};
+function firstNum(o,keys){for(const k of keys){const v=nOf(o[k]);if(v!=null&&v>0)return v}return null}
+function parseRecord(r,pr){
+  const info=jobInfo(r.name);const st=STATES[r.printState]||"unknown";const start=tIso(r.printStartTime),end=tIso(r.printEndTime);
+  let minutes=nOf(r.printJobTime)?nOf(r.printJobTime)/60:(start&&end?(new Date(end)-new Date(start))/60000:0);
+  let mats=findSlots(r.materialList||r.materials||r.filamentList||r.consumables||r.materialInfo||null,"",[],0).map(s=>({g:s.g!=null?s.g:(s.len?lenToG(s.len>1000?s.len:s.len*1000,s.type):0),type:s.type,color:s.color,name:s.name,filament_id:""}));
+  let total=firstNum(r,["filamentWeight","weight","printWeight","useWeight","consumeWeight","materialWeight","totalWeight","filamentUsedWeight","usedWeight"]);
+  if(total==null){const len=firstNum(r,["filamentLength","printLength","materialLength","useLength","filamentUsed","usedLength"]);if(len)total=lenToG(len>1000?len:len*1000,info.mat)}
+  mats=mats.filter(m=>m.g>0.05);
+  if(!mats.length&&total)mats.push({g:Math.round(total*10)/10,type:info.mat,color:"",name:info.mat,filament_id:""});
+  const share=st==="finished"?1:Math.min(1,(nOf(r.printProgress)||0)/100);if(share<1)mats=mats.map(m=>Object.assign({},m,{g:Math.round(m.g*share*10)/10}));
+  return {key:"cr:"+(r.id||r.printId||(pr.id+":"+r.printStartTime)),src:"creality",id:String(r.id||""),title:info.title,printer:pr.name,serial:pr.id,model:pr.model,
+    start,end,minutes:Math.round(minutes||0),failed:st==="failed"||st==="stopped",running:st==="printing"||st==="paused",progress:nOf(r.printProgress),
+    grams:Math.round(mats.reduce((a,m)=>a+m.g,0)*10)/10,mats,cover:r.thumbnailUrl||"",mat:info.mat}}
+
+/* --- Laden --- */
+async function loadStatus(force){
+  if(!on()||!acct()||C.stLoading)return;if(!force&&C.stAt&&Date.now()-C.stAt<25000)return;
+  C.stLoading=true;
+  try{const r=await api("devices",{})||{};let list=[...(r.ungroupedList||[])];(r.groupList||[]).forEach(g=>{list=list.concat(g.list||g.devices||[])});
+    C.raw.devices=list.slice(0,3);C.printers=list.map(parseDevice);C.stAt=Date.now();C.err=""}
+  catch(e){fail(e)}
+  C.stLoading=false;rerender()}
+async function load(force){
+  if(!on()||!acct()||C.loading)return;if(!force&&C.at&&Date.now()-C.at<300000){loadStatus(false);return}
+  C.loading=true;C.err="";rerender();
+  try{await loadStatus(true);const jobs=[];
+    for(const pr of C.printers){const r=await api("history",{deviceName:pr.id,page:1,pageSize:50})||{};const l=r.list||[];if(l.length&&!C.raw.history)C.raw.history=l.slice(0,3);l.forEach(x=>jobs.push(parseRecord(x,pr)))}
+    C.jobs=jobs;C.at=Date.now();buchen()}
+  catch(e){fail(e)}
+  C.loading=false;rerender()}
+function fail(e){if(e.status===401){C.err="Die Anmeldung bei Creality ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else C.err=String(e&&e.message||e)}
+function rerender(){if(S.tab==="drucke"&&window.JOBS){const q=document.getElementById("job_q");const foc=q&&document.activeElement===q;if(!foc)JOBS.render()}else if(S.tab==="einstellungen"&&window.render&&!document.querySelector("#modal.open, #modal[open]"))window.render()}
+setInterval(()=>{if(on()&&acct()&&S.tab==="drucke"&&!document.hidden)loadStatus(false)},30000);
+
+/* --- Abbuchen im Lager (nur neue, fertige Drucke seit dem Verbinden; jeder Druck nur einmal) --- */
+function gebucht(){try{return new Set(JSON.parse(localStorage.getItem(DONE_K)||"[]"))}catch(e){return new Set()}}
+function merk(set){try{localStorage.setItem(DONE_K,JSON.stringify([...set].slice(-500)))}catch(e){}}
+let bucht=false;
+async function buchen(){
+  if(bucht||!autoBuchen()||S.backend!=="ha"||!window.LGN||!LGN._book)return;const B=LGN._book;if(!B.ready()){B.start();return}
+  const a=acct();if(!a)return;const seit=a.since||"";const done=gebucht();const schon=B.quellen();
+  const neu=C.jobs.filter(j=>!j.running&&j.end&&j.end>=seit&&j.grams>0&&!done.has(j.key)&&!schon.has(j.key));if(!neu.length)return;
+  bucht=true;
+  try{for(const j of neu){for(const m of j.mats){if(!(m.g>0.05))continue;
+      const o={zeit:j.end,drucker:j.printer,ort:"CFS",anlass:j.failed?"Druck abgebrochen (Creality)":"Druck fertig (Creality)",quelle:j.key};
+      const e=B.finde(m.type||j.mat,m.color);
+      if(e){const neuW=B.abbuchen(e,m.g);await B.write(e,neuW);await B.log(e,o,m.g)}
+      else await B.offen(Object.assign({},o,{gramm:m.g,farbe:m.color,material:m.type||j.mat,name:m.name||m.type||"",grund:m.color?"Keine Sorte mit "+(m.type||"diesem Material")+" in dieser Farbe im Lager":"Creality meldet keine Farbe – bitte zuordnen"}))}
+    done.add(j.key);merk(done)}}
+  catch(e){console.warn("Creality abbuchen",e)}
+  finally{bucht=false}}
+
+/* --- Darstellung für Druckaufträge --- */
+const ICONP=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M9 11h6l-3 5z"/></svg>`;
+function statusHTML(){
+  if(!on()||!acct()||!C.printers.length)return "";
+  const t=v=>v==null?"":Math.round(v)+" °C";
+  return `<div class="crgrid">${C.printers.map(p=>{const run=p.state==="printing"||p.state==="paused";
+    return `<div class="crp"><div class="thumb" style="${p.thumb?`background-image:url('${esc(p.thumb)}')`:""}">${p.thumb?"":ICONP}</div>
+      <div style="min-width:0"><h3 title="${esc(p.name)}">${esc(p.name)}</h3><div class="meta"><span class="crst${run?" run":p.state==="offline"||p.state==="failed"?" err":""}">${esc(STN[p.state]||p.state)}${run&&p.progress!=null?" · "+Math.round(p.progress)+" %":""}</span>
+        ${run&&p.left!=null?`<span>noch ${dur(p.left/60)}</span>`:""}${p.online&&p.nozzle!=null?`<span>Düse ${t(p.nozzle)}</span>`:""}${p.online&&p.bed!=null?`<span>Bett ${t(p.bed)}</span>`:""}</div>
+        ${run&&p.job?`<div class="meta" title="${esc(p.job)}"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.job)}</span></div>`:""}</div>
+      ${run&&p.progress!=null?`<div class="bar"><i style="width:${Math.max(0,Math.min(100,p.progress))}%"></i></div>`:""}
+      ${p.cfs.length?`<div class="cfs">CFS ${p.cfs.map(s=>`<i style="background:${esc(s.color)}" title="${esc(s.name+(s.type&&s.type!==s.name?" · "+s.type:""))}"></i>`).join("")}</div>`:""}</div>`}).join("")}</div>`}
+function chipHTML(){
+  if(!on())return "";const a=acct();
+  return a?`<span class="chip cl">${C.loading?"Creality-Cloud lädt…":C.err?`<span class="bad">Creality: ${esc(C.err)}</span>`:`Creality-Cloud · ${C.jobs.length}`}</span>`
+    :C.err?`<span class="chip"><span class="bad">${esc(C.err)}</span></span><button class="btn sm" data-act="crConnect">${ICON.link} Creality-Cloud verbinden</button>`
+    :`<button class="btn sm" data-act="crConnect">${ICON.link} Creality-Cloud verbinden</button>`}
+
+/* --- Einstellungen --- */
+const tick=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+const tg=(act,onv,txt)=>`<button type="button" class="chip${onv?" on":""}" data-act="${act}" aria-pressed="${onv}">${onv?tick:""}${esc(txt)}</button>`;
+function settingsHTML(){
+  const a=acct();
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Creality-Cloud</h2></div>
+    <div class="tabtg">${tg("crOn",on(),"Creality-Cloud verwenden")}${on()?tg("crBuchen",autoBuchen(),"Verbrauch im Lager abbuchen"):""}</div>
+    ${!on()?`<div class="hint">Ausgeschaltet: SchichtLohn zeigt und lädt nichts von Creality.</div>`
+    :a?`<div class="note">Verbunden${a.account?" als "+esc(a.account):""}${a.region==="cn"?" (China)":""}. Der Anmeldeschlüssel liegt nur in diesem Browser.</div>
+      <div class="hint">Druckerstatus und Druckhistorie erscheinen im Reiter „Druckaufträge“. ${autoBuchen()?"Fertige Drucke seit "+new Date(a.since).toLocaleDateString("de-DE")+" werden einmal im Lager abgebucht, solange SchichtLohn offen ist. Ohne passende Sorte landen sie im Lager unter „Nicht zugeordnet“.":""}</div>
+      <div class="row" style="flex-wrap:wrap"><button class="btn" data-act="crOpen">Druckaufträge öffnen</button><button class="btn ghost" data-act="crDiag">Rohdaten anzeigen</button><button class="btn danger" data-act="crLogout">Abmelden</button></div>`
+    :`<div class="hint">Mit deinem Creality-Konto zeigt SchichtLohn den Status deiner Creality-Drucker (z. B. K2 Plus mit CFS), übernimmt die Druckhistorie in „Druckaufträge“ und bucht den Verbrauch im Lager ab. Anmelden geht mit Bestätigung in der Creality-Cloud-App (Zwei-Faktor) oder mit E-Mail und Passwort.</div>
+      <div class="row"><button class="btn pri" data-act="crConnect">${ICON.link} Creality-Cloud verbinden</button></div>`}
+  </section>`}
+function diagModal(){
+  const txt=JSON.stringify({drucker:C.raw.devices,historie:C.raw.history},null,1);
+  modal("Creality-Rohdaten",`<div class="stack"><div class="hint">So liefert Creality deine Drucker und die letzten Drucke. Wenn Gramm oder CFS-Farben fehlen, schick diese Daten an Claude, dann lässt sich die Auswertung anpassen. Anmeldeschlüssel sind nicht enthalten.</div>
+    <textarea readonly style="width:100%;min-height:320px;font:12px/1.4 ui-monospace,monospace">${esc(txt.length>60000?txt.slice(0,60000)+"\n…":txt)}</textarea></div>`,
+    `<button class="btn ghost" data-act="close">Schließen</button><button class="btn" data-act="crCopy">Kopieren</button>`)}
+
+/* --- Ereignisse --- */
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^cr[A-Z]/.test(a))return;
+  if(a==="crConnect")loginModal();
+  else if(a==="crMode"){C.login.mode=b.dataset.m;stopPoll();drawLogin();if(C.login.mode==="qr")qrStart()}
+  else if(a==="crQrNew")qrStart();
+  else if(a==="crLogin")await pwLogin();
+  else if(a==="crOn"){S.cfg.creality=!on();saveCfgSoon();if(!on()){C.printers=[];C.jobs=[];C.at=0}else load(true);window.render&&window.render()}
+  else if(a==="crBuchen"){S.cfg.crealityBuchen=!autoBuchen();saveCfgSoon();window.render&&window.render()}
+  else if(a==="crOpen"){S.tab="drucke";window.render&&window.render()}
+  else if(a==="crDiag")diagModal();
+  else if(a==="crCopy"){const t=document.querySelector("#modal textarea");try{await navigator.clipboard.writeText(t.value);toast("Kopiert")}catch(x){t.select();document.execCommand&&document.execCommand("copy");toast("Kopiert")}}
+  else if(a==="crLogout")confirmBox("Von der Creality-Cloud abmelden? Der Anmeldeschlüssel wird aus diesem Browser gelöscht.","Abmelden",()=>{setAcct(null);C.printers=[];C.jobs=[];C.at=0;C.err="";window.render&&window.render();toast("Abgemeldet")});
+});
+document.addEventListener("change",e=>{if(e.target.id==="cr_reg"&&C.login){C.login.region=e.target.value;if(C.login.mode==="qr")qrStart()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="cr_pw"){e.preventDefault();pwLogin()}});
+
+window.CRE={on,jobs:()=>on()&&acct()?C.jobs:[],load,loadStatus,statusHTML,chipHTML,settingsHTML,connected:()=>on()&&!!acct(),busy:()=>C.loading,
+  coverUrl:u=>/(^|\.)(creality|crealitycloud)\.(com|cn)\//i.test(String(u).replace(/^https?:\/\//,""))?PROXY+"/cover?u="+encodeURIComponent(u):"",buchen,_C:C,_parseDevice:parseDevice,_parseRecord:parseRecord};
+})();
+</script>
+
 <style>
 .lagerhost{--primary-text-color:var(--fg);--secondary-text-color:var(--fg-2);--divider-color:var(--line);--secondary-background-color:var(--sunken);--error-color:var(--bad);--primary-color:var(--accent);--ha-card-background:transparent;--card-background-color:var(--solid);color:var(--fg)}
 .lagerhost ernsthaft-gelagert-plus-card{display:block}
@@ -2724,7 +2971,7 @@ async function subscribe(entity,cb){const h=window.__hass;const msg={type:"todo/
 async function start(){
   if(G.sub)return;G.sub=true;G.err="";
   try{if(L()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw()});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(states()[META])G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L())L().link().then(()=>{if(S.tab==="lager")L().status()});
@@ -2746,7 +2993,7 @@ function abbuchen(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen),g0=gra
   rl=rl.map(Math.round).filter(x=>x>0&&x<gw);return {spulen:sp,reste:rl,refills:Math.min(e.refills,sp)}}
 async function logVerbrauch(e,o,g0){if(!states()[META])return;const preis=Number(e.preis)||0;
   const d={typ:"verbrauch",v:1,zeit:o.zeit||new Date().toISOString(),drucker:o.drucker,ort:o.ort,sorte:summary(e),uid:e.uid,hersteller:e.hersteller,material:e.material,hex:e.hex,gramm:Math.round(g0*10)/10,
-    preis:preis>0?preis:null,kosten:preis>0?Math.round(g0/1000*preis*100)/100:null,anlass:(o.anlass||"Druck")+" (von Hand zugeordnet)"};
+    preis:preis>0?preis:null,kosten:preis>0?Math.round(g0/1000*preis*100)/100:null,anlass:(o.anlass||"Druck")+(o.auto?"":" (von Hand zugeordnet)"),quelle:o.quelle||undefined};
   const t=new Date(d.zeit);const dt=isNaN(t)?"":t.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");
   try{await svc("add_item",{item:`${dt} · ${o.drucker} · ${String(d.gramm).replace(".",",")} g · ${d.sorte}`,description:JSON.stringify(d)},META)}catch(x){}}
 
@@ -3286,7 +3533,16 @@ document.addEventListener("click",async e=>{
     const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});closeModal();toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}};
     if(x.bambu_id&&x.bambu_id!==s.fid){closeModal();confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go)}else await go();return}
 });
-window.LGN={render,onStates,_G:G,besOf,spool,
+/* Für die Creality-Cloud: fertige Drucke im Lager abbuchen (gleiche Logik wie beim Zuordnen von Hand) */
+const normMat=x=>String(x||"").toUpperCase().replace(/[\s_-]+/g,"");
+const BOOK={ready:()=>!!G.loaded&&!!window.__hass,start:()=>{start()},
+  quellen(){const s=new Set();G.items.concat(G.meta||[]).forEach(i=>{const d=desc(i);if(d&&d.quelle)s.add(String(d.quelle))});return s},
+  finde(type,hex){const t=normMat(type);if(!t)return null;const l=entries().filter(e=>e.spulen>0&&normMat(e.material)===t);if(!l.length)return null;
+    if(!hexOk(hex||""))return l.length===1?l[0]:null;let best=null,bd=1e15;l.forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)));if(d<bd){bd=d;best=e}});return bd<=TOL?best:null},
+  abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
+  offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
+    description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
+window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:!!states()[META],sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
