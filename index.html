@@ -508,7 +508,7 @@ document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.datase
   if(t.dataset.mp==="brand"){S._mpBrand[tg]=t.value;if(t.value===""){delete S._mpBrand[tg];mpSet(tg,"");return}
     const first=kinds.filter(k=>k.brand===t.value).sort((a,b)=>(a.katalog?1:0)-(b.katalog?1:0)||a.label.localeCompare(b.label,"de"))[0];if(first){delete S._mpBrand[tg];mpSet(tg,mpResolve(first))}else renderCalc($("#main"));return}
   const k=kinds.find(x=>x.key===t.value);if(k){delete S._mpBrand[tg];mpSet(tg,mpResolve(k))}},true);
-async function mpEnsureLager(){if(S.lager||S._mpLaden||S.backend!=="ha")return;S._mpLaden=true;try{S.lager=await loadLager();if(S.tab==="rechner")renderCalc($("#main"))}catch(e){}finally{S._mpLaden=false}}
+async function mpEnsureLager(){if(S.lager||S._mpLaden)return;S._mpLaden=true;try{S.lager=await loadLager();if(S.tab==="rechner")renderCalc($("#main"))}catch(e){}finally{S._mpLaden=false}}
 function renderCalc(m){
   mpEnsureLager();
   const q=S.quote,c=S.cfg;
@@ -986,7 +986,7 @@ async function importFiles(files,target="quote"){
 
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
-  const r=await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"});
+  const r=S.backend==="ha"?await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"}):{items:((S.cfg.lagerLokal||{})["todo.filament"]||[]).filter(i=>{try{return !JSON.parse(i.description||"{}").typ}catch(e){return true}})};
   return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
 }
 async function lagerModal(){
@@ -2113,7 +2113,7 @@ function drawLogin(first){
     const inner=!L.qr?`<div class="hint">${esc(L.qrMsg||"QR-Code wird erzeugt…")}</div>`
       :st===4||st===5?`<div class="note">${st===4?"Der QR-Code ist abgelaufen.":"Die Anmeldung wurde in der App abgelehnt."}</div><button class="btn" data-act="crQrNew">Neuen QR-Code erzeugen</button>`
       :st===2?`<div class="note">Gescannt${L.nick?" von <b>"+esc(L.nick)+"</b>":""}. Bitte die Anmeldung jetzt in der Creality-Cloud-App bestätigen.</div>`
-      :`<div class="box">${L.qr.svg}</div><div class="hint">Öffne die Creality-Cloud-App, tippe auf „Scannen“ und bestätige die Anmeldung in der App.</div><a class="btn ghost sm" href="${esc(L.qr.url)}" target="_blank" rel="noopener">Auf diesem Handy in der App öffnen</a>`;
+      :`<div class="box">${L.qr.svg}</div><div class="note"><b>Wichtig:</b> Nicht mit der Kamera-App scannen, sonst öffnet sich nur eine Fehlerseite („404“). Öffne die <b>Creality-Cloud-App</b>, tippe dort auf das <b>Scan-Symbol</b> und scanne den Code. Danach in der App „Anmelden“ bestätigen.</div><div class="hint">Du bist gerade am Handy und kannst den Code nicht scannen? Öffne SchichtLohn am Computer oder Tablet, oder nimm „E-Mail und Passwort“.</div>`;
     body=`${tabs}<p class="muted" style="margin:0">Zwei-Faktor-Anmeldung: Du scannst den Code mit der Creality-Cloud-App auf deinem Handy und gibst die Anmeldung dort frei. SchichtLohn bekommt dein Passwort dabei nie zu sehen.</p>
       <div class="crqr">${inner}</div>${reg}`}
   else body=`${tabs}<p class="muted" style="margin:0">Das Passwort wird nur für die Anmeldung gesendet und nicht gespeichert. In diesem Browser bleibt danach nur der Anmeldeschlüssel.</p>
@@ -2167,14 +2167,16 @@ function parseRecord(r,pr){
   const info=jobInfo(r.name);const st=STATES[r.printState]||"unknown";const start=tIso(r.printStartTime),end=tIso(r.printEndTime);
   let minutes=nOf(r.printJobTime)?nOf(r.printJobTime)/60:(start&&end?(new Date(end)-new Date(start))/60000:0);
   let mats=findSlots(r.materialList||r.materials||r.filamentList||r.consumables||r.materialInfo||null,"",[],0).map(s=>({g:s.g!=null?s.g:(s.len?lenToG(s.len>1000?s.len:s.len*1000,s.type):0),type:s.type,color:s.color,name:s.name,filament_id:""}));
-  let total=firstNum(r,["filamentWeight","weight","printWeight","useWeight","consumeWeight","materialWeight","totalWeight","filamentUsedWeight","usedWeight"]);
-  if(total==null){const len=firstNum(r,["filamentLength","printLength","materialLength","useLength","filamentUsed","usedLength"]);if(len)total=lenToG(len>1000?len:len*1000,info.mat)}
+  let total=firstNum(r,["consumablesWeight","filamentWeight","weight","printWeight","useWeight","consumeWeight","materialWeight","totalWeight","filamentUsedWeight","usedWeight"]);
+  const matTyp=(typeof r.material==="string"&&r.material)||(r.material&&typeof r.material==="object"&&!Array.isArray(r.material)&&(r.material.type||r.material.name))||info.mat;
+  if(total==null){const vol=nOf(r.filamentRealVolume);if(vol>0){const t=String(matTyp||"PLA").toUpperCase();total=vol/1000*(DENS[Object.keys(DENS).find(k=>t.startsWith(k))]||1.24)}}
+  if(total==null){const len=firstNum(r,["filamentLength","printLength","materialLength","useLength","filamentUsed","usedLength"]);if(len)total=lenToG(len>1000?len:len*1000,matTyp)}
   mats=mats.filter(m=>m.g>0.05);
-  if(!mats.length&&total)mats.push({g:Math.round(total*10)/10,type:info.mat,color:"",name:info.mat,filament_id:""});
+  if(!mats.length&&total)mats.push({g:Math.round(total*10)/10,type:matTyp,color:"",name:matTyp,filament_id:""});
   const share=st==="finished"?1:Math.min(1,(nOf(r.printProgress)||0)/100);if(share<1)mats=mats.map(m=>Object.assign({},m,{g:Math.round(m.g*share*10)/10}));
   return {key:"cr:"+(r.id||r.printId||(pr.id+":"+r.printStartTime)),src:"creality",id:String(r.id||""),title:info.title,printer:pr.name,serial:pr.id,model:pr.model,
     start,end,minutes:Math.round(minutes||0),failed:st==="failed"||st==="stopped",running:st==="printing"||st==="paused",progress:nOf(r.printProgress),
-    grams:Math.round(mats.reduce((a,m)=>a+m.g,0)*10)/10,mats,cover:r.thumbnailUrl||"",mat:info.mat}}
+    grams:Math.round(mats.reduce((a,m)=>a+m.g,0)*10)/10,mats,cover:r.thumbnailUrl||"",mat:matTyp}}
 
 /* --- Laden --- */
 async function loadStatus(force){
@@ -2201,7 +2203,7 @@ function gebucht(){try{return new Set(JSON.parse(localStorage.getItem(DONE_K)||"
 function merk(set){try{localStorage.setItem(DONE_K,JSON.stringify([...set].slice(-500)))}catch(e){}}
 let bucht=false;
 async function buchen(){
-  if(bucht||!autoBuchen()||S.backend!=="ha"||!window.LGN||!LGN._book)return;const B=LGN._book;if(!B.ready()){B.start();return}
+  if(bucht||!autoBuchen()||!window.LGN||!LGN._book)return;const B=LGN._book;if(!B.ready()){B.start();return}
   const a=acct();if(!a)return;const seit=a.since||"";const done=gebucht();const schon=B.quellen();
   const neu=C.jobs.filter(j=>!j.running&&j.end&&j.end>=seit&&j.grams>0&&!done.has(j.key)&&!schon.has(j.key));if(!neu.length)return;
   bucht=true;
@@ -2246,9 +2248,13 @@ function settingsHTML(){
     :`<div class="hint">Mit deinem Creality-Konto zeigt SchichtLohn den Status deiner Creality-Drucker (z. B. K2 Plus mit CFS), übernimmt die Druckhistorie in „Druckaufträge“ und bucht den Verbrauch im Lager ab. Anmelden geht mit Bestätigung in der Creality-Cloud-App (Zwei-Faktor) oder mit E-Mail und Passwort.</div>
       <div class="row"><button class="btn pri" data-act="crConnect">${ICON.link} Creality-Cloud verbinden</button></div>`}
   </section>`}
+/* Rohdaten ohne Schlüssel, Seriennummern und Netzwerkangaben */
+const GEHEIM=/^(keyFileToken|deviceSecret|macAddress|wifiSsid|netIP|factorySn|productionSn|userId|ownerUserId|tbId|syLicense|syDid|iotId|token)$/i;
+function sauber(x){if(Array.isArray(x))return x.filter(v=>!(v&&typeof v==="object"&&GEHEIM.test(String(v.key||"")))).map(sauber);
+  if(x&&typeof x==="object"){const o={};Object.keys(x).forEach(k=>{if(!GEHEIM.test(k))o[k]=sauber(x[k])});return o}return x}
 function diagModal(){
-  const txt=JSON.stringify({drucker:C.raw.devices,historie:C.raw.history},null,1);
-  modal("Creality-Rohdaten",`<div class="stack"><div class="hint">So liefert Creality deine Drucker und die letzten Drucke. Wenn Gramm oder CFS-Farben fehlen, schick diese Daten an Claude, dann lässt sich die Auswertung anpassen. Anmeldeschlüssel sind nicht enthalten.</div>
+  const txt=JSON.stringify(sauber({drucker:C.raw.devices,historie:C.raw.history}),null,1);
+  modal("Creality-Rohdaten",`<div class="stack"><div class="hint">So liefert Creality deine Drucker und die letzten Drucke. Wenn Gramm oder CFS-Farben fehlen, schick diese Daten an Claude, dann lässt sich die Auswertung anpassen. Anmeldeschlüssel, Seriennummern und Netzwerkangaben sind herausgefiltert.</div>
     <textarea readonly style="width:100%;min-height:320px;font:12px/1.4 ui-monospace,monospace">${esc(txt.length>60000?txt.slice(0,60000)+"\n…":txt)}</textarea></div>`,
     `<button class="btn ghost" data-act="close">Schließen</button><button class="btn" data-act="crCopy">Kopieren</button>`)}
 
@@ -2565,7 +2571,7 @@ function zahl(label,s,unit,warn,hi,leer,dez){const v=s?Number(s.state):NaN;
 const nativ=()=>{try{return localStorage.getItem("schichtlohn_lagermodus")!=="karte"}catch(e){return true}};
 function render(m){
   m=m||$("#main");if(!m)return;S.lager=null;
-  if(S.backend==="ha"&&nativ()&&window.LGN)return LGN.render(m);
+  if(window.LGN&&(S.backend!=="ha"||nativ()))return LGN.render(m);
   if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
   m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span><span class="sp"></span>${window.LGN?`<button class="btn ghost sm" data-act="lgMode" data-v="nativ">SchichtLohn-Ansicht</button>`:""}</div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
   const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
@@ -2959,22 +2965,39 @@ const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const
 
 /* --- Home Assistant --- */
 const L=()=>window.LAGER;
+/* Ohne Home Assistant: Lager im Browser. Gleiches Format wie die To-do-Listen, liegt in den SchichtLohn-Daten und damit auch im Backup. */
+const lokal=()=>S.backend!=="ha";
+const metaDa=()=>lokal()||!!states()[META];
+const LOK={subs:{}};
+function lokStore(){const x=S.cfg.lagerLokal||(S.cfg.lagerLokal={});x[ENT]=x[ENT]||[];x[META]=x[META]||[];return x}
+function lokPush(entity){const l=lokStore()[entity]||[];(LOK.subs[entity]||[]).forEach(cb=>{try{cb(l.map(i=>Object.assign({},i)))}catch(e){console.warn(e)}})}
+function lokSvc(service,data,entity){const st=lokStore();const l=st[entity]||(st[entity]=[]);
+  if(service==="add_item")l.push({uid:"l"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),summary:String(data.item||""),status:"needs_action",description:data.description||""});
+  else if(service==="update_item"){const i=l.find(x=>x.uid===data.item)||l.find(x=>x.summary===data.item);if(!i)return Promise.reject(new Error("Eintrag nicht gefunden"));
+    if(data.rename!=null)i.summary=String(data.rename);if(data.description!=null)i.description=data.description;if(data.status)i.status=data.status}
+  else if(service==="remove_item"){const ids=[].concat(data.item);st[entity]=l.filter(x=>!ids.includes(x.uid)&&!ids.includes(x.summary))}
+  else return Promise.reject(new Error("Nicht unterstützt: "+service));
+  saveCfgSoon();setTimeout(()=>lokPush(entity),0);return Promise.resolve()}
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
 const states=()=>L()?L().stateMap():{};
 async function svc(service,data,entity){
+  if(lokal())return lokSvc(service,data,entity||ENT);
   const h=window.__hass;if(!h)throw new Error("Keine Verbindung zu Home Assistant");
   if(!isWS()&&h.callService)return h.callService("todo",service,data,{entity_id:entity||ENT});
   return h.callWS({type:"call_service",domain:"todo",service,service_data:data,target:{entity_id:entity||ENT}})}
-async function subscribe(entity,cb){const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
+async function subscribe(entity,cb){if(lokal()){(LOK.subs[entity]=LOK.subs[entity]||[]).push(cb);setTimeout(()=>lokPush(entity),0);return ()=>{LOK.subs[entity]=(LOK.subs[entity]||[]).filter(f=>f!==cb)}}const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
   if(isWS())return h.__subscribe(msg,ev=>cb((ev&&ev.items)||[]));
   return h.connection.subscribeMessage(ev=>cb((ev&&ev.items)||[]),msg)}
 async function start(){
-  if(G.sub)return;G.sub=true;G.err="";
-  try{if(L()){L().shims();await L().initStates()}
+  /* Wechsel zwischen Browser-Lager und Home Assistant (z. B. nach dem Verbinden): Abos neu aufbauen */
+  const mod=lokal()?"lokal":"ha";
+  if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
+  if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
+  try{if(L()&&!lokal()){L().shims();await L().initStates()}
     G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
-    try{if(states()[META])G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
-    if(window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
-    if(L())L().link().then(()=>{if(S.tab==="lager")L().status()});
+    try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
+    if(!lokal()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
+    if(L()&&!lokal())L().link().then(()=>{if(S.tab==="lager")L().status()});
   }catch(e){G.err=String(e&&e.message||e);G.sub=false;draw()}
 }
 async function write(e,patch){
@@ -2991,7 +3014,7 @@ async function write(e,patch){
 function abbuchen(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen),g0=gramm;let rl=[...(e.reste||[])].sort((a,b)=>a-b).slice(0,sp);
   for(let i=0;i<25&&g0>0&&sp>0;i++){if(!rl.length)rl=[gw];else if(rl[0]-g0>=1){rl[0]-=g0;g0=0}else{g0=Math.max(0,g0-rl[0]);rl.shift();sp-=1}}
   rl=rl.map(Math.round).filter(x=>x>0&&x<gw);return {spulen:sp,reste:rl,refills:Math.min(e.refills,sp)}}
-async function logVerbrauch(e,o,g0){if(!states()[META])return;const preis=Number(e.preis)||0;
+async function logVerbrauch(e,o,g0){if(!metaDa())return;const preis=Number(e.preis)||0;
   const d={typ:"verbrauch",v:1,zeit:o.zeit||new Date().toISOString(),drucker:o.drucker,ort:o.ort,sorte:summary(e),uid:e.uid,hersteller:e.hersteller,material:e.material,hex:e.hex,gramm:Math.round(g0*10)/10,
     preis:preis>0?preis:null,kosten:preis>0?Math.round(g0/1000*preis*100)/100:null,anlass:(o.anlass||"Druck")+(o.auto?"":" (von Hand zugeordnet)"),quelle:o.quelle||undefined};
   const t=new Date(d.zeit);const dt=isNaN(t)?"":t.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");
@@ -3063,7 +3086,7 @@ function body0(){G._allZu=false;
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
   if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
   if(G.serie&&G.serie.length){const sg=serieGruppen();h+=`<section class="panel lgp lgo lgso"><div class="row pad"><span class="gl">Serienscan: ${plural(serieSumme(),"Rolle","Rollen")} offen</span><span class="sp"></span><span class="dim" style="font-size:12px;margin-right:10px">${sg.bekannt.length} bekannt · ${sg.unbekannt.length} unbekannt</span><button class="btn sm pri" data-act="lgSerieListe">Liste öffnen</button></div></section>`}
-  if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird aus Home Assistant geladen…</div>`;
+  if(!G.loaded&&!G.err)return h+`<div class="panel empty">Lager wird geladen…</div>`;
   const of=offen();
   if(of.length){h+=`<section class="panel lgp lgo"><div class="row pad"><span class="gl">Nicht zugeordnet (${of.length})</span></div>${(G.openOffen?of:of.slice(0,4)).map(o=>`<div class="lgor">${spool(o.hex)}
       <div style="min-width:0"><div class="lgn">${String(Math.round(o.gramm*10)/10).replace(".",",")} g · ${esc([o.drucker,o.ort].filter(Boolean).join(" · "))}</div><div class="lgs">${esc([o.name||o.material,o.fid,o.zeit?new Date(o.zeit).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"",o.anlass].filter(Boolean).join(" · "))}</div></div>
@@ -3113,7 +3136,7 @@ function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;cl
 function fitTop(){const t=document.getElementById("lgTop");if(t)t.dataset.n=String(t.querySelectorAll(".dcard").length)}
 function render(m){
   m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop" id="lgTop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
-  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L())L().status();start();draw()}
+  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L()&&!lokal())L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
@@ -3429,7 +3452,7 @@ function statModal(){const zr=G.statZeit||"12m";const daten0=G.meta.map(i=>desc(
   const ab=zr==="30t"?Date.now()-30*864e5:zr==="12m"?new Date(new Date().getFullYear(),new Date().getMonth()-11,1).getTime():0;
   const daten=daten0.filter(d=>{const t=Date.parse(d.zeit);return !isNaN(t)&&t>=ab});
   let h=`<div class="lgform" id="lgStat"><div class="lgtg">${[["30t","30 Tage"],["12m","12 Monate"],["alle","Alles"]].map(([k,n])=>`<button type="button" class="chip${zr===k?" on":""}" data-act="lgStatZeit" data-z="${k}">${n}</button>`).join("")}</div>`;
-  if(!states()[META])h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt in Home Assistant.</div>`;
+  if(!metaDa())h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt in Home Assistant.</div>`;
   else if(!daten.length)h+=`<div class="panel empty">Noch kein Verbrauch in diesem Zeitraum. Jede Abbuchung nach einem Druck wird hier gezählt.</div>`;
   else{const g=daten.reduce((a,d)=>a+(Number(d.gramm)||0),0),k=daten.reduce((a,d)=>a+(Number(d.kosten)||0),0),ohne=daten.filter(d=>!(Number(d.kosten)>0)).reduce((a,d)=>a+(Number(d.gramm)||0),0);
     const eur=x=>x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
@@ -3535,7 +3558,7 @@ document.addEventListener("click",async e=>{
 });
 /* Für die Creality-Cloud: fertige Drucke im Lager abbuchen (gleiche Logik wie beim Zuordnen von Hand) */
 const normMat=x=>String(x||"").toUpperCase().replace(/[\s_-]+/g,"");
-const BOOK={ready:()=>!!G.loaded&&!!window.__hass,start:()=>{start()},
+const BOOK={ready:()=>!!G.loaded&&(lokal()||!!window.__hass),start:()=>{start()},
   quellen(){const s=new Set();G.items.concat(G.meta||[]).forEach(i=>{const d=desc(i);if(d&&d.quelle)s.add(String(d.quelle))});return s},
   finde(type,hex){const t=normMat(type);if(!t)return null;const l=entries().filter(e=>e.spulen>0&&normMat(e.material)===t);if(!l.length)return null;
     if(!hexOk(hex||""))return l.length===1?l[0]:null;let best=null,bd=1e15;l.forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)));if(d<bd){bd=d;best=e}});return bd<=TOL?best:null},
@@ -3543,7 +3566,7 @@ const BOOK={ready:()=>!!G.loaded&&!!window.__hass,start:()=>{start()},
   offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
     description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
 window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,
-  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:!!states()[META],sorts:SORTS,zahlen:EIN_ZAHLEN}}};
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
 
