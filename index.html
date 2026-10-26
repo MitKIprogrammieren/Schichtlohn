@@ -2059,6 +2059,8 @@ cloudStatus();setTimeout(cloudStatus,500);
 .crp .bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
 .crp .cfs{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
 .crp .cfs i{width:16px;height:16px;border-radius:50%;border:1px solid rgba(127,127,127,.4);display:inline-block}
+.crp .cfs b{font-weight:600;color:var(--fg)}.crp .cfs .bad{color:var(--bad)}
+.crslot{display:inline-flex;align-items:center;gap:4px;padding:1px 7px 1px 3px;border:1px solid var(--line);border-radius:99px}.crslot i{width:14px!important;height:14px!important}.crslot.sel{border-color:var(--accent);color:var(--fg)}
 .crst{font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;background:rgba(127,127,127,.16)}
 .crst.run{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
 .crst.err{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
@@ -2073,7 +2075,7 @@ cloudStatus();setTimeout(cloudStatus,500);
 "use strict";
 const CK="schichtlohn_creality",DONE_K="schichtlohn_creality_gebucht";
 const PROXY=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev")+"/creality";
-const C={printers:[],jobs:[],at:0,stAt:0,loading:false,stLoading:false,err:"",login:null,poll:null,raw:{devices:null,history:null}};
+const C={printers:[],jobs:[],at:0,stAt:0,loading:false,stLoading:false,err:"",login:null,poll:null,raw:{devices:null,history:null,rpc:null},cfsAt:{},cfsFail:{}};
 const on=()=>S.cfg.creality!==false;
 const autoBuchen=()=>S.cfg.crealityBuchen!==false;
 
@@ -2148,7 +2150,7 @@ async function pwLogin(){
   finally{if(btn)btn.disabled=false}}
 
 /* --- Normalisieren --- */
-const hexOf=c=>{c=String(c==null?"":c).trim();if(/^#?[0-9a-f]{6}/i.test(c))return "#"+c.replace("#","").slice(0,6).toLowerCase();if(/^#?[0-9a-f]{8}$/i.test(c))return "#"+c.replace("#","").slice(2,8).toLowerCase();const n=Number(c);return Number.isFinite(n)&&n>0&&n<=0xffffff&&/^\d+$/.test(c)?"#"+n.toString(16).padStart(6,"0"):""};
+const hexOf=c=>{c=String(c==null?"":c).trim().split(/[,;]/)[0].trim();if(/^#?[0-9a-f]{7}$/i.test(c))return "#"+c.replace("#","").slice(-6).toLowerCase();if(/^#?[0-9a-f]{6}$/i.test(c))return "#"+c.replace("#","").slice(0,6).toLowerCase();if(/^#?[0-9a-f]{8}$/i.test(c))return "#"+c.replace("#","").slice(2,8).toLowerCase();const n=Number(c);return Number.isFinite(n)&&n>0&&n<=0xffffff&&/^\d+$/.test(c)?"#"+n.toString(16).padStart(6,"0"):""};
 const nOf=v=>{const x=Number(v);return Number.isFinite(x)?x:null};
 const tIso=v=>{const x=Number(v);if(!x)return "";return new Date(x>1e12?x:x*1000).toISOString()};
 const STATES={0:"idle",1:"printing",2:"finished",3:"failed",4:"stopped",5:"paused"};
@@ -2174,7 +2176,7 @@ function parseDevice(d){
   if(state==="printing"&&progress==null&&left==null&&started){const s=jobInfo(job).sec;if(s){const el=Math.max(0,Date.now()/1000-started);progress=Math.min(99,Math.round(el/s*100));left=Math.max(0,s-el)}}
   const cfs=[];Object.keys(a).forEach(k=>{if(/box|cfs|material/i.test(k))findSlots(a[k],k,cfs,0)});
   return {id:String(d.deviceName||d.id||""),name:d.aliasName||d.deviceName||"Creality-Drucker",model:(d.deviceType&&d.deviceType.name)||d.model||"Creality",online,state,job:jobInfo(job).title||job,
-    progress,left,nozzle:nOf(d.nozzleTemp),bed:nOf(d.bedTemp),chamber:nOf(d.boxTemp),thumb:active?(p.gcodeThumbnail||""):"",cfs:cfs.slice(0,16)}}
+    progress,left,nozzle:nOf(d.nozzleTemp),bed:nOf(d.bedTemp),chamber:nOf(d.boxTemp),thumb:active?(p.gcodeThumbnail||""):"",cfs:cfs.slice(0,16),tbId:String(d.tbId||""),cfsDa:Number(a.cfsInsert)===1,printId:active?String(p.printId||a.printId||""):"",boxes:null}}
 const DENS={PLA:1.24,PETG:1.27,ABS:1.04,ASA:1.07,TPU:1.21,PA:1.14,PC:1.2,PET:1.3,PVA:1.23,HIPS:1.04};
 const lenToG=(mm,type)=>{const t=String(type||"PLA").toUpperCase();const dn=DENS[Object.keys(DENS).find(k=>t.startsWith(k))]||1.24;return mm*Math.PI*0.875*0.875*dn/1000};
 function firstNum(o,keys){for(const k of keys){const v=nOf(o[k]);if(v!=null&&v>0)return v}return null}
@@ -2202,12 +2204,31 @@ function druckerAnlegen(){const neu=[];
     const m=(MODELLE.find(([re])=>re.test(p.model))||[0,{watt:200,price:600,gph:20}])[1];
     S.cfg.printers.push({id:uid(),name:p.name,watt:m.watt,price:m.price,life:6000,maint:0.05,gph:m.gph,crealityId:p.id});neu.push(p.name)});
   if(neu.length){saveCfgSoon();toast((neu.length>1?"Drucker ":"Drucker ")+neu.join(", ")+" hinzugefügt. Strom und Preis unter Einstellungen → Drucker prüfen.")}}
+/* --- CFS über die Cloud (Versuch): der Drucker wird über Creality gefragt, Antwort wie im Heimnetz (boxsInfo) --- */
+const SLOTS_K="schichtlohn_creality_faecher";
+function findBoxes(o,d){if(d>7||o==null)return null;if(typeof o==="string"&&/^[\[{]/.test(o.trim())){try{return findBoxes(JSON.parse(o),d+1)}catch(e){return null}}
+  if(Array.isArray(o)){for(const x of o){const r=findBoxes(x,d+1);if(r)return r}return null}
+  if(typeof o!=="object")return null;if(Array.isArray(o.materialBoxs))return o.materialBoxs;for(const k of Object.keys(o)){const r=findBoxes(o[k],d+1);if(r)return r}return null}
+function boxesOf(list){let n=0;return list.filter(b=>b&&Array.isArray(b.materials)).map(b=>{const ext=Number(b.type)===1;if(!ext)n++;
+  return {name:ext?"Extern":"CFS "+(n),temp:nOf(b.temp),hum:nOf(b.humidity),slots:b.materials.filter(m=>m&&Number(m.state)!==0||m&&m.type).map(m=>({nr:(ext?"E":String(n))+String.fromCharCode(65+Number(m.id||0)),type:String(m.type||""),name:String(m.name||""),vendor:String(m.vendor||""),color:hexOf(m.color),pct:nOf(m.percent),sel:Number(m.selected)===1}))}})}
+async function loadCfs(){
+  for(const p of C.printers){if(!p.tbId||!p.online||!p.cfsDa)continue;const w=C.cfsAt[p.id]||0;if(Date.now()-w<(C.cfsFail[p.id]?600000:55000))continue;C.cfsAt[p.id]=Date.now();
+    try{const r=await api("rpc",{tbId:p.tbId,get:"boxsInfo"});if(!C.raw.rpc)C.raw.rpc=r;const b=findBoxes(r,0);
+      if(b&&b.length){p.boxes=boxesOf(b);p.cfsInfo="";delete C.cfsFail[p.id];merkFaecher(p)}else{C.cfsFail[p.id]=1;p.cfsInfo="CFS angeschlossen – Creality liefert über die Cloud keine Fachdaten"}}
+    catch(e){C.cfsFail[p.id]=1;C.raw.rpcFehler=String(e&&e.message||e);p.cfsInfo="CFS angeschlossen – Fachdaten über die Cloud nicht abrufbar"}}
+  rerender()}
+/* Während eines Drucks merken, welche Fächer aktiv waren: hilft beim Abbuchen (Farbe statt nur Material) */
+function faecher(){try{return JSON.parse(localStorage.getItem(SLOTS_K)||"{}")||{}}catch(e){return {}}}
+function merkFaecher(p){if(!p.printId||!p.boxes)return;const sel=[];p.boxes.forEach(b=>b.slots.forEach(s=>{if(s.sel&&s.color)sel.push({type:s.type,color:s.color,name:[s.vendor,s.name].filter(Boolean).join(" ")})}));if(!sel.length)return;
+  const f=faecher();const l=f[p.printId]||[];sel.forEach(s=>{if(!l.some(x=>x.color===s.color&&x.type===s.type))l.push(s)});f[p.printId]=l;const ks=Object.keys(f);if(ks.length>200)ks.slice(0,ks.length-200).forEach(k=>delete f[k]);
+  try{localStorage.setItem(SLOTS_K,JSON.stringify(f))}catch(e){}}
 /* --- Laden --- */
 async function loadStatus(force){
   if(!on()||!acct()||C.stLoading)return;if(!force&&C.stAt&&Date.now()-C.stAt<25000)return;
   C.stLoading=true;
   try{const r=await api("devices",{})||{};let list=[...(r.ungroupedList||[])];(r.groupList||[]).forEach(g=>{list=list.concat(g.list||g.devices||[])});
-    C.raw.devices=list.slice(0,3);C.printers=list.map(parseDevice);C.stAt=Date.now();C.err="";druckerAnlegen()}
+    const alt={};C.printers.forEach(p=>{if(p.boxes)alt[p.id]=p.boxes});
+    C.raw.devices=list.slice(0,3);C.printers=list.map(parseDevice);C.printers.forEach(p=>{if(alt[p.id])p.boxes=alt[p.id]});C.stAt=Date.now();C.err="";druckerAnlegen();loadCfs()}
   catch(e){fail(e)}
   C.stLoading=false;rerender()}
 async function load(force){
@@ -2228,7 +2249,9 @@ function merk(set){try{localStorage.setItem(DONE_K,JSON.stringify([...set].slice
 let bucht=false;
 async function buchenListe(liste){
   const B=LGN._book;const done=gebucht();const r={ab:0,offen:0};const stand={};
-  for(const j of liste){for(const m of j.mats){if(!(m.g>0.05))continue;
+  const fm=faecher();
+  for(const j of liste){const fa=fm[j.id]||[];if(fa.length===1)j.mats.forEach(m=>{if(!m.color){m.color=fa[0].color;if(!m.type)m.type=fa[0].type}});
+    for(const m of j.mats){if(!(m.g>0.05))continue;
       const o={zeit:j.end,drucker:j.printer,ort:"CFS",anlass:j.failed?"Druck abgebrochen (Creality)":"Druck fertig (Creality)",quelle:j.key};
       let e=B.finde(m.type||j.mat,m.color);if(e&&stand[e.uid])e=stand[e.uid];
       if(e){const neuW=B.abbuchen(e,m.g);Object.assign(e,neuW);stand[e.uid]=e;await B.write(e,neuW);await B.log(e,o,m.g);r.ab++}
@@ -2268,7 +2291,10 @@ function statusHTML(){
         ${run&&p.left!=null?`<span>noch ${dur(p.left/60)}</span>`:""}${p.online&&p.nozzle!=null?`<span>Düse ${t(p.nozzle)}</span>`:""}${p.online&&p.bed!=null?`<span>Bett ${t(p.bed)}</span>`:""}</div>
         ${run&&p.job?`<div class="meta" title="${esc(p.job)}"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.job)}</span></div>`:""}</div>
       ${run&&p.progress!=null?`<div class="bar"><i style="width:${Math.max(0,Math.min(100,p.progress))}%"></i></div>`:""}
-      ${p.cfs.length?`<div class="cfs">CFS ${p.cfs.map(s=>`<i style="background:${esc(s.color)}" title="${esc(s.name+(s.type&&s.type!==s.name?" · "+s.type:""))}"></i>`).join("")}</div>`:""}</div>`}).join("")}</div>`}
+      ${p.boxes&&p.boxes.length?p.boxes.map(b=>`<div class="cfs"><b>${esc(b.name)}</b>${b.temp!=null?`<span>${Math.round(b.temp)} °C</span>`:""}${b.hum!=null?`<span class="${b.hum>=50?"bad":""}">${Math.round(b.hum)} % rF</span>`:""}
+        ${b.slots.map(s=>`<span class="crslot${s.sel?" sel":""}" title="${esc([s.vendor,s.name||s.type].filter(Boolean).join(" ")+(s.pct!=null?" · "+Math.round(s.pct)+" %":""))}"><i style="background:${esc(s.color||"#555")}"></i>${esc(s.type||"–")}</span>`).join("")}</div>`).join("")
+        :p.cfs.length?`<div class="cfs">CFS ${p.cfs.map(s=>`<i style="background:${esc(s.color)}" title="${esc(s.name+(s.type&&s.type!==s.name?" · "+s.type:""))}"></i>`).join("")}</div>`
+        :p.cfsDa&&p.cfsInfo?`<div class="cfs">${esc(p.cfsInfo)}</div>`:""}</div>`}).join("")}</div>`}
 function chipHTML(){
   if(!on())return "";const a=acct();
   return a?`<span class="chip cl">${C.loading?"Creality-Cloud lädt…":C.err?`<span class="bad">Creality: ${esc(C.err)}</span>`:`Creality-Cloud · ${C.jobs.length}`}</span>`
@@ -2294,7 +2320,7 @@ const GEHEIM=/^(keyFileToken|deviceSecret|macAddress|wifiSsid|netIP|factorySn|pr
 function sauber(x){if(Array.isArray(x))return x.filter(v=>!(v&&typeof v==="object"&&GEHEIM.test(String(v.key||"")))).map(sauber);
   if(x&&typeof x==="object"){const o={};Object.keys(x).forEach(k=>{if(!GEHEIM.test(k))o[k]=sauber(x[k])});return o}return x}
 function diagModal(){
-  const txt=JSON.stringify(sauber({drucker:C.raw.devices,historie:C.raw.history}),null,1);
+  const txt=JSON.stringify(sauber({drucker:C.raw.devices,historie:C.raw.history,cfs:C.raw.rpc,cfsFehler:C.raw.rpcFehler||null}),null,1);
   modal("Creality-Rohdaten",`<div class="stack"><div class="hint">So liefert Creality deine Drucker und die letzten Drucke. Wenn Gramm oder CFS-Farben fehlen, schick diese Daten an Claude, dann lässt sich die Auswertung anpassen. Anmeldeschlüssel, Seriennummern und Netzwerkangaben sind herausgefiltert.</div>
     <textarea readonly style="width:100%;min-height:320px;font:12px/1.4 ui-monospace,monospace">${esc(txt.length>60000?txt.slice(0,60000)+"\n…":txt)}</textarea></div>`,
     `<button class="btn ghost" data-act="close">Schließen</button><button class="btn" data-act="crCopy">Kopieren</button>`)}

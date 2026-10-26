@@ -13,6 +13,8 @@ const ROUTES = {
   "qr/query": { host: "id", to: "/api/cxy/account/v2/qrQuery" },
   "devices": { host: "api", to: "/api/rest/print/cluster/devices/getDeviceList" },
   "history": { host: "api", to: "/api/cxy/v3/print/record/list" },
+  // nur Lesen: Abfrage an den Drucker über die Cloud (z. B. CFS-Belegung). Keine Befehle, die etwas ändern.
+  "rpc": { host: "api", to: "/api/rest/iotrouter/rpc/twoway/" },
 };
 function cors(req) {
   return {
@@ -73,6 +75,7 @@ export async function onRequest(ctx) {
   if (request.method !== "POST") return json(request, 405, { message: "Methode nicht erlaubt" });
   const reg = REGIONS[new URL(request.url).searchParams.get("region") === "cn" ? "cn" : "global"];
   let body = {};
+  let ziel = r.to;
   try { body = await request.json(); } catch (e) { body = {}; }
   if (!body || typeof body !== "object" || Array.isArray(body)) body = {};
   let h;
@@ -90,11 +93,19 @@ export async function onRequest(ctx) {
     const uid = request.headers.get("X-Creality-Uid") || "";
     if (!token || !uid) return json(request, 401, { message: "Nicht angemeldet" });
     h = hdr({ "__CXY_APP_ID_": "cxy-gen2", "__CXY_APP_VER_": APP_VER, "__CXY_TOKEN_": token, "__CXY_UID_": uid });
-    if (path === "devices") body = { page: 1, pageSize: 50 };
+    if (path === "rpc") {
+      const tb = String(body.tbId || "");
+      if (!/^[0-9a-f-]{20,40}$/i.test(tb)) return json(request, 400, { message: "Ungültige Drucker-ID" });
+      const ERLAUBT = ["boxsInfo", "ReqPrinterPara", "reqMaterials"];
+      const k = String(body.get || "");
+      if (!ERLAUBT.includes(k)) return json(request, 400, { message: "Abfrage nicht erlaubt" });
+      ziel = r.to + encodeURIComponent(tb);
+      body = { method: "get", params: { [k]: 1 } };
+    } else if (path === "devices") body = { page: 1, pageSize: 50 };
     else body = { page: Math.max(1, Math.min(200, Number(body.page) || 1)), pageSize: Math.max(1, Math.min(100, Number(body.pageSize) || 50)), deviceName: String(body.deviceName || "") };
   }
   let res;
-  try { res = await fetch((r.host === "id" ? reg.id : reg.api) + r.to, { method: "POST", headers: h, body: JSON.stringify(body) }); }
+  try { res = await fetch((r.host === "id" ? reg.id : reg.api) + ziel, { method: "POST", headers: h, body: JSON.stringify(body) }); }
   catch (e) { return json(request, 502, { message: "Creality-Cloud nicht erreichbar" }); }
   let d = null;
   try { d = await res.json(); } catch (e) { d = null; }
