@@ -1866,7 +1866,7 @@ let J_list=[];
 function render(m){
   m=m||$("#main");if(!m)return;
   const a=acct(),isHa=S.backend==="ha";
-  if(isHa)loadHa(false);if(a)loadCloud(false);const cre=!!(window.CRE&&CRE.connected());if(cre)CRE.load(false);
+  if(isHa)loadHa(false);if(a)loadCloud(false);if(a&&liveOn())loadLive(false);const cre=!!(window.CRE&&CRE.connected());if(cre)CRE.load(false);
   const used=usedMap();const list=all();J_list=list;const vis=visible(list,used);
   for(const k of [...J.sel])if(!list.some(j=>j.key===k))J.sel.delete(k);
   const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
@@ -1907,7 +1907,7 @@ function render(m){
     <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
       <button class="btn ghost sm" data-act="jobReload">Aktualisieren</button></div>
     ${sources}
-    ${window.CRE?CRE.statusHTML():""}
+    ${liveHTML()}${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
       <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option><option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option>${cre?`<option value="creality"${J.src==="creality"?" selected":""}>Creality-Cloud</option>`:""}</select>
@@ -1965,6 +1965,8 @@ function settingsHTML(){
   const a=acct();
   return `<section class="panel pad stack"><div class="sec-title"><h2>Bambu-Cloud</h2></div>
     ${a?`<div class="note">Verbunden als ${esc(a.account)}${a.region==="cn"?" (China)":""}. Die Anmeldung gilt bis etwa ${new Date(a.exp).toLocaleDateString("de-DE")} und liegt nur in diesem Browser.</div>
+      <div class="tabtg"><button type="button" class="chip${liveOn()?" on":""}" data-act="bbLiveOn" aria-pressed="${liveOn()}">Live-Status der Drucker im Reiter „Druckaufträge“</button></div>
+      <div class="hint">Der Live-Status kommt alle 30 Sekunden über den Bambu-Cloud-Broker (Fortschritt, Restzeit, Temperaturen, AMS). Es werden keine Befehle an die Drucker gesendet.</div>
       <div class="row"><button class="btn" data-act="bbOpen">Druckhistorie öffnen</button><button class="btn danger" data-act="bbLogout">Abmelden</button></div>`
     :`<div class="hint">Mit deinem Bambu-Konto holt SchichtLohn die Druckhistorie aller Drucker, auch ältere Drucke. Sie erscheinen im Reiter „Druckaufträge“.</div><div class="row"><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button></div>`}
   </section>`;
@@ -1977,7 +1979,8 @@ document.addEventListener("click",async e=>{
   if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
   else if(a==="jobAll"){visible(J_list,usedMap()).slice(0,400).forEach(j=>J.sel.add(j.key));redraw()}
   else if(a==="jobClear"){J.sel.clear();redraw()}
-  else if(a==="jobReload"){loadHa(true);loadCloud(true);if(window.CRE&&CRE.connected())CRE.load(true)}
+  else if(a==="bbLiveOn"){S.cfg.bambuLive=!liveOn();saveCfgSoon();if(liveOn())loadLive(true);else{L.live={};L.err=""}window.render&&window.render()}
+  else if(a==="jobReload"){loadHa(true);loadCloud(true);loadLive(true);if(window.CRE&&CRE.connected())CRE.load(true)}
   else if(a==="jobMore"){loadCloud(true,true)}
   else if(a==="jobToQuote")await take("quote");
   else if(a==="jobNewOrder")await take("new");
@@ -2046,7 +2049,54 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+// ---- Bambu-Cloud live: Status aller Drucker über den Cloud-Broker (functions/bambu/live.js, nur Lesen) ----
+const L={devs:null,devAt:0,live:{},at:0,loading:false,err:"",uid:""};
+const liveOn=()=>S.cfg.bambuLive!==false;
+const LST={RUNNING:"Druckt",PREPARE:"Vorbereitung",SLICING:"Vorbereitung",PAUSE:"Pausiert",FINISH:"Fertig",FAILED:"Fehlgeschlagen",IDLE:"Bereit"};
+const ICONB=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M9 17h6M12 11v3"/></svg>`;
+async function loadDevices(force){
+  const a=acct();if(!a)return;if(!force&&L.devs&&Date.now()-L.devAt<6*3600e3)return;
+  const d=await api("my/bind",{token:a.token,region:a.region});
+  L.devs=(d.devices||[]).map(x=>({sn:String(x.dev_id||""),name:x.name||x.dev_name||String(x.dev_id||""),model:x.dev_product_name||x.dev_model_name||"Bambu Lab",online:x.online!==false})).filter(x=>x.sn);L.devAt=Date.now();
+}
+async function loadLive(force){
+  const a=acct();if(!a||!liveOn()||L.loading)return;if(!force&&Date.now()-L.at<25000)return;
+  L.loading=true;
+  try{
+    await loadDevices(force&&!L.devs);
+    const sns=(L.devs||[]).map(d=>d.sn);
+    if(sns.length){const d=await api("live",{token:a.token,region:a.region,body:{serials:sns,region:a.region,uid:L.uid}});L.live=d.printers||{};if(d.uid)L.uid=String(d.uid)}
+    L.at=Date.now();L.err="";
+  }catch(e){L.err=e.status===401?"Bambu-Anmeldung abgelaufen – bitte unter Einstellungen neu verbinden":e.message;L.at=Date.now()}
+  finally{L.loading=false;if(S.tab==="drucke"&&!(document.activeElement&&document.activeElement.id==="job_q"))render()}
+}
+setInterval(()=>{if(acct()&&liveOn()&&S.tab==="drucke"&&!document.hidden)loadLive(false)},30000);
+function liveHTML(){
+  if(!acct()||!liveOn()||!L.devs||!L.devs.length)return L.err&&acct()&&liveOn()?`<div class="hint">Bambu live: ${esc(L.err)}</div>`:"";
+  const t=v=>v==null?"":Math.round(v)+" °C";
+  const rows=L.devs.map(d=>({d,p:L.live[d.sn]||{online:false}}));
+  const rank=p=>!p.online?3:p.state==="RUNNING"||p.state==="PAUSE"||p.state==="PREPARE"?0:p.state==="FAILED"?1:2;
+  rows.sort((x,y)=>rank(x.p)-rank(y.p)||x.d.name.localeCompare(y.d.name,"de"));
+  return `<div class="crgrid">${rows.map(({d,p})=>{
+    const run=p.state==="RUNNING"||p.state==="PAUSE"||p.state==="PREPARE";
+    const lbl=!p.online?"Offline":(LST[p.state]||p.state||"Unbekannt");
+    const cls=run?" run":p.state==="FAILED"||p.error?" err":"";
+    const noz=p.nozzles&&p.nozzles.length>1?`<span>Düsen ${p.nozzles.map(n=>Math.round(n.temp??0)).join(" / ")} °C</span>`:p.nozzle!=null?`<span>Düse ${t(p.nozzle)}</span>`:"";
+    const units=(p.ams||[]).filter(u=>u.trays&&u.trays.length).map(u=>{
+      const nm=u.id>=128?"AMS HT":"AMS "+String.fromCharCode(65+(u.id||0));
+      return `<div class="cfs"><b>${esc(nm)}</b>${u.humidity!=null?`<span>${Math.round(u.humidity)} %</span>`:""}${u.trays.map(s=>{const sel=p.trayNow!=null&&(u.id>=128?p.trayNow===u.id:p.trayNow===u.id*4+s.id);
+        return `<span class="crslot${sel?" sel":""}" title="${esc((s.sub||s.type||"leer")+(s.remain!=null?" · "+s.remain+" %":""))}"><i style="background:${esc(s.color||"transparent")}"></i>${esc(s.type||"–")}</span>`}).join("")}</div>`}).join("");
+    const ext=(p.external||[]).filter(s=>!s.empty).map(s=>`<span class="crslot${p.trayNow===254||p.trayNow===s.id?" sel":""}"><i style="background:${esc(s.color||"transparent")}"></i>${esc(s.type)}</span>`).join("");
+    return `<div class="crp"><div class="thumb">${ICONB}</div>
+      <div style="min-width:0"><h3 title="${esc(d.name)}">${esc(d.name)}</h3><div class="meta"><span class="crst${cls}">${esc(lbl)}${run&&p.percent!=null?" · "+Math.round(p.percent)+" %":""}</span>
+        ${run&&p.remaining!=null?`<span>noch ${dur(p.remaining)}</span>`:""}${run&&p.layers?`<span>Schicht ${p.layer||0}/${p.layers}</span>`:""}
+        ${p.online?noz:""}${p.online&&p.bed!=null?`<span>Bett ${t(p.bed)}</span>`:""}${p.online&&p.chamber?`<span>Kammer ${t(p.chamber)}</span>`:""}</div>
+        ${run&&p.file?`<div class="meta" title="${esc(p.file)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(p.file)}</div>`:`<div class="meta">${esc(d.model)}</div>`}</div>
+      ${run&&p.percent!=null?`<div class="bar"><i style="width:${Math.max(0,Math.min(100,p.percent))}%"></i></div>`:""}
+      ${p.online?units+(ext?`<div class="cfs"><b>Extern</b>${ext}</div>`:""):""}</div>`}).join("")}</div>
+    ${L.err?`<div class="hint">Bambu live: ${esc(L.err)}</div>`:""}`;
+}
+window.JOBS={render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_L:L,loadLive};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
