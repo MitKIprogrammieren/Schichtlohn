@@ -39,7 +39,7 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);col
   <div id="ohne" class="note" hidden>Dieser Scanner ist nicht gekoppelt. Öffne in SchichtLohn am PC das Lager, tippe auf „Handy“ und scanne den QR-Code mit der Kamera.</div>
   <div id="haupt" hidden>
     <div class="cam" id="cam"><video id="vid" playsinline muted></video><div class="rahmen"></div><div class="info" id="info">Kamera wird gestartet …</div></div>
-    <div class="row" style="margin-top:10px"><input id="hand" inputmode="numeric" placeholder="Code eintippen" autocomplete="off"><button class="btn" id="senden">Senden</button></div>
+    <div class="row" style="margin-top:10px"><input id="hand" type="text" inputmode="text" enterkeyhint="send" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Code eintippen" autocomplete="off"><button class="btn" id="senden">Senden</button></div>
     <div class="hint" style="margin-top:8px">Jeder gescannte Code erscheint sofort in SchichtLohn am PC. Tipp: Seite zum Home-Bildschirm hinzufügen, dann ist der Scanner wie eine App.</div>
     <div class="liste" id="liste" style="margin-top:10px"></div>
   </div>
