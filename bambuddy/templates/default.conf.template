@@ -22,6 +22,9 @@ server {
         add_header Cache-Control "no-cache";
     }
 
+    # Logos aus Home Assistant
+    include /usr/share/nginx/html/bambuddy/templates/ha.conf;
+
     # Bambuddy-API und WebSocket über dieselbe Adresse
     location /api/ {
         proxy_pass ${BAMBUDDY_URL};

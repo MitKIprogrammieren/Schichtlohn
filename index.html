@@ -2895,7 +2895,7 @@ function cardPrefs(el){try{const e=el._ein&&el._ein();if(!e)return;const def=Str
 /* Quelle 1: eigene Logos in Home Assistant unter /config/www/hersteller/ (wie bei der Waage), Quelle 2: Symbol der Herstellerseite */
 function darkUI(){const cs=(document.documentElement.style.colorScheme||getComputedStyle(document.documentElement).colorScheme||"");if(/dark/.test(cs)&&!/light/.test(cs))return true;if(/light/.test(cs)&&!/dark/.test(cs))return false;return !matchMedia("(prefers-color-scheme: light)").matches}
 function logoSlug(n){return String(n||"").trim().toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}
-function haLocal(){if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
+function haLocal(){if(window.BBY&&BBY.on())return "/ha-local/hersteller/";if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
 const logoMiss=new Set();
 function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
   /* eigenes Logo aus den Einstellungen (geht auch ohne Home Assistant) */
