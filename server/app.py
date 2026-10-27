@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -41,6 +41,7 @@ MAX_BILD = 15 * 1024 * 1024
 MAX_JSON = 32 * 1024 * 1024
 MAX_SEITE = int(os.environ.get("MAX_SEITE", "1600"))
 OCR_AN = os.environ.get("OCR", "1") != "0"
+MERKMAL_MODELL = os.environ.get("MERKMAL_MODELL", "/app/modelle/mnv2_merkmale.onnx")
 
 # ---------------------------------------------------------------- Datenbank
 
@@ -62,6 +63,8 @@ def db():
             CREATE TABLE IF NOT EXISTS daten(
               schluessel TEXT PRIMARY KEY, wert TEXT NOT NULL, geaendert REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS stand(name TEXT PRIMARY KEY, rev INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS abdruecke(id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL, vek BLOB NOT NULL, zeit REAL NOT NULL);
+            CREATE INDEX IF NOT EXISTS abdruecke_uid ON abdruecke(uid);
         """)
         db.con = con
     return db.con
@@ -213,7 +216,137 @@ def ocr():
     return _ocr
 
 
-def bild_lesen(daten):
+# ---------------------------------------------------------------- Fingerabdruck (Aussehen der Spule)
+# MobileNetV2 liefert für jedes Foto 1280 Merkmale (Form, Lochmuster, Etikett-Layout, Farben).
+# Ordnet man ein Foto einer Sorte zu, wird der Fingerabdruck gespeichert; spätere Fotos
+# werden damit verglichen. Gelernt wird nur aus den eigenen Fotos.
+
+_merkmal = None
+_merkmal_lock = threading.Lock()
+_vid_cache = {}
+_vid_reihe = []
+
+
+def merkmal_sitzung():
+    global _merkmal
+    if _merkmal is None:
+        if not os.path.exists(MERKMAL_MODELL):
+            _merkmal = False
+        else:
+            import onnxruntime as ort
+            _merkmal = ort.InferenceSession(MERKMAL_MODELL, providers=["CPUExecutionProvider"])
+    return _merkmal or None
+
+
+def fingerabdruck(img):
+    import numpy as np
+    from PIL import ImageOps
+    sitz = merkmal_sitzung()
+    if sitz is None:
+        return None
+    x = np.asarray(ImageOps.fit(img, (224, 224)), dtype=np.float32) / 255.0
+    x = ((x - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None].astype(np.float32)
+    with _merkmal_lock:
+        v = sitz.run(["464"], {"input": x})[0].reshape(-1)
+    n = float(np.linalg.norm(v)) or 1.0
+    return (v / n).astype(np.float16)
+
+
+def vid_merken(v):
+    vid = uuid.uuid4().hex[:16]
+    _vid_cache[vid] = v
+    _vid_reihe.append(vid)
+    while len(_vid_reihe) > 300:
+        _vid_cache.pop(_vid_reihe.pop(0), None)
+    return vid
+
+
+def aehnliche(v, grenze=0.72, anzahl=6):
+    import numpy as np
+    rows = db().execute("SELECT uid, vek FROM abdruecke").fetchall()
+    if not rows:
+        return []
+    M = np.stack([np.frombuffer(b, dtype=np.float16) for _, b in rows]).astype(np.float32)
+    sc = M @ v.astype(np.float32)
+    best = {}
+    for (uid, _), x in zip(rows, sc):
+        if x >= grenze and x > best.get(uid, 0):
+            best[uid] = float(x)
+    return [{"uid": u, "score": round(x, 3)} for u, x in sorted(best.items(), key=lambda t: -t[1])[:anzahl]]
+
+
+def abdruck_speichern(uid, vid):
+    v = _vid_cache.get(vid)
+    if v is None:
+        raise Fehler(404, "Fingerabdruck abgelaufen, bitte Foto neu aufnehmen")
+    with _db_lock:
+        con = db()
+        con.execute("INSERT INTO abdruecke(uid, vek, zeit) VALUES(?,?,?)", (uid, v.tobytes(), time.time()))
+        alte = con.execute("SELECT id FROM abdruecke WHERE uid=? ORDER BY zeit DESC LIMIT -1 OFFSET 20", (uid,)).fetchall()
+        for (i,) in alte:
+            con.execute("DELETE FROM abdruecke WHERE id=?", (i,))
+        n = con.execute("SELECT COUNT(*) FROM abdruecke WHERE uid=?", (uid,)).fetchone()[0]
+    return {"ok": True, "anzahl": n}
+
+# ---------------------------------------------------------------- Farbe des Filaments
+# Kräftige Farben in der Bildmitte zählen am meisten; ein weißes Etikett oder eine weiße Spule
+# gleicht das Licht ab. Liefert bis zu drei Vorschläge – die App lässt den richtigen antippen.
+
+
+def _kmeans(X, w, k=5, it=12):
+    import numpy as np
+    rng = np.random.default_rng(0)
+    k = min(k, len(X))
+    C = X[rng.choice(len(X), k, replace=False, p=w / w.sum())]
+    for _ in range(it):
+        lab = ((X[:, None, :] - C[None]) ** 2).sum(-1).argmin(1)
+        for j in range(k):
+            m = lab == j
+            if m.any():
+                C[j] = (X[m] * w[m, None]).sum(0) / w[m].sum()
+    return C, lab
+
+
+def farben(img):
+    import numpy as np
+    im = img.copy()
+    im.thumbnail((200, 200))
+    a = np.asarray(im, dtype=np.float32) / 255.0
+    h, wd, _ = a.shape
+
+    def satwert(x):
+        mx = x.max(2)
+        return (mx - x.min(2)) / np.maximum(mx, 1e-6), mx
+    sat, mx = satwert(a)
+    weiss = (mx > 0.75) & (sat < 0.12)
+    if weiss.sum() > h * wd * 0.01:
+        ref = a[weiss].mean(0)
+        a = np.clip(a * np.clip(ref.mean() / np.maximum(ref, 1e-3), 0.8, 1.25), 0, 1)
+        sat, mx = satwert(a)
+    yy, xx = np.mgrid[0:h, 0:wd]
+    cw = np.exp(-((((yy - h / 2) / h) ** 2 + ((xx - wd / 2) / wd) ** 2) / 0.38 ** 2))
+    hex_ = lambda c: "#%02x%02x%02x" % tuple(int(max(0, min(1, v)) * 255) for v in c)
+    out = []
+    m = (sat > 0.35) & (mx > 0.18)
+    if m.sum() >= h * wd * 0.004:
+        X, W = a[m], cw[m] * sat[m] ** 2
+        C, lab = _kmeans(X, W + 1e-6)
+        sc = sorted(((W[lab == j].sum(), j) for j in range(len(C)) if (lab == j).any()), reverse=True)
+        out += [hex_(C[j]) for _, j in sc[:3]]
+    # unbunte Kandidaten (Schwarz, Weiß, Grau) aus der Bildmitte
+    mitte = a[h // 3:2 * h // 3, wd // 3:2 * wd // 3].reshape(-1, 3)
+    s2, _ = satwert(mitte[None])
+    grau = mitte[s2[0] < 0.2]
+    if len(grau) > 20 and len(out) < 4:
+        C, lab = _kmeans(grau, np.ones(len(grau)), k=2)
+        j = np.bincount(lab).argmax()
+        out.append(hex_(C[j]))
+    return out[:4]
+
+# ---------------------------------------------------------------- Bild auswerten
+
+
+def bild_lesen(daten, ausschnitt=False):
     import numpy as np
     from PIL import Image, ImageOps
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(daten))).convert("RGB")
@@ -233,20 +366,48 @@ def bild_lesen(daten):
         pass
     zeilen = []
     if OCR_AN:
-        with _ocr_lock:
-            res, _ = ocr()(np.asarray(img)[:, :, ::-1])
-        for box, t, p in res or []:
-            try:
-                p = float(p)
-            except (TypeError, ValueError):
-                p = 0.0
-            if p < 0.4 or not str(t).strip():
-                continue
-            xs = [pt[0] for pt in box]
-            ys = [pt[1] for pt in box]
-            zeilen.append({"t": str(t).strip(), "p": round(p, 3),
-                           "box": [int(min(xs)), int(min(ys)), int(max(xs) - min(xs)), int(max(ys) - min(ys))]})
-    return {"text": zeilen, "codes": codes, "w": img.size[0], "h": img.size[1]}
+        def lesen(bild):
+            with _ocr_lock:
+                res, _ = ocr()(np.asarray(bild)[:, :, ::-1])
+            z = []
+            for box, t, p in res or []:
+                try:
+                    p = float(p)
+                except (TypeError, ValueError):
+                    p = 0.0
+                if p < 0.4 or not str(t).strip():
+                    continue
+                xs = [pt[0] for pt in box]
+                ys = [pt[1] for pt in box]
+                z.append({"t": str(t).strip(), "p": round(p, 3),
+                          "box": [int(min(xs)), int(min(ys)), int(max(xs) - min(xs)), int(max(ys) - min(ys))]})
+            return z
+        zeilen = lesen(img)
+        if ausschnitt and len(zeilen) < 3:
+            # blasser oder schräger Druck: weitere Versuche mit verstärktem Kontrast und leicht gedreht
+            kon = ImageOps.autocontrast(img.convert("L"), cutoff=1).convert("RGB")
+            gesehen = {z["t"] for z in zeilen}
+            for bild in (kon, kon.rotate(-25, expand=True, fillcolor="white"), kon.rotate(25, expand=True, fillcolor="white")):
+                for z in lesen(bild):
+                    if z["t"] not in gesehen:
+                        gesehen.add(z["t"])
+                        zeilen.append(z)
+                if len(zeilen) >= 3:
+                    break
+    r = {"text": zeilen, "codes": codes, "w": img.size[0], "h": img.size[1]}
+    if not ausschnitt:
+        try:
+            r["farben"] = farben(img)
+        except Exception:
+            r["farben"] = []
+        try:
+            v = fingerabdruck(img)
+            if v is not None:
+                r["vid"] = vid_merken(v)
+                r["aehnlich"] = aehnliche(v)
+        except Exception as e:
+            print("Fingerabdruck:", e, flush=True)
+    return r
 
 # ---------------------------------------------------------------- HTTP
 
@@ -312,12 +473,12 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "token": bool(TOKEN), "zugang": self._darf(q)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "token": bool(TOKEN), "zugang": self._darf(q)})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             daten = self._rumpf(MAX_BILD)
             try:
-                r = bild_lesen(daten)
+                r = bild_lesen(daten, ausschnitt=(q.get("ausschnitt") or ["0"])[0] == "1")
             except Exception as e:
                 raise Fehler(400, "Das Bild ließ sich nicht auswerten: " + str(e))
             r["ms"] = int((time.time() - t0) * 1000)
@@ -354,6 +515,11 @@ class Handler(BaseHTTPRequestHandler):
             if methode == "PUT":
                 b = self._json_rumpf()
                 return self._json(200, {"rev": daten_schreiben(k, b.get("wert"), str(b.get("quelle") or ""))})
+        if teile == ["abdruck"] and methode == "POST":
+            b = self._json_rumpf()
+            if not b.get("uid") or not b.get("vid"):
+                raise Fehler(400, "uid und vid fehlen")
+            return self._json(200, abdruck_speichern(str(b["uid"]), str(b["vid"])))
         if teile == ["sorten"] and methode == "GET":
             return self._json(200, {"sorten": sorten()})
         if teile == ["sicherung"] and methode == "GET":

@@ -3317,7 +3317,11 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfbox{position:relative;border-radius:var(--r-s);overflow:hidden;background:#000}.lgfimg{display:block;width:100%;max-height:38vh;object-fit:contain;cursor:crosshair;touch-action:manipulation}
 #lgfdot{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.5);pointer-events:none}
 .lgfsw{width:22px;height:22px;border-radius:50%;border:1px solid var(--line-2,var(--line));flex:none}.lgfthumb{width:44px;height:44px;object-fit:cover;border-radius:8px;background:var(--sunken)}
-.lgftxt{word-break:break-word}.lgr.lgfrow{grid-template-columns:44px minmax(0,1fr) auto}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.lgftxt{word-break:break-word}
+.lgfbox.crop{outline:2px dashed var(--accent);outline-offset:-2px;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}.lgfbox.crop .lgfimg{pointer-events:none}
+#lgfrect{position:absolute;border:2px solid var(--accent);background:rgba(63,212,127,.18);pointer-events:none;border-radius:4px}
+.lgfcrophint{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#fff;font-size:12px;padding:4px 10px;border-radius:999px;pointer-events:none;white-space:nowrap}
+.lgfchip{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);padding:0;cursor:pointer}.lgfchip.on{border-color:var(--fg);box-shadow:0 0 0 2px var(--accent)}.lgr.lgfrow{grid-template-columns:44px minmax(0,1fr) auto}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
 details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
@@ -3674,10 +3678,10 @@ async function save(f,silent){
   try{
     if(!f.uid){const key=x=>[x.hersteller,x.material,x.farbe,[...x.besonderheiten].sort().join(",")].join("|").toLowerCase();const dup=entries().find(x=>key(x)===key(f));
       if(dup){closeModal();confirmBox(`„${summary(f)}“ gibt es schon (${dup.spulen} Rollen). ${f.spulen} Rolle(n) dazuzählen?`,"Dazuzählen",async()=>{
-        await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt");if(f.fotoId!=null)fotoErledigt(f.fotoId)});return}}
-    await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt");
+        await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt");if(f.fotoId!=null)fotoErledigt(f.fotoId,dup.uid)});return}}
+    const _w=await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt");
     if(f.serieCode){serieWeg(f.serieCode);setTimeout(()=>serieModal(),300)}
-    if(f.fotoId!=null)fotoErledigt(f.fotoId);
+    if(f.fotoId!=null)fotoErledigt(f.fotoId,f.uid||(_w&&_w.uid),f);
   }catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 
 /* --- Zuordnen --- */
@@ -3736,6 +3740,7 @@ const ET_KEY="schichtlohn_etikett_url";
 function etUrl(){let u="";try{u=localStorage.getItem(ET_KEY)||""}catch(e){}if(!u&&window.SRV&&SRV.url())u=SRV.url();
   if(!u&&location.protocol==="http:"&&location.hostname)u=`http://${location.hostname}:8093`;return u.replace(/\/+$/,"")}
 function etUrlSetzen(u){u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;try{if(u)localStorage.setItem(ET_KEY,u);else localStorage.removeItem(ET_KEY)}catch(e){}return u}
+const etKopf=()=>{const h={"Content-Type":"image/jpeg"};const t=window.SRV&&SRV.url()&&etUrl()===SRV.url()?SRV.token():"";if(t)h["X-Token"]=t;return h};
 const etMixed=u=>{let h=location.protocol==="https:";try{h=h||top.location.protocol==="https:"}catch(e){}return h&&/^http:/i.test(u)};
 async function etTest(u){if(!u)throw new Error("Keine Adresse eingetragen");if(etMixed(u))throw new Error("Diese Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser. Etikett-Leser per https erreichbar machen (Synology-Reverse-Proxy) oder das Lager über http öffnen.");
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),5000);try{const r=await fetch(u+"/",{signal:ctl.signal});const d=await r.json();if(!d.ok)throw 0;return d}catch(e){throw new Error("Etikett-Leser unter "+u+" nicht erreichbar")}finally{clearTimeout(t)}}
@@ -3766,30 +3771,31 @@ function fotoWoerter(f){const roh=(f.text||[]).map(x=>x.t);const W=new Set();
 const fotoCodes=(f,i)=>[...new Set([...(f.codes||[]),...(f.nummern||[]).slice(0,1),...(i!=null&&!(f.codes||[]).length&&fdbEan(i)?[fdbEan(i)]:[])])].filter(Boolean);
 function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T,N}=fotoWoerter(f);f.nummern=N;
   const Wl=[...W].filter(t=>t.length>=4);
-  const has=w=>W.has(w)||(w.length>=4&&T.includes(w))||(w.length>=4&&Wl.some(t=>w.startsWith(t)));
+  const has=w=>W.has(w)||(w.length>=4&&T.includes(w))||(w.length>=4&&Wl.some(t=>w.length-t.length<=2&&w.startsWith(t)));
   const syn=w=>[w,...(FDB_SYN[w]||[])];const hasS=w=>syn(w).some(has);
   /* Barcode oder Artikelnummer direkt */
   const alleCodes=[...(f.codes||[]),...N];
   const vorne=[];alleCodes.forEach(c=>{const x=d.g[fdbCodeKey(c)];if(x&&!vorne.includes(x[0]))vorne.push(x[0])});
   const marken=new Set();d.bw.forEach((b,i)=>{if(b.n.length>=4?T.includes(b.n):(b.n.length>=2&&W.has(b.n)))marken.add(i)});
-  const sc=[];const leer=!W.size&&!f.hex;
+  const sc=[];const leer=!W.size&&!f.hex&&!f.hexAuto;
   const mNorm=new Set([...marken].map(i=>d.bw[i].n));
   if(!leer)idx.forEach(e=>{let s=0;const bh=marken.has(e.b)||e.al.some(w=>mNorm.has(w));if(marken.size&&!bh)return;if(bh)s+=6;
     let lh=0;[...e.lw,...e.al.filter(w=>!mNorm.has(w))].forEach(w=>{if(has(w))lh++});s+=lh*3;if(e.lw.length&&e.lw.every(has))s+=2;
     const mh=!!(e.mat&&has(e.mat));if(mh)s+=1;
     let cv=false;if(e.cw.length){const n=e.cw.filter(has).length;cv=n===e.cw.length;s+=cv?5+n:n}
-    if(f.hex)s+=8*Math.max(0,1-farbAbst(e.hex,f.hex)/200);
-    const ok=marken.size?s>=7:((lh>=1&&s>=6)||(mh&&cv)||(mh&&f.hex&&s>=7));
+    const fh=f.hex||f.hexAuto,fw=f.hex?8:5;if(fh)s+=fw*Math.max(0,1-farbAbst(e.hex,fh)/200);
+    const ok=marken.size?s>=7:((lh>=1&&s>=6)||(mh&&cv)||(mh&&fh&&s>=7));
     if(ok)sc.push([s,e.i])});
   out.marke=marken.size>0||vorne.length>0;sc.sort((a,b)=>b[0]-a[0]);out.db=[...vorne,...sc.map(x=>x[1]).filter(i=>!vorne.includes(i))].slice(0,14);
   /* eigenes Lager: deutsche Farb- und Merkmalnamen werden mit den englischen Etiketten verglichen */
   const top=out.db.slice(0,5).map(i=>fdbK(i)).filter(Boolean);
+  const aeh={};(f.aehnlich||[]).forEach(a=>{aeh[a.uid]=a.score});
   out.lager=entries().map(e=>{if(alleCodes.some(c=>e.codes.includes(c)))return [100,e];
-      let s=0;const hw=fwords(e.hersteller);if(hw.length&&hw.every(has))s+=6;else if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
+      let s=0;const as=aeh[e.uid]||0;if(as>=0.78)s+=as>=0.9?24:10+(as-0.78)*100;const hw=fwords(e.hersteller);if(hw.length&&hw.every(has))s+=6;else if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
       if(has(fnorm(e.material)))s+=2;const fw=fwords(e.farbe);if(fw.length&&fw.every(hasS))s+=6;(e.besonderheiten||[]).forEach(b=>{if(hasS(fnorm(b)))s+=2});
-      if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
-      if(f.hex)s+=8*Math.max(0,1-farbAbst(e.hex,f.hex)/200);return [s,e]})
-    .filter(x=>x[0]>=(W.size?8:(f.hex?3:99))).sort((a,b)=>b[0]-a[0]).slice(0,5).map(x=>x[1]);
+      if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
+      const lh2=f.hex||f.hexAuto;if(lh2)s+=(f.hex?8:5)*Math.max(0,1-farbAbst(e.hex,lh2)/200);return [s,e]})
+    .filter(x=>x[0]>=(W.size||(f.aehnlich||[]).length?(out.marke?8:6):(f.hex||f.hexAuto?3:99))).sort((a,b)=>b[0]-a[0]).slice(0,5).map(x=>x[1]);
   return out}
 
 /* Bild laden, verkleinern */
@@ -3811,7 +3817,7 @@ async function fotoVerarbeiten(files){G.fotos=files.slice(0,40).map((file,id)=>(
   try{await fdbLaden()}catch(e){}const url=etUrl();let etFehler="";
   for(const f of G.fotos){f.status="liest";fotoListeAuffrischen();
     try{f.cv=await bildLaden(f.file);const t=document.createElement("canvas");const s=Math.min(1,240/Math.max(f.cv.width,f.cv.height));t.width=Math.round(f.cv.width*s);t.height=Math.round(f.cv.height*s);t.getContext("2d").drawImage(f.cv,0,0,t.width,t.height);f.thumb=t.toDataURL("image/jpeg",.8);
-      if(url&&!etFehler){try{if(etMixed(url))throw new Error("https/http");const r=await fetch(url+"/lesen",{method:"POST",headers:{"Content-Type":"image/jpeg"},body:await cvBlob(f.cv)});const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);f.text=d.text||[];f.codes=d.codes||[]}
+      if(url&&!etFehler){try{if(etMixed(url))throw new Error("https/http");const r=await fetch(url+"/lesen",{method:"POST",headers:etKopf(),body:await cvBlob(f.cv)});const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);f.text=d.text||[];f.codes=d.codes||[];f.farben=d.farben||[];f.vid=d.vid||"";f.aehnlich=d.aehnlich||[];f.hexAuto=f.farben[0]||"";G.etLernen=!!d.vid}
         catch(e){etFehler=etMixed(url)?"Die Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser.":"Etikett-Leser nicht erreichbar ("+url+")."}}
       if(!f.codes.length)f.codes=await browserCodes(f.cv);
       f.tr=fotoTreffer(f);f.status="fertig"}catch(e){f.status="fehler";f.fehler=e.message||String(e)}
@@ -3833,22 +3839,46 @@ function fotoZeilen(f){const L=f.tr.lager.map(e=>`<div class="lgr" data-act="lgF
   return L+D||`<div class="lghint" style="padding:10px 12px">Keine Vorschläge. Unten suchen oder neue Sorte anlegen.</div>`}
 function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;const n=G.fotos.length;const txt=(f.text||[]).map(x=>x.t).join(" · ");
   modal(n>1?`Foto ${id+1} von ${n}`:"Spule erkennen",`<div class="lgform">${fotoEtHinweis()}
-    <div class="lgfbox"><img id="lgfimg" class="lgfimg" src="${f.cv?f.cv.toDataURL("image/jpeg",.85):""}" alt="Foto" data-act="lgFotoTap"><i id="lgfdot" hidden></i></div>
-    <div class="row" style="gap:10px;align-items:center"><span class="lgfsw" id="lgfsw" style="background:${f.hex||"transparent"}"></span><span class="lghint" id="lgfswt">${f.hex?"Farbe übernommen. Woanders tippen zum Ändern.":"Tippe aufs Filament im Foto, dann passt die Farbe."}</span></div>
+    <div class="lgfbox${G.fotoCrop?" crop":""}" id="lgfbox"><img id="lgfimg" class="lgfimg" src="${f.url||(f.url=f.cv?f.cv.toDataURL("image/jpeg",.85):"")}" alt="Foto" data-act="lgFotoTap" draggable="false"><i id="lgfdot" hidden></i><b id="lgfrect" hidden></b>${G.fotoCrop?`<span class="lgfcrophint">Rahmen ums Etikett ziehen</span>`:""}</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">${fotoFarbHtml(f)}</div>
+    ${etUrl()&&!G.fotoEtFehler?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${G.fotoCrop?" pri":""}" data-act="lgFotoCrop">${G.fotoCrop?"Abbrechen":"✂ Etikett-Ausschnitt lesen"}</button><span class="lghint" id="lgfcropmsg">${G.fotoCrop?"Mit dem Finger einen Rahmen ziehen.":"Wird Text nicht erkannt: Rahmen ums Etikett ziehen, dann wird nur dieser Teil vergrößert gelesen."}</span></div>`:""}
     ${f.codes.length?`<div class="lghint"><b>Barcode:</b> ${esc(f.codes.join(", "))}</div>`:""}${txt?`<div class="lghint lgftxt"><b>Gelesen:</b> ${esc(txt.length>220?txt.slice(0,220)+" …":txt)}</div>`:""}
-    <div class="lgdbh"><b>Vorschläge</b><span class="lghint">Antippen, dann prüfen und speichern. Der Barcode wird bei der Sorte gespeichert.</span></div>
+    <div class="lgdbh"><b>Vorschläge</b><span class="lghint">Antippen, dann prüfen und speichern. Der Barcode wird bei der Sorte gespeichert${f.vid?", und SchichtLohn merkt sich, wie diese Spule aussieht":""}.</span></div>
     <div class="lgpick lgdbpick" id="lgfres">${fotoZeilen(f)}</div>
     <input type="search" id="lgdbq" placeholder="Selbst suchen, z. B. Polymaker PolyTerra Army Brown" autocomplete="off"><div class="lgpick lgdbpick" id="lgdbres" data-pick="lgFotoPick" hidden></div></div>`,
     `${n>1?`<button class="btn ghost" data-act="lgFotoListe">Alle Fotos</button>`:""}<button class="btn ghost" data-act="lgFotoNeuSorte">${ICON.plus} Neue Sorte</button><span class="sp"></span>${n>1&&id<n-1?`<button class="btn" data-act="lgFotoNext">Weiter</button>`:`<button class="btn ghost" data-act="close">Schließen</button>`}`);
-  setTimeout(()=>{const ae=document.activeElement;if(ae&&(ae.id==="lgdbq"||ae.id==="lgeturl"))ae.blur();document.querySelectorAll("#modal,#modal .modal,#modal .mb").forEach(x=>x.scrollTop=0)},40)}
-function fotoTap(ev,img){const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;const r=img.getBoundingClientRect();
+  setTimeout(()=>{const ae=document.activeElement;if(ae&&(ae.id==="lgdbq"||ae.id==="lgeturl"))ae.blur();if(!G.fotoKeinScroll)document.querySelectorAll("#modal,#modal .modal,#modal .mb").forEach(x=>x.scrollTop=0);G.fotoKeinScroll=false;cropAn()},40)}
+function fotoFarbHtml(f){if(f.hex)return `<span class="lgfsw" id="lgfsw" style="background:${f.hex}"></span><span class="lghint" id="lgfswt">Farbe übernommen. Woanders tippen zum Ändern.</span>`;
+  if(f.farben&&f.farben.length)return `<span class="lghint" style="flex-basis:100%">Farbe automatisch erkannt. Stimmt nicht? Andere antippen oder ins Foto aufs Filament tippen.</span>${f.farben.map(h=>`<button type="button" class="lgfchip${h===f.hexAuto?" on":""}" data-act="lgFotoFarbe" data-hex="${esc(h)}" style="background:${esc(h)}" aria-label="Farbe ${esc(h)}"></button>`).join("")}<span class="lgfsw" id="lgfsw" hidden></span><span id="lgfswt" hidden></span>`;
+  return `<span class="lgfsw" id="lgfsw" style="background:transparent"></span><span class="lghint" id="lgfswt">Tippe aufs Filament im Foto, dann passt die Farbe.</span>`}
+/* Ausschnitt ziehen: Rahmen im Foto, nur dieser Teil wird vergrößert gelesen */
+function cropAn(){const box=document.getElementById("lgfbox"),img=document.getElementById("lgfimg");if(!box||!img||!G.fotoCrop)return;let st=null;const R=document.getElementById("lgfrect");
+  const pos=ev=>{const r=box.getBoundingClientRect();return [Math.max(0,Math.min(r.width,ev.clientX-r.left)),Math.max(0,Math.min(r.height,ev.clientY-r.top))]};
+  box.onpointerdown=ev=>{ev.preventDefault();st=pos(ev);box.setPointerCapture(ev.pointerId);R.hidden=false;Object.assign(R.style,{left:st[0]+"px",top:st[1]+"px",width:"0px",height:"0px"})};
+  box.onpointermove=ev=>{if(!st)return;const p2=pos(ev);Object.assign(R.style,{left:Math.min(st[0],p2[0])+"px",top:Math.min(st[1],p2[1])+"px",width:Math.abs(p2[0]-st[0])+"px",height:Math.abs(p2[1]-st[1])+"px"})};
+  box.onpointerup=ev=>{if(!st)return;const p2=pos(ev);const a=st;st=null;const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;
+    const ir=img.getBoundingClientRect(),br=box.getBoundingClientRect();const s=Math.min(ir.width/f.cv.width,ir.height/f.cv.height),ox=(ir.left-br.left)+(ir.width-f.cv.width*s)/2,oy=(ir.top-br.top)+(ir.height-f.cv.height*s)/2;
+    const x1=Math.max(0,(Math.min(a[0],p2[0])-ox)/s),y1=Math.max(0,(Math.min(a[1],p2[1])-oy)/s),x2=Math.min(f.cv.width,(Math.max(a[0],p2[0])-ox)/s),y2=Math.min(f.cv.height,(Math.max(a[1],p2[1])-oy)/s);
+    if(x2-x1<20||y2-y1<12){R.hidden=true;return}cropLesen(f,x1,y1,x2-x1,y2-y1)}}
+async function cropLesen(f,x,y,w,h){const m=document.getElementById("lgfcropmsg");if(m)m.textContent="Lese Ausschnitt …";
+  const k=Math.max(1,Math.min(4,1600/Math.max(w,h)));const cv=document.createElement("canvas");cv.width=Math.round(w*k);cv.height=Math.round(h*k);const g=cv.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(f.cv,x,y,w,h,0,0,cv.width,cv.height);
+  try{const r=await fetch(etUrl()+"/lesen?ausschnitt=1",{method:"POST",headers:etKopf(),body:await cvBlob(cv)});const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);
+    const alt=new Set((f.text||[]).map(t=>t.t));const neu=(d.text||[]).filter(t=>!alt.has(t.t));f.text=[...(f.text||[]),...neu];(d.codes||[]).forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)});
+    if(!d.codes||!d.codes.length){const bc=await browserCodes(cv);bc.forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)})}
+    f.tr=fotoTreffer(f);G.fotoCrop=false;G.fotoKeinScroll=true;fotoModal(f.id);toast(neu.length?`${neu.length} weitere Textstellen gelesen`:"Im Ausschnitt nichts Neues gefunden")}
+  catch(e){if(m)m.textContent="Ausschnitt konnte nicht gelesen werden: "+(e.message||e)}}
+function fotoTap(ev,img){if(G.fotoCrop)return;const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;const r=img.getBoundingClientRect();
   /* object-fit: contain → tatsächliche Bildfläche */
   const s=Math.min(r.width/f.cv.width,r.height/f.cv.height),w=f.cv.width*s,h=f.cv.height*s,ox=(r.width-w)/2,oy=(r.height-h)/2;
   const x=(ev.clientX-r.left-ox)/s,y=(ev.clientY-r.top-oy)/s;if(x<0||y<0||x>f.cv.width||y>f.cv.height)return;
   f.hex=farbeAn(f.cv,x,y);f.tr=fotoTreffer(f);const dot=document.getElementById("lgfdot");if(dot){dot.hidden=false;dot.style.left=(ev.clientX-r.left)+"px";dot.style.top=(ev.clientY-r.top)+"px";dot.style.background=f.hex}
-  const sw=document.getElementById("lgfsw");if(sw)sw.style.background=f.hex;const st=document.getElementById("lgfswt");if(st)st.textContent="Farbe übernommen. Woanders tippen zum Ändern.";
+  const fr=document.getElementById("lgfsw");const row=fr&&fr.parentElement;if(row)row.innerHTML=fotoFarbHtml(f);
   const box=document.getElementById("lgfres");if(box){box.innerHTML=fotoZeilen(f);box.scrollTop=0}}
-function fotoErledigt(id){const f=G.fotos[id];if(!f)return;f.done=true;if(G.fotos.length>1){const nx=G.fotos.find(x=>!x.done&&x.status==="fertig");setTimeout(()=>nx?fotoModal(nx.id):fotoListe(),350)}}
+function fotoLernen(f,uid,form){if(!f||!f.vid||f.gelernt||!etUrl())return;
+  const senden=u=>{if(!u)return;f.gelernt=true;fetch(etUrl()+"/api/abdruck",{method:"POST",headers:Object.assign(etKopf(),{"Content-Type":"application/json"}),body:JSON.stringify({uid:u,vid:f.vid})}).catch(()=>{})};
+  if(uid)return senden(uid);if(!form)return;
+  setTimeout(()=>{const key=x=>[x.hersteller,x.material,x.farbe,[...(x.besonderheiten||[])].sort().join(",")].join("|").toLowerCase();const e=entries().find(x=>key(x)===key(form));if(e)senden(e.uid)},1800)}
+function fotoErledigt(id,uid,form){const f=G.fotos[id];if(!f)return;fotoLernen(f,uid,form);f.done=true;if(G.fotos.length>1){const nx=G.fotos.find(x=>!x.done&&x.status==="fertig");setTimeout(()=>nx?fotoModal(nx.id):fotoListe(),350)}}
 function fotoPick(i){const f=G.fotos[G.fotoAkt];const k=fdbK(i);if(!f||!k)return;const cs=fotoCodes(f,i);const code=cs[0]||"";const refill=k.ausfuehrung==="refill";
   const hit=cs.map(c=>codeSorte(c)).find(Boolean);if(hit){G.fotoLagerUid=hit.uid;G.fotoCode=code;G.fotoCodesAlle=cs;return fotoLagerModal(hit,code,true)}
   const same=entries().find(e=>fnorm(e.hersteller)===fnorm(k.hersteller)&&fnorm(e.material)===fnorm(k.material)&&fnorm(e.farbe)===fnorm(k.farbe));
@@ -3861,7 +3891,7 @@ function fotoLagerModal(e,code,bekannt){const neu=code&&!e.codes.includes(code);
     `${neu?`<button class="btn ghost" data-act="lgFLcode">Nur Barcode speichern</button>`:""}<span class="sp"></span><button class="btn pri" data-act="lgFLplus">${ICON.plus} 1 Rolle${neu?" + Barcode":""}</button>`)}
 async function fotoLagerSchreiben(plus){const e=entries().find(x=>x.uid===G.fotoLagerUid);const code=G.fotoCode;if(!e)return;const p={};
   const neuC=(G.fotoCodesAlle&&G.fotoCodesAlle.length?G.fotoCodesAlle:[code]).filter(c=>c&&!e.codes.includes(c));if(neuC.length)p.codes=[...e.codes,...neuC];if(plus)p.spulen=Math.max(0,e.spulen)+1;
-  try{await write(e,p);closeModal();toast(plus?`1 Rolle dazugezählt: ${summary(e)}`:"Barcode gespeichert");draw(0);fotoErledigt(G.fotoAkt)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
+  try{await write(e,p);closeModal();toast(plus?`1 Rolle dazugezählt: ${summary(e)}`:"Barcode gespeichert");draw(0);fotoErledigt(G.fotoAkt,e.uid)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 const SERIE_KEY="ernsthaft_gelagert_plus_serie";
 const BC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg>`;
 const BCS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 9v6M10 9v6M13 9v6"/><path d="M16.5 10.5h3M18 9v3"/></svg>`;
@@ -4150,6 +4180,8 @@ document.addEventListener("click",async e=>{
   if(a==="lgFotoListe"){fotoListe();return}
   if(a==="lgFotoNext"){const nx=G.fotos.find(x=>x.id>G.fotoAkt&&!x.done&&x.status==="fertig")||G.fotos.find(x=>!x.done&&x.status==="fertig"&&x.id!==G.fotoAkt);if(nx)fotoModal(nx.id);else fotoListe();return}
   if(a==="lgFotoTap"){fotoTap(e,b);return}
+  if(a==="lgFotoCrop"){G.fotoCrop=!G.fotoCrop;G.fotoKeinScroll=true;fotoModal(G.fotoAkt);return}
+  if(a==="lgFotoFarbe"){const f=G.fotos[G.fotoAkt];if(!f)return;f.hexAuto=b.dataset.hex;f.tr=fotoTreffer(f);G.fotoKeinScroll=true;fotoModal(f.id);return}
   if(a==="lgFotoPick"){fotoPick(+b.dataset.i);return}
   if(a==="lgFotoLager"){const f=G.fotos[G.fotoAkt],x=entries().find(y=>y.uid===b.dataset.uid);if(!f||!x)return;const cs=fotoCodes(f);const code=cs[0]||"";G.fotoLagerUid=x.uid;G.fotoCode=code;G.fotoCodesAlle=cs;fotoLagerModal(x,code,!!code&&x.codes.includes(code));return}
   if(a==="lgFLcode"||a==="lgFLplus"){fotoLagerSchreiben(a==="lgFLplus");return}

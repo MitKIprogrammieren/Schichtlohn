@@ -32,7 +32,7 @@ Schnittstelle (auch für die Waage): `GET /api/sorten`, `GET/POST /api/listen/<n
 
 ### Spule per Foto erkennen
 
-Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen, den Etikett-Text liest der Server (PaddleOCR-Modelle über RapidOCR, lokal, ohne Cloud). Danach im Foto aufs Filament tippen, um die Farbe festzulegen, und aus den Vorschlägen aus Lager und Filament-Datenbank wählen. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton.
+Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen, den Etikett-Text liest der Server (PaddleOCR-Modelle über RapidOCR, lokal, ohne Cloud). Danach im Foto aufs Filament tippen, um die Farbe festzulegen, und aus den Vorschlägen aus Lager und Filament-Datenbank wählen. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton. Die Farbe misst der Server automatisch (bis zu vier Vorschläge zum Antippen). Mit **✂ Etikett-Ausschnitt lesen** zieht man einen Rahmen ums Etikett; nur dieser Teil wird vergrößert, mit verstärktem Kontrast und leicht gedreht gelesen. Bei jeder Zuordnung merkt sich der Server einen Fingerabdruck des Fotos (MobileNetV2, Apache-2.0, lokal); spätere Fotos derselben Spule werden am Aussehen erkannt, auch ohne lesbaren Text. Gelernt wird nur aus den eigenen Fotos.
 
 Das Container-Image wird per GitHub Action für x86 und ARM gebaut (`ghcr.io/mitkiprogrammieren/schichtlohn-server`).
 
