@@ -3231,7 +3231,11 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgpick .lgr{padding:9px 12px}
 .lghint{font-size:12px;color:var(--fg-3)}
 .lgdbh{display:flex;flex-direction:column;gap:2px;margin-top:4px}.lgdbh b{font-size:13px}
-.lgdbpick{max-height:34vh}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.lgdbpick{max-height:34vh}
+.lgfbox{position:relative;border-radius:var(--r-s);overflow:hidden;background:#000}.lgfimg{display:block;width:100%;max-height:38vh;object-fit:contain;cursor:crosshair;touch-action:manipulation}
+#lgfdot{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.5);pointer-events:none}
+.lgfsw{width:22px;height:22px;border-radius:50%;border:1px solid var(--line-2,var(--line));flex:none}.lgfthumb{width:44px;height:44px;object-fit:cover;border-radius:8px;background:var(--sunken)}
+.lgftxt{word-break:break-word}.lgr.lgfrow{grid-template-columns:44px minmax(0,1fr) auto}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
 details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
@@ -3460,7 +3464,7 @@ function body0(){G._allZu=false;
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
-      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
+      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn sm lgtb" data-act="lgFoto" title="Spule fotografieren oder Fotos hochladen: Etikett, Barcode und Farbe werden erkannt">${CAMI} Foto</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
@@ -3585,9 +3589,10 @@ async function save(f,silent){
   try{
     if(!f.uid){const key=x=>[x.hersteller,x.material,x.farbe,[...x.besonderheiten].sort().join(",")].join("|").toLowerCase();const dup=entries().find(x=>key(x)===key(f));
       if(dup){closeModal();confirmBox(`„${summary(f)}“ gibt es schon (${dup.spulen} Rollen). ${f.spulen} Rolle(n) dazuzählen?`,"Dazuzählen",async()=>{
-        await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt")});return}}
+        await write(dup,{spulen:dup.spulen+f.spulen,refills:dup.refills+(f.refills||0),reste:[...dup.reste.slice(0,Math.max(0,dup.spulen)),...f.reste],codes:[...new Set([...dup.codes,...f.codes])],codes_refill:[...new Set([...dup.codes_refill,...f.codes_refill])],ams_farben:[...new Set([...dup.ams_farben,...(f.ams_farben||[])])]});toast("Dazugezählt");if(f.fotoId!=null)fotoErledigt(f.fotoId)});return}}
     await write(f,{});G.lastH=f.hersteller;if(!silent)closeModal();toast(f.uid?"Gespeichert":"Sorte angelegt");
     if(f.serieCode){serieWeg(f.serieCode);setTimeout(()=>serieModal(),300)}
+    if(f.fotoId!=null)fotoErledigt(f.fotoId);
   }catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 
 /* --- Zuordnen --- */
@@ -3635,11 +3640,134 @@ function fdbTreffer(q){const d=G.fdb;if(!d)return [];const toks=q.toLowerCase().
   for(let i=0;i<d.s.length&&out.length<60;i++){const s=d.s[i];if(alts.every(a=>a.some(x=>s.includes(x))))out.push(i)}return out}
 function fdbZeile(i){const d=G.fdb,c=d.c[i],l=d.l[c[0]];const bes=c[7]?c[7].split(","):[];
   return `<div class="lgr" data-act="lgNcDb" data-i="${i}">${spool(c[2],undefined,bes)}<div style="min-width:0"><div class="lgn">${esc(d.b[l[0]]+" "+l[2]+" · "+c[1])}</div><div class="lgs">${esc([l[1],c[3]?kg(c[3]):"",c[4]?String(c[4]).replace(".",",")+" mm":"",c[6]?"Refill":""].filter(Boolean).join(" · "))}</div></div><div class="lgrt"><span class="lgsrc">${c[8]?"SpoolmanDB":"OFD"}</span></div></div>`}
-let fdbT;function fdbSuche(q){clearTimeout(fdbT);fdbT=setTimeout(async()=>{const box=document.getElementById("lgdbres");if(!box)return;q=String(q||"").trim();
+let fdbT;function fdbSuche(q){clearTimeout(fdbT);fdbT=setTimeout(async()=>{const box=document.getElementById("lgdbres");if(!box)return;q=String(q||"").trim();if(box.dataset.pick)box.hidden=!q;
   if(!q){box.innerHTML=`<div class="lghint" style="padding:10px 12px">Hersteller, Linie oder Farbe eingeben.</div>`;return}
   if(!G.fdb){box.innerHTML=`<div class="lghint" style="padding:10px 12px">Datenbank wird geladen …</div>`;try{await fdbLaden()}catch(e){box.innerHTML=`<div class="lghint" style="padding:10px 12px;color:var(--bad)">${esc(e.message)}</div>`;return}}
-  const cur=document.getElementById("lgdbq");if(!cur||cur.value.trim()!==q)return;const t=fdbTreffer(q);
-  box.innerHTML=t.length?t.map(fdbZeile).join("")+(t.length>=60?`<div class="lghint" style="padding:10px 12px">Weitere Treffer: Suche genauer eingeben.</div>`:""):`<div class="lghint" style="padding:10px 12px">Nichts gefunden. Dann bitte „Neue Sorte anlegen“.</div>`},180)}
+  const cur=document.getElementById("lgdbq");if(!cur||cur.value.trim()!==q)return;const t=fdbTreffer(q);const pk=box.dataset.pick;const zl=i=>pk?fdbZeile(i).replace('data-act="lgNcDb"',`data-act="${pk}"`):fdbZeile(i);
+  box.innerHTML=t.length?t.map(zl).join("")+(t.length>=60?`<div class="lghint" style="padding:10px 12px">Weitere Treffer: Suche genauer eingeben.</div>`:""):`<div class="lghint" style="padding:10px 12px">Nichts gefunden. Dann bitte „Neue Sorte anlegen“.</div>`},180)}
+/* --- Spule per Foto erkennen: Etikett-Leser (Container auf der Synology) liest Text und Barcode, die Farbe tippt man im Foto an, Vorschläge kommen aus Lager und Filament-Datenbank --- */
+const CAMI=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
+const ET_KEY="schichtlohn_etikett_url";
+function etUrl(){let u="";try{u=localStorage.getItem(ET_KEY)||""}catch(e){}
+  if(!u&&location.protocol==="http:"&&location.hostname)u=`http://${location.hostname}:8093`;return u.replace(/\/+$/,"")}
+function etUrlSetzen(u){u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;try{if(u)localStorage.setItem(ET_KEY,u);else localStorage.removeItem(ET_KEY)}catch(e){}return u}
+const etMixed=u=>location.protocol==="https:"&&/^http:/i.test(u);
+async function etTest(u){if(!u)throw new Error("Keine Adresse eingetragen");if(etMixed(u))throw new Error("Diese Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser. Etikett-Leser per https erreichbar machen (Synology-Reverse-Proxy) oder das Lager über http öffnen.");
+  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),5000);try{const r=await fetch(u+"/",{signal:ctl.signal});const d=await r.json();if(!d.ok)throw 0;return d}catch(e){throw new Error("Etikett-Leser unter "+u+" nicht erreichbar")}finally{clearTimeout(t)}}
+
+const fwords=s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g,"").split(/[^a-z0-9]+/).filter(Boolean);
+const fnorm=s=>fwords(s).join("");
+const F_GENERIC=new Set(["filament","formerly","the","and","3d","plus","de","by","mm","kg","g"]);
+function fdbIdx(){const d=G.fdb;if(d.fi)return d.fi;
+  const bw=d.b.map(b=>({n:fnorm(b),w:fwords(b).filter(w=>!F_GENERIC.has(w))}));
+  d.fi=d.c.map((c,i)=>{const l=d.l[c[0]];const bws=new Set(bw[l[0]].w),mat=fnorm(l[1]);const al=fwords(l[8]||"").filter(w=>!F_GENERIC.has(w));
+    const lw=[...new Set(fwords(l[2]).filter(w=>!F_GENERIC.has(w)&&w.length>1&&!bws.has(w)&&w!==mat))];
+    return {i,b:l[0],lw,al,mat,cw:fwords(c[1]).filter(w=>w.length>1&&!bws.has(w)&&!al.includes(w)),hex:c[2]}});
+  d.bw=bw;return d.fi}
+function fdbEan(i){const d=G.fdb;if(!d.rev){d.rev={};Object.entries(d.g).forEach(([k,v])=>{const c=d.c[v[0]];const alt=d.rev[v[0]];const gut=v[1]===c[3]&&!v[2];if(!alt||(gut&&!alt.gut))d.rev[v[0]]={k,gut}})}
+  const r=d.rev[i];if(!r)return "";return r.k.length<13?r.k.padStart(13,"0"):r.k}
+const hexRgb=h=>[1,3,5].map(i=>parseInt(fHex(h).slice(i,i+2),16));
+/* Farbabstand in Lab, Helligkeit schwächer gewichtet: Fotos sind oft dunkler oder heller als die Herstellerfarbe */
+function hexLab(h){const [r,g,b]=hexRgb(h).map(v=>{v/=255;return v>.04045?((v+.055)/1.055)**2.4:v/12.92});
+  const f=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;const x=f((r*.4124+g*.3576+b*.1805)/.95047),y=f(r*.2126+g*.7152+b*.0722),z=f((r*.0193+g*.1192+b*.9505)/1.08883);
+  return [116*y-16,500*(x-y),200*(y-z)]}
+const farbAbst=(a,b)=>{const u=hexLab(a),v=hexLab(b);return Math.sqrt(((u[0]-v[0])*.3)**2+(u[1]-v[1])**2+(u[2]-v[2])**2)*2.2};
+function fotoWoerter(f){const roh=(f.text||[]).map(x=>x.t);const W=new Set();
+  roh.forEach(t=>{fwords(t).forEach(w=>W.add(w));fwords(String(t).replace(/([a-z])([A-Z])/g,"$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g,"$1 $2")).forEach(w=>W.add(w))});
+  return {W,T:roh.map(fnorm).join(" ")}}
+function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T}=fotoWoerter(f);
+  const has=w=>W.has(w)||(w.length>=4&&T.includes(w));
+  /* Barcode direkt */
+  const vorne=[];(f.codes||[]).forEach(c=>{const x=d.g[fdbCodeKey(c)];if(x&&!vorne.includes(x[0]))vorne.push(x[0])});
+  const marken=new Set();d.bw.forEach((b,i)=>{if(b.n.length>=4?T.includes(b.n):(b.n.length>=2&&W.has(b.n)))marken.add(i)});
+  const sc=[];const leer=!W.size&&!f.hex;
+  const mNorm=new Set([...marken].map(i=>d.bw[i].n));
+  if(!leer)idx.forEach(e=>{let s=0;const bh=marken.has(e.b)||e.al.some(w=>mNorm.has(w));if(marken.size&&!bh)return;if(bh)s+=6;
+    let lh=0;[...e.lw,...e.al.filter(w=>!mNorm.has(w))].forEach(w=>{if(has(w))lh++});s+=lh*3;if(e.lw.length&&e.lw.every(has))s+=2;if(e.mat&&has(e.mat))s+=1;
+    if(e.cw.length){const n=e.cw.filter(has).length;s+=n===e.cw.length?5+n:n}
+    if(f.hex)s+=8*Math.max(0,1-farbAbst(e.hex,f.hex)/200);
+    if(marken.size?s>=7:(lh>=1&&s>=6))sc.push([s,e.i])});
+  out.marke=marken.size>0||vorne.length>0;sc.sort((a,b)=>b[0]-a[0]);out.db=[...vorne,...sc.map(x=>x[1]).filter(i=>!vorne.includes(i))].slice(0,14);
+  /* eigenes Lager */
+  const top=out.db.slice(0,5).map(i=>fdbK(i)).filter(Boolean);
+  out.lager=entries().map(e=>{if((f.codes||[]).some(c=>e.codes.includes(c)))return [100,e];
+      let s=0;const hw=fwords(e.hersteller);if(hw.length&&hw.every(has))s+=6;else if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
+      if(has(fnorm(e.material)))s+=1;const fw=fwords(e.farbe);if(fw.length&&fw.every(has))s+=5;(e.besonderheiten||[]).forEach(b=>{if(has(fnorm(b)))s+=1});
+      if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
+      if(f.hex)s+=6*Math.max(0,1-farbAbst(e.hex,f.hex)/220);return [s,e]})
+    .filter(x=>x[0]>=10).sort((a,b)=>b[0]-a[0]).slice(0,4).map(x=>x[1]);
+  return out}
+
+/* Bild laden, verkleinern */
+function bildLaden(file){return new Promise((ok,err)=>{const u=URL.createObjectURL(file);const im=new Image();im.onload=()=>{const m=1600,s=Math.min(1,m/Math.max(im.naturalWidth,im.naturalHeight));
+    const cv=document.createElement("canvas");cv.width=Math.round(im.naturalWidth*s);cv.height=Math.round(im.naturalHeight*s);cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);URL.revokeObjectURL(u);ok(cv)};
+  im.onerror=()=>{URL.revokeObjectURL(u);err(new Error("Bild ließ sich nicht öffnen"))};im.src=u})}
+const cvBlob=cv=>new Promise(ok=>cv.toBlob(b=>ok(b),"image/jpeg",.88));
+async function browserCodes(cv){try{if("BarcodeDetector" in window){const r=await new BarcodeDetector().detect(cv);if(r&&r.length)return r.map(x=>x.rawValue).filter(Boolean)}}catch(e){}
+  try{const m=await import("https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm");const r=new m.BrowserMultiFormatReader().decodeFromCanvas(cv);const t=r&&r.getText();if(t)return [t]}catch(e){}return []}
+function farbeAn(cv,x,y){const r=Math.max(3,Math.round(Math.min(cv.width,cv.height)/80));const g=cv.getContext("2d",{willReadFrequently:true});
+  const x0=Math.max(0,Math.round(x-r)),y0=Math.max(0,Math.round(y-r));const p=g.getImageData(x0,y0,Math.min(cv.width-x0,2*r),Math.min(cv.height-y0,2*r)).data;const ch=[[],[],[]];
+  for(let i=0;i<p.length;i+=4){ch[0].push(p[i]);ch[1].push(p[i+1]);ch[2].push(p[i+2])}const med=a=>{a.sort((u,v)=>u-v);return a[a.length>>1]||0};
+  return "#"+ch.map(med).map(v=>v.toString(16).padStart(2,"0")).join("")}
+
+G.fotos=[];
+function fotoWahl(){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.style.display="none";document.body.appendChild(i);
+  i.addEventListener("change",()=>{const fs=[...i.files];i.remove();if(fs.length)fotoVerarbeiten(fs)});i.click()}
+async function fotoVerarbeiten(files){G.fotos=files.slice(0,40).map((file,id)=>({id,file,status:"wartet",text:[],codes:[],hex:"",done:false}));fotoListe();
+  try{await fdbLaden()}catch(e){}const url=etUrl();let etFehler="";
+  for(const f of G.fotos){f.status="liest";fotoListeAuffrischen();
+    try{f.cv=await bildLaden(f.file);const t=document.createElement("canvas");const s=Math.min(1,240/Math.max(f.cv.width,f.cv.height));t.width=Math.round(f.cv.width*s);t.height=Math.round(f.cv.height*s);t.getContext("2d").drawImage(f.cv,0,0,t.width,t.height);f.thumb=t.toDataURL("image/jpeg",.8);
+      if(url&&!etFehler){try{if(etMixed(url))throw new Error("https/http");const r=await fetch(url+"/lesen",{method:"POST",headers:{"Content-Type":"image/jpeg"},body:await cvBlob(f.cv)});const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);f.text=d.text||[];f.codes=d.codes||[]}
+        catch(e){etFehler=etMixed(url)?"Die Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser.":"Etikett-Leser nicht erreichbar ("+url+")."}}
+      if(!f.codes.length)f.codes=await browserCodes(f.cv);
+      f.tr=fotoTreffer(f);f.status="fertig"}catch(e){f.status="fehler";f.fehler=e.message||String(e)}
+    f.etFehler=etFehler;fotoListeAuffrischen()}
+  G.fotoEtFehler=etFehler||(url?"":"kein");if(G.fotos.length===1&&G.fotos[0].status==="fertig")fotoModal(0);else fotoListe()}
+function fotoName(f){if(!f)return "";if(f.status==="liest"||f.status==="wartet")return "wird gelesen …";if(f.status==="fehler")return f.fehler||"Fehler";
+  const e=f.tr&&f.tr.lager[0];if(e)return summary(e)+" (im Lager)";const i=f.tr&&f.tr.db[0];if(i!=null){const k=fdbK(i);if(!k)return "";if(f.codes.length||f.hex)return `${k.hersteller} ${k.linie} · ${k.farbe}`;return f.tr.marke?`${k.hersteller} · Farbe im Foto antippen`:"Marke nicht lesbar · Foto öffnen"}
+  return f.codes.length?"Code "+f.codes[0]:"Nichts erkannt, bitte suchen"}
+function fotoListeHtml(){return G.fotos.map(f=>`<div class="lgr lgfrow" data-act="lgFotoOpen" data-id="${f.id}">${f.thumb?`<img class="lgfthumb" src="${f.thumb}" alt="">`:`<div class="lgfthumb"></div>`}<div style="min-width:0"><div class="lgn">${esc(fotoName(f))}</div><div class="lgs">${esc([f.codes.length?"Barcode "+f.codes[0]:"",f.tr&&f.tr.db.length>1?f.tr.db.length+" Vorschläge":""].filter(Boolean).join(" · "))}</div></div><div class="lgrt">${f.done?`<span class="lgsrc" style="color:var(--good)">✓ erledigt</span>`:f.status==="liest"?`<span class="lgsrc">…</span>`:""}</div></div>`).join("")}
+function fotoListe(){const offen=G.fotos.filter(f=>!f.done).length;
+  modal(G.fotos.length===1?"Foto":"Fotos ("+G.fotos.length+")",`<div class="lgform">${fotoEtHinweis()}<div class="lghint">Foto antippen, Sorte wählen und speichern. ${offen?offen+" offen.":"Alle erledigt."}</div><div class="lgpick" id="lgflist" style="max-height:60vh">${fotoListeHtml()}</div></div>`,
+    `<button class="btn ghost" data-act="lgFoto">${CAMI} Weitere Fotos</button><span class="sp"></span><button class="btn pri" data-act="close">Fertig</button>`)}
+function fotoListeAuffrischen(){const l=document.getElementById("lgflist");if(l)l.innerHTML=fotoListeHtml()}
+function fotoEtHinweis(){const f=G.fotoEtFehler;const u=etUrl();
+  if(f==="kein"||(!u&&f!==""))return `<div class="note">Ohne Etikett-Leser werden nur Barcodes auf dem Foto gelesen. Adresse des Containers eintragen, z. B. http://192.168.178.20:8093:<div class="row" style="gap:8px;margin-top:8px"><input type="text" id="lgeturl" placeholder="http://synology:8093" style="flex:1" value="${esc(u)}"><button class="btn sm" data-act="lgEtSave">Speichern</button></div></div>`;
+  if(f)return `<div class="note" style="color:var(--bad)">${esc(f)} Nur Barcodes wurden gelesen.<div class="row" style="gap:8px;margin-top:8px"><input type="text" id="lgeturl" value="${esc(u)}" style="flex:1"><button class="btn sm" data-act="lgEtSave">Speichern</button></div></div>`;return ""}
+function fotoZeilen(f){const L=f.tr.lager.map(e=>`<div class="lgr" data-act="lgFotoLager" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">Im Lager: ${plural(e.spulen,"Rolle","Rollen")}${e.codes.length?" · "+plural(e.codes.length,"Code","Codes"):""}</div></div><div class="lgrt"><span class="lgsrc">Lager</span></div></div>`).join("");
+  const D=f.tr.db.map(i=>{let h=fdbZeile(i).replace('data-act="lgNcDb"','data-act="lgFotoPick"');const ean=fdbEan(i);return ean?h.replace('</div></div><div class="lgrt">',` · EAN ${ean}</div></div><div class="lgrt">`):h}).join("");
+  return L+D||`<div class="lghint" style="padding:10px 12px">Keine Vorschläge. Unten suchen oder neue Sorte anlegen.</div>`}
+function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;const n=G.fotos.length;const txt=(f.text||[]).map(x=>x.t).join(" · ");
+  modal(n>1?`Foto ${id+1} von ${n}`:"Spule erkennen",`<div class="lgform">${fotoEtHinweis()}
+    <div class="lgfbox"><img id="lgfimg" class="lgfimg" src="${f.cv?f.cv.toDataURL("image/jpeg",.85):""}" alt="Foto" data-act="lgFotoTap"><i id="lgfdot" hidden></i></div>
+    <div class="row" style="gap:10px;align-items:center"><span class="lgfsw" id="lgfsw" style="background:${f.hex||"transparent"}"></span><span class="lghint" id="lgfswt">${f.hex?"Farbe übernommen. Woanders tippen zum Ändern.":"Tippe aufs Filament im Foto, dann passt die Farbe."}</span></div>
+    ${f.codes.length?`<div class="lghint"><b>Barcode:</b> ${esc(f.codes.join(", "))}</div>`:""}${txt?`<div class="lghint lgftxt"><b>Gelesen:</b> ${esc(txt.length>220?txt.slice(0,220)+" …":txt)}</div>`:""}
+    <div class="lgdbh"><b>Vorschläge</b><span class="lghint">Antippen, dann prüfen und speichern. Der Barcode wird bei der Sorte gespeichert.</span></div>
+    <div class="lgpick lgdbpick" id="lgfres">${fotoZeilen(f)}</div>
+    <input type="search" id="lgdbq" placeholder="Selbst suchen, z. B. Polymaker PolyTerra Army Brown" autocomplete="off"><div class="lgpick lgdbpick" id="lgdbres" data-pick="lgFotoPick" hidden></div></div>`,
+    `${n>1?`<button class="btn ghost" data-act="lgFotoListe">Alle Fotos</button>`:""}<button class="btn ghost" data-act="lgFotoNeuSorte">${ICON.plus} Neue Sorte</button><span class="sp"></span>${n>1&&id<n-1?`<button class="btn" data-act="lgFotoNext">Weiter</button>`:`<button class="btn ghost" data-act="close">Schließen</button>`}`);
+  setTimeout(()=>{const ae=document.activeElement;if(ae&&(ae.id==="lgdbq"||ae.id==="lgeturl"))ae.blur();document.querySelectorAll("#modal,#modal .modal,#modal .mb").forEach(x=>x.scrollTop=0)},40)}
+function fotoTap(ev,img){const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;const r=img.getBoundingClientRect();
+  /* object-fit: contain → tatsächliche Bildfläche */
+  const s=Math.min(r.width/f.cv.width,r.height/f.cv.height),w=f.cv.width*s,h=f.cv.height*s,ox=(r.width-w)/2,oy=(r.height-h)/2;
+  const x=(ev.clientX-r.left-ox)/s,y=(ev.clientY-r.top-oy)/s;if(x<0||y<0||x>f.cv.width||y>f.cv.height)return;
+  f.hex=farbeAn(f.cv,x,y);f.tr=fotoTreffer(f);const dot=document.getElementById("lgfdot");if(dot){dot.hidden=false;dot.style.left=(ev.clientX-r.left)+"px";dot.style.top=(ev.clientY-r.top)+"px";dot.style.background=f.hex}
+  const sw=document.getElementById("lgfsw");if(sw)sw.style.background=f.hex;const st=document.getElementById("lgfswt");if(st)st.textContent="Farbe übernommen. Woanders tippen zum Ändern.";
+  const box=document.getElementById("lgfres");if(box){box.innerHTML=fotoZeilen(f);box.scrollTop=0}}
+function fotoErledigt(id){const f=G.fotos[id];if(!f)return;f.done=true;if(G.fotos.length>1){const nx=G.fotos.find(x=>!x.done&&x.status==="fertig");setTimeout(()=>nx?fotoModal(nx.id):fotoListe(),350)}}
+function fotoPick(i){const f=G.fotos[G.fotoAkt];const k=fdbK(i);if(!f||!k)return;const code=f.codes[0]||fdbEan(i)||"";const refill=k.ausfuehrung==="refill";
+  const hit=code&&codeSorte(code);if(hit){G.fotoLagerUid=hit.uid;G.fotoCode=code;return fotoLagerModal(hit,code,true)}
+  const same=entries().find(e=>fnorm(e.hersteller)===fnorm(k.hersteller)&&fnorm(e.material)===fnorm(k.material)&&fnorm(e.farbe)===fnorm(k.farbe));
+  if(same){G.fotoLagerUid=same.uid;G.fotoCode=code;return fotoLagerModal(same,code,false,k)}
+  formModal(null,Object.assign({},k,{besonderheiten:[...k.besonderheiten],codes:code?[code]:[],codes_refill:code&&refill?[code]:[],spulen:1,refills:refill?1:0,fotoId:f.id,
+    hinweis:`${k.quelle}: ${k.hersteller} ${k.linie} · ${k.farbe}.${code?` Barcode ${code} wird gespeichert${f.codes[0]?"":" (aus der Datenbank)"}.`:" In der Datenbank ist kein Barcode hinterlegt; einfach beim ersten Scan des Kartons zuordnen."}`}))}
+function fotoLagerModal(e,code,bekannt){const neu=code&&!e.codes.includes(code);
+  modal("Schon im Lager",`<div class="lgform"><div class="lgr" style="border:1px solid var(--line);border-radius:var(--r-s)">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">Bestand: ${plural(e.spulen,"Rolle","Rollen")} · ${kg(total(e))}</div></div><div></div></div>
+    <div class="lghint">${bekannt?`Barcode ${esc(code)} gehört schon zu dieser Sorte.`:neu?`Barcode ${esc(code)} ist hier noch nicht gespeichert.`:"Diese Sorte gibt es schon."}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
+    `${neu?`<button class="btn ghost" data-act="lgFLcode">Nur Barcode speichern</button>`:""}<span class="sp"></span><button class="btn pri" data-act="lgFLplus">${ICON.plus} 1 Rolle${neu?" + Barcode":""}</button>`)}
+async function fotoLagerSchreiben(plus){const e=entries().find(x=>x.uid===G.fotoLagerUid);const code=G.fotoCode;if(!e)return;const p={};
+  if(code&&!e.codes.includes(code))p.codes=[...e.codes,code];if(plus)p.spulen=Math.max(0,e.spulen)+1;
+  try{await write(e,p);closeModal();toast(plus?`1 Rolle dazugezählt: ${summary(e)}`:"Barcode gespeichert");draw(0);fotoErledigt(G.fotoAkt)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 const SERIE_KEY="ernsthaft_gelagert_plus_serie";
 const BC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg>`;
 const BCS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 9v6M10 9v6M13 9v6"/><path d="M16.5 10.5h3M18 9v3"/></svg>`;
@@ -3703,7 +3831,8 @@ function scanModal(serie){
     <div class="lgcam" id="lgcam"><video id="lgvid" playsinline muted autoplay></video><div class="lgframe"></div></div>
     ${serie?`<div class="lgflash" id="lgflash">Bereit, Karton in den Rahmen halten</div><div class="lghint" id="lgletzt">${esc(G.serieLetzt||"")}</div>`:""}
     <div class="lghint" id="lgsmsg">Kamera wird gestartet …</div>
-    <div class="row" style="gap:8px"><input type="text" id="lgctxt" inputmode="numeric" placeholder="… oder Zahlen unter dem Strichcode eintippen" style="flex:1"><button class="btn" data-act="lgCodeOk">${serie?"Dazu":"OK"}</button></div></div>`,foot);
+    <div class="row" style="gap:8px"><input type="text" id="lgctxt" inputmode="numeric" placeholder="… oder Zahlen unter dem Strichcode eintippen" style="flex:1"><button class="btn" data-act="lgCodeOk">${serie?"Dazu":"OK"}</button></div>
+    ${serie?"":`<div class="row"><button class="btn ghost sm" data-act="lgFoto">${CAMI} Kein Barcode? Spule fotografieren</button></div>`}</div>`,foot);
   setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgctxt")ae.blur()},60);
   camStart(code=>{if(G.serieAktiv)serieAdd(code,false);else onCode(code)})}
 async function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();
@@ -3922,6 +4051,16 @@ document.addEventListener("click",async e=>{
   if(a==="lgAms"){amsModal();return}
   if(a==="lgAmsPick"){const s=slots().find(x=>x.id===b.dataset.id);if(s)fromSlot(s);return}
   if(a==="lgScan"){scanStart();return}
+  if(a==="lgFoto"){camStop();fotoWahl();return}
+  if(a==="lgFotoOpen"){const f=G.fotos[+b.dataset.id];if(f&&f.status==="fertig")fotoModal(f.id);return}
+  if(a==="lgFotoListe"){fotoListe();return}
+  if(a==="lgFotoNext"){const nx=G.fotos.find(x=>x.id>G.fotoAkt&&!x.done&&x.status==="fertig")||G.fotos.find(x=>!x.done&&x.status==="fertig"&&x.id!==G.fotoAkt);if(nx)fotoModal(nx.id);else fotoListe();return}
+  if(a==="lgFotoTap"){fotoTap(e,b);return}
+  if(a==="lgFotoPick"){fotoPick(+b.dataset.i);return}
+  if(a==="lgFotoLager"){const f=G.fotos[G.fotoAkt],x=entries().find(y=>y.uid===b.dataset.uid);if(!f||!x)return;const code=f.codes[0]||"";G.fotoLagerUid=x.uid;G.fotoCode=code;fotoLagerModal(x,code,!!code&&x.codes.includes(code));return}
+  if(a==="lgFLcode"||a==="lgFLplus"){fotoLagerSchreiben(a==="lgFLplus");return}
+  if(a==="lgFotoNeuSorte"){const f=G.fotos[G.fotoAkt];if(!f)return;const c=f.codes[0]||"";formModal(null,{codes:c?[c]:[],hex:f.hex||"#808080",fotoId:f.id,hinweis:c?`Barcode ${c} wird gespeichert.`:"Neue Sorte vom Foto. Bitte ausfüllen."});return}
+  if(a==="lgEtSave"){const i=document.getElementById("lgeturl");const u=etUrlSetzen(i?i.value:"");try{const d=await etTest(u);toast("Etikett-Leser verbunden (Version "+d.version+")");G.fotoEtFehler="";if(G.fotos.length)fotoVerarbeiten(G.fotos.map(x=>x.file))}catch(err){toast(err.message)}return}
   if(a==="lgSerie"){serieStart();return}
   if(a==="lgSerieListe"){serieModal();return}
   if(a==="lgSerieEnde"){clearTimeout(G.reopenT);G.serieAktiv=false;camStop();if(G.serie.length)serieModal();else{closeModal();draw(0)}return}

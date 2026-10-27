@@ -15,6 +15,20 @@ Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
 
+## Spule per Foto erkennen (Etikett-Leser)
+
+Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen. Den Etikett-Text liest der **Etikett-Leser**, ein kleiner Container (PaddleOCR-Modelle über RapidOCR, läuft komplett lokal, ohne Cloud und ohne Kosten). Danach tippt man im Foto aufs Filament, um die Farbe festzulegen, und wählt aus den Vorschlägen aus Lager und Filament-Datenbank. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton.
+
+**Installation auf der Synology (Container Manager):**
+
+1. Container Manager → Projekt → Erstellen, Name `schichtlohn-etikett`, „docker-compose.yml erstellen“, Inhalt aus [`etikett/docker-compose.yml`](etikett/docker-compose.yml) einfügen, fertigstellen.
+2. Prüfen: `http://<synology>:8093/` zeigt `{"ok": true, …}`.
+3. In SchichtLohn beim ersten Foto die Adresse eintragen (z. B. `http://192.168.178.20:8093`).
+
+Wird SchichtLohn über **https** geöffnet (schichtlohn.pages.dev, Home Assistant über Nabu Casa), muss auch der Etikett-Leser per https erreichbar sein, sonst blockiert der Browser die Verbindung: DSM → Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy → Erstellen, Quelle `https`, eigener Hostname (z. B. `etikett.name.synology.me`), Port 443, Ziel `http://localhost:8093`; das Zertifikat unter Systemsteuerung → Sicherheit → Zertifikat diesem Dienst zuweisen. Die https-Adresse dann in SchichtLohn eintragen.
+
+Das Container-Image wird per GitHub Action für x86 und ARM gebaut (`ghcr.io/mitkiprogrammieren/schichtlohn-etikett`).
+
 ## Creality-Cloud
 
 Unter **Einstellungen → Creality-Cloud** verbindest du dein Creality-Konto, am sichersten per QR-Code mit Bestätigung in der Creality-Cloud-App (zweiter Faktor, ohne Passwort), alternativ mit E-Mail und Passwort (wird nicht gespeichert). Dann zeigt SchichtLohn im Reiter **Druckaufträge** den Status deiner Creality-Drucker (Fortschritt, Restzeit, Temperaturen, CFS-Farben) und die Druckhistorie. Fertige Drucke seit dem Verbinden werden einmal im Lager abgebucht; ohne passende Sorte landen sie unter „Nicht zugeordnet“. Beides lässt sich in den Einstellungen abschalten. Der Abruf läuft über `functions/creality/` auf schichtlohn.pages.dev, speichert nichts und nutzt eine inoffizielle Schnittstelle.

@@ -9,7 +9,8 @@ Aufruf:  python3 tools/filamentdb.py <pfad-ofd-repo> <pfad-spoolmandb-repo> [aus
 
 Ausgabe (kompakt, damit sie schnell lädt):
   b  Marken
-  l  Linien  [marke, material, name, dichte, düse_min, düse_max, bett_min, bett_max]
+  l  Linien  [marke, material, name, dichte, düse_min, düse_max, bett_min, bett_max, suchwörter]
+     suchwörter: Mutter-Marke und frühere Namen, z. B. „Polymaker PolyTerra“ bei Panchroma Matte
   c  Farben  [linie, farbname, hex, gewicht, durchmesser, leerspule, refill(0/1), besonderheiten, quelle(0=OFD,1=SpoolmanDB)]
   g  Barcodes  {ziffern ohne führende Nullen: [farbe, gewicht, refill]}
 """
@@ -38,6 +39,13 @@ ORDER = ["Basic", "Matt", "Seide", "Glänzend", "Glitzer", "Metallic", "Transpar
 def load(p):
     with open(p, encoding="utf-8") as f:
         return json.load(f)
+
+
+def words(s):
+    return [w for w in re.split(r"[^a-z0-9]+", str(s or "").lower()) if w]
+
+
+GENERIC = {"pla", "petg", "abs", "asa", "tpu", "filament", "basic", "formerly", "the", "and", "3d", "plus"}
 
 
 def norm(s):
@@ -79,6 +87,27 @@ class DB:
         self.l, self.li = [], {}
         self.c, self.ci = [], {}
         self.g = {}
+        self.ofd_lines = set()
+
+    def ofd_partner(self, brand, material, name):
+        """OFD-Linie, die dieselbe Sorte meint (z. B. SpoolmanDB „Panchroma Matte (Formerly PolyTerra)“ bei Polymaker)."""
+        sw = set(words(brand)) | set(words(name))
+        mat = norm(material)
+        best = None
+        for li in self.ofd_lines:
+            l = self.l[li]
+            if norm(l[1]) != mat:
+                continue
+            bw = [w for w in words(self.b[l[0]]) if w not in GENERIC]
+            pw = [w for w in words(l[8]) if w not in GENERIC]
+            if not (bw and all(w in sw for w in bw)) and not (pw and all(w in sw for w in pw)):
+                continue
+            lw = [w for w in words(l[2]) if w not in GENERIC and w not in bw and w != mat]
+            if not lw or not all(w in sw for w in lw):
+                continue
+            if best is None or len(lw) > best[0]:
+                best = (len(lw), li)
+        return best[1] if best else None
 
     def brand(self, name):
         k = norm(name)
@@ -91,8 +120,14 @@ class DB:
         k = (b, norm(material), norm(name))
         if k not in self.li:
             self.li[k] = len(self.l)
-            self.l.append([b, material, name, num(dens), num(d1), num(d2), num(b1), num(b2)])
+            self.l.append([b, material, name, num(dens), num(d1), num(d2), num(b1), num(b2), ""])
         return self.li[k]
+
+    def alias(self, l, text):
+        have = set(words(self.l[l][8])) | set(words(self.b[self.l[l][0]])) | set(words(self.l[l][2]))
+        neu = [w for w in dict.fromkeys(words(text)) if w not in have and w not in GENERIC and len(w) > 2]
+        if neu:
+            self.l[l][8] = (self.l[l][8] + " " + " ".join(neu)).strip()
 
     def color(self, l, name, hx, w, dia, spool, refill, bes, src):
         k = (l, norm(name))
@@ -113,11 +148,17 @@ def pick_size(sizes):
 
 def add_ofd(db, root):
     data = os.path.join(root, "data")
+    namen = {}
+    for bj in glob.glob(os.path.join(data, "*", "brand.json")):
+        b = load(bj)
+        namen[b.get("id") or os.path.basename(os.path.dirname(bj))] = b.get("name")
     for bdir in sorted(glob.glob(os.path.join(data, "*", ""))):
         bj = os.path.join(bdir, "brand.json")
         if not os.path.exists(bj):
             continue
-        brand = load(bj).get("name") or os.path.basename(bdir.rstrip("/"))
+        bjd = load(bj)
+        brand = bjd.get("name") or os.path.basename(bdir.rstrip("/"))
+        parent = namen.get(bjd.get("parent_brand") or "") or ""
         bi = db.brand(brand)
         for fj in sorted(glob.glob(os.path.join(bdir, "*", "*", "filament.json"))):
             fdir = os.path.dirname(fj)
@@ -131,6 +172,9 @@ def add_ofd(db, root):
             li = db.line(bi, material, f.get("name") or "", f.get("density"),
                          f.get("min_print_temperature"), f.get("max_print_temperature"),
                          f.get("min_bed_temperature"), f.get("max_bed_temperature"))
+            if parent:
+                db.alias(li, parent)
+            db.ofd_lines.add(li)
             lbes = bes_of(f.get("name"), material)
             for vj in sorted(glob.glob(os.path.join(fdir, "*", "variant.json"))):
                 v = load(vj)
@@ -165,7 +209,12 @@ def add_sdb(db, root):
             dias = f.get("diameters") or [1.75]
             dia = 1.75 if 1.75 in dias else dias[0]
             et, bt = f.get("extruder_temp"), f.get("bed_temp")
-            li = db.line(bi, material, name, f.get("density"), et, et, bt, bt)
+            partner = db.ofd_partner(db.b[bi], material, name)
+            if partner is not None:
+                db.alias(partner, db.b[bi] + " " + name)
+                li = partner
+            else:
+                li = db.line(bi, material, name, f.get("density"), et, et, bt, bt)
             extra = []
             if f.get("finish") == "matte":
                 extra.append("Matt")
