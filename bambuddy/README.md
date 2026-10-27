@@ -10,7 +10,31 @@ Das Lager aus SchichtLohn, mit Bambuddys Inventar als Datenquelle und als Eintra
 - **AMS:** Ort im AMS, „Fächer ohne Zuordnung“ und AMS-Feuchte kommen live aus Bambuddys Druckerstatus.
 - „Nicht zugeordnet“ und die Lager-Einstellungen liegen im Browser.
 
-## Einrichten (Linux-Server, auf dem Bambuddy läuft)
+## Einrichten auf der Synology (Bambuddy und Lager zusammen)
+
+Die Datei `synology/docker-compose.yml` enthält das Original-Bambuddy und das Lager. Das Lager holt sich seine Dateien bei jedem Start selbst von GitHub, auf der NAS ist kein `git` nötig.
+
+1. **Ordner anlegen:** File Station → Freigabe `docker` → neuer Ordner `bambuddy`.
+2. **Projekt anlegen:** Container Manager → Projekt → Erstellen
+   - Projektname: `bambuddy`
+   - Pfad: `/docker/bambuddy`
+   - Quelle: „docker-compose.yml erstellen“ und den Inhalt von [`synology/docker-compose.yml`](synology/docker-compose.yml) einfügen
+   - Weiter, Web-Portal-Einstellungen überspringen, Fertig. Die Images werden geladen und gestartet.
+3. **Bambuddy öffnen:** `http://<NAS-IP>:8000` und die Drucker hinzufügen (IP-Adresse, Seriennummer, Zugangscode – am Drucker unter Einstellungen → Netzwerk bzw. Geräteinfo). Feste IP-Adressen für die Drucker in der FritzBox vergeben.
+4. **Lager einhängen:** in Bambuddy Einstellungen → Externe Links → Neuer Link, Name `FilamentLager`, URL `http://<NAS-IP>:8091/`, Icon `package`, „In neuem Tab öffnen“ aus.
+5. **Bambu Studio:** im Reiter Gerät bei jedem Drucker „Gesendete Dateien auf externem Speicher ablegen“ einschalten, damit Bambuddy die 3MF (Gramm je Filament, Vorschaubild) bekommt.
+
+**Drucker bleiben in der Cloud** (kein LAN-only, kein Developer Mode). Bambuddy liest dann nur mit und zeigt einen Hinweis zum Entwicklermodus – den kannst du ignorieren. Bambu Handy und Cloud-Druck funktionieren weiter.
+
+**Testdruck:** Danach sollte der Druck in Bambuddys Archiv mit Vorschaubild und Gramm erscheinen und die Spule im Lager weniger werden. Fehlt die 3MF, bucht Bambuddy über den Füllstand im AMS ab – das klappt nur bei Spulen, für die das AMS einen Füllstand meldet (z. B. Bambu-Spulen mit RFID).
+
+**Wenn das Lager „Bambuddy nicht erreichbar“ meldet:** im Projekt die `docker-compose.yml` bearbeiten, bei `BAMBUDDY_URL` die IP der NAS eintragen (z. B. `http://192.168.1.20:8000`) und das Projekt neu erstellen. Ist die Synology-Firewall an, die Ports 8000 und 8091 im Heimnetz erlauben.
+
+**Aktualisieren:**
+- Lager: Projekt stoppen und starten.
+- Bambuddy: Container Manager → Image → `ghcr.io/maziggy/bambuddy` → Aktualisieren, danach Projekt neu starten.
+
+## Einrichten auf einem Linux-Server, auf dem Bambuddy schon läuft
 
 ```bash
 git clone https://github.com/MitKIprogrammieren/Schichtlohn.git

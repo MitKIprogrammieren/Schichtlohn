@@ -14,7 +14,7 @@ services:
       - "8091:80"
     volumes:
       - ../:/usr/share/nginx/html:ro
-      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       # Bambuddy läuft mit network_mode: host auf Port 8000 desselben Rechners
       BAMBUDDY_URL: "http://host.docker.internal:8000"

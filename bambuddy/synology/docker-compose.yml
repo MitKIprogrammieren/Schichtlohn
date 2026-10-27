@@ -1,0 +1,72 @@
+# Bambuddy + FilamentLager auf der Synology (Container Manager → Projekt)
+#
+#   Bambuddy:     http://<NAS-IP>:8000
+#   FilamentLager: http://<NAS-IP>:8091   (in Bambuddy als Externer Link eintragen)
+#
+# Aktualisieren:
+#   - Lager:    Projekt stoppen und wieder starten – holt den neuesten Stand von GitHub.
+#   - Bambuddy: Container Manager → Image → ghcr.io/maziggy/bambuddy → „Aktualisieren“, dann Projekt neu starten.
+services:
+
+  # Original-Bambuddy, unverändert
+  bambuddy:
+    image: ghcr.io/maziggy/bambuddy:latest
+    container_name: bambuddy
+    restart: unless-stopped
+    network_mode: host            # nötig, damit Bambuddy die Drucker im Heimnetz direkt erreicht
+    environment:
+      TZ: Europe/Berlin
+      PORT: "8000"
+    volumes:
+      - bambuddy_data:/app/data   # Datenbank, Archiv, Einstellungen
+      - bambuddy_logs:/app/logs
+
+  # Holt bei jedem Start das Lager (SchichtLohn) von GitHub und beendet sich dann
+  lager-holen:
+    image: alpine/git:latest
+    container_name: lager-holen
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        B="$${SL_BRANCH:-main}"
+        if [ -d /repo/.git ]; then
+          git -C /repo fetch --depth 1 origin "$$B"
+          git -C /repo reset --hard FETCH_HEAD
+        else
+          git clone --depth 1 --branch "$$B" https://github.com/MitKIprogrammieren/Schichtlohn.git /repo
+        fi
+        git -C /repo log -1 --format='Lager-Stand: %h %cd'
+    environment:
+      SL_BRANCH: "bambuddy-lager"   # später: main
+    volumes:
+      - lager_dateien:/repo
+
+  # Liefert das Lager aus und leitet /api/ an Bambuddy weiter
+  filamentlager:
+    image: nginx:alpine
+    container_name: filamentlager
+    restart: unless-stopped
+    depends_on:
+      lager-holen:
+        condition: service_completed_successfully
+    ports:
+      - "8091:80"
+    environment:
+      NGINX_ENVSUBST_TEMPLATE_DIR: /usr/share/nginx/html/bambuddy/templates
+      # Bambuddy läuft im Host-Netz der NAS. Klappt das nicht (Lager zeigt „Bambuddy nicht erreichbar“),
+      # hier die IP der NAS eintragen, z. B. http://192.168.1.20:8000
+      BAMBUDDY_URL: "http://host.docker.internal:8000"
+      # Nur nötig, wenn in Bambuddy die Anmeldung eingeschaltet ist (API-Schlüssel bb_… mit
+      # „Status lesen“ und „Inventar verwalten“). Bleibt im Container, geht nie an den Browser.
+      BAMBUDDY_API_KEY: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - lager_dateien:/usr/share/nginx/html:ro
+
+volumes:
+  bambuddy_data:
+  bambuddy_logs:
+  lager_dateien:
