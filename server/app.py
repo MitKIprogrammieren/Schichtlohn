@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.4.2"
+VERSION = "2.5.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -266,23 +266,28 @@ _ocr_genau = None
 
 
 def ocr(genau=False):
-    """Schnelles Lesemodell (PP-OCRv3, eingebaut) fürs ganze Foto; genaues (PP-OCRv4) für Ausschnitte.
-    Mit LESEMODELL=genau wird auch das ganze Foto genau gelesen, mit LESEMODELL=standard nie."""
+    """Lesemodell wählen:
+    Standard: PaddleOCR PP-OCRv4 mobil (schnell und genauer als das eingebaute v3).
+    LESEMODELL=genau: zusätzlich das große PP-OCRv4-Server-Modell für Ausschnitte (nur für starke Rechner).
+    LESEMODELL=standard: nur das eingebaute PP-OCRv3."""
     global _ocr, _ocr_genau
     modus = os.environ.get("LESEMODELL", "auto")
-    det, rec = os.path.join(MODELLE, "ocr_det.onnx"), os.path.join(MODELLE, "ocr_rec.onnx")
-    genau_da = os.path.exists(det) and os.path.exists(rec) and modus != "standard"
-    will_genau = genau_da and (genau or modus == "genau")
-    with _ocr_lade_lock:  # jedes Modell nur einmal laden, auch wenn mehrere Fotos gleichzeitig kommen
+    det = os.path.join(MODELLE, "ocr_det.onnx")
+    mobil, gross = os.path.join(MODELLE, "ocr_rec_mobil.onnx"), os.path.join(MODELLE, "ocr_rec.onnx")
+    with _ocr_lade_lock:  # jedes Modell nur einmal laden
         from rapidocr_onnxruntime import RapidOCR
-        if will_genau:
+        if genau and modus == "genau" and os.path.exists(det) and os.path.exists(gross):
             if _ocr_genau is None:
-                _ocr_genau = RapidOCR(det_model_path=det, rec_model_path=rec)
-                print("Lesemodell geladen: PP-OCRv4 (genau)", flush=True)
+                _ocr_genau = RapidOCR(det_model_path=det, rec_model_path=gross)
+                print("Lesemodell geladen: PP-OCRv4 Server (genau)", flush=True)
             return _ocr_genau
         if _ocr is None:
-            _ocr = RapidOCR()
-            print("Lesemodell geladen: PP-OCRv3 (schnell)", flush=True)
+            if modus != "standard" and os.path.exists(det) and os.path.exists(mobil):
+                _ocr = RapidOCR(det_model_path=det, rec_model_path=mobil)
+                print("Lesemodell geladen: PP-OCRv4 mobil", flush=True)
+            else:
+                _ocr = RapidOCR()
+                print("Lesemodell geladen: PP-OCRv3 (eingebaut)", flush=True)
         return _ocr
 
 
@@ -306,6 +311,13 @@ def merkmal_sitzung():
             import onnxruntime as ort
             _merkmal = ort.InferenceSession(MERKMAL_MODELL, providers=["CPUExecutionProvider"])
     return _merkmal or None
+
+
+def lesemodell_name():
+    m = os.environ.get("LESEMODELL", "auto")
+    if m == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec_mobil.onnx")):
+        return "PP-OCRv3"
+    return "PP-OCRv4 + Server-Modell für Ausschnitte" if m == "genau" and os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "PP-OCRv4"
 
 
 def fingerabdruck(img):

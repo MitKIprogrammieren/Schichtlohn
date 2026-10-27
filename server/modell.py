@@ -22,6 +22,7 @@ print("Modell gespeichert:", ziel, os.path.getsize(ziel) // 1024, "KB")
 OCR = {
     "ocr_det.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
     "ocr_rec.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_rec_server_infer.onnx",
+    "ocr_rec_mobil.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx",
 }
 for name, url in OCR.items():
     try:
