@@ -3156,6 +3156,25 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 @media (max-width:1100px){.lgtop[data-n="3"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:620px){.lgtop[data-n]{grid-template-columns:1fr}}
 .lgtop .lstat{display:contents}
+/* Kacheln oben im Lager */
+.lgtop .lgkpi{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.lgkpi .kpi.k-mat{grid-column:span 2}
+.kpi{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--glass);color:var(--fg);font:inherit;text-align:left}
+button.kpi{cursor:pointer;transition:border-color .15s,background .15s}
+button.kpi:hover{border-color:var(--line-2)}
+.kpi.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--glass))}
+.kpi .kl{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)}
+.kpi .kl svg{width:17px;height:17px;flex:none}
+.kpi.k-best .kl svg{color:var(--accent)}.kpi.k-verb .kl svg{color:#29b6f6}.kpi.k-mat .kl svg{color:#4caf50}.kpi.k-ams .kl svg{color:#ab47bc}.kpi.k-knapp .kl svg{color:var(--warn)}
+.kpi .kv{font-size:26px;line-height:1.15;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi.k-knapp.warn .kv{color:var(--warn)}
+.kpi .ks{font-size:13px;color:var(--fg-3)}
+.kpi .kchips{display:flex;flex-wrap:wrap;gap:6px}
+.kchip{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:999px;font-size:13px;font-variant-numeric:tabular-nums;background:color-mix(in srgb,var(--mc) 18%,transparent);color:var(--fg)}
+.kchip b{color:var(--mc);font-weight:700}
+.kchip.kmore{--mc:#9e9e9e;color:var(--fg-2)}
+@media (max-width:1100px){.lgtop .lgkpi{grid-template-columns:repeat(3,minmax(0,1fr))}.lgkpi .kpi.k-mat{grid-column:span 1}}
+@media (max-width:620px){.lgtop .lgkpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.kpi{padding:12px 14px}.kpi .kv{font-size:22px}.kpi .kl{font-size:11px;letter-spacing:.04em}.kpi.k-mat{grid-column:1/-1}}
 .lgbestw{display:contents}
 .lgbest .dt{flex:none}
 .lgtop .dcard.kompakt{flex-wrap:wrap;row-gap:10px;align-content:flex-start}
@@ -3504,6 +3523,34 @@ function rowHTML(e,orte,fu,E){
     <div style="min-width:0"><div class="lgn">${esc(name(e))}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
 function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>Alle aufklappen`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5-5 5 5"/></svg>Alle einklappen`)}
+
+/* --- Kacheln oben: Bestand, Verbrauch, Materialien, im Drucker, niedriger Bestand --- */
+const KMAT=[[/^(a?pla)/,"PLA","#4caf50"],[/^(petg|pctg)/,"PETG","#29b6f6"],[/^(abs)/,"ABS","#ff7043"],[/^(asa)/,"ASA","#ffb300"],[/^(tpu|tpe|flex|peba)/,"TPU","#ab47bc"],[/^(pa|nylon|paht|ppa)/,"PA","#26a69a"],[/^(pc)/,"PC","#90a4ae"],[/^(pet)/,"PET","#4fc3f7"],[/^(pva|bvoh)/,"PVA","#64b5f6"]];
+function kmat(m){const t=String(m||"").toLowerCase().split(/[\s\-_+\/]+/)[0]||"";const x=KMAT.find(([re])=>re.test(t));return x?[x[1],x[2]]:["Sonstige","#9e9e9e"]}
+/* knapp: eigene Grenze aus den Einstellungen, sonst weniger als 20 % einer Rolle übrig */
+function knapp(e,E){if(!(e.spulen>0))return false;const g=total(e);return (E&&E.knapp_g>0)?g<E.knapp_g:g<0.2*(e.gewicht||1000)}
+const KI={
+  box:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+  trend:'<path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+  layers:'<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  printer:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
+  warn:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>'};
+const kic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KI[n]}</svg>`;
+function kpiHTML(all,sl,E){
+  const mit=all.filter(e=>e.spulen>0);const sum=mit.reduce((a,e)=>a+total(e),0),rollen=mit.reduce((a,e)=>a+e.spulen,0);
+  const verb=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch").reduce((a,d)=>a+(Number(d.gramm)||0),0);
+  const gr={};mit.forEach(e=>{const n=String(e.material||"Ohne").trim()||"Ohne";(gr[n]=gr[n]||{g:0,c:kmat(n)[1]}).g+=total(e)});
+  const mats=Object.entries(gr).sort((a,b)=>b[1].g-a[1].g);const zeig=mats.slice(0,4),rest=mats.length-zeig.length;
+  const kn=all.filter(e=>knapp(e,E)).length;const fl=G.f||{};
+  const grenze=E.knapp_g>0?"unter "+kg(E.knapp_g):"unter 20 % einer Rolle";
+  const t=(cls,act,o,ic,lbl,inner,tip)=>`<${act?"button type=\"button\"":"div"} class="kpi ${cls}"${act?` data-act="${act}"`:""}${o?` data-o="${o}"`:""}${tip?` title="${esc(tip)}"`:""}><span class="kl">${kic(ic)}${lbl}</span>${inner}</${act?"button":"div"}>`;
+  return `<div class="lgkpi">`+
+    t("k-best","","","box","Gesamtbestand",`<b class="kv">${kg(sum)}</b><span class="ks">${rollen} ${rollen===1?"Rolle":"Rollen"} · ${mit.length} Sorten</span>`)+
+    t("k-verb","lgStat","","trend","Gesamtverbrauch",`<b class="kv">${kg(verb)}</b><span class="ks">Seit Beginn der Erfassung</span>`,"Verbrauch und Kosten anzeigen")+
+    t("k-mat","","","layers","Nach Material",`<span class="kchips">${zeig.map(([n,x])=>`<span class="kchip" style="--mc:${x.c}"><b>${esc(n)}</b> ${kg(x.g)}</span>`).join("")}${rest>0?`<span class="kchip kmore">+${rest}</span>`:""}</span>`)+
+    t("k-ams"+(fl.ort==="ams"?" on":""),"lgOrtF","ams","printer","Im Drucker",`<b class="kv">${sl.length}</b><span class="ks">Im AMS bzw. extern geladen</span>`,"Nur Sorten im Drucker zeigen")+
+    t("k-knapp"+(kn?" warn":"")+(fl.ort==="knapp"?" on":""),"lgOrtF","knapp","warn","Niedriger Bestand",`<b class="kv">${kn}</b><span class="ks">${esc(grenze)}</span>`,"Nur knappe Sorten zeigen")+
+    `</div>`}
 function body0(){G._allZu=false;
   const E=ein();const all=entries();const sl=slots();const fu=feuchte();
   const imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
@@ -3512,7 +3559,7 @@ function body0(){G._allZu=false;
   const txt=e=>[e.hersteller,e.material,e.farbe,fam(e.hex),...e.besonderheiten,e.fcode,e.bambu_id,...e.codes,...(imFach[e.uid]||[]).map(s=>s.ort)].join(" ").toLowerCase();
   const passt=e=>{if(fl.material&&e.material!==fl.material)return false;if(fl.hersteller&&e.hersteller!==fl.hersteller)return false;if(fl.farbe&&fam(e.hex)!==fl.farbe)return false;
     if(fl.ort){const o=imFach[e.uid]||[];if(fl.ort==="ams"&&!o.length)return false;if(fl.ort==="lager"&&o.length)return false;if(fl.ort==="angebrochen"&&!(e.spulen>0&&e.reste.length))return false;
-      if(fl.ort==="knapp"&&!(e.spulen>0&&total(e)<(E.knapp_g||0)))return false;if(fl.ort==="leer"&&e.spulen>0)return false}return true};
+      if(fl.ort==="knapp"&&!knapp(e,E))return false;if(fl.ort==="leer"&&e.spulen>0)return false}return true};
   const sicht=(q||zeigLeer||fl.ort==="leer")?all:all.filter(e=>e.spulen>0);
   const list=sicht.filter(e=>passt(e)&&worte.every(w=>txt(e).includes(w)));
   const sum=all.reduce((a,e)=>a+total(e),0),spulen=all.reduce((a,e)=>a+Math.max(0,e.spulen),0),refills=all.reduce((a,e)=>a+Math.max(0,Math.min(e.refills,e.spulen)),0);
@@ -3520,8 +3567,7 @@ function body0(){G._allZu=false;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
-  let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div></div></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+  let h=`${kpiHTML(all,sl,E)}${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -3938,6 +3984,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgAllZu"){const keys=[...document.querySelectorAll("#lgList .lgp[data-gk]>.row.pad")].map(r=>r.dataset.z);const sort=keys.length?keys[0].split(":")[0]:"";G.zu=G.zu.filter(z=>!z.startsWith(sort+":"));if(!G._allZu)G.zu.push(...keys);savePref();draw(0);return}
   if(a==="lgQClear"){G.q="";draw(0);setTimeout(()=>{const n=document.getElementById("lgq");if(n)n.focus()},60);return}
   if(a==="lgFilt"){G.showF=!G.showF;savePref();draw(0);return}
+  if(a==="lgOrtF"){const o=b.dataset.o;G.f=Object.assign({},G.f||{});G.f.ort=G.f.ort===o?"":o;savePref();draw(0);return}
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}

@@ -73,7 +73,9 @@ function ziele(d){const n=Math.max(0,Math.round(Number(d.spulen)||0));const gew=
   const reste=(Array.isArray(d.reste)?d.reste:[]).map(Number).filter(r=>r>0&&r<gew).slice(0,n);
   return [...Array(n-reste.length).fill(gew),...reste].sort((a,b)=>b-a)}
 
-async function anlegen(f,restG){const s=await req("POST","/inventory/spools",Object.assign({},f,{weight_used:Math.max(0,Math.round((f.label_weight-restG)*10)/10)}));return s}
+async function anlegen(f,restG){const wu=Math.max(0,Math.round((f.label_weight-restG)*10)/10);
+  /* ein angebrochener Rest beim Anlegen ist kein Verbrauch: Bambuddys Zähler „Gesamtverbrauch“ beginnt bei 0 */
+  const s=await req("POST","/inventory/spools",Object.assign({},f,{weight_used:wu,weight_used_baseline:wu}));return s}
 async function leeren(s){await req("PATCH","/inventory/spools/"+s.id,{weight_used:W(s),weight_locked:true});await req("POST","/inventory/spools/"+s.id+"/archive")}
 async function abgleichen(g,d){
   const f=felder(d);
@@ -183,9 +185,21 @@ async function laden(force){
       const st=await Promise.all(B.printers.map(p=>req("GET","/printers/"+p.id+"/status").catch(()=>null)));
       B.printers.forEach((p,i)=>{if(st[i])B.status[p.id]=st[i]});
       gruppieren();zustaende();B.loaded=true;B.err="";B.at=Date.now();
+      grundlinie();
     }catch(e){B.err=e.message;console.warn("Bambuddy",e);if(window.toast&&!B.loaded)toast("Bambuddy: "+e.message)}
     finally{B.loading=null;verteilen();try{knopf()}catch(e){}}})();
   return B.loading}
+/* Einmalig: beim Import mitgebrachte Reste nicht als Verbrauch zählen (Bambuddys „Gesamtverbrauch“) */
+const GL="schichtlohn_bambuddy_grundlinie_v1";let glLaeuft=false;
+async function grundlinie(){
+  try{if(localStorage.getItem(GL))return}catch(e){return}
+  if(glLaeuft)return;glLaeuft=true;
+  try{const mitLog=new Set(B.usage.map(u=>u.spool_id));
+    const ids=B.spools.filter(s=>!(Number(s.weight_used_baseline)>0)&&Number(s.weight_used)>0&&!mitLog.has(s.id)).map(s=>s.id);
+    for(let i=0;i<ids.length;i+=200)await req("POST","/inventory/spools/reset-consumed-counter-bulk",{spool_ids:ids.slice(i,i+200)});
+    try{localStorage.setItem(GL,new Date().toISOString())}catch(e){}
+    if(ids.length)bald()}
+  catch(e){console.warn("Bambuddy Grundlinie",e)}finally{glLaeuft=false}}
 function bald(){clearTimeout(B.reloadT);B.reloadT=setTimeout(()=>laden(true),600)}
 function verbinden(){
   if(!on()||B.ws)return;
