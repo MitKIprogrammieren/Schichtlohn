@@ -21,7 +21,9 @@ Unter **Einstellungen → Creality-Cloud** verbindest du dein Creality-Konto, am
 
 ## Quellen
 
-Die Liste der Filamentmarken und -sorten im Rechner (Marke, Material, Variante, Dichte) stammt aus [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT-Lizenz). Preise für Bambu Lab sind EU-Listenpreise; bei den übrigen Sorten ist der Preis ein Richtwert je Materialart (mit ≈ markiert), bis du einen eigenen Preis einträgst oder die Sorte im Lager hast.
+Die Liste der Filamentmarken und -sorten im Rechner (Marke, Material, Variante, Dichte) stammt aus [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT-Lizenz).
+
+Der Scanner im Lager nutzt `filamentdb.json`, gebaut aus der [Open Filament Database](https://github.com/OpenFilamentCollective/open-filament-database) und SpoolmanDB (beide MIT-Lizenz): rund 19 000 Farben von knapp 200 Marken, davon etwa 6000 mit Barcode (EAN/GTIN). Ein Code aus der Datenbank wird beim Scannen direkt erkannt; bei einem unbekannten Code (z. B. Amazon-Etikett X00…) sucht man die Sorte nach Marke, Linie und Farbe und legt sie mit diesem Code an. Die Datei wird jede Woche per GitHub Action neu gebaut (`tools/filamentdb.py`). Nach Änderungen an `index.html` baut `python3 tools/karte.py` die Home-Assistant-Karte neu. Preise für Bambu Lab sind EU-Listenpreise; bei den übrigen Sorten ist der Preis ein Richtwert je Materialart (mit ≈ markiert), bis du einen eigenen Preis einträgst oder die Sorte im Lager hast.
 
 ## Daten
 

@@ -3230,6 +3230,8 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgpick{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-s)}
 .lgpick .lgr{padding:9px 12px}
 .lghint{font-size:12px;color:var(--fg-3)}
+.lgdbh{display:flex;flex-direction:column;gap:2px;margin-top:4px}.lgdbh b{font-size:13px}
+.lgdbpick{max-height:34vh}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
 details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
@@ -3611,6 +3613,33 @@ function fromSlot(s){const toks=String(s.name||"").split(/\s+/).filter(Boolean);
 const CODES_BEKANNT={
  "6975337032106":{hersteller:"Bambu Lab",material:"PLA",farbe:"Copper Brown Metallic",hex:"#a0603f",besonderheiten:["Metallic"],gewicht:1000,durchmesser:1.75,ausfuehrung:"spule",duese_min:190,duese_max:230,trocknen_c:55,trocknen_h:8,fcode:"13800"},
  "6977252428200":{hersteller:"Bambu Lab",material:"PLA",farbe:"Nardo Gray",hex:"#787a7a",besonderheiten:["Matt"],gewicht:1000,durchmesser:1.75,ausfuehrung:"refill"}};
+/* Filament-Datenbanken: Open Filament Database + SpoolmanDB (beide MIT), gebündelt in filamentdb.json (tools/filamentdb.py) */
+const FDB_URLS=["filamentdb.json","https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json"];
+const FDB_SYN={schwarz:["black"],weiss:["white"],"weiß":["white"],grau:["gray","grey"],silber:["silver"],rot:["red"],orange:["orange"],gelb:["yellow"],gold:["gold"],beige:["beige"],braun:["brown"],"grün":["green"],gruen:["green"],"türkis":["turquoise","teal","cyan"],blau:["blue"],lila:["purple","violet","lilac"],pink:["pink"],rosa:["pink","rose"],matt:["matte"],seide:["silk"],transparent:["translucent","transparent","clear"],leuchtend:["glow"],glitzer:["glitter","sparkle","galaxy"],holz:["wood"],marmor:["marble"]};
+let fdbP=null;
+function fdbLaden(){if(G.fdb)return Promise.resolve(G.fdb);if(fdbP)return fdbP;
+  const urls=window.__PW_HA?FDB_URLS.slice(1):FDB_URLS;
+  fdbP=(async()=>{for(const u of urls){try{const r=await fetch(u,{cache:"force-cache"});if(!r.ok)continue;const d=await r.json();if(d&&Array.isArray(d.c)){
+      d.s=d.c.map(c=>{const l=d.l[c[0]];return (d.b[l[0]]+" "+l[2]+" "+l[1]+" "+c[1]+" "+(c[7]||"")).toLowerCase()});G.fdb=d;return d}}catch(e){}}
+    fdbP=null;throw new Error("Filament-Datenbank nicht erreichbar")})();return fdbP}
+const fdbVorladen=()=>{fdbLaden().catch(()=>{})};
+const fdbCodeKey=c=>{const d=String(c||"").replace(/\D/g,"").replace(/^0+/,"");return d.length>=6?d:""};
+function fdbK(i,gew,refill){const d=G.fdb;const c=d&&d.c[i];if(!c)return null;const l=d.l[c[0]];const nn=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const bn=d.b[l[0]];const her=known("hersteller").find(h=>nn(h)===nn(bn))||bn;const r=refill!=null?refill:c[6];
+  const k={hersteller:her,material:l[1],farbe:c[1],hex:c[2],besonderheiten:c[7]?c[7].split(","):[],gewicht:gew||c[3]||1000,durchmesser:c[4]||1.75,ausfuehrung:r?"refill":"spule",quelle:c[8]?"SpoolmanDB":"Open Filament Database",linie:l[2]};
+  if(l[4]!=null)k.duese_min=l[4];if(l[5]!=null)k.duese_max=l[5];if(l[6]!=null)k.bett_min=l[6];if(l[7]!=null)k.bett_max=l[7];return k}
+function fdbCode(code){const d=G.fdb;if(!d)return null;const x=d.g[fdbCodeKey(code)];return x?fdbK(x[0],x[1],x[2]):null}
+const kBekannt=code=>CODES_BEKANNT[code]||fdbCode(code)||null;
+function fdbTreffer(q){const d=G.fdb;if(!d)return [];const toks=q.toLowerCase().split(/\s+/).filter(Boolean);if(!toks.length)return [];
+  const alts=toks.map(t=>{const a=[t,...(FDB_SYN[t]||[])];if(t.length>4&&t.endsWith("s"))a.push(t.slice(0,-1));return a});const out=[];
+  for(let i=0;i<d.s.length&&out.length<60;i++){const s=d.s[i];if(alts.every(a=>a.some(x=>s.includes(x))))out.push(i)}return out}
+function fdbZeile(i){const d=G.fdb,c=d.c[i],l=d.l[c[0]];const bes=c[7]?c[7].split(","):[];
+  return `<div class="lgr" data-act="lgNcDb" data-i="${i}">${spool(c[2],undefined,bes)}<div style="min-width:0"><div class="lgn">${esc(d.b[l[0]]+" "+l[2]+" · "+c[1])}</div><div class="lgs">${esc([l[1],c[3]?kg(c[3]):"",c[4]?String(c[4]).replace(".",",")+" mm":"",c[6]?"Refill":""].filter(Boolean).join(" · "))}</div></div><div class="lgrt"><span class="lgsrc">${c[8]?"SpoolmanDB":"OFD"}</span></div></div>`}
+let fdbT;function fdbSuche(q){clearTimeout(fdbT);fdbT=setTimeout(async()=>{const box=document.getElementById("lgdbres");if(!box)return;q=String(q||"").trim();
+  if(!q){box.innerHTML=`<div class="lghint" style="padding:10px 12px">Hersteller, Linie oder Farbe eingeben.</div>`;return}
+  if(!G.fdb){box.innerHTML=`<div class="lghint" style="padding:10px 12px">Datenbank wird geladen …</div>`;try{await fdbLaden()}catch(e){box.innerHTML=`<div class="lghint" style="padding:10px 12px;color:var(--bad)">${esc(e.message)}</div>`;return}}
+  const cur=document.getElementById("lgdbq");if(!cur||cur.value.trim()!==q)return;const t=fdbTreffer(q);
+  box.innerHTML=t.length?t.map(fdbZeile).join("")+(t.length>=60?`<div class="lghint" style="padding:10px 12px">Weitere Treffer: Suche genauer eingeben.</div>`:""):`<div class="lghint" style="padding:10px 12px">Nichts gefunden. Dann bitte „Neue Sorte anlegen“.</div>`},180)}
 const SERIE_KEY="ernsthaft_gelagert_plus_serie";
 const BC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg>`;
 const BCS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 9v6M10 9v6M13 9v6"/><path d="M16.5 10.5h3M18 9v3"/></svg>`;
@@ -3620,7 +3649,7 @@ const serieSichern=()=>{try{localStorage.setItem(SERIE_KEY,JSON.stringify(G.seri
 const serieSumme=()=>G.serie.reduce((a,x)=>a+x.n,0);
 const serieWeg=code=>{G.serie=G.serie.filter(x=>x.code!==code);serieSichern()};
 const codeSorte=code=>entries().find(e=>e.codes.includes(code));
-function serieGruppen(){const bekannt=[],unbekannt=[];G.serie.forEach(x=>{const e=codeSorte(x.code);if(e)bekannt.push(Object.assign({},x,{e,refill:e.codes_refill.includes(x.code)}));else unbekannt.push(Object.assign({},x,{k:CODES_BEKANNT[x.code]||null}))});return {bekannt,unbekannt}}
+function serieGruppen(){const bekannt=[],unbekannt=[];G.serie.forEach(x=>{const e=codeSorte(x.code);if(e)bekannt.push(Object.assign({},x,{e,refill:e.codes_refill.includes(x.code)}));else unbekannt.push(Object.assign({},x,{k:kBekannt(x.code)}))});return {bekannt,unbekannt}}
 const plural=(n,a,b)=>n+" "+(n===1?a:b);
 const brumm=()=>{try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}};
 
@@ -3665,7 +3694,7 @@ function nativScan(titel,text,alt,onCode,onAbort){
   return true}
 
 /* Einzelscan */
-function scanStart(){if(extern()&&nativScan("Filament scannen","Strichcode, QR- oder Data-Matrix-Code auf Karton oder Spule","Code eintippen",c=>onCode(c),r=>{if(r==="alternative_options")scanModal(false)}))return;scanModal(false)}
+function scanStart(){fdbVorladen();if(extern()&&nativScan("Filament scannen","Strichcode, QR- oder Data-Matrix-Code auf Karton oder Spule","Code eintippen",c=>onCode(c),r=>{if(r==="alternative_options")scanModal(false)}))return;scanModal(false)}
 function scanModal(serie){
   G.serieAktiv=!!serie;G.serieZuletzt=null;
   const foot=serie?`<span class="sp"></span><button class="btn pri" data-act="lgSerieEnde"><span>Fertig, Liste zeigen (<span id="lgscount">${serieSumme()}</span>)</span></button>`:`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`;
@@ -3677,30 +3706,35 @@ function scanModal(serie){
     <div class="row" style="gap:8px"><input type="text" id="lgctxt" inputmode="numeric" placeholder="… oder Zahlen unter dem Strichcode eintippen" style="flex:1"><button class="btn" data-act="lgCodeOk">${serie?"Dazu":"OK"}</button></div></div>`,foot);
   setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgctxt")ae.blur()},60);
   camStart(code=>{if(G.serieAktiv)serieAdd(code,false);else onCode(code)})}
-function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();
-  const e=codeSorte(code);if(e)return hitModal(code,e);neuModal(code,1,false)}
+async function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();
+  const e=codeSorte(code);if(e)return hitModal(code,e);
+  if(!CODES_BEKANNT[code]&&!G.fdb&&fdbCodeKey(code))try{await Promise.race([fdbLaden(),new Promise((_,r)=>setTimeout(r,4000))])}catch(err){}
+  neuModal(code,1,false)}
 function hitModal(code,e){const ref=e.codes_refill.includes(code);G.hit={code,uid:e.uid};
   modal("Erkannt",`<div class="lgform"><div class="lgr" style="border:1px solid var(--line);border-radius:var(--r-s)" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>
     <div class="lgs">Bestand: ${plural(e.spulen,"Rolle","Rollen")} (${Math.max(0,e.spulen-e.refills)} mit Spule, ${e.refills} Refill) · ${kg(total(e))}</div></div><div></div></div>
     <div class="lghint">Code ${esc(code)} · ${ref?"Refill (ohne Spule)":"mit Spule"}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `<button class="btn ghost" data-act="lgHitEdit">Bearbeiten</button><button class="btn ghost" data-act="lgScan">Weiter scannen</button><span class="sp"></span><button class="btn pri" data-act="lgHitPlus">${ICON.plus} 1 ${ref?"Refill":"Spule"}</button>`)}
-function neuModal(code,anzahl,ausSerie){const k=CODES_BEKANNT[code]||null;G.neu={code,k,anzahl:anzahl||1,serie:!!ausSerie,refill:!!(k&&k.ausfuehrung==="refill")};
+function neuModal(code,anzahl,ausSerie){const k=kBekannt(code);G.neu={code,k,anzahl:anzahl||1,serie:!!ausSerie,refill:!!(k&&k.ausfuehrung==="refill")};
   const all=entries().sort((a,b)=>summary(a).localeCompare(summary(b),"de"));const n=G.neu.anzahl;
   modal("Neuer Strichcode",`<div class="lgform">
-    <div class="note">Code ${esc(code)} ist noch keiner Sorte zugeordnet${k?`. Erkannt als ${esc(summary(k))}`:""}.${n>1?` Gescannt: ${n}×`:""}</div>
+    <div class="note">Code ${esc(code)} ist noch keiner Sorte zugeordnet${k?`. Erkannt als ${esc(summary(k))}${k.quelle?` (${esc(k.quelle)})`:""}`:""}.${n>1?` Gescannt: ${n}×`:""}${/^X00[0-9A-Z]{7}$/i.test(code)?" Das ist ein Amazon-Lageretikett, kein Hersteller-Code. Einmal zuordnen, dann wird es trotzdem erkannt.":""}</div>
     <div class="row" style="flex-wrap:wrap;gap:10px"><button class="btn pri" data-act="lgNcNeu">${ICON.plus} Neue Sorte anlegen</button>
       <label class="row" style="gap:8px"><input type="checkbox" id="lgncref"${G.neu.refill?" checked":""} style="width:18px;height:18px;accent-color:var(--accent)"> Refill (ohne Spule)</label></div>
-    <div class="lghint">… oder die Sorte antippen, zu der der Karton gehört. Der Code wird dort gespeichert, ${n>1?n+" Rollen werden":"1 Rolle wird"} dazugezählt, und ab dann wird er beim Scannen erkannt.</div>
+    <div class="lgdbh"><b>Aus der Filament-Datenbank</b><span class="lghint">Open Filament Database und SpoolmanDB. Sorte antippen, sie wird mit diesem Code angelegt.</span></div>
+    <input type="search" id="lgdbq" placeholder="z. B. Marswork PLA Matte Schwarz" autocomplete="off"><div class="lgpick lgdbpick" id="lgdbres"><div class="lghint" style="padding:10px 12px">Hersteller, Linie oder Farbe eingeben.</div></div>
+    <div class="lgdbh"><b>Oder vorhandene Sorte im Lager</b></div>
+    <div class="lghint">Die Sorte antippen, zu der der Karton gehört. Der Code wird dort gespeichert, ${n>1?n+" Rollen werden":"1 Rolle wird"} dazugezählt, und ab dann wird er beim Scannen erkannt.</div>
     <input type="search" id="lgpq" placeholder="Sorte suchen: Farbe, Hersteller, Material …"><div class="lgpick" id="lgpick">${all.map(e=>`<div class="lgr" data-act="lgNcPick" data-uid="${esc(e.uid)}" data-s="${esc(summary(e).toLowerCase())}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">${e.codes.length?plural(e.codes.length,"Strichcode","Strichcodes")+" gespeichert":"noch ohne Strichcode"}</div></div><div class="lgrt"><b>${e.spulen>0?kg(total(e)):"aufgebraucht"}</b></div></div>`).join("")||`<div class="empty">Noch keine Sorten vorhanden.</div>`}</div>
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,`${ausSerie?`<button class="btn ghost" data-act="lgSerieListe">Zurück zur Liste</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>`);
   setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgpq")ae.blur()},60)}
 
 /* Serienscan */
-function serieStart(){G.serieAktiv=true;G.serieLetzt="";G.serieZuletzt=null;if(extern())return serieNativ();scanModal(true)}
+function serieStart(){fdbVorladen();G.serieAktiv=true;G.serieLetzt="";G.serieZuletzt=null;if(extern())return serieNativ();scanModal(true)}
 function serieAdd(raw,vonHand){const code=String(raw||"").trim();if(!code)return null;const jetzt=Date.now();
   if(!vonHand&&G.serieZuletzt&&G.serieZuletzt.code===code&&jetzt-G.serieZuletzt.t<3000){G.serieZuletzt.t=jetzt;return null}
   G.serieZuletzt={code,t:jetzt};let x=G.serie.find(y=>y.code===code);if(x)x.n+=1;else{x={code,n:1};G.serie.push(x)}serieSichern();brumm();
-  const e=codeSorte(code),k=CODES_BEKANNT[code];const nm=e?summary(e):k?summary(k)+" (neu)":"Unbekannter Code "+code;
+  const e=codeSorte(code),k=kBekannt(code);const nm=e?summary(e):k?summary(k)+" (neu)":"Unbekannter Code "+code;
   G.serieLetzt=`Zuletzt: ${nm} · ${x.n}× · insgesamt ${serieSumme()}`;G.serieInfo={name:nm,n:x.n,bekannt:!!e};
   const a=document.getElementById("lgletzt"),c=document.getElementById("lgscount");if(a)a.textContent=G.serieLetzt;if(c)c.textContent=serieSumme();
   const fl=document.getElementById("lgflash"),cm=document.getElementById("lgcam");
@@ -3855,6 +3889,7 @@ function amsModal(){const sl=slots();const all=entries();
 
 /* --- Ereignisse --- */
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.value;draw()}
+  else if(t.id==="lgdbq")fdbSuche(t.value);
   else if(t.id==="lgpq"){const q=t.value.trim().toLowerCase();document.querySelectorAll("#lgpick .lgr").forEach(r=>{r.hidden=!!q&&!r.dataset.s.includes(q)})}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="lf_h"||t.id==="lf_m"){const x=document.getElementById(t.id+"x");if(x){x.hidden=t.value!==ANDERE;if(!x.hidden)x.focus()}
@@ -3894,6 +3929,9 @@ document.addEventListener("click",async e=>{
   if(a==="lgHitEdit"){const x=entries().find(y=>G.hit&&y.uid===G.hit.uid);if(x)formModal(x);return}
   if(a==="lgHitPlus"){const x=entries().find(y=>G.hit&&y.uid===G.hit.uid);if(!x)return;const ref=x.codes_refill.includes(G.hit.code);
     try{await write(x,{spulen:Math.max(0,x.spulen)+1,refills:x.refills+(ref?1:0)});closeModal();toast(`${ref?"Refill":"Spule"} dazugezählt: ${summary(x)}`)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}return}
+  if(a==="lgNcDb"){const n=G.neu;const k=fdbK(+b.dataset.i);if(!n||!k)return;const rb=document.getElementById("lgncref");const refill=(rb&&rb.checked)||k.ausfuehrung==="refill";
+    formModal(null,Object.assign({},k,{besonderheiten:[...k.besonderheiten],codes:[n.code],codes_refill:refill?[n.code]:[],spulen:n.anzahl,refills:refill?n.anzahl:0,serieCode:n.serie?n.code:undefined,
+      hinweis:`${k.quelle}: ${k.hersteller} ${k.linie} · ${k.farbe}. Code ${n.code} wird gespeichert, danach wird die Spule beim Scannen erkannt.`}));return}
   if(a==="lgNcNeu"){const n=G.neu;if(!n)return;const rb=document.getElementById("lgncref");const refill=rb?rb.checked:n.refill;const k=n.k||{};
     formModal(null,Object.assign({},k,{besonderheiten:[...(k.besonderheiten||[])],codes:[n.code],codes_refill:refill?[n.code]:[],spulen:n.anzahl,refills:refill?n.anzahl:0,serieCode:n.serie?n.code:undefined,
       hinweis:n.k?`Code ${n.code} erkannt, bitte prüfen und speichern`:`Neuer Code ${n.code}. Einmal ausfüllen, danach wird er beim Scannen erkannt.`}));return}
