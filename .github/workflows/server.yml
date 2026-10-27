@@ -1,11 +1,11 @@
-name: Etikett-Leser (Container)
+name: SchichtLohn-Server (Container)
 
-# Baut den Container für die Synology (x86 und ARM) und legt ihn unter
-# ghcr.io/mitkiprogrammieren/schichtlohn-etikett ab.
+# Baut den SchichtLohn-Server für die Synology (x86 und ARM) und legt ihn unter
+# ghcr.io/mitkiprogrammieren/schichtlohn-server ab.
 on:
   push:
     branches: [main]
-    paths: ["etikett/**", ".github/workflows/etikett.yml"]
+    paths: ["server/**", ".github/workflows/server.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,11 +26,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: etikett
+          context: server
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/mitkiprogrammieren/schichtlohn-etikett:latest
+          tags: ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
           labels: |
             org.opencontainers.image.source=https://github.com/MitKIprogrammieren/Schichtlohn
-            org.opencontainers.image.description=Etikett-Leser für das SchichtLohn-Lager
+            org.opencontainers.image.description=SchichtLohn-Server: Lager-Datenbank und Etikett-Leser
             org.opencontainers.image.licenses=MIT

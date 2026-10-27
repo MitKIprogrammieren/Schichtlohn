@@ -1,9 +1,0 @@
-# Container Manager auf der Synology: Projekt anlegen, diesen Inhalt einfügen, erstellen.
-services:
-  etikett-leser:
-    image: ghcr.io/mitkiprogrammieren/schichtlohn-etikett:latest
-    container_name: schichtlohn-etikett
-    ports:
-      - "8093:8093"
-    restart: unless-stopped
-    mem_limit: 1g

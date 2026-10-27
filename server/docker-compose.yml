@@ -1,0 +1,15 @@
+# Container Manager auf der Synology: Projekt „schichtlohn“ anlegen, diesen Inhalt einfügen, erstellen.
+# Vorher in File Station den Ordner docker/schichtlohn anlegen – dort liegt die Datenbank.
+services:
+  schichtlohn:
+    image: ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
+    container_name: schichtlohn-server
+    ports:
+      - "8093:8093"
+    volumes:
+      - /volume1/docker/schichtlohn:/daten
+    environment:
+      - TZ=Europe/Berlin
+      # - TOKEN=ein-langes-geheimes-wort   # einschalten, wenn der Server von außen erreichbar ist
+    restart: unless-stopped
+    mem_limit: 1g

@@ -316,9 +316,83 @@ const S={tab:"lager",cfg:null,portfolio:[],orders:[],quote:null,backend:"local",
 
 /* ---------- Speicher ---------- */
 const LS={get(k){try{const v=localStorage.getItem("schichtlohn_"+k)??localStorage.getItem("preiswerk_"+k);return v?JSON.parse(v):null}catch(e){return null}},set(k,v){try{localStorage.setItem("schichtlohn_"+k,JSON.stringify(v))}catch(e){}}};
+/* ---------- SchichtLohn-Server (Synology): eine Datenbank für Lager und SchichtLohn-Daten auf allen Geräten ---------- */
+const SRV=window.SRV=(()=>{
+  const K_URL="schichtlohn_server_url",K_TOK="schichtlohn_server_token";
+  const lsg=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}};
+  const lss=(k,v)=>{try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k)}catch(e){}};
+  const id=Math.random().toString(36).slice(2,10);
+  const url=()=>lsg(K_URL).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
+  const norm=u=>{u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;return u};
+  const mixed=u=>location.protocol==="https:"&&/^http:/i.test(u);
+  async function req(method,path,body,u,t){u=u||url();t=t==null?token():t;if(!u)throw new Error("Kein Server eingetragen");
+    if(mixed(u))throw new Error("Diese Seite läuft über https, der Server über http – das blockiert der Browser. Server per https erreichbar machen (Synology-Reverse-Proxy) oder SchichtLohn über http öffnen.");
+    const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),method==="GET"&&path==="/"?5000:20000);
+    try{const r=await fetch(u+path,{method,signal:ctl.signal,headers:Object.assign({},body!==undefined?{"Content-Type":"application/json"}:{},t?{"X-Token":t}:{}),body:body!==undefined?JSON.stringify(body):undefined});
+      let d=null;try{d=await r.json()}catch(e){}if(!r.ok){const e=new Error((d&&d.fehler)||("Fehler "+r.status));e.status=r.status;throw e}return d}
+    catch(e){if(e.name==="AbortError")throw new Error("Server antwortet nicht ("+u+")");if(e instanceof TypeError)throw new Error("Server nicht erreichbar ("+u+")");throw e}finally{clearTimeout(tm)}}
+  /* Live-Meldungen */
+  const hoerer=new Set();let es=null,esOk=false;
+  function ereignisse(){if(es||!url())return;const t=token();es=new EventSource(url()+"/api/ereignisse"+(t?"?token="+encodeURIComponent(t):""));
+    es.onopen=()=>{if(!esOk){esOk=true}else hoerer.forEach(f=>{try{f({typ:"neu"})}catch(e){}})};
+    es.onmessage=m=>{let ev;try{ev=JSON.parse(m.data)}catch(e){return}hoerer.forEach(f=>{try{f(ev)}catch(e){console.warn(e)}})};
+    es.onerror=()=>{}}
+  const on=f=>{hoerer.add(f);ereignisse();return ()=>hoerer.delete(f)};
+  /* Listen (gleiches Format wie die To-do-Listen in HA) */
+  const liste=async name=>((await req("GET","/api/listen/"+encodeURIComponent(name)))||{}).items||[];
+  const svc=(service,data,name)=>req("POST","/api/listen/"+encodeURIComponent(name),{service,data:data||{}});
+  function sub(name,cb){let lauf=0;const holen=async()=>{const n=++lauf;try{const it=await liste(name);if(n===lauf)cb(it)}catch(e){console.warn("Server",e)}};
+    const ab=on(ev=>{if(ev.typ==="neu"||(ev.typ==="liste"&&ev.name===name))holen()});return holen().then(()=>ab)}
+  /* Daten (cfg, portfolio, orders) */
+  async function get(k){try{return ((await req("GET","/api/daten/"+encodeURIComponent(k)))||{}).wert}catch(e){if(e.status===404)return null;throw e}}
+  const put=(k,wert)=>req("PUT","/api/daten/"+encodeURIComponent(k),{wert,quelle:id});
+  /* Start: ist ein Server eingetragen und erreichbar? */
+  async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
+      if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
+      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name)})}
+    catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
+  let nlT={};function nachladen(k){clearTimeout(nlT[k]);nlT[k]=setTimeout(async()=>{try{const w=await get(k);if(w==null)return;
+      if(k==="cfg"){const keep=S.cfg&&S.cfg.lagerLokal;S.cfg=Object.assign({},w);if(keep)S.cfg.lagerLokal=keep}else if(k==="portfolio")S.portfolio=w;else S.orders=w;
+      const ae=document.activeElement;const tippt=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);if(!tippt&&!document.getElementById("modal")&&window.render)window.render()}catch(e){}},300)}
+  const cfgOhneLokal=()=>{const c=Object.assign({},S.cfg||{});delete c.lagerLokal;return c};
+  /* Übernahme: aktuelle Daten (Home Assistant oder dieser Browser) auf den Server kopieren */
+  const LISTEN=["todo.filament","todo.filament_verbrauch"];
+  async function quelleListe(name){if(S.backend==="ha"&&window.__hass){const h=window.__hass;const r=h.callWS?await h.callWS({type:"todo/item/list",entity_id:name}):null;return (r&&r.items)||[]}
+    return (((S.cfg||{}).lagerLokal||{})[name]||[]).map(x=>Object.assign({},x))}
+  async function uebernehmen(u,t,log){const out={};for(const n of LISTEN){let items=[];try{items=await quelleListe(n)}catch(e){log&&log("Liste "+n+" nicht lesbar: "+(e.message||e))}
+      items=items.map(i=>({uid:i.uid,summary:i.summary||"",status:i.status||"needs_action",description:i.description||""}));
+      await req("PUT","/api/listen/"+encodeURIComponent(n),{items},u,t);out[n]=items.length;log&&log(`${n}: ${items.length} Einträge`)}
+    const c=Object.assign({},S.cfg||{});const lokalLager=c.lagerLokal;delete c.lagerLokal;
+    await req("PUT","/api/daten/cfg",{wert:c,quelle:id},u,t);await req("PUT","/api/daten/portfolio",{wert:S.portfolio||[],quelle:id},u,t);await req("PUT","/api/daten/orders",{wert:S.orders||[],quelle:id},u,t);
+    log&&log(`Einstellungen, ${(S.portfolio||[]).length} Portfolio-Teile, ${(S.orders||[]).length} Aufträge`);return out}
+  /* Einstellungen */
+  function html(){const u=url(),t=token();const st=S.srv?`<div class="note" style="border-color:var(--accent)">Verbunden mit <b>${esc(u)}</b> (Version ${esc((S.srvInfo||{}).version||"")}). Lager, Verbrauch, Einstellungen, Portfolio und Aufträge liegen auf dem Server und sind auf allen Geräten gleich.</div>`
+      :S.srvFehler?`<div class="note" style="color:var(--bad)">${esc(S.srvFehler)}. SchichtLohn arbeitet so lange mit ${S.backend==="ha"?"Home Assistant":"den Daten in diesem Browser"}.</div>`
+      :`<div class="hint">Mit dem SchichtLohn-Server auf deiner Synology liegen Lager und alle SchichtLohn-Daten an einer Stelle. Mac, iPhone, Home Assistant und die Waage sehen denselben Stand. Der Container enthält auch den Etikett-Leser für Spulenfotos.</div>`;
+    return `<section class="panel pad stack" id="srvsec"><div class="sec-title"><h2>SchichtLohn-Server</h2></div>${st}
+      <div class="g2"><label class="field"><span>Adresse</span><input type="text" id="srv_url" value="${esc(u)}" placeholder="http://192.168.1.4:8093" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="field"><span>Schlüssel (falls eingerichtet)</span><input type="text" id="srv_tok" value="${esc(t)}" placeholder="leer lassen, wenn keiner" autocomplete="off"></label></div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">${S.srv?`<button class="btn" data-act="srvTest">Verbindung testen</button><a class="btn ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung herunterladen</a><button class="btn ghost" data-act="srvAus">Server nicht mehr verwenden</button>`
+        :`<button class="btn" data-act="srvTest">Verbindung testen</button><button class="btn pri" data-act="srvNutzen">Daten übernehmen und Server verwenden</button><button class="btn ghost" data-act="srvNurNutzen">Nur verbinden (Server hat schon Daten)</button>`}</div>
+      <div class="hint" id="srv_msg"></div></section>`}
+  const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t};
+  const feld=()=>({u:norm((document.getElementById("srv_url")||{}).value),t:((document.getElementById("srv_tok")||{}).value||"").trim()});
+  async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
+  document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
+    const {u,t}=feld();
+    if(a==="srvTest"){msg("Prüfe …");try{const d=await test(u,t);const l=await req("GET","/api/listen/todo.filament",undefined,u,t);msg(`✓ Verbunden, Version ${esc(d.version)}. Auf dem Server: ${l.items.length} Sorten im Lager.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvNurNutzen"){try{await test(u,t);lss(K_URL,u);lss(K_TOK,t);msg("Verbunden. SchichtLohn wird neu geladen …");setTimeout(()=>location.reload(),600)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvNutzen"){try{await test(u,t);const l=await req("GET","/api/listen/todo.filament",undefined,u,t);
+        const los=async()=>{const zeilen=[];const log=x=>{zeilen.push(esc(x));msg(zeilen.join("<br>"))};log("Übernehme …");
+          try{await uebernehmen(u,t,log);lss(K_URL,u);lss(K_TOK,t);log("✓ Fertig. SchichtLohn wird neu geladen …");setTimeout(()=>location.reload(),1200)}catch(x){log("Fehler: "+(x.message||x))}};
+        if(l.items.length){confirmBox(`Auf dem Server liegen schon ${l.items.length} Sorten. Mit den Daten von ${S.backend==="ha"?"Home Assistant":"diesem Browser"} überschreiben?`,"Überschreiben",los)}else los()}
+      catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvAus"){confirmBox("Server nicht mehr verwenden? Die Daten bleiben auf dem Server; SchichtLohn arbeitet danach wieder mit "+(window.__PW_HA||(window.HAP&&HAP.savedConn&&HAP.savedConn())?"Home Assistant":"den Daten in diesem Browser")+".","Trennen",()=>{lss(K_URL,"");lss(K_TOK,"");location.reload()});return}});
+  return {url,token,norm,req,on,liste,svc,sub,get,put,init,html,cfgOhneLokal,id}})();
 const Store={
   db:null,
   async init(){
+    await SRV.init();
     // 1) Home Assistant
     if(window.__PW_HA){
       const h=await waitHass(6000);
@@ -338,6 +412,7 @@ const Store={
     S.backend="local";
   },
   async load(){
+    if(S.srv){const [c,p,o]=await Promise.all(["cfg","portfolio","orders"].map(k=>SRV.get(k)));return {cfg:c,portfolio:p||[],orders:o||[]}}
     if(S.backend==="ha"){
       let [c,p,o]=await Promise.all(["cfg","portfolio","orders"].map(k=>haGet("schichtlohn_"+k)));
       if(!c&&!p&&!o){[c,p,o]=await Promise.all(["cfg","portfolio","orders"].map(k=>haGet("preiswerk_"+k)));if(c||p||o)this._migrate=true}
@@ -356,17 +431,20 @@ const Store={
     return {cfg:LS.get("cfg"),portfolio:LS.get("portfolio")||[],orders:LS.get("orders")||[]};
   },
   async saveCfg(){return this._run(async()=>{
-    if(S.backend==="ha")await haSet("schichtlohn_cfg",S.cfg);
+    if(S.srv)await SRV.put("cfg",SRV.cfgOhneLokal());
+    else if(S.backend==="ha")await haSet("schichtlohn_cfg",S.cfg);
     else if(S.backend==="claude")await this.col.doc("cfg").set({data:JSON.stringify(S.cfg)});
     else LS.set("cfg",S.cfg);})},
   async saveItem(kind,item){return this._run(async()=>{
     const list=kind==="p"?S.portfolio:S.orders;
-    if(S.backend==="ha")await haSet(kind==="p"?"schichtlohn_portfolio":"schichtlohn_orders",list);
+    if(S.srv)await SRV.put(kind==="p"?"portfolio":"orders",list);
+    else if(S.backend==="ha")await haSet(kind==="p"?"schichtlohn_portfolio":"schichtlohn_orders",list);
     else if(S.backend==="claude")await this.col.doc(kind+"_"+item.id).set({data:JSON.stringify(item)});
     else LS.set(kind==="p"?"portfolio":"orders",list);})},
   async delItem(kind,id){return this._run(async()=>{
     const list=kind==="p"?S.portfolio:S.orders;
-    if(S.backend==="ha")await haSet(kind==="p"?"schichtlohn_portfolio":"schichtlohn_orders",list);
+    if(S.srv)await SRV.put(kind==="p"?"portfolio":"orders",list);
+    else if(S.backend==="ha")await haSet(kind==="p"?"schichtlohn_portfolio":"schichtlohn_orders",list);
     else if(S.backend==="claude")await this.col.doc(kind+"_"+id).delete();
     else LS.set(kind==="p"?"portfolio":"orders",list);})},
   async saveAll(){await this.saveCfg();
@@ -382,12 +460,13 @@ async function haGet(key){const r=await hass().callWS({type:"frontend/get_user_d
 async function haSet(key,value){await hass().callWS({type:"frontend/set_user_data",key,value})}
 function setSync(st){
   const el=$("#sync");if(!el)return;
-  const where={ha:"HA",claude:"Claude",local:window.SYNC&&SYNC.aktiv()?"Sync":"Nur dieses Gerät"}[S.backend];
+  const where=S.srv?"Server":{ha:"HA",claude:"Claude",local:window.SYNC&&SYNC.aktiv()?"Sync":"Nur dieses Gerät"}[S.backend];
   const lang={ha:"Home Assistant",claude:"Claude",local:"diesem Browser"}[S.backend];
   el.className="sync "+(st==="ok"?"ok":st==="busy"?"busy":"");
   el.querySelector("span").textContent=st==="busy"?"Speichert…":st==="err"?"Nicht gespeichert":where;
-  if(S.backend==="local"&&S.haConnError&&st==="ok"){el.className="sync";el.querySelector("span").textContent="HA nicht erreichbar"}
-  el.title=S.backend==="local"?(window.SYNC&&SYNC.aktiv()?"Daten liegen in diesem Browser und werden verschlüsselt mit deinen anderen Geräten abgeglichen (Einstellungen → Sync).":"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup oder schalte den Sync ein."):"Daten werden in "+lang+" gespeichert und auf allen Geräten synchronisiert.";
+  if(S.srvFehler&&st==="ok"){el.className="sync";el.querySelector("span").textContent="Server nicht erreichbar"}
+  else if(S.backend==="local"&&!S.srv&&S.haConnError&&st==="ok"){el.className="sync";el.querySelector("span").textContent="HA nicht erreichbar"}
+  el.title=S.srv?"Daten liegen auf dem SchichtLohn-Server ("+SRV.url()+") und sind auf allen Geräten gleich.":S.srvFehler?S.srvFehler:S.backend==="local"?(window.SYNC&&SYNC.aktiv()?"Daten liegen in diesem Browser und werden verschlüsselt mit deinen anderen Geräten abgeglichen (Einstellungen → Sync).":"Daten liegen nur in diesem Browser. Sichere sie über Einstellungen → Backup oder schalte den Sync ein."):"Daten werden in "+lang+" gespeichert und auf allen Geräten synchronisiert.";
 }
 let draftT;function saveDraft(){clearTimeout(draftT);draftT=setTimeout(()=>LS.set("draft",S.quote),300)}
 let cfgT;function saveCfgSoon(){clearTimeout(cfgT);cfgT=setTimeout(()=>Store.saveCfg(),600)}
@@ -759,7 +838,7 @@ function renderBiz(m){
 /* ---------- Einstellungen ---------- */
 function renderSettings(m){
   const c=S.cfg;
-  const where={ha:"in Home Assistant (dein Benutzerkonto, auf allen Geräten gleich)",claude:"über Claude (auf allen deinen Geräten gleich)",local:"nur in diesem Browser"}[S.backend];
+  const where=S.srv?"auf dem SchichtLohn-Server (auf allen Geräten gleich)":{ha:"in Home Assistant (dein Benutzerkonto, auf allen Geräten gleich)",claude:"über Claude (auf allen deinen Geräten gleich)",local:"nur in diesem Browser"}[S.backend];
   m.innerHTML=`<div class="stack">
     <div class="row"><h1>Einstellungen</h1></div>
     <section class="panel pad stack"><div class="sec-title"><h2>Kosten und Preis</h2></div>
@@ -794,7 +873,7 @@ function renderSettings(m){
       <div class="hint" style="margin-top:8px">Maschinenkosten je Stunde = Kaufpreis ÷ Lebensdauer + Wartung. Leistung ist der Durchschnitt beim Drucken, nicht die Spitzenleistung.</div>
     </section>
 
-    <section class="panel pad"><div class="sec-title"><h2>Materialien</h2><span class="sp"></span>${S.backend==="ha"?`<button class="btn sm" data-act="lager">${ICON.spool} Aus FilamentLager</button>`:""}<button class="btn sm" data-act="addRow" data-list="materials">${ICON.plus} Material</button></div>
+    <section class="panel pad"><div class="sec-title"><h2>Materialien</h2><span class="sp"></span>${S.backend==="ha"||S.srv?`<button class="btn sm" data-act="lager">${ICON.spool} Aus FilamentLager</button>`:""}<button class="btn sm" data-act="addRow" data-list="materials">${ICON.plus} Material</button></div>
       <div class="setlist">${c.materials.map((p,i)=>`<div class="setrow sr-mt">
         <label class="field"><span>Farbe</span><input type="color" id="mt_h_${i}" data-lbind="materials.${i}.hex" value="${esc(p.hex||"#888888")}" style="width:44px;height:38px;border:1px solid var(--line-2);border-radius:8px;background:none;padding:2px"></label>
         <label class="field"><span>Name</span><input type="text" id="mt_n_${i}" data-lbind="materials.${i}.name" value="${esc(p.name)}"></label>
@@ -994,7 +1073,7 @@ async function importFiles(files,target="quote"){
 
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
-  const r=S.backend==="ha"?await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"}):{items:((S.cfg.lagerLokal||{})["todo.filament"]||[]).filter(i=>{try{return !JSON.parse(i.description||"{}").typ}catch(e){return true}})};
+  const r=S.srv?{items:await SRV.liste("todo.filament")}:S.backend==="ha"?await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"}):{items:((S.cfg.lagerLokal||{})["todo.filament"]||[]).filter(i=>{try{return !JSON.parse(i.description||"{}").typ}catch(e){return true}})};
   return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
 }
 async function lagerModal(){
@@ -2403,7 +2482,7 @@ async function ableiten(code){const n=norm(code);return {sid:hex(await sha("schi
 function conf(){try{const c=JSON.parse(localStorage.getItem(SK)||"null");return c&&c.code?c:null}catch(e){return null}}
 function setConf(c){try{c?localStorage.setItem(SK,JSON.stringify(c)):localStorage.removeItem(SK)}catch(e){}}
 async function schluessel(c){if(ST.keyFor!==c.code){ST.key=(await ableiten(c.code)).key;ST.keyFor=c.code}return ST.key}
-const aktiv=()=>S.backend==="local"&&!!conf();
+const aktiv=()=>S.backend==="local"&&!S.srv&&!!conf();
 
 /* Konto (Creality oder Bambu), falls der Sync daran gebunden ist oder gebunden werden soll */
 function kontoInfo(){
@@ -2439,7 +2518,7 @@ document.addEventListener("focusout",()=>{if(ST.renderLater)setTimeout(()=>{if(S
 
 /* --- Abgleich --- */
 async function push(){
-  const c=conf();if(!c||S.backend!=="local"||!S.cfg)return;const key=await schluessel(c);const t=teile(),jetzt=Date.now();
+  const c=conf();if(!c||S.backend!=="local"||S.srv||!S.cfg)return;const key=await schluessel(c);const t=teile(),jetzt=Date.now();
   const put={},del=[],neu={};
   for(const [n,v] of Object.entries(t)){const h=hash(v);if(c.synced[n]!==h){put[n]={t:jetzt,d:await encr(key,v)};neu[n]=h}}
   for(const n of Object.keys(c.synced))if(!(n in t))del.push({n,t:jetzt});
@@ -2447,7 +2526,7 @@ async function push(){
   const r=await call("push",{sid:c.sid,put,del,konto:c.gebunden?kontoInfo():undefined});
   const c2=conf();if(!c2||c2.sid!==c.sid)return;Object.assign(c2.synced,neu);del.forEach(x=>delete c2.synced[x.n]);c2.owner=r.owner||null;c2.dirtyAt=0;setConf(c2)}
 async function pull(voll){
-  const c=conf();if(!c||S.backend!=="local"||!S.cfg)return false;const key=await schluessel(c);
+  const c=conf();if(!c||S.backend!=="local"||S.srv||!S.cfg)return false;const key=await schluessel(c);
   const r=await call("pull",{sid:c.sid,v:voll?0:c.v,since:voll?0:c.since,konto:c.gebunden||c.owner?kontoInfo():undefined});
   if(r.same)return false;
   if(!voll&&r.v<(c.since||0))return pull(true);
@@ -2518,7 +2597,7 @@ async function fernHatDaten(code){const {sid,key}=await ableiten(code);const r=a
     if(n==="lager"){try{const v=await decr(key,doc.d);if(Object.values(v||{}).some(a=>Array.isArray(a)&&a.length))return true}catch(e){return true}}}
   return false}
 async function autoKonto(){
-  if(ST.autoLaeuft||S.backend!=="local"||!S.cfg||!window.confirmBox||autoAus())return;
+  if(ST.autoLaeuft||S.backend!=="local"||S.srv||!S.cfg||!window.confirmBox||autoAus())return;
   const k=kontoInfo();if(!k)return;const id=kontoId(k);const c=conf();
   if(c&&c.konto===id)return;if(ST.autoGefragt===id)return;
   ST.autoLaeuft=true;
@@ -2561,7 +2640,8 @@ function codeModal(){modal("Mit Sync-Code verbinden",`<div class="stack"><p clas
   <div class="note">Die Daten auf diesem Gerät werden durch die Daten aus dem Sync ersetzt.</div></div>`,`<button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="syJoin">Verbinden</button>`);setTimeout(()=>{const i=document.getElementById("sy_code");i&&i.focus()},50)}
 
 /* --- Einstellungen --- */
-function settingsHTML(){
+function settingsHTML(){const _s=window.SRV?SRV.html():"";if(S.srv)return _s;return _s+settingsHTML0()}
+function settingsHTML0(){
   if(S.backend==="ha")return `<section class="panel pad stack"><div class="sec-title"><h2>Sync zwischen Geräten</h2></div><div class="hint">Mit Home Assistant liegen deine Daten schon in Home Assistant und sind auf allen Geräten gleich. Ein eigener Sync ist dafür nicht nötig.</div>${paarHTML()}</section>`;
   if(S.backend!=="local")return "";
   const c=conf(),k=kontoInfo();
@@ -2621,7 +2701,7 @@ if(paare().length)setTimeout(starteAbruf,3000);
 
 /* --- Link „#sync=…“ von einem anderen Gerät --- */
 function hashPruefen(){const m=location.hash.match(/[#&]sync=([A-Za-z0-9-]{20,30})/);if(!m)return;const code=m[1];history.replaceState(null,"",location.pathname+location.search);
-  const go=()=>{if(S.backend==="ha"){toast("Mit Home Assistant wird kein eigener Sync gebraucht.");return}const c=conf();if(c&&norm(c.code)===norm(code)){toast("Dieses Gerät ist schon verbunden.");return}beitreten(code)};
+  const go=()=>{if(S.srv){toast("Mit dem SchichtLohn-Server wird kein eigener Sync gebraucht.");return}if(S.backend==="ha"){toast("Mit Home Assistant wird kein eigener Sync gebraucht.");return}const c=conf();if(c&&norm(c.code)===norm(code)){toast("Dieses Gerät ist schon verbunden.");return}beitreten(code)};
   const warte=()=>{if(S.cfg&&window.confirmBox)go();else setTimeout(warte,300)};warte()}
 setTimeout(hashPruefen,800);window.addEventListener("hashchange",hashPruefen);
 
@@ -2946,7 +3026,7 @@ function zahl(label,s,unit,warn,hi,leer,dez){const v=s?Number(s.state):NaN;
 const nativ=()=>{try{return localStorage.getItem("schichtlohn_lagermodus")!=="karte"}catch(e){return true}};
 function render(m){
   m=m||$("#main");if(!m)return;S.lager=null;
-  if(window.LGN&&(S.backend!=="ha"||nativ()))return LGN.render(m);
+  if(window.LGN&&(S.backend!=="ha"||S.srv||nativ()))return LGN.render(m);
   if(S.backend!=="ha"){m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1></div><div class="panel empty"><h3>FilamentLager aus Home Assistant</h3>Hier erscheint dein FilamentLager mit allen Funktionen wie im HA-Dashboard: Bestand, Scannen, AMS-Zuordnung und Silica. Verbinde dafür unter Einstellungen → „Home Assistant verbinden“ deine HA-Instanz.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-tab="einstellungen">Zu den Einstellungen</button><span class="sp"></span></div></div></div>`;return}
   m.innerHTML=`<div class="stack"><div class="row"><h1>Lager</h1><span class="dim">FilamentLager aus Home Assistant</span><span class="sp"></span>${window.LGN?`<button class="btn ghost sm" data-act="lgMode" data-v="nativ">SchichtLohn-Ansicht</button>`:""}</div><div class="lstat" id="lagerStatus"></div><div class="lagerhost" id="lagerHost">${L.el?"":`<div class="panel empty">${L.err?esc(L.err):"FilamentLager wird aus Home Assistant geladen…"}</div>`}</div></div>`;
   const put=()=>{const host=$("#lagerHost");if(!host||!L.el||S.tab!=="lager")return;if(L.el.parentNode!==host){host.innerHTML="";host.appendChild(L.el)}status()};
@@ -3350,8 +3430,10 @@ const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const
 /* --- Home Assistant --- */
 const L=()=>window.LAGER;
 /* Ohne Home Assistant: Lager im Browser. Gleiches Format wie die To-do-Listen, liegt in den SchichtLohn-Daten und damit auch im Backup. */
-const lokal=()=>S.backend!=="ha";
-const metaDa=()=>lokal()||!!states()[META];
+const lokal=()=>!S.srv&&S.backend!=="ha";
+const srv=()=>!!S.srv;
+const haDa=()=>S.backend==="ha";
+const metaDa=()=>lokal()||srv()||!!states()[META];
 const LOK={subs:{}};
 function lokStore(){const x=S.cfg.lagerLokal||(S.cfg.lagerLokal={});x[ENT]=x[ENT]||[];x[META]=x[META]||[];return x}
 function lokPush(entity){const l=lokStore()[entity]||[];(LOK.subs[entity]||[]).forEach(cb=>{try{cb(l.map(i=>Object.assign({},i)))}catch(e){console.warn(e)}})}
@@ -3365,23 +3447,24 @@ function lokSvc(service,data,entity){const st=lokStore();const l=st[entity]||(st
 const isWS=()=>!!(window.__hass&&window.__hass.__ws);
 const states=()=>L()?L().stateMap():{};
 async function svc(service,data,entity){
+  if(srv())return SRV.svc(service,data,entity||ENT);
   if(lokal())return lokSvc(service,data,entity||ENT);
   const h=window.__hass;if(!h)throw new Error("Keine Verbindung zu Home Assistant");
   if(!isWS()&&h.callService)return h.callService("todo",service,data,{entity_id:entity||ENT});
   return h.callWS({type:"call_service",domain:"todo",service,service_data:data,target:{entity_id:entity||ENT}})}
-async function subscribe(entity,cb){if(lokal()){(LOK.subs[entity]=LOK.subs[entity]||[]).push(cb);setTimeout(()=>lokPush(entity),0);return ()=>{LOK.subs[entity]=(LOK.subs[entity]||[]).filter(f=>f!==cb)}}const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
+async function subscribe(entity,cb){if(srv())return SRV.sub(entity,cb);if(lokal()){(LOK.subs[entity]=LOK.subs[entity]||[]).push(cb);setTimeout(()=>lokPush(entity),0);return ()=>{LOK.subs[entity]=(LOK.subs[entity]||[]).filter(f=>f!==cb)}}const h=window.__hass;const msg={type:"todo/item/subscribe",entity_id:entity};
   if(isWS())return h.__subscribe(msg,ev=>cb((ev&&ev.items)||[]));
   return h.connection.subscribeMessage(ev=>cb((ev&&ev.items)||[]),msg)}
 async function start(){
   /* Wechsel zwischen Browser-Lager und Home Assistant (z. B. nach dem Verbinden): Abos neu aufbauen */
-  const mod=lokal()?"lokal":"ha";
+  const mod=srv()?"server":lokal()?"lokal":"ha";
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
-  try{if(L()&&!lokal()){L().shims();await L().initStates()}
+  try{if(L()&&haDa()){L().shims();await L().initStates()}
     G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
-    if(!lokal()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
-    if(L()&&!lokal())L().link().then(()=>{if(S.tab==="lager")L().status()});
+    if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
+    if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
   }catch(e){G.err=String(e&&e.message||e);G.sub=false;draw()}
 }
 async function write(e,patch){
@@ -3520,7 +3603,7 @@ function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;cl
 function fitTop(){const t=document.getElementById("lgTop");if(t)t.dataset.n=String(t.querySelectorAll(".dcard").length)}
 function render(m){
   m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop" id="lgTop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
-  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L()&&!lokal())L().status();start();draw()}
+  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L()&&haDa())L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
@@ -3648,7 +3731,7 @@ let fdbT;function fdbSuche(q){clearTimeout(fdbT);fdbT=setTimeout(async()=>{const
 /* --- Spule per Foto erkennen: Etikett-Leser (Container auf der Synology) liest Text und Barcode, die Farbe tippt man im Foto an, Vorschläge kommen aus Lager und Filament-Datenbank --- */
 const CAMI=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
 const ET_KEY="schichtlohn_etikett_url";
-function etUrl(){let u="";try{u=localStorage.getItem(ET_KEY)||""}catch(e){}
+function etUrl(){let u="";try{u=localStorage.getItem(ET_KEY)||""}catch(e){}if(!u&&window.SRV&&SRV.url())u=SRV.url();
   if(!u&&location.protocol==="http:"&&location.hostname)u=`http://${location.hostname}:8093`;return u.replace(/\/+$/,"")}
 function etUrlSetzen(u){u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;try{if(u)localStorage.setItem(ET_KEY,u);else localStorage.removeItem(ET_KEY)}catch(e){}return u}
 const etMixed=u=>location.protocol==="https:"&&/^http:/i.test(u);
@@ -4129,7 +4212,7 @@ document.addEventListener("keydown",e=>{
   HS.buf+=e.key;HS.last=now},true);
 /* Für die Creality-Cloud: fertige Drucke im Lager abbuchen (gleiche Logik wie beim Zuordnen von Hand) */
 const normMat=x=>String(x||"").toUpperCase().replace(/[\s_-]+/g,"");
-const BOOK={ready:()=>!!G.loaded&&(lokal()||!!window.__hass),start:()=>{start()},
+const BOOK={ready:()=>!!G.loaded&&(lokal()||srv()||!!window.__hass),start:()=>{start()},
   quellen(){const s=new Set();G.items.concat(G.meta||[]).forEach(i=>{const d=desc(i);if(d&&d.quelle)s.add(String(d.quelle))});return s},
   finde(type,hex){const t=normMat(type);if(!t)return null;const l=entries().filter(e=>e.spulen>0&&normMat(e.material)===t);if(!l.length)return null;
     if(!hexOk(hex||""))return l.length===1?l[0]:null;let best=null,bd=1e15;l.forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)));if(d<bd){bd=d;best=e}});return bd<=TOL?best:null},

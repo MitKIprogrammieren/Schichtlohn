@@ -15,19 +15,26 @@ Preisrechner für 3D-Drucke. Läuft im Browser, ohne eigenes Konto.
 - **Geschäft:** Umsatz und Gewinn je Monat, Bestseller.
 - **PDF-Angebot** und **JSON-Backup**.
 
-## Spule per Foto erkennen (Etikett-Leser)
+## SchichtLohn-Server (Synology)
 
-Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen. Den Etikett-Text liest der **Etikett-Leser**, ein kleiner Container (PaddleOCR-Modelle über RapidOCR, läuft komplett lokal, ohne Cloud und ohne Kosten). Danach tippt man im Foto aufs Filament, um die Farbe festzulegen, und wählt aus den Vorschlägen aus Lager und Filament-Datenbank. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton.
+Ein Container für die Synology mit einer Datenbank (SQLite) für Lager, Verbrauch, Einstellungen, Portfolio und Aufträge. Mac, iPhone, Home Assistant und die Waage sehen damit denselben Stand; Änderungen erscheinen sofort auf allen offenen Geräten. Im selben Container läuft der Etikett-Leser für Spulenfotos.
 
-**Installation auf der Synology (Container Manager):**
+**Einrichten (Container Manager):**
 
-1. Container Manager → Projekt → Erstellen, Name `schichtlohn-etikett`, „docker-compose.yml erstellen“, Inhalt aus [`etikett/docker-compose.yml`](etikett/docker-compose.yml) einfügen, fertigstellen.
-2. Prüfen: `http://<synology>:8093/` zeigt `{"ok": true, …}`.
-3. In SchichtLohn beim ersten Foto die Adresse eintragen (z. B. `http://192.168.178.20:8093`).
+1. In File Station den Ordner `docker/schichtlohn` anlegen (dort liegt die Datenbank `schichtlohn.db`, Hyper Backup kann sie mitsichern).
+2. Container Manager → Projekt → Erstellen, Name `schichtlohn`, „docker-compose.yml erstellen“, Inhalt aus [`server/docker-compose.yml`](server/docker-compose.yml) einfügen, fertigstellen.
+3. Prüfen: `http://<synology>:8093/` zeigt `{"ok": true, "dienst": "schichtlohn-server", …}`.
+4. In SchichtLohn: Einstellungen → SchichtLohn-Server → Adresse eintragen → **Daten übernehmen und Server verwenden**. Das kopiert Lager (`todo.filament`), Verbrauch und SchichtLohn-Daten aus Home Assistant bzw. diesem Browser auf den Server. Auf den weiteren Geräten nur die Adresse eintragen und **Nur verbinden** wählen.
 
-Wird SchichtLohn über **https** geöffnet (schichtlohn.pages.dev, Home Assistant über Nabu Casa), muss auch der Etikett-Leser per https erreichbar sein, sonst blockiert der Browser die Verbindung: DSM → Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy → Erstellen, Quelle `https`, eigener Hostname (z. B. `etikett.name.synology.me`), Port 443, Ziel `http://localhost:8093`; das Zertifikat unter Systemsteuerung → Sicherheit → Zertifikat diesem Dienst zuweisen. Die https-Adresse dann in SchichtLohn eintragen.
+Wird SchichtLohn über **https** geöffnet (schichtlohn.pages.dev, Home Assistant über Nabu Casa), muss der Server ebenfalls per https erreichbar sein: DSM → Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy → Erstellen, Quelle `https` mit eigenem Hostnamen (z. B. `schichtlohn.name.synology.me`), Port 443, Ziel `http://localhost:8093`; Zertifikat unter Sicherheit → Zertifikat zuweisen. Ist der Server von außen erreichbar, in der Compose-Datei `TOKEN` setzen und den Schlüssel in SchichtLohn eintragen.
 
-Das Container-Image wird per GitHub Action für x86 und ARM gebaut (`ghcr.io/mitkiprogrammieren/schichtlohn-etikett`).
+Schnittstelle (auch für die Waage): `GET /api/sorten`, `GET/POST /api/listen/<name>` (gleiches Format wie die To-do-Listen in HA), `GET/PUT /api/daten/<schlüssel>`, `GET /api/ereignisse` (Live-Meldungen), `GET /api/sicherung`, `POST /lesen` (Foto).
+
+### Spule per Foto erkennen
+
+Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen, den Etikett-Text liest der Server (PaddleOCR-Modelle über RapidOCR, lokal, ohne Cloud). Danach im Foto aufs Filament tippen, um die Farbe festzulegen, und aus den Vorschlägen aus Lager und Filament-Datenbank wählen. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton.
+
+Das Container-Image wird per GitHub Action für x86 und ARM gebaut (`ghcr.io/mitkiprogrammieren/schichtlohn-server`).
 
 ## Creality-Cloud
 
