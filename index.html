@@ -3705,7 +3705,7 @@ const CODES_BEKANNT={
  "6977252428200":{hersteller:"Bambu Lab",material:"PLA",farbe:"Nardo Gray",hex:"#787a7a",besonderheiten:["Matt"],gewicht:1000,durchmesser:1.75,ausfuehrung:"refill"}};
 /* Filament-Datenbanken: Open Filament Database + SpoolmanDB (beide MIT), gebündelt in filamentdb.json (tools/filamentdb.py) */
 const FDB_URLS=["filamentdb.json","https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json"];
-const FDB_SYN={schwarz:["black"],weiss:["white"],"weiß":["white"],grau:["gray","grey"],silber:["silver"],rot:["red"],orange:["orange"],gelb:["yellow"],gold:["gold"],beige:["beige"],braun:["brown"],"grün":["green"],gruen:["green"],"türkis":["turquoise","teal","cyan"],blau:["blue"],lila:["purple","violet","lilac"],pink:["pink"],rosa:["pink","rose"],matt:["matte"],seide:["silk"],transparent:["translucent","transparent","clear"],leuchtend:["glow"],glitzer:["glitter","sparkle","galaxy"],holz:["wood"],marmor:["marble"]};
+const FDB_SYN={grun:["green"],turkis:["turquoise","teal","cyan"],schwarz:["black"],weiss:["white"],"weiß":["white"],grau:["gray","grey"],silber:["silver"],rot:["red"],orange:["orange"],gelb:["yellow"],gold:["gold"],beige:["beige"],braun:["brown"],"grün":["green"],gruen:["green"],"türkis":["turquoise","teal","cyan"],blau:["blue"],lila:["purple","violet","lilac"],pink:["pink"],rosa:["pink","rose"],matt:["matte"],seide:["silk"],transparent:["translucent","transparent","clear"],leuchtend:["glow"],glitzer:["glitter","sparkle","galaxy"],holz:["wood"],marmor:["marble"]};
 let fdbP=null;
 function fdbLaden(){if(G.fdb)return Promise.resolve(G.fdb);if(fdbP)return fdbP;
   const urls=window.__PW_HA?FDB_URLS.slice(1):FDB_URLS;
@@ -3759,28 +3759,37 @@ function hexLab(h){const [r,g,b]=hexRgb(h).map(v=>{v/=255;return v>.04045?((v+.0
 const farbAbst=(a,b)=>{const u=hexLab(a),v=hexLab(b);return Math.sqrt(((u[0]-v[0])*.3)**2+(u[1]-v[1])**2+(u[2]-v[2])**2)*2.2};
 function fotoWoerter(f){const roh=(f.text||[]).map(x=>x.t);const W=new Set();
   roh.forEach(t=>{fwords(t).forEach(w=>W.add(w));fwords(String(t).replace(/([a-z])([A-Z])/g,"$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g,"$1 $2")).forEach(w=>W.add(w))});
-  return {W,T:roh.map(fnorm).join(" ")}}
-function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T}=fotoWoerter(f);
-  const has=w=>W.has(w)||(w.length>=4&&T.includes(w));
-  /* Barcode direkt */
-  const vorne=[];(f.codes||[]).forEach(c=>{const x=d.g[fdbCodeKey(c)];if(x&&!vorne.includes(x[0]))vorne.push(x[0])});
+  /* Artikelnummern auf dem Etikett (5–14 Ziffern, keine Temperaturen/Gewichte) – dienen wie ein Barcode zum Wiedererkennen */
+  const N=[];roh.forEach(t=>{(String(t).match(/(?<![\d.,])\d{5,14}(?![\d.,]|\s*(?:g|kg|mm|°|c\b))/gi)||[]).forEach(n=>{if(!N.includes(n))N.push(n)})});
+  return {W,T:roh.map(fnorm).join(" "),N}}
+/* Code zum Speichern: Barcode im Foto, sonst Artikelnummer vom Etikett, sonst EAN aus der Datenbank */
+const fotoCodes=(f,i)=>[...new Set([...(f.codes||[]),...(f.nummern||[]).slice(0,1),...(i!=null&&!(f.codes||[]).length&&fdbEan(i)?[fdbEan(i)]:[])])].filter(Boolean);
+function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T,N}=fotoWoerter(f);f.nummern=N;
+  const Wl=[...W].filter(t=>t.length>=4);
+  const has=w=>W.has(w)||(w.length>=4&&T.includes(w))||(w.length>=4&&Wl.some(t=>w.startsWith(t)));
+  const syn=w=>[w,...(FDB_SYN[w]||[])];const hasS=w=>syn(w).some(has);
+  /* Barcode oder Artikelnummer direkt */
+  const alleCodes=[...(f.codes||[]),...N];
+  const vorne=[];alleCodes.forEach(c=>{const x=d.g[fdbCodeKey(c)];if(x&&!vorne.includes(x[0]))vorne.push(x[0])});
   const marken=new Set();d.bw.forEach((b,i)=>{if(b.n.length>=4?T.includes(b.n):(b.n.length>=2&&W.has(b.n)))marken.add(i)});
   const sc=[];const leer=!W.size&&!f.hex;
   const mNorm=new Set([...marken].map(i=>d.bw[i].n));
   if(!leer)idx.forEach(e=>{let s=0;const bh=marken.has(e.b)||e.al.some(w=>mNorm.has(w));if(marken.size&&!bh)return;if(bh)s+=6;
-    let lh=0;[...e.lw,...e.al.filter(w=>!mNorm.has(w))].forEach(w=>{if(has(w))lh++});s+=lh*3;if(e.lw.length&&e.lw.every(has))s+=2;if(e.mat&&has(e.mat))s+=1;
-    if(e.cw.length){const n=e.cw.filter(has).length;s+=n===e.cw.length?5+n:n}
+    let lh=0;[...e.lw,...e.al.filter(w=>!mNorm.has(w))].forEach(w=>{if(has(w))lh++});s+=lh*3;if(e.lw.length&&e.lw.every(has))s+=2;
+    const mh=!!(e.mat&&has(e.mat));if(mh)s+=1;
+    let cv=false;if(e.cw.length){const n=e.cw.filter(has).length;cv=n===e.cw.length;s+=cv?5+n:n}
     if(f.hex)s+=8*Math.max(0,1-farbAbst(e.hex,f.hex)/200);
-    if(marken.size?s>=7:(lh>=1&&s>=6))sc.push([s,e.i])});
+    const ok=marken.size?s>=7:((lh>=1&&s>=6)||(mh&&cv)||(mh&&f.hex&&s>=7));
+    if(ok)sc.push([s,e.i])});
   out.marke=marken.size>0||vorne.length>0;sc.sort((a,b)=>b[0]-a[0]);out.db=[...vorne,...sc.map(x=>x[1]).filter(i=>!vorne.includes(i))].slice(0,14);
-  /* eigenes Lager */
+  /* eigenes Lager: deutsche Farb- und Merkmalnamen werden mit den englischen Etiketten verglichen */
   const top=out.db.slice(0,5).map(i=>fdbK(i)).filter(Boolean);
-  out.lager=entries().map(e=>{if((f.codes||[]).some(c=>e.codes.includes(c)))return [100,e];
+  out.lager=entries().map(e=>{if(alleCodes.some(c=>e.codes.includes(c)))return [100,e];
       let s=0;const hw=fwords(e.hersteller);if(hw.length&&hw.every(has))s+=6;else if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
-      if(has(fnorm(e.material)))s+=1;const fw=fwords(e.farbe);if(fw.length&&fw.every(has))s+=5;(e.besonderheiten||[]).forEach(b=>{if(has(fnorm(b)))s+=1});
+      if(has(fnorm(e.material)))s+=2;const fw=fwords(e.farbe);if(fw.length&&fw.every(hasS))s+=6;(e.besonderheiten||[]).forEach(b=>{if(hasS(fnorm(b)))s+=2});
       if(top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
-      if(f.hex)s+=6*Math.max(0,1-farbAbst(e.hex,f.hex)/220);return [s,e]})
-    .filter(x=>x[0]>=10).sort((a,b)=>b[0]-a[0]).slice(0,4).map(x=>x[1]);
+      if(f.hex)s+=8*Math.max(0,1-farbAbst(e.hex,f.hex)/200);return [s,e]})
+    .filter(x=>x[0]>=(W.size?8:(f.hex?3:99))).sort((a,b)=>b[0]-a[0]).slice(0,5).map(x=>x[1]);
   return out}
 
 /* Bild laden, verkleinern */
@@ -3840,18 +3849,18 @@ function fotoTap(ev,img){const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;const r=
   const sw=document.getElementById("lgfsw");if(sw)sw.style.background=f.hex;const st=document.getElementById("lgfswt");if(st)st.textContent="Farbe übernommen. Woanders tippen zum Ändern.";
   const box=document.getElementById("lgfres");if(box){box.innerHTML=fotoZeilen(f);box.scrollTop=0}}
 function fotoErledigt(id){const f=G.fotos[id];if(!f)return;f.done=true;if(G.fotos.length>1){const nx=G.fotos.find(x=>!x.done&&x.status==="fertig");setTimeout(()=>nx?fotoModal(nx.id):fotoListe(),350)}}
-function fotoPick(i){const f=G.fotos[G.fotoAkt];const k=fdbK(i);if(!f||!k)return;const code=f.codes[0]||fdbEan(i)||"";const refill=k.ausfuehrung==="refill";
-  const hit=code&&codeSorte(code);if(hit){G.fotoLagerUid=hit.uid;G.fotoCode=code;return fotoLagerModal(hit,code,true)}
+function fotoPick(i){const f=G.fotos[G.fotoAkt];const k=fdbK(i);if(!f||!k)return;const cs=fotoCodes(f,i);const code=cs[0]||"";const refill=k.ausfuehrung==="refill";
+  const hit=cs.map(c=>codeSorte(c)).find(Boolean);if(hit){G.fotoLagerUid=hit.uid;G.fotoCode=code;G.fotoCodesAlle=cs;return fotoLagerModal(hit,code,true)}
   const same=entries().find(e=>fnorm(e.hersteller)===fnorm(k.hersteller)&&fnorm(e.material)===fnorm(k.material)&&fnorm(e.farbe)===fnorm(k.farbe));
-  if(same){G.fotoLagerUid=same.uid;G.fotoCode=code;return fotoLagerModal(same,code,false,k)}
-  formModal(null,Object.assign({},k,{besonderheiten:[...k.besonderheiten],codes:code?[code]:[],codes_refill:code&&refill?[code]:[],spulen:1,refills:refill?1:0,fotoId:f.id,
-    hinweis:`${k.quelle}: ${k.hersteller} ${k.linie} · ${k.farbe}.${code?` Barcode ${code} wird gespeichert${f.codes[0]?"":" (aus der Datenbank)"}.`:" In der Datenbank ist kein Barcode hinterlegt; einfach beim ersten Scan des Kartons zuordnen."}`}))}
+  if(same){G.fotoLagerUid=same.uid;G.fotoCode=code;G.fotoCodesAlle=cs;return fotoLagerModal(same,code,false,k)}
+  formModal(null,Object.assign({},k,{besonderheiten:[...k.besonderheiten],codes:cs,codes_refill:refill?cs:[],spulen:1,refills:refill?1:0,fotoId:f.id,
+    hinweis:`${k.quelle}: ${k.hersteller} ${k.linie} · ${k.farbe}.${code?` ${cs.length>1?"Codes":"Code"} ${cs.join(", ")} ${cs.length>1?"werden":"wird"} gespeichert${f.codes[0]?"":(f.nummern||[]).includes(code)?" (Nummer vom Etikett)":" (aus der Datenbank)"}.`:" In der Datenbank ist kein Barcode hinterlegt; einfach beim ersten Scan des Kartons zuordnen."}`}))}
 function fotoLagerModal(e,code,bekannt){const neu=code&&!e.codes.includes(code);
   modal("Schon im Lager",`<div class="lgform"><div class="lgr" style="border:1px solid var(--line);border-radius:var(--r-s)">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">Bestand: ${plural(e.spulen,"Rolle","Rollen")} · ${kg(total(e))}</div></div><div></div></div>
     <div class="lghint">${bekannt?`Barcode ${esc(code)} gehört schon zu dieser Sorte.`:neu?`Barcode ${esc(code)} ist hier noch nicht gespeichert.`:"Diese Sorte gibt es schon."}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `${neu?`<button class="btn ghost" data-act="lgFLcode">Nur Barcode speichern</button>`:""}<span class="sp"></span><button class="btn pri" data-act="lgFLplus">${ICON.plus} 1 Rolle${neu?" + Barcode":""}</button>`)}
 async function fotoLagerSchreiben(plus){const e=entries().find(x=>x.uid===G.fotoLagerUid);const code=G.fotoCode;if(!e)return;const p={};
-  if(code&&!e.codes.includes(code))p.codes=[...e.codes,code];if(plus)p.spulen=Math.max(0,e.spulen)+1;
+  const neuC=(G.fotoCodesAlle&&G.fotoCodesAlle.length?G.fotoCodesAlle:[code]).filter(c=>c&&!e.codes.includes(c));if(neuC.length)p.codes=[...e.codes,...neuC];if(plus)p.spulen=Math.max(0,e.spulen)+1;
   try{await write(e,p);closeModal();toast(plus?`1 Rolle dazugezählt: ${summary(e)}`:"Barcode gespeichert");draw(0);fotoErledigt(G.fotoAkt)}catch(err){msg("Speichern fehlgeschlagen: "+(err.message||err))}}
 const SERIE_KEY="ernsthaft_gelagert_plus_serie";
 const BC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg>`;
@@ -4142,9 +4151,9 @@ document.addEventListener("click",async e=>{
   if(a==="lgFotoNext"){const nx=G.fotos.find(x=>x.id>G.fotoAkt&&!x.done&&x.status==="fertig")||G.fotos.find(x=>!x.done&&x.status==="fertig"&&x.id!==G.fotoAkt);if(nx)fotoModal(nx.id);else fotoListe();return}
   if(a==="lgFotoTap"){fotoTap(e,b);return}
   if(a==="lgFotoPick"){fotoPick(+b.dataset.i);return}
-  if(a==="lgFotoLager"){const f=G.fotos[G.fotoAkt],x=entries().find(y=>y.uid===b.dataset.uid);if(!f||!x)return;const code=f.codes[0]||"";G.fotoLagerUid=x.uid;G.fotoCode=code;fotoLagerModal(x,code,!!code&&x.codes.includes(code));return}
+  if(a==="lgFotoLager"){const f=G.fotos[G.fotoAkt],x=entries().find(y=>y.uid===b.dataset.uid);if(!f||!x)return;const cs=fotoCodes(f);const code=cs[0]||"";G.fotoLagerUid=x.uid;G.fotoCode=code;G.fotoCodesAlle=cs;fotoLagerModal(x,code,!!code&&x.codes.includes(code));return}
   if(a==="lgFLcode"||a==="lgFLplus"){fotoLagerSchreiben(a==="lgFLplus");return}
-  if(a==="lgFotoNeuSorte"){const f=G.fotos[G.fotoAkt];if(!f)return;const c=f.codes[0]||"";formModal(null,{codes:c?[c]:[],hex:f.hex||"#808080",fotoId:f.id,hinweis:c?`Barcode ${c} wird gespeichert.`:"Neue Sorte vom Foto. Bitte ausfüllen."});return}
+  if(a==="lgFotoNeuSorte"){const f=G.fotos[G.fotoAkt];if(!f)return;const cs=fotoCodes(f);const c=cs[0]||"";formModal(null,{codes:cs,hex:f.hex||"#808080",fotoId:f.id,hinweis:c?`Barcode ${c} wird gespeichert.`:"Neue Sorte vom Foto. Bitte ausfüllen."});return}
   if(a==="lgEtSave"){const i=document.getElementById("lgeturl");const u=etUrlSetzen(i?i.value:"");try{const d=await etTest(u);toast("Etikett-Leser verbunden (Version "+d.version+")");G.fotoEtFehler="";if(G.fotos.length)fotoVerarbeiten(G.fotos.map(x=>x.file))}catch(err){toast(err.message)}return}
   if(a==="lgSerie"){serieStart();return}
   if(a==="lgSerieListe"){serieModal();return}
