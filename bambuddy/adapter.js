@@ -29,7 +29,7 @@ const W=s=>Number(s.label_weight)>0?Number(s.label_weight):1000;
 const rest=s=>Math.max(0,W(s)-(Number(s.weight_used)||0));
 const aktiv=s=>!s.archived_at&&rest(s)>0.5;
 function extra(s){const n=String(s.note||"");if(n.startsWith(NOTE)){try{return JSON.parse(n.slice(NOTE.length))||{}}catch(e){}}return null}
-function gkey(s){return [s.brand||"",s.material||"",s.subtype||"",hexOf(s.rgba),W(s)].join("|").toLowerCase()}
+function gkey(s){return [s.brand||"",s.material||"",s.subtype||"",s.color_name||"",hexOf(s.rgba),W(s)].join("|").toLowerCase()}
 function hash(t){let h=5381;for(let i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;return (h>>>0).toString(36)}
 function gruppieren(){
   const m=new Map();
@@ -130,6 +130,44 @@ function verbrauch(){
       anlass:(u.status==="completed"?"Druck fertig":u.status==="failed"?"Druck fehlgeschlagen":"Druck abgebrochen")+(u.print_name?" · "+u.print_name:"")+" (Bambuddy)",quelle:"bambuddy:"+u.id,auto:true};
     return {uid:"bu_"+u.id,summary:x.sorte,status:"completed",description:JSON.stringify(x)}})}
 
+/* --- Einmaliger Import aus einer Lager-Datei (z. B. aus dem Home-Assistant-FilamentLager) --- */
+const IMP="schichtlohn_bambuddy_import";
+async function importieren(daten,fortschritt){
+  const sorten=(daten&&Array.isArray(daten.sorten)?daten.sorten:Array.isArray(daten)?daten:[]).filter(x=>x&&!x.typ&&x.material);
+  if(!sorten.length)throw new Error("In der Datei sind keine Sorten");
+  await laden(true);
+  const schon=new Set([...B.groups.values()].map(g=>g.key));
+  const r={neu:0,schon:0,fehler:[]};
+  for(let i=0;i<sorten.length;i++){const d=sorten[i];
+    const f=felder(d);const k=[f.brand||"",f.material||"",f.subtype||"",f.color_name||"",hexOf(f.rgba),f.label_weight].join("|").toLowerCase();
+    if(schon.has(k)){r.schon++}
+    else{try{await neu(d);schon.add(k);r.neu++}catch(e){r.fehler.push(summaryOf(d)+": "+e.message)}}
+    fortschritt&&fortschritt(i+1,sorten.length)}
+  try{localStorage.setItem(IMP,new Date().toISOString())}catch(e){}
+  await laden(true);return r}
+function importModal(){
+  if(!window.modal)return;
+  modal("Bestand importieren",`<div class="stack">
+    <div class="hint">Wähle die Datei <b>filamentlager-import.json</b>. Für jede Rolle wird in Bambuddy eine Spule angelegt, mit Resten, Preis und Farbe. Sorten, die es in Bambuddy schon gibt, werden übersprungen – ein zweiter Import legt also nichts doppelt an.</div>
+    <input type="file" id="bbImpFile" accept="application/json,.json">
+    <div class="hint" id="bbImpMsg" role="status"></div></div>`,
+    `<button class="btn ghost" data-act="close">Schließen</button>`);
+  const inp=document.getElementById("bbImpFile");
+  inp.addEventListener("change",async()=>{const f=inp.files&&inp.files[0];if(!f)return;const msg=document.getElementById("bbImpMsg");inp.disabled=true;
+    try{const daten=JSON.parse(await f.text());
+      const r=await importieren(daten,(n,g)=>{msg.textContent=`Importiere … ${n} von ${g} Sorten`});
+      msg.innerHTML=`Fertig: ${r.neu} Sorten angelegt${r.schon?`, ${r.schon} gab es schon`:""}.`+(r.fehler.length?`<br>Nicht übernommen (${r.fehler.length}):<br>`+r.fehler.slice(0,20).map(x=>window.esc?esc(x):x).join("<br>"):"");
+      window.toast&&toast("Import fertig: "+r.neu+" Sorten")}
+    catch(e){msg.textContent="Fehler: "+e.message;inp.disabled=false}})}
+/* Knopf „Import“ unten rechts, solange Bambuddy noch (fast) leer ist oder mit ?import=1 */
+function knopf(){
+  if(!on())return;let b=document.getElementById("bbImpBtn");
+  const zeigen=B.loaded&&(B.spools.length<5||/[?&]import=1/.test(location.search));
+  if(!zeigen){if(b)b.remove();return}
+  if(b)return;b=document.createElement("button");b.id="bbImpBtn";b.type="button";b.className="btn pri";b.textContent="Bestand importieren";
+  b.style.cssText="position:fixed;right:16px;bottom:16px;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.25)";
+  b.onclick=importModal;document.body.appendChild(b)}
+
 /* --- Laden, Live-Aktualisierung --- */
 function verteilen(){
   const e=items(),m=verbrauch();
@@ -146,7 +184,7 @@ async function laden(force){
       B.printers.forEach((p,i)=>{if(st[i])B.status[p.id]=st[i]});
       gruppieren();zustaende();B.loaded=true;B.err="";B.at=Date.now();
     }catch(e){B.err=e.message;console.warn("Bambuddy",e);if(window.toast&&!B.loaded)toast("Bambuddy: "+e.message)}
-    finally{B.loading=null;verteilen()}})();
+    finally{B.loading=null;verteilen();try{knopf()}catch(e){}}})();
   return B.loading}
 function bald(){clearTimeout(B.reloadT);B.reloadT=setTimeout(()=>laden(true),600)}
 function verbinden(){
@@ -165,5 +203,5 @@ document.addEventListener("visibilitychange",()=>{if(on()&&!document.hidden)lade
 function subscribe(art,cb){B.subs[art].push(cb);if(B.loaded)setTimeout(()=>cb(art==="ent"?items():verbrauch()),0);else laden(true);verbinden();
   return ()=>{B.subs[art]=B.subs[art].filter(f=>f!==cb)}}
 
-window.BBY={on,svc,istSorte,subscribe,laden,states:()=>B.stateMap,name:pre=>NAMEN[pre],_B:B,_sorte:sorte,_felder:felder,_ziele:ziele};
+window.BBY={on,svc,istSorte,subscribe,laden,importieren,importModal,states:()=>B.stateMap,name:pre=>NAMEN[pre],_B:B,_sorte:sorte,_felder:felder,_ziele:ziele};
 })();
