@@ -31,11 +31,16 @@ services:
       - |
         set -e
         B="$${SL_BRANCH:-main}"
+        git config --global --add safe.directory /repo
         if [ -d /repo/.git ]; then
           git -C /repo fetch --depth 1 origin "$$B"
           git -C /repo reset --hard FETCH_HEAD
         else
-          git clone --depth 1 --branch "$$B" https://github.com/MitKIprogrammieren/Schichtlohn.git /repo
+          # der Ordner ist auf der Synology nicht ganz leer: erst woanders holen, dann hineinkopieren
+          rm -rf /tmp/sl
+          git clone --depth 1 --branch "$$B" https://github.com/MitKIprogrammieren/Schichtlohn.git /tmp/sl
+          cp -a /tmp/sl/. /repo/
+          rm -rf /tmp/sl
         fi
         git -C /repo log -1 --format='Lager-Stand: %h %cd'
     environment:
