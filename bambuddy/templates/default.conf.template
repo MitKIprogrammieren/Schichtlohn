@@ -12,7 +12,10 @@ server {
 
     # Startseite = nur das Lager (für den Seitenleisten-Eintrag in Bambuddy)
     location = / {
-        return 302 /index.html?ansicht=lager;
+        try_files /index.html =404;
+        sub_filter '<!--SL_BAMBUDDY-->' '<script>window.SL_BAMBUDDY={api:"/api/v1"};window.SL_ANSICHT="lager"</script>';
+        sub_filter_once on;
+        add_header Cache-Control "no-cache";
     }
 
     # SchichtLohn in den Bambuddy-Modus schalten

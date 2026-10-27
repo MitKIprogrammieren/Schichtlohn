@@ -2,6 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<!--SL_BAMBUDDY-->
+<meta name="color-scheme" content="light dark">
+<style>html{background:#ececee}@media (prefers-color-scheme:dark){html{background:#232326}}</style>
+<script>/* Ansicht „nur Lager“ (Bambuddy-Seitenleiste): sofort setzen, damit nichts aufblitzt */
+window.SL_NURLAGER=/[?&]ansicht=lager/.test(location.search)||window.SL_ANSICHT==="lager";
+if(window.SL_NURLAGER)document.documentElement.classList.add("nurlager");</script>
+<style>.nurlager header.top{display:none!important}</style>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1b1b1d" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -198,7 +205,6 @@ table.list tr.click:hover td{background:var(--glass)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
-<!--SL_BAMBUDDY-->
 <script src="bambuddy/adapter.js"></script>
 <script>document.documentElement.dataset.skin=window.__PW_HA?"ha":"bambu"</script>
 <header class="top">
@@ -1179,7 +1185,7 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
   catch(err){toast("Das ist keine gültige SchichtLohn-Sicherung.")}});
 
 /* ---------- Start ---------- */
-function startTabPref(){const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
+function startTabPref(){if(window.SL_NURLAGER)return "lager";const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
 async function start(){
   S.cfg=defaultCfg();S.quote=newQuote();S.tab=startTabPref();render();setSync("busy");
   await Store.init();
@@ -4025,12 +4031,8 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 </script>
 
 <script>
-/* Ansicht „nur Lager“ (index.html?ansicht=lager), z. B. als Seitenleisten-Eintrag in Bambuddy */
-(function(){if(new URLSearchParams(location.search).get("ansicht")!=="lager")return;
-  document.documentElement.classList.add("nurlager");
-  const st=document.createElement("style");st.textContent=".nurlager header.top{display:none!important}";document.head.appendChild(st);
-  const go=()=>{const b=document.querySelector('#tabs [data-tab="lager"]');if(b&&S.tab!=="lager")b.click()};
-  setTimeout(go,0);setTimeout(go,600)})();
+/* Ansicht „nur Lager“: falls ein anderer Reiter gespeichert war, auf Lager umschalten */
+(function(){if(!window.SL_NURLAGER)return;const go=()=>{const b=document.querySelector('#tabs [data-tab="lager"]');if(b&&S.tab!=="lager")b.click()};setTimeout(go,0)})();
 </script>
 </body>
 </html>
