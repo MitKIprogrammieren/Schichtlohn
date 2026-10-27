@@ -3888,8 +3888,9 @@ function cropAn(){const box=document.getElementById("lgfbox"),img=document.getEl
     const x1=Math.max(0,(Math.min(a[0],p2[0])-ox)/s),y1=Math.max(0,(Math.min(a[1],p2[1])-oy)/s),x2=Math.min(f.cv.width,(Math.max(a[0],p2[0])-ox)/s),y2=Math.min(f.cv.height,(Math.max(a[1],p2[1])-oy)/s);
     if(x2-x1<20||y2-y1<12){R.hidden=true;return}cropLesen(f,x1,y1,x2-x1,y2-y1)}}
 async function cropLesen(f,x,y,w,h){const m=document.getElementById("lgfcropmsg");if(m)m.textContent="Lese Ausschnitt …";
-  const k=Math.max(1,Math.min(4,1600/Math.max(w,h)));const cv=document.createElement("canvas");cv.width=Math.round(w*k);cv.height=Math.round(h*k);const g=cv.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(f.cv,x,y,w,h,0,0,cv.width,cv.height);
-  try{const r=await fetch(etUrl()+"/lesen?ausschnitt=1",{method:"POST",headers:etKopf(),body:await cvBlob(cv)});const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);
+  const k=Math.max(1,Math.min(3,1000/Math.max(w,h)));const cv=document.createElement("canvas");cv.width=Math.round(w*k);cv.height=Math.round(h*k);const g=cv.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(f.cv,x,y,w,h,0,0,cv.width,cv.height);
+  const ctl=new AbortController();const tmo=setTimeout(()=>ctl.abort(),120000);
+  try{let r;try{r=await fetch(etUrl()+"/lesen?ausschnitt=1",{method:"POST",headers:etKopf(),body:await cvBlob(cv),signal:ctl.signal})}catch(x){throw new Error(x.name==="AbortError"?"Der Server hat über 2 Minuten gebraucht":"Verbindung abgebrochen – startet der Server gerade neu? Prüfe im Container Manager, wie lange schichtlohn-server schon läuft")}finally{clearTimeout(tmo)}const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);
     const alt=new Set((f.text||[]).map(t=>t.t));const neu=(d.text||[]).filter(t=>!alt.has(t.t));f.text=[...(f.text||[]),...neu];(d.codes||[]).forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)});
     if(!d.codes||!d.codes.length){const bc=await browserCodes(cv);bc.forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)})}
     f.tr=fotoTreffer(f);G.fotoCrop=false;G.fotoKeinScroll=true;fotoModal(f.id);toast(neu.length?`${neu.length} weitere Textstellen gelesen`:"Im Ausschnitt nichts Neues gefunden")}

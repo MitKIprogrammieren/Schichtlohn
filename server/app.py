@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.4.0"
+VERSION = "2.4.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -436,12 +436,12 @@ def bild_lesen(daten, ausschnitt=False):
         pass
     zeilen = []
     if OCR_AN:
-        def lesen(bild):
+        def lesen(bild, genau=False):
             t0 = time.time()
-            modell = ocr(genau=ausschnitt)
+            modell = ocr(genau=genau)
             with _ocr_lock:
                 res, _ = modell(np.asarray(bild)[:, :, ::-1])
-            print(f"Gelesen in {time.time() - t0:.1f} s ({'Ausschnitt' if ausschnitt else 'Foto'}, {bild.size[0]}×{bild.size[1]})", flush=True)
+            print(f"Gelesen in {time.time() - t0:.1f} s ({'Ausschnitt' if ausschnitt else 'Foto'}{', genau' if genau else ''}, {bild.size[0]}×{bild.size[1]})", flush=True)
             z = []
             for box, t, p in res or []:
                 try:
@@ -455,7 +455,16 @@ def bild_lesen(daten, ausschnitt=False):
                 z.append({"t": str(t).strip(), "p": round(p, 3),
                           "box": [int(min(xs)), int(min(ys)), int(max(xs) - min(xs)), int(max(ys) - min(ys))]})
             return z
-        zeilen = lesen(img)
+        if ausschnitt and max(img.size) > 1000:
+            img.thumbnail((1000, 1000))  # Ausschnitt reicht in 1000 px, das genaue Modell bleibt so schnell
+        zeilen = []
+        if ausschnitt:
+            try:
+                zeilen = lesen(img, genau=True)
+            except Exception as e:  # z. B. zu wenig Speicher für das genaue Modell
+                print("Genaues Lesen fehlgeschlagen, nehme schnelles:", e, flush=True)
+        if not zeilen:
+            zeilen = lesen(img)
         if ausschnitt and len(zeilen) < 4:
             # blasser oder schräger Druck: weitere Versuche mit verstärktem Kontrast und leicht gedreht
             kon = ImageOps.autocontrast(img.convert("L"), cutoff=1).convert("RGB")
