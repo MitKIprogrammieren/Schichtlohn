@@ -11,7 +11,7 @@
 "use strict";
 const API=()=>window.SL_BAMBUDDY&&window.SL_BAMBUDDY.api;
 const on=()=>!!API();
-const B={spools:[],printers:[],status:{},groups:new Map(),usage:[],loaded:false,err:"",at:0,subs:{ent:[],meta:[]},loading:null,ws:null,wsT:null,reloadT:null,stateMap:{}};
+const B={spools:[],printers:[],status:{},assign:[],groups:new Map(),usage:[],loaded:false,err:"",at:0,subs:{ent:[],meta:[]},loading:null,ws:null,wsT:null,reloadT:null,stateMap:{}};
 const NOTE="SL:";
 const EXTRA=["besonderheiten","refills","codes","codes_refill","durchmesser","bett_min","bett_max","trocknen_c","trocknen_h","fcode","ams_farben","ausfuehrung","farbe_name"];
 
@@ -170,6 +170,43 @@ function knopf(){
   b.style.cssText="position:fixed;right:16px;bottom:16px;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.25)";
   b.onclick=importModal;document.body.appendChild(b)}
 
+/* --- Automatische Fach-Zuordnung in Bambuddy ---
+   Bambuddy bucht nach Druckende nur von der Spule ab, die einem AMS-Fach zugeordnet ist.
+   Ist ein belegtes Fach noch ohne Zuordnung, sucht das Lager die passende Sorte (gleiches Filamentprofil,
+   ähnliche Farbe – dieselbe Regel wie „Fächer ohne Zuordnung“) und ordnet eine ihrer Spulen zu.
+   Wird die Rolle getauscht, löst Bambuddy die alte Zuordnung selbst; danach wird neu zugeordnet. */
+const ZTOL=2700; // strenger als die Anzeige im Lager: hier wird später echt abgebucht
+const generisch=fid=>!fid||/^GF.99$/i.test(String(fid));
+const rgb=h=>[1,3,5].map(i=>parseInt(String(h).slice(i,i+2),16)||0);
+const abstand=(a,b)=>{const u=rgb(a),v=rgb(b);return u.reduce((s,x,i)=>s+(x-v[i])**2,0)};
+const versucht=new Map();let zLaeuft=false;
+function faecher(){const out=[];
+  for(const p of B.printers){const st=B.status[p.id];if(!st||st.connected===false)continue;
+    for(const u of st.ams||[])for(const t of u.tray||[]){if(!t.tray_type)continue;out.push({printer:p,ams_id:Number(u.id),tray_id:Number(t.id),t})}
+    (st.vt_tray||[]).forEach(t=>{if(!t||!t.tray_type)return;const id=Number(t.id);out.push({printer:p,ams_id:255,tray_id:Number.isFinite(id)&&id>=254?id-254:0,t})})}
+  return out}
+function sorteFuer(t){const fid=t.tray_info_idx;if(generisch(fid))return null;const hex="#"+String(t.tray_color||"").slice(0,6).toLowerCase();
+  let best=null,bd=Infinity;
+  for(const g of B.groups.values()){if(!g.active||!g.active.length)continue;const d=sorte(g);if(d.bambu_id!==fid)continue;
+    const di=Math.min(...[d.hex,...(d.ams_farben||[])].map(x=>abstand(x,hex)));if(di<bd){bd=di;best=g}}
+  return best&&bd<=ZTOL?best:null}
+function spuleFuer(g,t,belegt){const frei=g.active.filter(s=>!belegt.has(s.id));if(!frei.length)return null;
+  const rem=Number(t.remain);
+  if(rem>=0&&rem<=100){const soll=rem/100;return frei.slice().sort((a,b)=>Math.abs(rest(a)/W(a)-soll)-Math.abs(rest(b)/W(b)-soll))[0]}
+  const an=frei.filter(s=>rest(s)<W(s)-0.5).sort((a,b)=>rest(a)-rest(b));return an[0]||frei[0]}
+async function zuordnen(){
+  if(!on()||zLaeuft||!B.loaded)return;zLaeuft=true;let neu=0;
+  try{const hat=new Set(B.assign.map(a=>`${a.printer_id}|${a.ams_id}|${a.tray_id}`));const belegt=new Set(B.assign.map(a=>a.spool_id));
+    for(const f of faecher()){const k=`${f.printer.id}|${f.ams_id}|${f.tray_id}`;if(hat.has(k))continue;
+      const fp=k+"|"+(f.t.tray_info_idx||"")+"|"+(f.t.tray_color||"");const v=versucht.get(fp);if(v&&Date.now()-v<10*60e3)continue;
+      const g=sorteFuer(f.t);if(!g)continue;const s=spuleFuer(g,f.t,belegt);if(!s)continue;
+      versucht.set(fp,Date.now()); // nur echte Versuche merken: kein zweiter Aufruf, falls Bambuddy ablehnt
+      try{const a=await req("POST","/inventory/assignments",{spool_id:s.id,printer_id:f.printer.id,ams_id:f.ams_id,tray_id:f.tray_id});
+        B.assign.push(a&&a.spool_id?a:{spool_id:s.id,printer_id:f.printer.id,ams_id:f.ams_id,tray_id:f.tray_id});belegt.add(s.id);hat.add(k);neu++}
+      catch(e){console.warn("Bambuddy Zuordnung",k,e)}}
+    if(neu&&window.toast)toast(`${neu} ${neu===1?"Fach":"Fächer"} in Bambuddy zugeordnet`)}
+  finally{zLaeuft=false}}
+
 /* --- Laden, Live-Aktualisierung --- */
 function verteilen(){
   const e=items(),m=verbrauch();
@@ -180,12 +217,13 @@ async function laden(force){
   if(!on())return;if(B.loading)return B.loading;if(!force&&Date.now()-B.at<5000)return;
   B.loading=(async()=>{
     try{
-      const [spools,printers,usage]=await Promise.all([req("GET","/inventory/spools?include_archived=true"),req("GET","/printers/").catch(()=>[]),req("GET","/inventory/usage?limit=500").catch(()=>[])]);
-      B.spools=Array.isArray(spools)?spools:[];B.printers=Array.isArray(printers)?printers:[];B.usage=Array.isArray(usage)?usage:[];
+      const [spools,printers,usage,assign]=await Promise.all([req("GET","/inventory/spools?include_archived=true"),req("GET","/printers/").catch(()=>[]),req("GET","/inventory/usage?limit=500").catch(()=>[]),req("GET","/inventory/assignments").catch(()=>null)]);
+      B.spools=Array.isArray(spools)?spools:[];B.printers=Array.isArray(printers)?printers:[];B.usage=Array.isArray(usage)?usage:[];if(Array.isArray(assign))B.assign=assign;
       const st=await Promise.all(B.printers.map(p=>req("GET","/printers/"+p.id+"/status").catch(()=>null)));
       B.printers.forEach((p,i)=>{if(st[i])B.status[p.id]=st[i]});
       gruppieren();zustaende();B.loaded=true;B.err="";B.at=Date.now();
       grundlinie();
+      setTimeout(zuordnen,0);
     }catch(e){B.err=e.message;console.warn("Bambuddy",e);if(window.toast&&!B.loaded)toast("Bambuddy: "+e.message)}
     finally{B.loading=null;verteilen();try{knopf()}catch(e){}}})();
   return B.loading}
@@ -206,8 +244,8 @@ function verbinden(){
   let ws;try{ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+API()+"/ws")}catch(e){return}
   B.ws=ws;
   ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}
-    if(/^(inventory_changed|spool_assignment_changed|spool_auto_assigned|spool_usage_logged|print_complete)$/.test(m.type))bald();
-    else if(m.type==="printer_status"&&m.printer_id!=null&&m.data&&m.data.ams){B.status[m.printer_id]=Object.assign(B.status[m.printer_id]||{},m.data);clearTimeout(B.wsT);B.wsT=setTimeout(()=>{zustaende();try{LGN.onStates&&LGN.onStates()}catch(e){}},1500)}};
+    if(/^(inventory_changed|spool_assignment_changed|missing_spool_assignment|spool_auto_assigned|spool_usage_logged|print_complete)$/.test(m.type))bald();
+    else if(m.type==="printer_status"&&m.printer_id!=null&&m.data&&m.data.ams){B.status[m.printer_id]=Object.assign(B.status[m.printer_id]||{},m.data);clearTimeout(B.wsT);B.wsT=setTimeout(()=>{zustaende();try{LGN.onStates&&LGN.onStates()}catch(e){}zuordnen()},1500)}};
   const ping=setInterval(()=>{try{ws.readyState===1&&ws.send('{"type":"ping"}')}catch(e){}},30000);
   ws.onclose=()=>{clearInterval(ping);B.ws=null;setTimeout(verbinden,10000)};}
 setInterval(()=>{if(on()&&!document.hidden)laden(false)},60000);
@@ -217,5 +255,5 @@ document.addEventListener("visibilitychange",()=>{if(on()&&!document.hidden)lade
 function subscribe(art,cb){B.subs[art].push(cb);if(B.loaded)setTimeout(()=>cb(art==="ent"?items():verbrauch()),0);else laden(true);verbinden();
   return ()=>{B.subs[art]=B.subs[art].filter(f=>f!==cb)}}
 
-window.BBY={on,svc,istSorte,subscribe,laden,importieren,importModal,states:()=>B.stateMap,name:pre=>NAMEN[pre],_B:B,_sorte:sorte,_felder:felder,_ziele:ziele};
+window.BBY={on,svc,istSorte,subscribe,laden,importieren,importModal,zuordnen,_faecher:faecher,_sorteFuer:sorteFuer,states:()=>B.stateMap,name:pre=>NAMEN[pre],_B:B,_sorte:sorte,_felder:felder,_ziele:ziele};
 })();

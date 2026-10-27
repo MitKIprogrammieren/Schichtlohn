@@ -8,6 +8,7 @@ Das Lager aus SchichtLohn, mit Bambuddys Inventar als Datenquelle und als Eintra
 - **Bearbeiten wirkt in Bambuddy:** „+ Rolle“ legt eine Spule an (bzw. holt eine archivierte zurück), „− Rolle“ setzt eine Spule auf leer und archiviert sie, ein geänderter Rest ändert `weight_used`. Preis, Farbe, Düsentemperatur und Filamentprofil werden in allen Spulen der Sorte gespeichert, die übrigen Lager-Angaben im Notizfeld (`SL:{…}`).
 - **Abbuchen:** Bambu-Drucke bucht Bambuddy nach Druckende selbst ab (aus der 3MF bzw. dem AMS), genau einmal auf dem Server. Der Verlauf erscheint in der Lager-Statistik. Creality-Drucke aus der Creality-Cloud bucht SchichtLohn wie bisher ab, nur eben in Bambuddy.
 - **AMS:** Ort im AMS, „Fächer ohne Zuordnung“ und AMS-Feuchte kommen live aus Bambuddys Druckerstatus.
+- **Automatische Fach-Zuordnung:** Bambuddy bucht nur von Spulen ab, die einem AMS-Fach zugeordnet sind. Ist ein belegtes Fach noch ohne Zuordnung, ordnet das Lager eine passende Spule zu (gleiches Filamentprofil, fast gleiche Farbe; angebrochene bzw. die zum Füllstand passende zuerst). Fächer mit Generic-Profil oder ohne passende Sorte bleiben unter „Fächer ohne Zuordnung“. Das passiert, solange das Lager irgendwo geöffnet ist. In Bambuddy „Unbekannte RFID-Spulen automatisch hinzufügen“ ausschalten, sonst entstehen doppelte Spulen.
 - „Nicht zugeordnet“ und die Lager-Einstellungen liegen im Browser.
 
 ## Einrichten auf der Synology (Bambuddy und Lager zusammen)
