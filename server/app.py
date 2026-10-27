@@ -383,16 +383,17 @@ def bild_lesen(daten, ausschnitt=False):
                           "box": [int(min(xs)), int(min(ys)), int(max(xs) - min(xs)), int(max(ys) - min(ys))]})
             return z
         zeilen = lesen(img)
-        if ausschnitt and len(zeilen) < 3:
+        if ausschnitt and len(zeilen) < 4:
             # blasser oder schräger Druck: weitere Versuche mit verstärktem Kontrast und leicht gedreht
             kon = ImageOps.autocontrast(img.convert("L"), cutoff=1).convert("RGB")
             gesehen = {z["t"] for z in zeilen}
-            for bild in (kon, kon.rotate(-25, expand=True, fillcolor="white"), kon.rotate(25, expand=True, fillcolor="white")):
+            for bild in (kon, kon.rotate(-25, expand=True, fillcolor="white"), kon.rotate(25, expand=True, fillcolor="white"),
+                         kon.rotate(90, expand=True), kon.rotate(270, expand=True), kon.rotate(180)):
                 for z in lesen(bild):
                     if z["t"] not in gesehen:
                         gesehen.add(z["t"])
                         zeilen.append(z)
-                if len(zeilen) >= 3:
+                if len(zeilen) >= 4:
                     break
     r = {"text": zeilen, "codes": codes, "w": img.size[0], "h": img.size[1]}
     if not ausschnitt:

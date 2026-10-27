@@ -3771,7 +3771,10 @@ function fotoWoerter(f){const roh=(f.text||[]).map(x=>x.t);const W=new Set();
 const fotoCodes=(f,i)=>[...new Set([...(f.codes||[]),...(f.nummern||[]).slice(0,1),...(i!=null&&!(f.codes||[]).length&&fdbEan(i)?[fdbEan(i)]:[])])].filter(Boolean);
 function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T,N}=fotoWoerter(f);f.nummern=N;
   const Wl=[...W].filter(t=>t.length>=4);
-  const has=w=>W.has(w)||(w.length>=4&&T.includes(w))||(w.length>=4&&Wl.some(t=>w.length-t.length<=2&&w.startsWith(t)));
+  /* Lesefehler verzeihen: „Basid“ = „Basic“, „PLAB“ = „PLA“ – ein falscher Buchstabe bei Wörtern ab 5 Zeichen */
+  const lev1=(x,y)=>{if(Math.abs(x.length-y.length)>1)return false;let i=0,j=0,d=0;while(i<x.length&&j<y.length){if(x[i]===y[j]){i++;j++;continue}if(++d>1)return false;if(x.length>y.length)i++;else if(y.length>x.length)j++;else{i++;j++}}return d+(x.length-i)+(y.length-j)<=1};
+  const Wf=[...W].filter(t=>t.length>=4);const hc=new Map();
+  const has=w=>{if(hc.has(w))return hc.get(w);const r=W.has(w)||(w.length>=4&&T.includes(w))||(w.length>=4&&Wl.some(t=>w.length-t.length<=2&&w.startsWith(t)))||(w.length>=5&&Wf.some(t=>lev1(t,w)));hc.set(w,r);return r};
   const syn=w=>[w,...(FDB_SYN[w]||[])];const hasS=w=>syn(w).some(has);
   /* Barcode oder Artikelnummer direkt */
   const alleCodes=[...(f.codes||[]),...N];
