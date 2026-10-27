@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.4.1"
+VERSION = "2.4.2"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -716,4 +716,7 @@ if __name__ == "__main__":
     print(f"SchichtLohn-Server {VERSION} · Port {PORT} · Datenbank {DB_PFAD} · Schlüssel {'an' if TOKEN else 'aus'}", flush=True)
     if OCR_AN:
         threading.Thread(target=ocr, daemon=True).start()  # Modell im Hintergrund laden
+    # Als Hauptprozess im Container reagiert Python nicht von selbst auf „Stopp“ (SIGTERM) – sauber beenden
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: os._exit(0))
     Server(("0.0.0.0", PORT), Handler).serve_forever()
