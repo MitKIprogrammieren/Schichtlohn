@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -179,6 +179,58 @@ def sorten():
                     "gewicht": d.get("gewicht"), "spulen": d.get("spulen"), "reste": d.get("reste") or [],
                     "codes": d.get("codes") or [], "bambu_id": d.get("bambu_id") or ""})
     return out
+
+
+# ---------------------------------------------------------------- Filament-Datenbank (Open Filament Database + SpoolmanDB)
+# Liegt als Datei auf der Synology, damit die Suche auch ohne Internet funktioniert.
+# Eine Grundversion steckt im Container; „Aktualisieren“ holt die wöchentlich gebaute neue Fassung.
+
+FDB_URL = os.environ.get("FDB_URL", "https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json")
+FDB_DATEI = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "filamentdb.json")
+FDB_EINGEBAUT = "/app/modelle/filamentdb.json"
+
+
+def fdb_pfad():
+    if os.path.exists(FDB_DATEI):
+        return FDB_DATEI
+    return FDB_EINGEBAUT if os.path.exists(FDB_EINGEBAUT) else None
+
+
+def fdb_info(pfad=None):
+    pfad = pfad or fdb_pfad()
+    if not pfad:
+        return {"vorhanden": False}
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:
+        return {"vorhanden": False, "fehler": str(e)}
+    return {"vorhanden": True, "stand": d.get("stand"), "marken": len(d.get("b", [])), "farben": len(d.get("c", [])),
+            "barcodes": len(d.get("g", {})), "quelle": "Synology" if pfad == FDB_DATEI else "im Container mitgeliefert",
+            "geladen": time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(pfad)))}
+
+
+def fdb_aktualisieren():
+    import urllib.request
+    try:
+        with urllib.request.urlopen(urllib.request.Request(FDB_URL, headers={"User-Agent": "SchichtLohn-Server"}), timeout=60) as r:
+            roh = r.read()
+    except Exception as e:
+        raise Fehler(502, "Download fehlgeschlagen (Internet an der Synology?): " + str(e))
+    try:
+        d = json.loads(roh.decode("utf-8"))
+        assert isinstance(d.get("c"), list) and isinstance(d.get("l"), list) and isinstance(d.get("b"), list) and len(d["c"]) > 1000
+    except Exception:
+        raise Fehler(502, "Die geladene Datenbank ist unvollständig, die bisherige bleibt erhalten")
+    alt = fdb_info().get("stand")
+    tmp = FDB_DATEI + ".neu"
+    with open(tmp, "wb") as f:
+        f.write(roh)
+    os.replace(tmp, FDB_DATEI)
+    info = fdb_info(FDB_DATEI)
+    info["vorher"] = alt
+    melden({"typ": "filamentdb", "stand": info.get("stand")})
+    return info
 
 
 def sicherung():
@@ -461,6 +513,29 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _datei(self, pfad, typ):
+        if not pfad:
+            raise Fehler(404, "Filament-Datenbank fehlt – in SchichtLohn unter Einstellungen → SchichtLohn-Server aktualisieren")
+        st = os.stat(pfad)
+        etag = '"%x-%x"' % (int(st.st_mtime), st.st_size)
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self._cors()
+            self.send_header("ETag", etag)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        with open(pfad, "rb") as f:
+            body = f.read()
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", typ)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("ETag", etag)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _rumpf(self, grenze):
         if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
             teile, summe = [], 0
@@ -511,7 +586,7 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q)})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             print(f"Foto empfangen ({self.headers.get('Content-Length') or self.headers.get('Transfer-Encoding') or '?'} Byte) …", flush=True)
@@ -522,6 +597,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(400, "Das Bild ließ sich nicht auswerten: " + str(e))
             r["ms"] = int((time.time() - t0) * 1000)
             return self._json(200, r)
+        if pfad == "/filamentdb.json" and methode == "GET":
+            return self._datei(fdb_pfad(), "application/json; charset=utf-8")
         if not pfad.startswith("/api/"):
             raise Fehler(404, "Unbekannter Pfad")
         if not self._darf(q):
@@ -559,6 +636,10 @@ class Handler(BaseHTTPRequestHandler):
             if not b.get("uid") or not b.get("vid"):
                 raise Fehler(400, "uid und vid fehlen")
             return self._json(200, abdruck_speichern(str(b["uid"]), str(b["vid"])))
+        if teile == ["filamentdb"] and methode == "GET":
+            return self._json(200, fdb_info())
+        if teile == ["filamentdb", "aktualisieren"] and methode == "POST":
+            return self._json(200, fdb_aktualisieren())
         if teile == ["sorten"] and methode == "GET":
             return self._json(200, {"sorten": sorten()})
         if teile == ["sicherung"] and methode == "GET":

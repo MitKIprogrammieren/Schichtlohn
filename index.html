@@ -351,7 +351,7 @@ const SRV=window.SRV=(()=>{
   /* Start: ist ein Server eingetragen und erreichbar? */
   async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
-      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name)})}
+      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu()})}
     catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
   let nlT={};function nachladen(k){clearTimeout(nlT[k]);nlT[k]=setTimeout(async()=>{try{const w=await get(k);if(w==null)return;
       if(k==="cfg"){const keep=S.cfg&&S.cfg.lagerLokal;S.cfg=Object.assign({},w);if(keep)S.cfg.lagerLokal=keep}else if(k==="portfolio")S.portfolio=w;else S.orders=w;
@@ -376,12 +376,21 @@ const SRV=window.SRV=(()=>{
         <label class="field"><span>Schlüssel (falls eingerichtet)</span><input type="text" id="srv_tok" value="${esc(t)}" placeholder="leer lassen, wenn keiner" autocomplete="off"></label></div>
       <div class="row" style="flex-wrap:wrap;gap:8px">${S.srv?`<button class="btn" data-act="srvTest">Verbindung testen</button><a class="btn ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung herunterladen</a><button class="btn ghost" data-act="srvAus">Server nicht mehr verwenden</button>`
         :`<button class="btn" data-act="srvTest">Verbindung testen</button><button class="btn pri" data-act="srvNutzen">Daten übernehmen und Server verwenden</button><button class="btn ghost" data-act="srvNurNutzen">Nur verbinden (Server hat schon Daten)</button>`}</div>
+      ${S.srv?`<div class="note" id="srv_fdb" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>Filament-Datenbank auf der Synology</b><br><span id="srv_fdbinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvFdb">Jetzt aktualisieren</button></div>`:""}
       <div class="hint" id="srv_msg"></div></section>`}
+  async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
+      el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf der Synology – „Jetzt aktualisieren“ antippen."}
+    catch(e){el.textContent="Unbekannt ("+(e.message||e)+"). Der Server braucht Version 2.4."}}
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(fdbInfo,50)});
+  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …")fdbInfo()},1500);
   const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t};
   const feld=()=>({u:norm((document.getElementById("srv_url")||{}).value),t:((document.getElementById("srv_tok")||{}).value||"").trim()});
   async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
   document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
     const {u,t}=feld();
+    if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
+      try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}
+      catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
     if(a==="srvTest"){msg("Prüfe …");try{const d=await test(u,t);const l=await req("GET","/api/listen/todo.filament",undefined,u,t);msg(`✓ Verbunden, Version ${esc(d.version)}. Auf dem Server: ${l.items.length} Sorten im Lager.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
     if(a==="srvNurNutzen"){try{await test(u,t);lss(K_URL,u);lss(K_TOK,t);msg("Verbunden. SchichtLohn wird neu geladen …");setTimeout(()=>location.reload(),600)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
     if(a==="srvNutzen"){try{await test(u,t);const l=await req("GET","/api/listen/todo.filament",undefined,u,t);
@@ -390,6 +399,8 @@ const SRV=window.SRV=(()=>{
         if(l.items.length){confirmBox(`Auf dem Server liegen schon ${l.items.length} Sorten. Mit den Daten von ${S.backend==="ha"?"Home Assistant":"diesem Browser"} überschreiben?`,"Überschreiben",los)}else los()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
     if(a==="srvAus"){confirmBox("Server nicht mehr verwenden? Die Daten bleiben auf dem Server; SchichtLohn arbeitet danach wieder mit "+(window.__PW_HA||(window.HAP&&HAP.savedConn&&HAP.savedConn())?"Home Assistant":"den Daten in diesem Browser")+".","Trennen",()=>{lss(K_URL,"");lss(K_TOK,"");location.reload()});return}});
+  /* neue Datenbank sofort nutzen */
+  function G_fdbNeu(){try{if(window.__fdbNeu)window.__fdbNeu()}catch(e){}}
   return {url,token,norm,req,on,liste,svc,sub,get,put,init,html,cfgOhneLokal,id}})();
 const Store={
   db:null,
@@ -3712,11 +3723,13 @@ const FDB_URLS=["filamentdb.json","https://mitkiprogrammieren.github.io/Schichtl
 const FDB_SYN={grun:["green"],turkis:["turquoise","teal","cyan"],schwarz:["black"],weiss:["white"],"weiß":["white"],grau:["gray","grey"],silber:["silver"],rot:["red"],orange:["orange"],gelb:["yellow"],gold:["gold"],beige:["beige"],braun:["brown"],"grün":["green"],gruen:["green"],"türkis":["turquoise","teal","cyan"],blau:["blue"],lila:["purple","violet","lilac"],pink:["pink"],rosa:["pink","rose"],matt:["matte"],seide:["silk"],transparent:["translucent","transparent","clear"],leuchtend:["glow"],glitzer:["glitter","sparkle","galaxy"],holz:["wood"],marmor:["marble"]};
 let fdbP=null;
 function fdbLaden(){if(G.fdb)return Promise.resolve(G.fdb);if(fdbP)return fdbP;
-  const urls=window.__PW_HA?FDB_URLS.slice(1):FDB_URLS;
-  fdbP=(async()=>{for(const u of urls){try{const r=await fetch(u,{cache:"force-cache"});if(!r.ok)continue;const d=await r.json();if(d&&Array.isArray(d.c)){
-      d.s=d.c.map(c=>{const l=d.l[c[0]];return (d.b[l[0]]+" "+l[2]+" "+l[1]+" "+c[1]+" "+(c[7]||"")).toLowerCase()});G.fdb=d;return d}}catch(e){}}
+  const sv=window.SRV&&SRV.url()?[SRV.url()+"/filamentdb.json"]:[];
+  const urls=[...sv,...(window.__PW_HA?FDB_URLS.slice(1):FDB_URLS)];
+  fdbP=(async()=>{for(const u of urls){try{const r=await fetch(u,{cache:sv.includes(u)?"no-cache":"force-cache"});if(!r.ok)continue;const d=await r.json();if(d&&Array.isArray(d.c)){
+      d.s=d.c.map(c=>{const l=d.l[c[0]];return (d.b[l[0]]+" "+l[2]+" "+l[1]+" "+c[1]+" "+(c[7]||"")+" "+(l[8]||"")).toLowerCase()});G.fdb=d;return d}}catch(e){}}
     fdbP=null;throw new Error("Filament-Datenbank nicht erreichbar")})();return fdbP}
 const fdbVorladen=()=>{fdbLaden().catch(()=>{})};
+window.__fdbNeu=()=>{G.fdb=null;fdbP=null};
 const fdbCodeKey=c=>{const d=String(c||"").replace(/\D/g,"").replace(/^0+/,"");return d.length>=6?d:""};
 function fdbK(i,gew,refill){const d=G.fdb;const c=d&&d.c[i];if(!c)return null;const l=d.l[c[0]];const nn=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
   const bn=d.b[l[0]];const her=known("hersteller").find(h=>nn(h)===nn(bn))||bn;const r=refill!=null?refill:c[6];

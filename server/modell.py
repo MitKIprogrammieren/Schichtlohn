@@ -30,3 +30,11 @@ for name, url in OCR.items():
         print("Lesemodell gespeichert:", p, os.path.getsize(p) // 1024, "KB")
     except Exception as e:
         print("Lesemodell nicht geladen (", name, "):", e)
+
+# Filament-Datenbank als Grundversion mitliefern (offline nutzbar); aktualisierbar über die App
+try:
+    p = os.path.join(os.path.dirname(ziel), "filamentdb.json")
+    urllib.request.urlretrieve("https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json", p)
+    print("Filament-Datenbank mitgeliefert:", os.path.getsize(p) // 1024, "KB")
+except Exception as e:
+    print("Filament-Datenbank nicht mitgeliefert:", e)
