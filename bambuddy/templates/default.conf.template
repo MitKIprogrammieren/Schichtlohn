@@ -10,6 +10,12 @@ server {
     # Weiterleitungen ohne Port-Angabe von innen (sonst landet man auf Port 80 der NAS)
     absolute_redirect off;
 
+    # Komprimiert ausliefern: die Seite ist groß, so ist sie im Rahmen von Bambuddy schneller da
+    gzip on;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types text/css text/javascript application/javascript application/json image/svg+xml application/manifest+json;
+
     # Startseite = nur das Lager (für den Seitenleisten-Eintrag in Bambuddy)
     location = / {
         try_files /index.html =404;
