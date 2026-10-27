@@ -3769,6 +3769,17 @@ function fotoWoerter(f){const roh=(f.text||[]).map(x=>x.t);const W=new Set();
   return {W,T:roh.map(fnorm).join(" "),N}}
 /* Code zum Speichern: Barcode im Foto, sonst Artikelnummer vom Etikett, sonst EAN aus der Datenbank */
 const fotoCodes=(f,i)=>[...new Set([...(f.codes||[]),...(f.nummern||[]).slice(0,1),...(i!=null&&!(f.codes||[]).length&&fdbEan(i)?[fdbEan(i)]:[])])].filter(Boolean);
+/* Wörterbuch aus Filament-Datenbank und Lager: zeigt „Basid“ als „Basic“ an */
+function fotoVokabel(){const d=G.fdb;if(!d)return null;if(d.vok)return d.vok;const m=new Map();const add=t=>String(t||"").split(/[\s\-_/()+,·™®]+/).forEach(w=>{const n=fnorm(w);if(n.length>=3&&!/^\d+$/.test(n)&&!m.has(n))m.set(n,w)});
+  const STOP=fotoVokabel.STOP=new Set(["print","printing","speed","temp","spool","made","material","materials","weight","fan","bed","china","recycled","from","with","for","the","and","filament","diameter","nozzle","net","batch","number","sku","high","quality","in","made","temp","print","prints","printed"]);
+  const add0=add;const addS=t=>String(t||"").split(/[\s\-_/()+,·™®]+/).forEach(w=>{if(!STOP.has(fnorm(w)))add0(w)});
+  d.b.forEach(add);d.l.forEach(l=>{add(l[1]);addS(l[2]);addS(l[8])});d.c.forEach(c=>addS(c[1]));BESOND.forEach(add);STOP.forEach(w=>m.delete(w));MATERIALIEN.forEach(add);d.vok=m;return m}
+function fotoKorrigiert(f){const v=fotoVokabel();if(!v)return "";const lev1=(x,y)=>{if(Math.abs(x.length-y.length)>1)return false;let i=0,j=0,dd=0;while(i<x.length&&j<y.length){if(x[i]===y[j]){i++;j++;continue}if(++dd>1)return false;if(x.length>y.length)i++;else if(y.length>x.length)j++;else{i++;j++}}return dd+(x.length-i)+(y.length-j)<=1};
+  const STOP=fotoVokabel.STOP||new Set();
+  const out=[];const finde=n=>{if(STOP.has(n))return null;let hit=v.get(n);if(!hit&&n.length>=5){for(const [k,o] of v){if(lev1(k,n)){hit=o;break}}}return hit};
+  (f.text||[]).forEach(x=>{const ganz=finde(fnorm(x.t));if(ganz&&fnorm(x.t).length>=5){const anz=fnorm(ganz)===fnorm(x.t)?x.t:ganz;if(!out.some(o=>fnorm(o)===fnorm(anz)))out.push(anz);return}String(x.t).replace(/([a-z])([A-Z])/g,"$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g,"$1 $2").split(/\s+/).forEach(w=>{const n=fnorm(w);if(n.length<3||/^\d+$/.test(n))return;
+    const hit=finde(n);if(hit&&!out.some(o=>fnorm(o)===fnorm(hit)))out.push(hit)})});
+  return out.filter(w=>!out.some(o=>o!==w&&fnorm(o).length>fnorm(w).length&&fnorm(o).includes(fnorm(w)))).join(" ")}
 function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return out;const idx=fdbIdx();const {W,T,N}=fotoWoerter(f);f.nummern=N;
   const Wl=[...W].filter(t=>t.length>=4);
   /* Lesefehler verzeihen: „Basid“ = „Basic“, „PLAB“ = „PLA“ – ein falscher Buchstabe bei Wörtern ab 5 Zeichen */
@@ -3845,7 +3856,7 @@ function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;const n=G.f
     <div class="lgfbox${G.fotoCrop?" crop":""}" id="lgfbox"><img id="lgfimg" class="lgfimg" src="${f.url||(f.url=f.cv?f.cv.toDataURL("image/jpeg",.85):"")}" alt="Foto" data-act="lgFotoTap" draggable="false"><i id="lgfdot" hidden></i><b id="lgfrect" hidden></b>${G.fotoCrop?`<span class="lgfcrophint">Rahmen ums Etikett ziehen</span>`:""}</div>
     <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">${fotoFarbHtml(f)}</div>
     ${etUrl()&&!G.fotoEtFehler?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${G.fotoCrop?" pri":""}" data-act="lgFotoCrop">${G.fotoCrop?"Abbrechen":"✂ Etikett-Ausschnitt lesen"}</button><span class="lghint" id="lgfcropmsg">${G.fotoCrop?"Mit dem Finger einen Rahmen ziehen.":"Wird Text nicht erkannt: Rahmen ums Etikett ziehen, dann wird nur dieser Teil vergrößert gelesen."}</span></div>`:""}
-    ${f.codes.length?`<div class="lghint"><b>Barcode:</b> ${esc(f.codes.join(", "))}</div>`:""}${txt?`<div class="lghint lgftxt"><b>Gelesen:</b> ${esc(txt.length>220?txt.slice(0,220)+" …":txt)}</div>`:""}
+    ${f.codes.length?`<div class="lghint"><b>Barcode:</b> ${esc(f.codes.join(", "))}</div>`:""}${(()=>{const k=fotoKorrigiert(f);return k?`<div class="lghint lgfkorr"><b>Erkannt:</b> ${esc(k)}</div>`:""})()}${txt?`<div class="lghint lgftxt"><b>Gelesen:</b> ${esc(txt.length>220?txt.slice(0,220)+" …":txt)}</div>`:""}
     <div class="lgdbh"><b>Vorschläge</b><span class="lghint">Antippen, dann prüfen und speichern. Der Barcode wird bei der Sorte gespeichert${f.vid?", und SchichtLohn merkt sich, wie diese Spule aussieht":""}.</span></div>
     <div class="lgpick lgdbpick" id="lgfres">${fotoZeilen(f)}</div>
     <input type="search" id="lgdbq" placeholder="Selbst suchen, z. B. Polymaker PolyTerra Army Brown" autocomplete="off"><div class="lgpick lgdbpick" id="lgdbres" data-pick="lgFotoPick" hidden></div></div>`,

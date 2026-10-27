@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -42,6 +42,7 @@ MAX_JSON = 32 * 1024 * 1024
 MAX_SEITE = int(os.environ.get("MAX_SEITE", "1600"))
 OCR_AN = os.environ.get("OCR", "1") != "0"
 MERKMAL_MODELL = os.environ.get("MERKMAL_MODELL", "/app/modelle/mnv2_merkmale.onnx")
+MODELLE = os.environ.get("MODELLE", os.path.dirname(MERKMAL_MODELL))
 
 # ---------------------------------------------------------------- Datenbank
 
@@ -212,7 +213,13 @@ def ocr():
     global _ocr
     if _ocr is None:
         from rapidocr_onnxruntime import RapidOCR
-        _ocr = RapidOCR()
+        det, rec = os.path.join(MODELLE, "ocr_det.onnx"), os.path.join(MODELLE, "ocr_rec.onnx")
+        if os.path.exists(det) and os.path.exists(rec):
+            _ocr = RapidOCR(det_model_path=det, rec_model_path=rec)
+            print("Lesemodell: PP-OCRv4 (genau)", flush=True)
+        else:
+            _ocr = RapidOCR()
+            print("Lesemodell: eingebaut (PP-OCRv3)", flush=True)
     return _ocr
 
 
@@ -474,7 +481,7 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "token": bool(TOKEN), "zugang": self._darf(q)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "lesemodell": "genau" if os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "standard", "token": bool(TOKEN), "zugang": self._darf(q)})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             daten = self._rumpf(MAX_BILD)

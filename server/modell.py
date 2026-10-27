@@ -16,3 +16,17 @@ m.graph.output.append(onnx.helper.make_tensor_value_info("464", onnx.TensorProto
 onnx.save(m, ziel)
 os.remove(roh)
 print("Modell gespeichert:", ziel, os.path.getsize(ziel) // 1024, "KB")
+
+# Genaueres Lesemodell (PaddleOCR PP-OCRv4: Erkennung mobil, Lesen Server-Variante), konvertiert von RapidAI.
+# Schlägt der Download fehl, nimmt der Server die eingebauten kleineren Modelle.
+OCR = {
+    "ocr_det.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
+    "ocr_rec.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_rec_server_infer.onnx",
+}
+for name, url in OCR.items():
+    try:
+        p = os.path.join(os.path.dirname(ziel), name)
+        urllib.request.urlretrieve(url, p)
+        print("Lesemodell gespeichert:", p, os.path.getsize(p) // 1024, "KB")
+    except Exception as e:
+        print("Lesemodell nicht geladen (", name, "):", e)

@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir --no-deps rapidocr_onnxruntime==1.2.3 \
  && python -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()"
 COPY --from=modell /modelle /app/modelle
+COPY pruefen.py .
+RUN python pruefen.py && rm pruefen.py
 COPY app.py .
 VOLUME /daten
 EXPOSE 8093
