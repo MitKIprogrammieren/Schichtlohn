@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -409,9 +409,9 @@ def farben(img):
     cw = np.exp(-((((yy - h / 2) / h) ** 2 + ((xx - wd / 2) / wd) ** 2) / 0.38 ** 2))
     hex_ = lambda c: "#%02x%02x%02x" % tuple(int(max(0, min(1, v)) * 255) for v in c)
     out = []
-    m = (sat > 0.35) & (mx > 0.18)
+    m = (sat > 0.18) & (mx > 0.35)  # auch Pastelltöne (Rosa, Hellblau …)
     if m.sum() >= h * wd * 0.004:
-        X, W = a[m], cw[m] * sat[m] ** 2
+        X, W = a[m], cw[m] * sat[m] ** 1.5 * mx[m] ** 2  # helle, kräftige Farben zählen mehr als Haut und Schatten
         C, lab = _kmeans(X, W + 1e-6)
         sc = sorted(((W[lab == j].sum(), j) for j in range(len(C)) if (lab == j).any()), reverse=True)
         out += [hex_(C[j]) for _, j in sc[:3]]
