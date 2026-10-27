@@ -33,7 +33,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.2.1"
+VERSION = "2.3.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -210,23 +210,27 @@ _ocr_lock = threading.Lock()
 
 
 _ocr_lade_lock = threading.Lock()
+_ocr_genau = None
 
 
-def ocr():
-    global _ocr
-    if _ocr is not None:
-        return _ocr
-    with _ocr_lade_lock:  # nur einmal laden, auch wenn mehrere Fotos gleichzeitig kommen
-        if _ocr is not None:
-            return _ocr
+def ocr(genau=False):
+    """Schnelles Lesemodell (PP-OCRv3, eingebaut) fürs ganze Foto; genaues (PP-OCRv4) für Ausschnitte.
+    Mit LESEMODELL=genau wird auch das ganze Foto genau gelesen, mit LESEMODELL=standard nie."""
+    global _ocr, _ocr_genau
+    modus = os.environ.get("LESEMODELL", "auto")
+    det, rec = os.path.join(MODELLE, "ocr_det.onnx"), os.path.join(MODELLE, "ocr_rec.onnx")
+    genau_da = os.path.exists(det) and os.path.exists(rec) and modus != "standard"
+    will_genau = genau_da and (genau or modus == "genau")
+    with _ocr_lade_lock:  # jedes Modell nur einmal laden, auch wenn mehrere Fotos gleichzeitig kommen
         from rapidocr_onnxruntime import RapidOCR
-        det, rec = os.path.join(MODELLE, "ocr_det.onnx"), os.path.join(MODELLE, "ocr_rec.onnx")
-        if os.environ.get("LESEMODELL", "genau") != "standard" and os.path.exists(det) and os.path.exists(rec):
-            _ocr = RapidOCR(det_model_path=det, rec_model_path=rec)
-            print("Lesemodell: PP-OCRv4 (genau)", flush=True)
-        else:
+        if will_genau:
+            if _ocr_genau is None:
+                _ocr_genau = RapidOCR(det_model_path=det, rec_model_path=rec)
+                print("Lesemodell geladen: PP-OCRv4 (genau)", flush=True)
+            return _ocr_genau
+        if _ocr is None:
             _ocr = RapidOCR()
-            print("Lesemodell: eingebaut (PP-OCRv3)", flush=True)
+            print("Lesemodell geladen: PP-OCRv3 (schnell)", flush=True)
         return _ocr
 
 
@@ -381,8 +385,11 @@ def bild_lesen(daten, ausschnitt=False):
     zeilen = []
     if OCR_AN:
         def lesen(bild):
+            t0 = time.time()
+            modell = ocr(genau=ausschnitt)
             with _ocr_lock:
-                res, _ = ocr()(np.asarray(bild)[:, :, ::-1])
+                res, _ = modell(np.asarray(bild)[:, :, ::-1])
+            print(f"Gelesen in {time.time() - t0:.1f} s ({'Ausschnitt' if ausschnitt else 'Foto'}, {bild.size[0]}×{bild.size[1]})", flush=True)
             z = []
             for box, t, p in res or []:
                 try:
@@ -455,6 +462,22 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _rumpf(self, grenze):
+        if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+            teile, summe = [], 0
+            while True:
+                zeile = self.rfile.readline(1024).strip()
+                groesse = int(zeile.split(b";")[0] or b"0", 16)
+                if groesse == 0:
+                    self.rfile.readline(1024)
+                    break
+                summe += groesse
+                if summe > grenze:
+                    raise Fehler(413, "Anfrage zu groß")
+                teile.append(self.rfile.read(groesse))
+                self.rfile.readline(1024)
+            if not summe:
+                raise Fehler(400, "Leere Anfrage")
+            return b"".join(teile)
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0:
             raise Fehler(400, "Leere Anfrage")
@@ -488,9 +511,10 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "lesemodell": "genau" if os.environ.get("LESEMODELL", "genau") != "standard" and os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "standard", "token": bool(TOKEN), "zugang": self._darf(q)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q)})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
+            print(f"Foto empfangen ({self.headers.get('Content-Length') or self.headers.get('Transfer-Encoding') or '?'} Byte) …", flush=True)
             daten = self._rumpf(MAX_BILD)
             try:
                 r = bild_lesen(daten, ausschnitt=(q.get("ausschnitt") or ["0"])[0] == "1")

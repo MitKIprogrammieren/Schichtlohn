@@ -10,7 +10,7 @@ services:
       - /volume1/docker/schichtlohn:/daten
     environment:
       - TZ=Europe/Berlin
-      # - LESEMODELL=standard   # schnelleres, einfacheres Lesemodell, falls die Synology zu langsam ist
+      # - LESEMODELL=standard   # nur das schnelle Lesemodell (genau = immer das genaue; ohne Angabe: Foto schnell, Ausschnitt genau)
       # - TOKEN=ein-langes-geheimes-wort   # einschalten, wenn der Server von außen erreichbar ist
     pull_policy: always   # beim Erstellen immer die neueste Version holen
     restart: unless-stopped
