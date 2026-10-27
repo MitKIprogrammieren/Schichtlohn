@@ -324,7 +324,9 @@ const SRV=window.SRV=(()=>{
   const id=Math.random().toString(36).slice(2,10);
   const url=()=>lsg(K_URL).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
   const norm=u=>{u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;return u};
-  const mixed=u=>location.protocol==="https:"&&/^http:/i.test(u);
+  /* https-Seite (auch die HA-Karte, die in einem eingebetteten Rahmen läuft) darf keinen http-Server ansprechen */
+  const sicher=()=>{if(location.protocol==="https:")return true;try{if(top.location.protocol==="https:")return true}catch(e){}return location.protocol!=="http:"&&!!window.isSecureContext&&!/^(localhost|127\.)/.test(location.hostname)};
+  const mixed=u=>sicher()&&/^http:/i.test(u)&&!/^http:\/\/(localhost|127\.)/i.test(u);
   async function req(method,path,body,u,t){u=u||url();t=t==null?token():t;if(!u)throw new Error("Kein Server eingetragen");
     if(mixed(u))throw new Error("Diese Seite läuft über https, der Server über http – das blockiert der Browser. Server per https erreichbar machen (Synology-Reverse-Proxy) oder SchichtLohn über http öffnen.");
     const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),method==="GET"&&path==="/"?5000:20000);
@@ -3734,7 +3736,7 @@ const ET_KEY="schichtlohn_etikett_url";
 function etUrl(){let u="";try{u=localStorage.getItem(ET_KEY)||""}catch(e){}if(!u&&window.SRV&&SRV.url())u=SRV.url();
   if(!u&&location.protocol==="http:"&&location.hostname)u=`http://${location.hostname}:8093`;return u.replace(/\/+$/,"")}
 function etUrlSetzen(u){u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;try{if(u)localStorage.setItem(ET_KEY,u);else localStorage.removeItem(ET_KEY)}catch(e){}return u}
-const etMixed=u=>location.protocol==="https:"&&/^http:/i.test(u);
+const etMixed=u=>{let h=location.protocol==="https:";try{h=h||top.location.protocol==="https:"}catch(e){}return h&&/^http:/i.test(u)};
 async function etTest(u){if(!u)throw new Error("Keine Adresse eingetragen");if(etMixed(u))throw new Error("Diese Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser. Etikett-Leser per https erreichbar machen (Synology-Reverse-Proxy) oder das Lager über http öffnen.");
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),5000);try{const r=await fetch(u+"/",{signal:ctl.signal});const d=await r.json();if(!d.ok)throw 0;return d}catch(e){throw new Error("Etikett-Leser unter "+u+" nicht erreichbar")}finally{clearTimeout(t)}}
 
