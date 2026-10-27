@@ -11,5 +11,6 @@ services:
     environment:
       - TZ=Europe/Berlin
       # - TOKEN=ein-langes-geheimes-wort   # einschalten, wenn der Server von außen erreichbar ist
+    pull_policy: always   # beim Erstellen immer die neueste Version holen
     restart: unless-stopped
     mem_limit: 1g
