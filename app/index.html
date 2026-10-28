@@ -735,11 +735,16 @@ const RX_STUFEN=[["freund","Freundschaft",20],["normal","Normal",60],["gut","Gut
 function rxRunden(p,kosten){if(p<=0)return 0;const st=p<5?.1:p<20?.5:1;let r=Math.round(p/st)*st;if(r<=kosten+1e-9)r+=st;return Math.round(r*100)/100}
 const rxEinfach=()=>(S.cfg.rechnerModus||"einfach")==="einfach";
 const RX_SEG=v=>`<div class="rx-seg" role="group" aria-label="Rechner-Ansicht"><button type="button" data-act="rxModus" data-v="einfach" aria-pressed="${v==="einfach"}">Einfach</button><button type="button" data-act="rxModus" data-v="ausfuehrlich" aria-pressed="${v!=="einfach"}">Ausführlich</button></div>`;
-function rxRechnen(q){const r=calc(Object.assign({},q,{channelId:null,paymentId:null,override:"",shipping:0,extra:0}));
+function rxRechnen(q){const teile=q.parts.map(p=>Object.assign({},p,{printerId:"",mats:(p.mats||[]).map(m=>Object.assign({},m,{matId:""}))}));
+  const r=calc(Object.assign({},q,{parts:teile,channelId:null,paymentId:null,override:"",shipping:0,extra:0}));
   const kosten=r.material+r.energy+r.machine;const st=RX_STUFEN.find(s=>s[0]===(S.cfg.rxStufe||"normal"))||RX_STUFEN[1];
   const preis=q.parts.length?rxRunden(kosten*(1+st[2]/100),kosten):0;return {r,kosten,preis,gewinn:preis-kosten,st}}
 function renderEinfach(m){
-  const q=S.quote,c=S.cfg,x=rxRechnen(q);
+  const q=S.quote,c=S.cfg;
+  const sig=q.parts.map(p=>p.id).join(",");if(q._rxSig!==sig){const neu=q.parts.find(p=>!(q._rxSig||"").split(",").includes(p.id))||q.parts[q.parts.length-1];
+    if(neu){const mid=(neu.mats||[]).map(x=>x.matId).find(Boolean);if(mid&&byId(c.materials,mid))q.matId=mid;if(neu.printerId&&byId(c.printers,neu.printerId))q.printerId=neu.printerId}
+    q._rxSig=sig;try{saveDraft()}catch(e){}}
+  const x=rxRechnen(q);
   if(S.addMode!=="datei"&&S.addMode!=="manuell")S.addMode="datei";
   const teile=q.parts.map(p=>{const l=x.r.parts.find(y=>y.id===p.id)||{};
     return `<div class="rx-teil" data-part="${p.id}"><div class="thumb" ${p.thumb?`style="background-image:url('${p.thumb}')"`:""}>${p.thumb?"":ICON.cube}</div>
