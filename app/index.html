@@ -4636,5 +4636,19 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 body.rx-einfach #mbar{display:none!important}
 </style>
 <style>.pick .jobneu{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))!important}.pick .jobneu b{color:var(--accent);display:inline-flex;align-items:center;gap:6px}.pick .jobneu b svg{width:16px;height:16px}</style>
+<style>
+/* Karten-Stil (wie der einfache Rechner): runde Kästen, grüne Abschnittstitel ohne graue Titelleiste */
+[data-skin="bambu"] #main .panel{border-radius:12px}
+[data-skin="bambu"] #main .panel.pad{padding:14px 16px}
+[data-skin="bambu"] #main .panel.pad>:is(h2,.row,.sec-title):first-child{margin:0 0 10px;padding:0;min-height:0;background:none;border:0;border-radius:0}
+[data-skin="bambu"] #main .panel.pad>h2:first-child,[data-skin="bambu"] #main .panel>:is(.row,.sec-title):first-child h2{font:700 12px/1.5 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+[data-skin="bambu"] #main .panel.pad.fold.zu{padding:14px 16px}
+[data-skin="bambu"] #main .panel.pad.fold.zu>.sec-title:first-child{margin-bottom:0!important}
+[data-skin="bambu"] #main .fold>.sec-title .chev{color:var(--accent)}
+[data-skin="bambu"] #main .seg{border-radius:10px}
+[data-skin="bambu"] #main .seg button{border-radius:8px}
+/* Gruppen-Überschriften der Einstellungen dezent grau, damit sie sich von den grünen Bereichstiteln abheben */
+#main .eg-h{color:var(--fg-3)!important}
+</style>
 </body>
 </html>
