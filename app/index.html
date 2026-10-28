@@ -688,7 +688,7 @@ function mpKinds(){const out=[],seen=new Set();
   if(S.lager){const gr={};S.lager.forEach(x=>{if(!x.type)return;const bes=(x.bes||[]).filter(b=>!/^(basic)$/i.test(b)).slice().sort();const brand=x.brand?cb(x.brand):MP_ALLG;
       const key=mpKey(brand,x.type,bes);(gr[key]=gr[key]||{key,brand,label:[x.type,...bes].join(" "),type:x.type,items:[]}).items.push(x)});
     Object.values(gr).forEach(g=>{const td=tdOf(g.type);const pr=avgPrice(g.items);const m=S.cfg.materials.find(y=>y.kindKey===g.key);const k=kat[g.key]||sdb[g.key];
-      out.push({key:g.key,brand:g.brand,label:k?k.label:g.label,type:g.type,price:m?num(m.price):(pr??(k&&k.price?k.price:td.p)),density:den(g.key,g.type),hex:g.items[0].hex,n:g.items.length,matId:m?m.id:"",lager:true});seen.add(g.key)})}
+      out.push({key:g.key,brand:g.brand,label:k?k.label:g.label,type:g.type,price:m?num(m.price):(pr??(k&&k.price?k.price:td.p)),density:den(g.key,g.type),hex:g.items[0].hex,n:g.items.length,matId:m?m.id:"",lager:true,uids:g.items.map(i=>i.uid)});seen.add(g.key)})}
   Object.entries(kat).forEach(([key,k])=>{if(seen.has(key))return;const m=S.cfg.materials.find(y=>y.kindKey===key);
     out.push({key,brand:k.brand,label:k.label,type:k.type,price:m?num(m.price):k.price,density:den(key,k.type),hex:"#888888",matId:m?m.id:"",katalog:true});seen.add(key)});
   /* SpoolmanDB: Sorten ohne Katalogpreis → Preis aus eigenem Material, sonst üblicher Preis je Materialart (geschätzt) */
@@ -711,12 +711,24 @@ function matPick(target,matId,inherit,split){const kinds=mpKinds(),cur=matId?kin
   return `<div class="mpick"><select data-mp="brand" data-mt="${esc(target)}" aria-label="Marke">${inherit?`<option value=""${brand===""?" selected":""}>${esc(inherit)}</option>`:""}${(()=>{const ob=b=>`<option value="${esc(b)}"${b===brand?" selected":""}>${esc(b)}</option>`;return brands.more.length?`<optgroup label="Eigene Marken">${brands.map(ob).join("")}</optgroup><optgroup label="Weitere Marken">${brands.more.map(ob).join("")}</optgroup>`:brands.map(ob).join("")})()}</select>
     ${brand===""&&inherit?"":`<select data-mp="kind" data-mt="${esc(target)}" aria-label="Filament">${cur&&cur.brand===brand?"":`<option value="" selected disabled>Filament wählen …</option>`}${(()=>{const o=k=>`<option value="${esc(k.key)}"${cur&&cur.key===k.key?" selected":""}>${esc(k.label)}${k.est?eu(k.price).replace(" · "," · ≈ "):eu(k.price)}</option>`;const im=list.filter(k=>!k.katalog),ka=list.filter(k=>k.katalog);
       return im.length&&ka.length?`<optgroup label="Im Lager / eigene">${im.map(o).join("")}</optgroup><optgroup label="Katalog (nicht im Lager)">${ka.map(o).join("")}</optgroup>`:list.map(o).join("")})()}</select>`}</div>`}
+/* Material gilt pro Sorte (Marke + Filament), nicht pro Farbe: der Preis ist bei allen Farben gleich */
+function matFuerSpule(x){const k=mpKinds().find(k=>k.uids&&k.uids.includes(x.uid));return k?mpResolve(k):""}
+function matsZusammenfassen(){if(!S.lager||!S.cfg||!Array.isArray(S.cfg.materials))return;
+  const alt=S.cfg.materials.filter(m=>m.lagerUid&&!m.kindKey);if(!alt.length)return;const kinds=mpKinds(),um={};
+  alt.forEach(m=>{const k=kinds.find(k=>k.uids&&k.uids.includes(m.lagerUid));if(!k)return;
+    const ziel=S.cfg.materials.find(y=>y.kindKey===k.key&&y!==m);
+    if(ziel){um[m.id]=ziel.id;S.cfg.materials=S.cfg.materials.filter(y=>y!==m)}
+    else{m.name=(k.brand===MP_ALLG?"":k.brand+" ")+k.label;m.brand=k.brand===MP_ALLG?"":k.brand;m.kindKey=k.key;delete m.lagerUid}});
+  const neu=id=>um[id]||id;const fix=q=>{if(!q)return;if(q.matId)q.matId=neu(q.matId);(q.parts||[]).forEach(p=>(p.mats||[]).forEach(x=>{if(x.matId)x.matId=neu(x.matId)}));(q.mats||[]).forEach(x=>{if(x.matId)x.matId=neu(x.matId)})};
+  fix(S.quote);(S.orders||[]).forEach(fix);(S.portfolio||[]).forEach(fix);
+  if(S.cfg.amsMap)Object.keys(S.cfg.amsMap).forEach(k=>{S.cfg.amsMap[k]=neu(S.cfg.amsMap[k])});
+  saveCfgSoon();if(Object.keys(um).length){try{saveDraft()}catch(e){}}}
 function mpSet(target,id){if(target==="q"){S.quote.matId=id}else{const [pid,i]=target.split(":");const p=S.quote.parts.find(x=>x.id===pid);if(p&&p.mats[+i])p.mats[+i].matId=id}saveDraft();renderCalc($("#main"))}
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.mp)return;e.stopImmediatePropagation();const tg=t.dataset.mt;const kinds=mpKinds();(S._mpBrand=S._mpBrand||{});
   if(t.dataset.mp==="brand"){S._mpBrand[tg]=t.value;if(t.value===""){delete S._mpBrand[tg];mpSet(tg,"");return}
     const first=kinds.filter(k=>k.brand===t.value).sort((a,b)=>(a.katalog?1:0)-(b.katalog?1:0)||a.label.localeCompare(b.label,"de"))[0];if(first){delete S._mpBrand[tg];mpSet(tg,mpResolve(first))}else renderCalc($("#main"));return}
   const k=kinds.find(x=>x.key===t.value);if(k){delete S._mpBrand[tg];mpSet(tg,mpResolve(k))}},true);
-async function mpEnsureLager(){if(S.lager||S._mpLaden)return;S._mpLaden=true;try{S.lager=await loadLager();if(S.tab==="rechner")renderCalc($("#main"))}catch(e){}finally{S._mpLaden=false}}
+async function mpEnsureLager(){if(S.lager){matsZusammenfassen();return}if(S._mpLaden)return;S._mpLaden=true;try{S.lager=await loadLager();matsZusammenfassen();if(S.tab==="rechner")renderCalc($("#main"));else if(S.tab==="einstellungen")renderSettings($("#main"))}catch(e){}finally{S._mpLaden=false}}
 /* ---------- Rechner: Einfach-Modus (ohne Kunde, Kanal, Gebühren, Marge – nur Kosten und Verkaufspreis) ---------- */
 const RX_STUFEN=[["freund","Freundschaft",20,"10"],["normal","Normal",60,"50"],["gut","Gut verdienen",120,"100"]];
 const rxEinfach=()=>(S.cfg.rechnerModus||"einfach")==="einfach";
@@ -997,6 +1009,7 @@ function renderBiz(m){
 
 /* ---------- Einstellungen ---------- */
 function renderSettings(m){
+  mpEnsureLager();
   const c=S.cfg;
   const where=S.srv?"auf dem SchichtLohn-Server (auf allen Geräten gleich)":{ha:"in Home Assistant (dein Benutzerkonto, auf allen Geräten gleich)",claude:"über Claude (auf allen deinen Geräten gleich)",local:"nur in diesem Browser"}[S.backend];
   m.innerHTML=`<div class="stack">
@@ -1390,9 +1403,9 @@ document.addEventListener("click",async e=>{
     case "addRow":{const k=b.dataset.list;const n={printers:{id:uid(),name:"Neuer Drucker",watt:100,price:500,life:5000,maint:.04,gph:22},materials:{id:uid(),name:"Neues Material",type:"PLA",hex:"#cccccc",price:20,density:1.24},channels:{id:uid(),name:"Neuer Kanal",pct:0,fix:0},payments:{id:uid(),name:"Neue Zahlungsart",pct:0,fix:0}}[k];S.cfg[k].push(n);saveCfgSoon();renderSettings($("#main"));break}
     case "delRow":{const k=b.dataset.list;if(S.cfg[k].length<=1){toast("Mindestens ein Eintrag muss bleiben.");break}S.cfg[k].splice(+b.dataset.i,1);saveCfgSoon();fixRefs();renderSettings($("#main"));break}
     case "lager":await lagerModal();break;
-    case "lagerAdd":{const x=S.lager.find(l=>l.uid===b.dataset.uid);if(!x)break;if(S.cfg.materials.some(m=>m.lagerUid===x.uid)){toast("Schon übernommen");break}
-      const tk=typeKey(x.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};
-      S.cfg.materials.push({id:uid(),name:x.name,type:x.type||tk,hex:x.hex,price:x.price?r2(x.price/x.weight*1000):td.p,density:td.d,lagerUid:x.uid});saveCfgSoon();drawLager($("#lagerSearch").value);renderSettings($("#main"));toast(`${x.name} übernommen`);break}
+    case "lagerAdd":{const x=S.lager.find(l=>l.uid===b.dataset.uid);if(!x)break;const vorher=S.cfg.materials.length;const id=matFuerSpule(x);
+      if(!id){const tk=typeKey(x.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};S.cfg.materials.push({id:uid(),name:x.name,type:x.type||tk,hex:x.hex,price:x.price?r2(x.price/x.weight*1000):td.p,density:td.d,lagerUid:x.uid});saveCfgSoon()}
+      const m=byId(S.cfg.materials,id);drawLager($("#lagerSearch").value);renderSettings($("#main"));toast(S.cfg.materials.length>vorher?`${m?m.name:x.name} übernommen`:`${m?m.name:x.name} ist schon da (gilt für alle Farben)`);break}
     case "exportJson":{const data={app:"SchichtLohn",v:1,exported:new Date().toISOString(),cfg:S.cfg,portfolio:S.portfolio,orders:S.orders};await deliverFile(`SchichtLohn_Backup_${today()}.json`,new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));break}
     case "importJson":$("#backupIn").click();break;
     case "resetCfg":confirmBox("Kosten, Drucker, Materialien, Kanäle und Zahlungsarten auf die Standardwerte zurücksetzen? Portfolio und Aufträge bleiben erhalten.","Zurücksetzen",async()=>{const co=S.cfg.company,no=S.cfg.nextNo;S.cfg=defaultCfg();S.cfg.company=co;S.cfg.nextNo=no;await Store.saveCfg();fixRefs();render();toast("Standardwerte wiederhergestellt")});break;
@@ -1721,8 +1734,8 @@ async function mapAms(m){
   try{if(m.filament_id){S.lager=S.lager||await loadLager();
     const c=S.lager.filter(x=>x._bid===m.filament_id||x.bambu_id===m.filament_id);
     if(c.length){let best=c[0],bd=1e9;c.forEach(x=>{const d=hexDist(x.hex,m.color);if(d<bd){bd=d;best=x}});
-      if(bd<90){const have=S.cfg.materials.find(x=>x.lagerUid===best.uid);if(have)id=have.id;else{const tk=typeKey(best.type||m.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};
-        const nm={id:uid(),name:best.name,type:best.type||tk,hex:best.hex,price:best.price?r2(best.price/best.weight*1000):td.p,density:td.d,lagerUid:best.uid};S.cfg.materials.push(nm);id=nm.id}}}}}catch(e){}
+      if(bd<90){id=matFuerSpule(best);if(!id){const have=S.cfg.materials.find(x=>x.lagerUid===best.uid);if(have)id=have.id;else{const tk=typeKey(best.type||m.type);const td=TYPE_DEFAULTS[tk]||{p:20,d:1.24};
+        const nm={id:uid(),name:best.name,type:best.type||tk,hex:best.hex,price:best.price?r2(best.price/best.weight*1000):td.p,density:td.d,lagerUid:best.uid};S.cfg.materials.push(nm);id=nm.id}}}}}}catch(e){}
   if(!id)id=bestMaterial(m)||mapMaterial(m.type,m.color)||"";
   if(id){S.cfg.amsMap[key]=id;saveCfgSoon()}
   return id;
