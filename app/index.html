@@ -723,7 +723,7 @@ function matsZusammenfassen(){if(!S.lager||!S.cfg||!Array.isArray(S.cfg.material
   fix(S.quote);(S.orders||[]).forEach(fix);(S.portfolio||[]).forEach(fix);
   if(S.cfg.amsMap)Object.keys(S.cfg.amsMap).forEach(k=>{S.cfg.amsMap[k]=neu(S.cfg.amsMap[k])});
   saveCfgSoon();if(Object.keys(um).length){try{saveDraft()}catch(e){}}}
-function mpSet(target,id){if(target==="q"){S.quote.matId=id}else{const [pid,i]=target.split(":");const p=S.quote.parts.find(x=>x.id===pid);if(p&&p.mats[+i])p.mats[+i].matId=id}saveDraft();renderCalc($("#main"))}
+function mpSet(target,id){if(target==="q"){S.quote.matId=id}else if(target.startsWith("rxc:")){const k=target.slice(4);S.quote.parts.forEach(p=>(p.mats||[]).forEach(m=>{if(rxFarbKey(m)===k)m.matId=id}))}else{const [pid,i]=target.split(":");const p=S.quote.parts.find(x=>x.id===pid);if(p&&p.mats[+i])p.mats[+i].matId=id}saveDraft();renderCalc($("#main"))}
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.mp)return;e.stopImmediatePropagation();const tg=t.dataset.mt;const kinds=mpKinds();(S._mpBrand=S._mpBrand||{});
   if(t.dataset.mp==="brand"){S._mpBrand[tg]=t.value;if(t.value===""){delete S._mpBrand[tg];mpSet(tg,"");return}
     const first=kinds.filter(k=>k.brand===t.value).sort((a,b)=>(a.katalog?1:0)-(b.katalog?1:0)||a.label.localeCompare(b.label,"de"))[0];if(first){delete S._mpBrand[tg];mpSet(tg,mpResolve(first))}else renderCalc($("#main"));return}
@@ -735,7 +735,12 @@ const RX_STUFEN=[["freund","Freundschaft",20],["normal","Normal",60],["gut","Gut
 function rxRunden(p,kosten){if(p<=0)return 0;const st=p<5?.1:p<20?.5:1;let r=Math.round(p/st)*st;if(r<=kosten+1e-9)r+=st;return Math.round(r*100)/100}
 const rxEinfach=()=>(S.cfg.rechnerModus||"einfach")==="einfach";
 const RX_SEG=v=>`<div class="rx-seg" role="group" aria-label="Rechner-Ansicht"><button type="button" data-act="rxModus" data-v="einfach" aria-pressed="${v==="einfach"}">Einfach</button><button type="button" data-act="rxModus" data-v="ausfuehrlich" aria-pressed="${v!=="einfach"}">Ausführlich</button></div>`;
-function rxRechnen(q){const teile=q.parts.map(p=>Object.assign({},p,{printerId:"",mats:(p.mats||[]).map(m=>Object.assign({},m,{matId:""}))}));
+const rxFarbKey=m=>String(m.color||"").toLowerCase()||"ohne";
+function rxFarben(q){const gr=new Map();q.parts.forEach(p=>{const n=Math.max(1,Math.round(num(p.qty)));(p.mats||[]).forEach((m,i)=>{const k=rxFarbKey(m);const x=gr.get(k)||{key:k,color:m.color||"",label:m.label||"",g:0,matId:m.matId||""};
+  x.g+=(num(m.g)+(i===0?num(p.purge):0))*n;if(!x.matId&&m.matId)x.matId=m.matId;if(!x.label&&m.label)x.label=m.label;gr.set(k,x)})});return [...gr.values()]}
+function rxRechnen(q){const mehr=rxFarben(q).length>1;
+  /* eine Farbe: Auswahl aus Schritt 2 gilt für alles; mehrere Farben: jede Farbe mit ihrem eigenen Filament */
+  const teile=q.parts.map(p=>Object.assign({},p,{printerId:"",mats:(p.mats||[]).map(m=>Object.assign({},m,{matId:mehr?(m.matId||""):""}))}));
   const r=calc(Object.assign({},q,{parts:teile,channelId:null,paymentId:null,override:"",shipping:0,extra:0}));
   const kosten=r.material+r.energy+r.machine;const st=RX_STUFEN.find(s=>s[0]===(S.cfg.rxStufe||"normal"))||RX_STUFEN[1];
   const preis=q.parts.length?rxRunden(kosten*(1+st[2]/100),kosten):0;return {r,kosten,preis,gewinn:preis-kosten,st}}
@@ -757,7 +762,9 @@ function renderEinfach(m){
       ${add?`<div class="rx-add">${addPanelHTML()}</div><button type="button" class="rx-link" data-act="addMode" data-v="${S.addMode==="manuell"?"datei":"manuell"}">${S.addMode==="manuell"?"Doch lieber eine Datei nehmen":"Keine Datei? Gewicht und Zeit von Hand eingeben"}</button>`
         :`<button type="button" class="rx-link" data-act="rxMehr">+ Weiteres Teil</button>`}</section>
     <section class="rx-k" aria-label="Filament"><div class="rx-st">2 · Mit welchem Filament?</div>
-      <div class="rx-mat">${matPick("q",q.matId,null,true)}<label class="field"><span>Drucker</span><select id="q_printer" data-bind="q.printerId" data-rerender>${opt(c.printers,q.printerId)}</select></label></div></section>
+      ${(()=>{const fb=rxFarben(q);const dr=`<label class="field"><span>Drucker</span><select id="q_printer" data-bind="q.printerId" data-rerender>${opt(c.printers,q.printerId)}</select></label>`;
+        if(fb.length<=1)return `<div class="rx-mat">${matPick("q",q.matId,null,true)}${dr}</div>`;
+        return fb.map(f=>`<div class="rx-frow"><i class="rx-fdot" style="background:${esc(f.color||"#888")}"></i><div class="rx-fl"><b>${esc(f.label||(f.color?"Farbe "+f.color.toUpperCase():"Ohne Farbe"))}</b><small>${g(f.g)}</small></div><div class="rx-fp">${matPick("rxc:"+f.key,f.matId||q.matId,null,false)}</div></div>`).join("")+`<div class="rx-mat">${dr}</div>`})()}</section>
     <section class="rx-k" aria-label="Ergebnis"><div class="rx-st">3 · Ergebnis</div>
       <div class="rx-big"><span>Das kostet dich</span><b class="num">${eur(x.kosten)}</b></div>
       <div class="rx-row"><span>Filament${x.r.grams?` (${g(x.r.grams)})`:""}</span><span class="num">${eur(x.r.material)}</span></div>
@@ -4680,5 +4687,6 @@ body.rx-einfach #mbar{display:none!important}
 [data-skin="ha"] #sync span::before{display:none}</style>
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
+<style>.rx-frow{display:grid;grid-template-columns:auto minmax(90px,1fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.rx-frow:first-of-type{border-top:0}.rx-fdot{width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}.rx-fl{min-width:0}.rx-fl b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rx-fl small{color:var(--fg-3);font-size:12.5px}.rx-fp .mpick{display:grid;grid-template-columns:1fr 1fr;gap:6px}@media (max-width:520px){.rx-frow{grid-template-columns:auto 1fr}.rx-fp{grid-column:1/-1}}</style>
 </body>
 </html>
