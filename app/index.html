@@ -732,7 +732,7 @@ async function mpEnsureLager(){if(S.lager){matsZusammenfassen();return}if(S._mpL
 /* ---------- Rechner: Einfach-Modus (ohne Kunde, Kanal, Gebühren, Marge – nur Kosten und Verkaufspreis) ---------- */
 const RX_STUFEN=[["freund","Freundschaft",20,"10"],["normal","Normal",60,"50"],["gut","Gut verdienen",120,"100"]];
 const rxEinfach=()=>(S.cfg.rechnerModus||"einfach")==="einfach";
-const RX_SEG=v=>`<div class="rx-seg" role="group" aria-label="Rechner-Ansicht"><button type="button" data-act="rxModus" data-v="einfach" aria-pressed="${v==="einfach"}">Einfach</button><button type="button" data-act="rxModus" data-v="ausfuehrlich" aria-pressed="${v!=="einfach"}">Ausführlich</button></div>`;
+const RX_SEG=v=>`<div class="seg rx-seg" role="group" aria-label="Rechner-Ansicht"><button type="button" data-act="rxModus" data-v="einfach" aria-pressed="${v==="einfach"}">Einfach</button><button type="button" data-act="rxModus" data-v="ausfuehrlich" aria-pressed="${v!=="einfach"}">Ausführlich</button></div>`;
 function rxRechnen(q){const r=calc(Object.assign({},q,{channelId:null,paymentId:null,override:"",shipping:0,extra:0}));
   const kosten=r.material+r.energy+r.machine;const st=RX_STUFEN.find(s=>s[0]===(S.cfg.rxStufe||"normal"))||RX_STUFEN[1];
   const preis=q.parts.length?roundPrice(kosten*(1+st[2]/100),st[3]):0;return {r,kosten,preis,gewinn:preis-kosten,st}}
@@ -744,18 +744,19 @@ function renderEinfach(m){
       <div class="rx-tt"><b>${esc(p.name||"Teil")}</b><small>${g(l.grams||0)} · ${dur(l.minutes||0)}${l.qty>1?` · ${l.qty} Stück`:""}</small></div>
       <button class="btn icon ghost danger" data-act="delPart" title="Entfernen" aria-label="Entfernen">${ICON.trash}</button></div>`}).join("");
   const add=!q.parts.length||S._rxMehr===q.parts.length;
-  m.innerHTML=`<div class="rx">${RX_SEG("einfach")}
-    <section class="rx-k" aria-label="Was druckst du"><div class="rx-st">1 · Was druckst du?</div>${teile}
+  m.innerHTML=`<div class="rx stack">
+    <div class="row"><h1>Rechner</h1><span class="sp"></span>${RX_SEG("einfach")}</div>
+    <section class="panel pad stack" aria-label="Was druckst du"><h2>Was druckst du?</h2>${teile}
       ${add?`<div class="rx-add">${addPanelHTML()}</div><button type="button" class="rx-link" data-act="addMode" data-v="${S.addMode==="manuell"?"datei":"manuell"}">${S.addMode==="manuell"?"Doch lieber eine Datei nehmen":"Keine Datei? Gewicht und Zeit von Hand eingeben"}</button>`
         :`<button type="button" class="rx-link" data-act="rxMehr">+ Weiteres Teil</button>`}</section>
-    <section class="rx-k" aria-label="Filament"><div class="rx-st">2 · Mit welchem Filament?</div>
+    <section class="panel pad stack" aria-label="Filament"><h2>Mit welchem Filament?</h2>
       <div class="rx-mat">${matPick("q",q.matId,null,true)}<label class="field"><span>Drucker</span><select id="q_printer" data-bind="q.printerId" data-rerender>${opt(c.printers,q.printerId)}</select></label></div></section>
-    <section class="rx-k" aria-label="Ergebnis"><div class="rx-st">3 · Ergebnis</div>
+    <section class="panel pad stack" aria-label="Ergebnis"><h2>Ergebnis</h2>
       <div class="rx-big"><span>Das kostet dich</span><b class="num">${eur(x.kosten)}</b></div>
       <div class="rx-row"><span>Filament${x.r.grams?` (${g(x.r.grams)})`:""}</span><span class="num">${eur(x.r.material)}</span></div>
       <div class="rx-row"><span>Strom${x.r.minutes?` (${dur(x.r.minutes)})`:""}</span><span class="num">${eur(x.r.energy)}</span></div>
       <div class="rx-row"><span>Abnutzung Drucker</span><span class="num">${eur(x.r.machine)}</span></div></section>
-    <section class="rx-k rx-sell" aria-label="Verkaufspreis"><div class="rx-big"><span>Verkaufen für</span><b class="num">${eur(x.preis)}</b></div>
+    <section class="panel pad stack rx-sell" aria-label="Verkaufspreis"><div class="rx-big"><span>Verkaufen für</span><b class="num">${eur(x.preis)}</b></div>
       <div class="rx-pills">${RX_STUFEN.map(s=>`<button type="button" data-act="rxStufe" data-v="${s[0]}" aria-pressed="${s[0]===x.st[0]}">${s[1]}</button>`).join("")}</div>
       <div class="rx-hint">${q.parts.length?`Du verdienst daran <b>${eur(x.gewinn)}</b>. „${x.st[1]}“ heißt: Kosten plus ${x.st[2]} %, auf schöne Beträge gerundet.`:"Sobald oben ein Teil drin ist, steht hier dein Preis."}</div></section>
   </div>`}
@@ -765,11 +766,11 @@ function renderCalc(m){
   if(rxEinfach()){renderEinfach(m);return}
   const q=S.quote,c=S.cfg;
   const editing=q.id?`<span class="chip">Auftrag ${esc(q.no||"")} wird bearbeitet</span>`:"";
-  m.innerHTML=`${RX_SEG("ausfuehrlich")}
+  m.innerHTML=`
   <div class="grid-calc">
     <div class="stack">
       <div class="row"><h1>Neue Kalkulation</h1>${editing}<span class="sp"></span>
-        <button class="btn ghost sm" data-act="newQuote">${ICON.plus} Neu beginnen</button></div>
+        <button class="btn ghost sm" data-act="newQuote">${ICON.plus} Neu beginnen</button>${RX_SEG("ausfuehrlich")}</div>
       <section class="panel pad stack" aria-label="Auftrag">
         <div class="cols2">
           <label class="field"><span>Bezeichnung</span><input type="text" id="q_name" data-bind="q.name" value="${esc(q.name)}" placeholder="Ersatzteil Kaffeemaschine"></label>
@@ -4610,24 +4611,19 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
   const css=document.createElement("style");css.textContent=".eg-h{margin:14px 2px -4px;font:700 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}#main>.stack>.row+.eg-h{margin-top:2px}";document.head.appendChild(css);
   let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ordnen,0)}).observe(m,{childList:true,subtree:true});
   window.__einOrdnen=ordnen;ordnen()})();</script>
-<style>/* Rechner: Einfach-Modus */
-.rx{display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto}
-.rx-seg{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--glass,rgba(127,127,127,.06));max-width:640px;margin:0 auto 12px}
-.rx .rx-seg{margin:0}
-.rx-seg button{flex:1;padding:9px;border:0;border-radius:8px;background:none;color:var(--fg-3);font:600 14px/1 var(--f-body);cursor:pointer}
-.rx-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
-.rx-k{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--glass,rgba(127,127,127,.04));display:flex;flex-direction:column;gap:10px}
-.rx-st{font:700 12px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
-.rx-teil{display:flex;align-items:center;gap:12px;padding:8px;border:1px solid var(--line);border-radius:10px}
+<style>/* Rechner: Einfach-Modus (gleiche Kästen wie die anderen Reiter) */
+.rx{max-width:640px;margin:0 auto}
+.rx-seg button{white-space:nowrap}
+.rx-teil{display:flex;align-items:center;gap:12px;padding:8px;border:1px solid var(--line);border-radius:var(--r)}
 .rx-teil .thumb{width:48px;height:48px;flex:none}
 .rx-tt{flex:1;min-width:0}.rx-tt b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rx-tt small{color:var(--fg-3);font-size:13px}
 .rx-link{align-self:flex-start;border:0;background:none;padding:2px 0;color:var(--accent);font:600 13.5px/1.3 var(--f-body);cursor:pointer}
 .rx-mat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.rx-big{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.rx-big span{color:var(--fg-2);font-size:15px}.rx-big b{font-size:28px;font-weight:700}
-.rx-row{display:flex;justify-content:space-between;color:var(--fg-3);font-size:14px;padding:6px 0 0;border-top:1px solid var(--line)}
-.rx-sell{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
-.rx-sell .rx-big b{color:var(--accent);font-size:34px}
-.rx-pills{display:flex;gap:6px}.rx-pills button{flex:1;padding:9px 4px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--fg-2);font:600 13px/1.1 var(--f-body);cursor:pointer}
+.rx-big{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.rx-big span{color:var(--fg-2);font-size:15px}.rx-big b{font-size:26px;font-weight:700}
+.rx-row{display:flex;justify-content:space-between;color:var(--fg-3);font-size:14px;padding-top:6px;border-top:1px solid var(--line)}
+.rx-sell{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.rx-sell .rx-big b{color:var(--accent);font-size:32px}
+.rx-pills{display:flex;gap:6px}.rx-pills button{flex:1;padding:8px 4px;border:1px solid var(--line);border-radius:var(--r);background:none;color:var(--fg-2);font:600 13px/1.1 var(--f-body);cursor:pointer}
 .rx-pills button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .rx-hint{color:var(--fg-3);font-size:13px;line-height:1.45}.rx-hint b{color:var(--fg)}
 body.rx-einfach #mbar{display:none!important}
