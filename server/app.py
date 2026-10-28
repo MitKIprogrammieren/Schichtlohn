@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.2"
+VERSION = "3.1.3"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -666,12 +666,14 @@ def im_hintergrund(f, *a):
 def handy_meldung(titel, text):
     melden({"typ": "meldung", "titel": titel, "text": text})
     h = einstellungen()["ha"]
-    ziel = (h.get("notify") or "").strip()
+    roh = h.get("notify") or ""
+    ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
     url, token = ha_cfg()
     if not (url and token):
         return
-    if ziel.startswith("notify."):
-        im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], {"title": titel, "message": text})
+    if ziele:
+        for ziel in ziele:  # mehrere Handys: an jedes einzeln
+            im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], {"title": titel, "message": text})
     else:
         im_hintergrund(ha_anfrage, "/api/services/persistent_notification/create",
                        {"title": titel, "message": text, "notification_id": "filament_abbuchung"})
@@ -1175,6 +1177,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, einstellungen_maskiert())
             if methode == "PUT":
                 return self._json(200, einstellungen_setzen(self._json_rumpf()))
+        if teile == ["ha", "notify"] and methode == "GET":
+            if not all(ha_cfg()):
+                return self._json(200, {"dienste": [], "verbunden": False})
+            try:
+                dienste = []
+                for d in ha_anfrage("/api/services") or []:
+                    if d.get("domain") == "notify":
+                        for name in (d.get("services") or {}):
+                            if name.startswith("mobile_app_"):
+                                n = name[11:].replace("_", " ").title()
+                                for alt, neu in (("Iphone", "iPhone"), ("Ipad", "iPad"), ("Macbook", "MacBook"), (" Von ", " von ")):
+                                    n = n.replace(alt, neu)
+                                dienste.append({"id": "notify." + name, "name": n})
+                return self._json(200, {"dienste": sorted(dienste, key=lambda x: x["name"]), "verbunden": True})
+            except Exception as ex:
+                return self._json(200, {"dienste": [], "verbunden": False, "fehler": str(ex)})
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
         if teile == ["drucker", "neu_starten"] and methode == "POST":

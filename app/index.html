@@ -403,7 +403,7 @@ const SRV=window.SRV=(()=>{
       <div class="hint" id="srv_msg"></div>
       <div class="srvgrid">
         ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
-        ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an diesen Dienst:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
+        ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
         ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
         ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
@@ -434,7 +434,16 @@ const SRV=window.SRV=(()=>{
     const h=E.ha||{};const hf=document.getElementById("srv_haform");
     if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""} style="margin-bottom:8px"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.66:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
-      <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(h.notify||"")}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`}
+      <div id="srv_handys"></div>
+      <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`;
+    handysLaden()}
+  /* alle Handys aus Home Assistant zum Ankreuzen */
+  async function handysLaden(){const box=document.getElementById("srv_handys"),inp=document.getElementById("srv_hanot");if(!box||!inp)return;
+    let d;try{d=await req("GET","/api/ha/notify")}catch(e){return}if(!d.dienste||!d.dienste.length)return;
+    const gew=new Set(inp.value.split(",").map(x=>x.trim()).filter(Boolean));
+    box.innerHTML=`<div class="srvhandys">${d.dienste.map(x=>`<label class="srvhy"><input type="checkbox" value="${esc(x.id)}"${gew.has(x.id)?" checked":""}><span>${esc(x.name)}</span></label>`).join("")}</div>`;
+    inp.parentElement.querySelector("input").hidden=true;
+    const sync=()=>{inp.value=[...box.querySelectorAll("input:checked")].map(c=>c.value).join(", ")};box.addEventListener("change",sync)}
   async function einstSpeichern(neu,ok){try{E=await req("PUT","/api/einstellungen",neu);if(ok)msg(ok);setTimeout(drLaden,1500);setTimeout(drLaden,6000)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}}
   document.addEventListener("change",e=>{if(e.target&&e.target.id==="srv_abb")einstSpeichern({abbuchung:e.target.checked},e.target.checked?"✓ Automatische Abbuchung an.":"Automatische Abbuchung aus.")});
   const MOD=[["","automatisch (aus der Seriennummer)"],["h2c","H2C"],["h2d","H2D"],["h2s","H2S"],["x1c","X1C"],["x1e","X1E"],["p1s","P1S"],["p1p","P1P"],["p2s","P2S"],["a1","A1"],["a1mini","A1 mini"]];
@@ -3297,6 +3306,10 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 #srvsec .srvsw i{width:34px;height:20px;border-radius:999px;background:var(--line-2,rgba(127,127,127,.35));position:relative;transition:background .15s}
 #srvsec .srvsw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
 #srvsec .srvsw input:checked+i{background:var(--accent)}#srvsec .srvsw input:checked+i::after{transform:translateX(14px)}
+#srvsec .srvhandys{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+#srvsec .srvhy{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;cursor:pointer;color:var(--fg-2)}
+#srvsec .srvhy input{width:14px;height:14px;accent-color:var(--accent);margin:0}
+#srvsec .srvhy:has(input:checked){border-color:var(--accent);color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 #srvsec details.srvum>summary{list-style:none;cursor:pointer}#srvsec details.srvum>summary::-webkit-details-marker{display:none}
 #srvsec .srvpf{color:var(--fg-3);font-size:18px;transition:transform .15s}#srvsec details[open] .srvpf{transform:rotate(90deg)}
 @media (max-width:760px){#srvsec .srvgrid{grid-template-columns:1fr}}
