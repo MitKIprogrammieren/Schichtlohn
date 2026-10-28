@@ -3241,7 +3241,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 </script>
 <style>
 .lgbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.lgsearch{position:relative;flex:0 1 380px;min-width:200px;display:flex;align-items:center}
+.lgsearch{position:relative;flex:1 1 200px;min-width:170px;display:flex;align-items:center}
 .lgsearch>svg{position:absolute;left:12px;width:16px;height:16px;color:var(--fg-3);pointer-events:none}
 .lgsearch input[type=search]{width:100%;height:36px;padding:0 34px 0 36px;border-radius:999px;font-size:13px;background:var(--sunken,rgba(127,127,127,.08));border:1px solid var(--line);transition:border-color .15s,background .15s,box-shadow .15s}
 .lgsearch input[type=search]::-webkit-search-cancel-button{display:none}
@@ -3255,7 +3255,10 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgbar .lgtb{height:36px;padding:0 12px;gap:6px;border-radius:999px;font-size:13px}
 [data-skin="bambu"] .lgbar .lgtb{border-radius:8px}
 .lgbar .lgtb svg{width:15px;height:15px}
-.lgbar .lgact2{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.lgbar .lgact2{margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap}
+/* passt nicht alles in eine Zeile: Aktionen als eigene, volle Zeile statt halb rechts */
+@media (max-width:1060px){.lgbar .lgact2{margin-left:0;width:100%}.lgbar .lgact2 .lgtb{flex:1 1 0;justify-content:center}}
+@media (max-width:620px){.lgbar .lgact2{flex-wrap:wrap}.lgbar .lgact2 .lgtb{flex:1 1 28%}}
 #lgHead:empty{display:none}
 .lgbar select.lgsort{width:auto;flex:0 0 auto;max-width:200px;height:36px;border-radius:999px;padding:0 32px 0 14px;font-size:13px;background-color:var(--sunken,rgba(127,127,127,.08))}
 [data-skin="bambu"] .lgbar select.lgsort{border-radius:8px}
