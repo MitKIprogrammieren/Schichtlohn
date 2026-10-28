@@ -2168,9 +2168,8 @@ function render(m){
   const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
     <button class="btn ghost sm" data-act="jobClear">Auswahl aufheben</button>
     ${window.CRE&&selJ.some(j=>j.src==="creality")?`<button class="btn sm" data-act="jobBuchen" title="Verbrauch dieser Creality-Drucke im Lager abziehen">Im Lager abbuchen</button>`:""}
-    <button class="btn sm" data-act="jobToOrder">Zu Auftrag hinzufügen</button>
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
-    <button class="btn pri sm" data-act="jobNewOrder">${ICON.save} Neuer Auftrag</button></div>`:"";
+    <button class="btn pri sm" data-act="jobToOrder">${ICON.save} Auftrag …</button></div>`:"";
   m.innerHTML=`<div class="stack">
     <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
       <button class="btn ghost sm" data-act="jobReload">Aktualisieren</button></div>
@@ -2222,8 +2221,10 @@ async function take(mode,orderId,ok){
 }
 function orderPick(){
   const list=S.orders.filter(o=>o.status!=="storniert").sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,60);
-  if(!list.length){toast("Es gibt noch keine Aufträge. Lege mit „Neuer Auftrag“ einen an.");return}
-  modal("Zu Auftrag hinzufügen",`<input type="search" id="jobOrdQ" placeholder="Auftrag suchen"><div class="pick" id="jobOrdList">${ordPickHTML("")}</div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`);
+  if(!list.length){take("new");return}
+  modal("Als Auftrag speichern",`<div class="pick"><button data-act="jobNewOrder" class="jobneu"><span style="flex:1;min-width:0"><b>${ICON.plus} Neuer Auftrag</b><span class="hint" style="display:block">Aus der Auswahl einen neuen Auftrag anlegen</span></span></button></div>
+    <div class="label" style="margin:12px 0 6px">Oder zu bestehendem Auftrag hinzufügen</div>
+    <input type="search" id="jobOrdQ" placeholder="Auftrag suchen"><div class="pick" id="jobOrdList">${ordPickHTML("")}</div>`,`<button class="btn ghost" data-act="close">Abbrechen</button>`);
 }
 function ordPickHTML(f){f=f.toLowerCase();const l=S.orders.filter(o=>o.status!=="storniert"&&(!f||(o.no+" "+o.name+" "+o.customer).toLowerCase().includes(f))).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,60);
   return l.length?l.map(o=>`<button data-act="jobOrdPick" data-id="${o.id}"><span style="flex:1;min-width:0"><b>${esc(o.no)} · ${esc(o.name||"Ohne Bezeichnung")}</b><span class="hint" style="display:block">${esc(o.customer||"–")} · ${dDE(o.date)} · ${esc(statusName(o.status))} · ${o.parts.length} Teil${o.parts.length===1?"":"e"}</span></span>${ICON.plus}</button>`).join(""):`<div class="empty">Kein Treffer.</div>`}
@@ -2248,7 +2249,7 @@ document.addEventListener("click",async e=>{
   else if(a==="jobReload"){loadHa(true);loadCloud(true);if(window.CRE&&CRE.connected())CRE.load(true)}
   else if(a==="jobMore"){loadCloud(true,true)}
   else if(a==="jobToQuote")await take("quote");
-  else if(a==="jobNewOrder")await take("new");
+  else if(a==="jobNewOrder"){closeModal();await take("new")}
   else if(a==="jobToOrder")orderPick();
   else if(a==="jobBuchen"){const ks=J_list.filter(j=>J.sel.has(j.key)&&j.src==="creality").map(j=>j.key);if(window.CRE)await CRE.bucheJetzt(ks)}
   else if(a==="jobOrdPick"){closeModal();await take("order",b.dataset.id)}
@@ -4634,5 +4635,6 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 .rx-hint{color:var(--fg-3);font-size:13px;line-height:1.45}.rx-hint b{color:var(--fg)}
 body.rx-einfach #mbar{display:none!important}
 </style>
+<style>.pick .jobneu{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))!important}.pick .jobneu b{color:var(--accent);display:inline-flex;align-items:center;gap:6px}.pick .jobneu b svg{width:16px;height:16px}</style>
 </body>
 </html>
