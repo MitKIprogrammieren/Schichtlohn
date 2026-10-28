@@ -4598,12 +4598,14 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
   ["Daten",["Daten und Sicherung"]]];
   const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
   function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
-    const kids=[...st.children].filter(e=>!e.classList.contains("eg-h"));const kopf=kids.shift();if(!kopf)return;
+    const kids=[...st.children].filter(e=>!e.classList.contains("eg-h"));const kopf=kids.find(e=>e.querySelector&&e.querySelector("h1"))||kids[0];if(!kopf)return;kids.splice(kids.indexOf(kopf),1);const versteckt=[];
     const soll=[kopf],genutzt=new Set([kopf]);
+    const ohneVerkauf=typeof rxEinfach==="function"&&rxEinfach(); /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
     GR.forEach(([name,liste])=>{const teile=[];liste.forEach(t=>{const e=kids.find(k=>!genutzt.has(k)&&titel(k)===t);if(e){teile.push(e);genutzt.add(e)}});
+      const weg=ohneVerkauf&&name==="Verkauf und Angebote";teile.forEach(e=>{e.hidden=weg});if(weg){versteckt.push(...teile);return}
       if(teile.length){let h=st.querySelector(`.eg-h[data-g="${name}"]`);if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g=name;h.textContent=name}soll.push(h,...teile)}});
     const rest=kids.filter(k=>!genutzt.has(k));if(rest.length){let h=st.querySelector('.eg-h[data-g="Weitere"]');if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g="Weitere";h.textContent="Weitere"}soll.push(h,...rest)}
-    const ist=[...st.children];if(ist.length===soll.length&&ist.every((e,i)=>e===soll[i]))return;
+    soll.push(...versteckt);const ist=[...st.children];if(ist.length===soll.length&&ist.every((e,i)=>e===soll[i]))return;
     st.querySelectorAll(".eg-h").forEach(h=>{if(!soll.includes(h))h.remove()});soll.forEach(e=>st.appendChild(e))}
   const css=document.createElement("style");css.textContent=".eg-h{margin:14px 2px -4px;font:700 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}#main>.stack>.row+.eg-h{margin-top:2px}";document.head.appendChild(css);
   let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ordnen,0)}).observe(m,{childList:true,subtree:true});
