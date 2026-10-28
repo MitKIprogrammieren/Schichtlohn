@@ -376,47 +376,65 @@ const SRV=window.SRV=(()=>{
     await req("PUT","/api/daten/cfg",{wert:c,quelle:id},u,t);await req("PUT","/api/daten/portfolio",{wert:S.portfolio||[],quelle:id},u,t);await req("PUT","/api/daten/orders",{wert:S.orders||[],quelle:id},u,t);
     log&&log(`Einstellungen, ${(S.portfolio||[]).length} Portfolio-Teile, ${(S.orders||[]).length} Aufträge`);return out}
   /* Einstellungen */
-  function html(){const u=url(),t=token();const st=S.srv?`<div class="note" style="border-color:var(--accent)">Verbunden mit <b>${esc(u)}</b> (Version ${esc((S.srvInfo||{}).version||"")}). Lager, Verbrauch, Einstellungen, Portfolio und Aufträge liegen auf dem Server und sind auf allen Geräten gleich.</div>`
-      :S.srvFehler?`<div class="note" style="color:var(--bad)">${esc(S.srvFehler)}. SchichtLohn arbeitet so lange mit ${S.backend==="ha"?"Home Assistant":"den Daten in diesem Browser"}.</div>`
-      :`<div class="hint">Mit dem SchichtLohn-Server auf deiner Synology liegen Lager und alle SchichtLohn-Daten an einer Stelle. Mac, iPhone, Home Assistant und die Waage sehen denselben Stand. Der Container enthält auch den Etikett-Leser für Spulenfotos.</div>`;
-    return `<section class="panel pad stack" id="srvsec"><div class="sec-title"><h2>SchichtLohn-Server</h2></div>${st}
-      <div class="g2"${window.__SL_SRV?" hidden":""}><label class="field"><span>Adresse</span><input type="text" id="srv_url" value="${esc(u)}" placeholder="http://192.168.1.4:8093" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-        <label class="field"><span>Schlüssel (falls eingerichtet)</span><input type="text" id="srv_tok" value="${esc(t)}" placeholder="leer lassen, wenn keiner" autocomplete="off"></label></div>
-      <div class="row" style="flex-wrap:wrap;gap:8px">${S.srv?`<button class="btn" data-act="srvTest">Verbindung testen</button><a class="btn ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung herunterladen</a>${window.__SL_SRV?"":`<button class="btn ghost" data-act="srvAus">Server nicht mehr verwenden</button>`}`
-        :`<button class="btn" data-act="srvTest">Verbindung testen</button><button class="btn pri" data-act="srvNutzen">Daten übernehmen und Server verwenden</button><button class="btn ghost" data-act="srvNurNutzen">Nur verbinden (Server hat schon Daten)</button>`}</div>
-      ${S.srv?`<div class="note" id="srv_fdb" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>Filament-Datenbank auf dem Server</b><br><span id="srv_fdbinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvFdb">Jetzt aktualisieren</button></div>
-        <div class="note" id="srv_app" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>SchichtLohn vom Server</b><br><span id="srv_appinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvApp">App aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}</div>
-        <div class="note stack" id="srv_dr" style="gap:8px"><b>Bambu-Drucker</b><div id="srv_drliste" class="hint">wird geprüft …</div></div>
-        <div class="note stack" id="srv_ha" style="gap:8px"><b>Home Assistant${(S.srvInfo||{}).ha_app?"":" (freiwillig)"}</b><span class="hint">${(S.srvInfo||{}).ha_app?"Der Server läuft als Home-Assistant-App und ist automatisch mit Home Assistant verbunden. Trag nur noch ein, wohin die Meldung nach der Abbuchung gehen soll.":"Für Meldungen aufs Handy nach der Abbuchung und damit die Waage ihre Werte weiter auch an Home Assistant schickt."}</span><div id="srv_haform" class="hint">…</div></div>
-        <div class="note stack" style="gap:8px"><b>Umzug von einem anderen SchichtLohn-Server</b><span class="hint">Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</span>
-          <div class="row" style="gap:8px;flex-wrap:wrap"><input type="text" id="srv_umzug" value="${(S.srvInfo||{}).ha_app?"http://192.168.1.4:8093":""}" placeholder="http://192.168.1.4:8093" style="flex:1 1 200px" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvUmzug">Daten holen</button></div></div>
-        <div class="note"><b>Waage</b><br><span class="hint">In der Waage unter Home Assistant als Adresse <code>${(S.srvInfo||{}).ha_app?"http://&lt;IP deines Home-Assistant-Servers&gt;:8093":esc(u)}</code> eintragen, beim Token ${t?"den Server-Schlüssel":"irgendetwas, z. B. <code>schichtlohn</code>"}, Liste <code>todo.filament</code>. Die Waage arbeitet dann direkt mit diesem Server.</span></div>`:""}
-      <div class="hint" id="srv_msg"></div></section>`}
+  /* Einstellungen */
+  const SVG=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const IC={srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+    dr:SVG('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/>'),
+    ha:SVG('<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>'),
+    wg:SVG('<path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/>'),
+    db:SVG('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>'),
+    app:SVG('<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>'),
+    um:SVG('<path d="M4 12h13"/><path d="m13 7 5 5-5 5"/><path d="M20 4v16"/>')};
+  const karte=(ic,titel,rechts,inhalt,klasse="")=>`<div class="srvk ${klasse}"><div class="srvh"><span class="srvi">${ic}</span><h3>${titel}</h3><span class="sp"></span>${rechts||""}</div>${inhalt}</div>`;
+  function html(){const u=url(),t=token();const I=S.srvInfo||{};
+    const wo=I.ha_app?"läuft als Home-Assistant-App":window.__SL_SRV?"läuft auf diesem Server":esc(u);
+    if(!S.srv){const st=S.srvFehler?`<div class="note" style="color:var(--bad)">${esc(S.srvFehler)}. SchichtLohn arbeitet so lange mit ${S.backend==="ha"?"Home Assistant":"den Daten in diesem Browser"}.</div>`
+        :`<div class="hint">Mit dem SchichtLohn-Server liegen Lager und alle SchichtLohn-Daten an einer Stelle. Mac, iPhone, Home Assistant und die Waage sehen denselben Stand. Der Server enthält auch den Etikett-Leser für Spulenfotos.</div>`;
+      return `<section class="panel pad stack" id="srvsec"><div class="sec-title"><h2>SchichtLohn-Server</h2></div>${st}
+        <div class="g2"><label class="field"><span>Adresse</span><input type="text" id="srv_url" value="${esc(u)}" placeholder="http://192.168.1.66:8093" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label class="field"><span>Schlüssel (falls eingerichtet)</span><input type="text" id="srv_tok" value="${esc(t)}" placeholder="leer lassen, wenn keiner" autocomplete="off"></label></div>
+        <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn" data-act="srvTest">Verbindung testen</button><button class="btn pri" data-act="srvNutzen">Daten übernehmen und Server verwenden</button><button class="btn ghost" data-act="srvNurNutzen">Nur verbinden (Server hat schon Daten)</button></div>
+        <div class="hint" id="srv_msg"></div></section>`}
+    const waageAdr=I.ha_app?`http://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname)?location.hostname:"&lt;IP von Home Assistant&gt;"}:8093`:esc(u.replace(/\/api\/hassio_ingress\/.*$/,""));
+    return `<section class="panel pad stack" id="srvsec"><div class="sec-title"><h2>SchichtLohn-Server</h2></div>
+      <div class="srvk srvok"><div class="srvh"><span class="srvi">${IC.srv}</span><div class="srvst"><h3>Verbunden</h3><small>Version ${esc(I.version||"")} · ${wo}</small></div><span class="sp"></span>
+        <button class="btn sm ghost" data-act="srvTest">Testen</button><a class="btn sm ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung</a>${window.__SL_SRV?"":`<button class="btn sm ghost" data-act="srvAus">Trennen</button>`}</div>
+        <p>Lager, Verbrauch, Einstellungen, Portfolio und Aufträge liegen auf dem Server und sind auf allen Geräten gleich.</p></div>
+      <div class="hint" id="srv_msg"></div>
+      <div class="srvgrid">
+        ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
+        ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an diesen Dienst:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
+        ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
+        ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
+        ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
+        <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
+          <p>Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</p>
+          <div class="srvcopy"><input type="text" id="srv_umzug" value="" placeholder="http://192.168.1.4:8093" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvUmzug">Daten holen</button></div></details>
+      </div></section>`}
   async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
-      el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf dem Server – „Jetzt aktualisieren“ antippen."}
+      el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf dem Server – „Aktualisieren“ antippen."}
     catch(e){el.textContent="Unbekannt ("+(e.message||e)+"). Der Server braucht Version 2.4."}}
   document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();drLaden()},50)});
   setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();drLaden()}},1500);
   /* App von der Synology */
   async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
-      el.innerHTML=d.vorhanden?`Stand ${esc(d.stand)} · ${esc(d.quelle)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server – „App aktualisieren“ antippen."}
+      el.innerHTML=d.vorhanden?`Stand ${esc(d.stand)} · ${esc(d.quelle)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server – „Aktualisieren“ antippen."}
     catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+")."}}
   /* Drucker und Home Assistant */
   let E=null,DR=[];
   const drStatus=d=>!d.online?(d.fehler?`<span style="color:var(--bad)">${esc(d.fehler)}</span>`:"verbindet …"):({RUNNING:"druckt",PAUSE:"pausiert",FINISH:"fertig",FAILED:"abgebrochen",IDLE:"bereit",PREPARE:"bereitet vor"}[d.status]||esc(d.status||"verbunden"))+(d.status==="RUNNING"?` · ${d.fortschritt} %`:"");
   async function drLaden(){const el=document.getElementById("srv_drliste");if(!el)return;
     try{E=await req("GET","/api/einstellungen");const l=await req("GET","/api/drucker");DR=l.drucker||[]}catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+").";return}
-    const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};
-      return `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1 1 180px"><b>${esc(d.name||d.serial)}</b> <span class="dim">· ${d.modus==="cloud"?"Bambu-Cloud":"Heimnetz "+esc(d.ip||"")}</span><br><span class="hint"><span style="color:${live.online?"var(--accent)":"var(--fg-3)"}">●</span> ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</span></span><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
-    el.innerHTML=`${zeilen||`<span class="hint">Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern (MQTT, wie Bambuddy) und bucht nach jedem Druck das Filament im Lager ab.</span>`}
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvDrNeu">${ICON.plus||"+"} Drucker</button><button class="btn sm ghost" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button></div>
-      <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="srv_abb"${E.abbuchung!==false?" checked":""}> <span>Nach jedem Druck automatisch abbuchen</span></label>
-      ${E.abbuchung!==false&&(E.drucker||[]).length?`<span class="hint">Schalte in Home Assistant die Automation „FilamentLager – Abbuchung nach Druckende“ aus, sonst kommen Meldungen doppelt.</span>`:""}`;
+    const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};const st=d.aktiv===false?"aus":live.online?"ok":live.fehler?"err":"warte";
+      return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.modus==="cloud"?"Bambu-Cloud":"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
+    const bc=!!bambuKonto();const ab=document.getElementById("srv_abb");if(ab)ab.checked=E.abbuchung!==false;
+    el.innerHTML=`${zeilen||`<p>Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern und bucht nach jedem Druck das Filament im Lager ab.</p>`}
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${bc&&!zeilen?" pri":""}" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button><button class="btn sm ghost" data-act="srvDrNeu">${ICON.plus||"+"} Von Hand</button></div>
+      ${bc?"":`<p>Für „Aus Bambu-Cloud übernehmen“ und Drucker über die Cloud erst oben unter <b>Bambu-Cloud</b> anmelden.</p>`}${E.abbuchung!==false&&(E.drucker||[]).length?`<p>Schalte in Home Assistant die Automation „FilamentLager – Abbuchung nach Druckende“ aus, sonst kommen Meldungen doppelt.</p>`:""}`;
     const h=E.ha||{};const hf=document.getElementById("srv_haform");
-    if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""}><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.10:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""} style="margin-bottom:8px"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.66:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
-      <label class="field"><span>Meldung aufs Handy</span><input type="text" id="srv_hanot" value="${esc(h.notify||"")}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-      <div class="row"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`}
+      <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(h.notify||"")}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`}
   async function einstSpeichern(neu,ok){try{E=await req("PUT","/api/einstellungen",neu);if(ok)msg(ok);setTimeout(drLaden,1500);setTimeout(drLaden,6000)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}}
   document.addEventListener("change",e=>{if(e.target&&e.target.id==="srv_abb")einstSpeichern({abbuchung:e.target.checked},e.target.checked?"✓ Automatische Abbuchung an.":"Automatische Abbuchung aus.")});
   const MOD=[["","automatisch (aus der Seriennummer)"],["h2c","H2C"],["h2d","H2D"],["h2s","H2S"],["x1c","X1C"],["x1e","X1E"],["p1s","P1S"],["p1p","P1P"],["p2s","P2S"],["a1","A1"],["a1mini","A1 mini"]];
@@ -457,6 +475,7 @@ const SRV=window.SRV=(()=>{
         if(!n){msg(r.geraete&&r.geraete.length?"Alle Drucker aus der Cloud sind schon eingetragen.":"In der Bambu-Cloud sind keine Drucker gebunden.");return}
         einstSpeichern({drucker:l},`✓ ${n} Drucker aus der Bambu-Cloud übernommen (Verbindung über die Cloud). Unter „Bearbeiten“ kannst du auf Heimnetz umstellen – IP eintragen, der Zugangscode ist schon da.`)}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvKopie"){const el=document.getElementById(b.dataset.ziel);const tx=el?el.textContent:"";try{await navigator.clipboard.writeText(tx);toast("Kopiert: "+tx)}catch(x){toast(tx)}return}
     if(a==="srvUmzug"){const q=((document.getElementById("srv_umzug")||{}).value||"").trim();if(!q){toast("Adresse des alten Servers fehlt");return}
       confirmBox(`Alles von ${q} hierher holen? Was auf diesem Server liegt, wird ersetzt.`,"Daten holen",async()=>{msg("Hole die Daten …");
         try{const d=await req("POST","/api/umzug",{quelle:q});const l=d.listen||{};msg(`✓ Übernommen: ${l["todo.filament"]||0} Einträge im Lager, ${l["todo.filament_verbrauch"]||0} im Verbrauch, ${d.daten} Datensätze, ${d.abdruecke} gelernte Fotos${d.filamentdb?", Filament-Datenbank":""}. Den alten Server jetzt im Container Manager stoppen. Seite wird neu geladen …`);setTimeout(()=>location.reload(),4000)}
@@ -3252,6 +3271,35 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgsearch .lgclr:hover{background:var(--sunken,rgba(127,127,127,.15));color:var(--fg)}
 .lgsearch .lgclr svg{width:14px;height:14px}
 [data-skin="bambu"] .lgsearch input[type=search]{border-radius:8px}
+/* SchichtLohn-Server: Kacheln */
+#srvsec .srvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#srvsec .srvk{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--glass,rgba(127,127,127,.04));display:flex;flex-direction:column;gap:10px;min-width:0}
+#srvsec .srvk.weit{grid-column:1/-1}
+#srvsec .srvk.srvok{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+#srvsec .srvh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:32px}
+#srvsec .srvh h3{margin:0;font-size:14px;font-weight:600;color:var(--fg)}
+#srvsec .srvh .sp{display:none}
+#srvsec .srvh>h3,#srvsec .srvh>.srvst{flex:1 1 150px;min-width:0}
+#srvsec a.btn{text-decoration:none}
+#srvsec .srvst{display:flex;flex-direction:column;gap:2px}#srvsec .srvst small{color:var(--fg-3);font-size:12px}
+#srvsec .srvi{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+#srvsec .srvi svg{width:17px;height:17px}
+#srvsec .srvk p{margin:0;color:var(--fg-3);font-size:12.5px;line-height:1.5}
+#srvsec .srvk code{font-size:12px}
+#srvsec .srvcopy{display:flex;gap:8px;align-items:center}
+#srvsec .srvcopy input,#srvsec .srvcopy code{flex:1 1 auto;min-width:0}
+#srvsec .srvcopy code{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken,rgba(127,127,127,.08));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#srvsec .srvdr{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+#srvsec .srvdrt{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}#srvsec .srvdrt small{color:var(--fg-3);font-size:12px}
+#srvsec .srvdot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--fg-3)}#srvsec .srvdot.ok{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}#srvsec .srvdot.err{background:var(--bad)}#srvsec .srvdot.warte{background:var(--warn,#e3a008)}
+#srvsec .srvsw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
+#srvsec .srvsw input{position:absolute;opacity:0;width:0;height:0}
+#srvsec .srvsw i{width:34px;height:20px;border-radius:999px;background:var(--line-2,rgba(127,127,127,.35));position:relative;transition:background .15s}
+#srvsec .srvsw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+#srvsec .srvsw input:checked+i{background:var(--accent)}#srvsec .srvsw input:checked+i::after{transform:translateX(14px)}
+#srvsec details.srvum>summary{list-style:none;cursor:pointer}#srvsec details.srvum>summary::-webkit-details-marker{display:none}
+#srvsec .srvpf{color:var(--fg-3);font-size:18px;transition:transform .15s}#srvsec details[open] .srvpf{transform:rotate(90deg)}
+@media (max-width:760px){#srvsec .srvgrid{grid-template-columns:1fr}}
 .lgbar .lgtb{height:36px;padding:0 12px;gap:6px;border-radius:999px;font-size:13px}
 [data-skin="bambu"] .lgbar .lgtb{border-radius:8px}
 .lgbar .lgtb svg{width:15px;height:15px}
