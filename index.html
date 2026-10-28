@@ -3861,7 +3861,7 @@ function farbeAn(cv,x,y){const r=Math.max(3,Math.round(Math.min(cv.width,cv.heig
 
 G.fotos=[];
 document.addEventListener("change",e=>{if(!e.target||e.target.id!=="lgfmarke")return;const f=G.fotos[G.fotoAkt];if(!f)return;f.marke=+e.target.value;f.tr=fotoTreffer(f);G.fotoKeinScroll=true;fotoModal(f.id)});
-function fotoWahl(){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.style.display="none";document.body.appendChild(i);
+function fotoWahl(){tonAn();const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.style.display="none";document.body.appendChild(i);
   i.addEventListener("change",()=>{const fs=[...i.files];i.remove();if(fs.length)fotoVerarbeiten(fs)});i.click()}
 async function fotoVerarbeiten(files){G.fotos=files.slice(0,40).map((file,id)=>({id,file,status:"wartet",text:[],codes:[],hex:"",done:false}));fotoListe();
   try{await fdbLaden()}catch(e){}const url=etUrl();let etFehler="";
@@ -3871,7 +3871,9 @@ async function fotoVerarbeiten(files){G.fotos=files.slice(0,40).map((file,id)=>(
         catch(e){etFehler=etMixed(url)?"Die Seite läuft über https, der Etikett-Leser über http. Das blockiert der Browser.":e.message==="Zeitüberschreitung"?"Der Server hat zu lange gebraucht (über 90 Sekunden). Prüfe im Container Manager, ob schichtlohn-server läuft und genug Speicher hat.":e.message==="nicht erreichbar"?"Etikett-Leser nicht erreichbar ("+url+"). Die Verbindung brach ab – meist startet der Server gerade neu (zu wenig Speicher?).":"Der Server meldet einen Fehler: "+e.message}}
       if(!f.codes.length)f.codes=await browserCodes(f.cv);
       f.tr=fotoTreffer(f);f.status="fertig"}catch(e){f.status="fehler";f.fehler=e.message||String(e)}
-    f.etFehler=etFehler;fotoListeAuffrischen()}
+    f.etFehler=etFehler;fotoListeAuffrischen();
+    /* Piep: hoch = Spule erkannt, zwei tiefe Töne = nichts gefunden */
+    piep(f.status==="fertig"&&!!(f.tr&&(f.tr.lager.length||f.tr.db.length||f.codes.length)));brumm()}
   G.fotoEtFehler=etFehler||(url?"":"kein");if(G.fotos.length===1&&G.fotos[0].status==="fertig")fotoModal(0);else fotoListe()}
 function fotoName(f){if(!f)return "";if(f.status==="liest"||f.status==="wartet")return "wird gelesen …";if(f.status==="fehler")return f.fehler||"Fehler";
   const e=f.tr&&f.tr.lager[0];if(e)return summary(e)+" (im Lager)";const i=f.tr&&f.tr.db[0];if(i!=null){const k=fdbK(i);if(!k)return "";if(f.codes.length||f.hex)return `${k.hersteller} ${k.linie} · ${k.farbe}`;return f.tr.marke?`${k.hersteller} · Farbe im Foto antippen`:"Marke nicht lesbar · Foto öffnen"}
@@ -3969,6 +3971,13 @@ const serieWeg=code=>{G.serie=G.serie.filter(x=>x.code!==code);serieSichern()};
 const codeSorte=code=>entries().find(e=>e.codes.includes(code));
 function serieGruppen(){const bekannt=[],unbekannt=[];G.serie.forEach(x=>{const e=codeSorte(x.code);if(e)bekannt.push(Object.assign({},x,{e,refill:e.codes_refill.includes(x.code)}));else unbekannt.push(Object.assign({},x,{k:kBekannt(x.code)}))});return {bekannt,unbekannt}}
 const plural=(n,a,b)=>n+" "+(n===1?a:b);
+/* Piepton wie beim Kassenscanner (WebAudio). iOS gibt Ton nur frei, wenn er bei einem Tipp entsperrt wurde → tonAn() beim Öffnen von Kamera/Fotos */
+let tonCtx=null;
+function tonAn(){try{tonCtx=tonCtx||new (window.AudioContext||window.webkitAudioContext)();if(tonCtx.state!=="running")tonCtx.resume();const b=tonCtx.createBuffer(1,1,22050),q=tonCtx.createBufferSource();q.buffer=b;q.connect(tonCtx.destination);q.start(0)}catch(e){}}
+function piep(ok=true){try{if(!tonCtx)tonAn();const c=tonCtx;if(!c)return;if(c.state!=="running")c.resume();const t0=c.currentTime+.02;
+  (ok?[[1760,0,.12]]:[[440,0,.12],[330,.17,.18]]).forEach(([hz,ab,dauer])=>{const o=c.createOscillator(),g=c.createGain();o.type="square";o.frequency.value=hz;
+    g.gain.setValueAtTime(0,t0+ab);g.gain.linearRampToValueAtTime(.18,t0+ab+.005);g.gain.setValueAtTime(.18,t0+ab+dauer-.02);g.gain.linearRampToValueAtTime(0,t0+ab+dauer);
+    o.connect(g);g.connect(c.destination);o.start(t0+ab);o.stop(t0+ab+dauer+.02)})}catch(e){}}
 const brumm=()=>{try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}};
 
 /* Kamera im Browser: BarcodeDetector, sonst ZXing */
@@ -4025,7 +4034,7 @@ function scanModal(serie){
     ${serie?"":`<div class="row"><button class="btn ghost sm" data-act="lgFoto">${CAMI} Kein Barcode? Spule fotografieren</button></div>`}</div>`,foot);
   setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgctxt")ae.blur()},60);
   camStart(code=>{if(G.serieAktiv)serieAdd(code,false);else onCode(code)})}
-async function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();
+async function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();piep();
   const e=codeSorte(code);if(e)return hitModal(code,e);
   if(!CODES_BEKANNT[code]&&!G.fdb&&fdbCodeKey(code))try{await Promise.race([fdbLaden(),new Promise((_,r)=>setTimeout(r,4000))])}catch(err){}
   neuModal(code,1,false)}
@@ -4052,7 +4061,7 @@ function neuModal(code,anzahl,ausSerie){const k=kBekannt(code);G.neu={code,k,anz
 function serieStart(){fdbVorladen();G.serieAktiv=true;G.serieLetzt="";G.serieZuletzt=null;if(extern())return serieNativ();scanModal(true)}
 function serieAdd(raw,vonHand){const code=String(raw||"").trim();if(!code)return null;const jetzt=Date.now();
   if(!vonHand&&G.serieZuletzt&&G.serieZuletzt.code===code&&jetzt-G.serieZuletzt.t<3000){G.serieZuletzt.t=jetzt;return null}
-  G.serieZuletzt={code,t:jetzt};let x=G.serie.find(y=>y.code===code);if(x)x.n+=1;else{x={code,n:1};G.serie.push(x)}serieSichern();brumm();
+  G.serieZuletzt={code,t:jetzt};let x=G.serie.find(y=>y.code===code);if(x)x.n+=1;else{x={code,n:1};G.serie.push(x)}serieSichern();brumm();piep();
   const e=codeSorte(code),k=kBekannt(code);const nm=e?summary(e):k?summary(k)+" (neu)":"Unbekannter Code "+code;
   G.serieLetzt=`Zuletzt: ${nm} · ${x.n}× · insgesamt ${serieSumme()}`;G.serieInfo={name:nm,n:x.n,bekannt:!!e};
   const a=document.getElementById("lgletzt"),c=document.getElementById("lgscount");if(a)a.textContent=G.serieLetzt;if(c)c.textContent=serieSumme();
@@ -4240,7 +4249,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgStatZeit"){G.statZeit=b.dataset.z;statModal();return}
   if(a==="lgAms"){amsModal();return}
   if(a==="lgAmsPick"){const s=slots().find(x=>x.id===b.dataset.id);if(s)fromSlot(s);return}
-  if(a==="lgScan"){scanStart();return}
+  if(a==="lgScan"){tonAn();scanStart();return}
   if(a==="lgFoto"){camStop();fotoWahl();return}
   if(a==="lgFotoOpen"){const f=G.fotos[+b.dataset.id];if(f&&f.status==="fertig")fotoModal(f.id);return}
   if(a==="lgFotoListe"){fotoListe();return}
@@ -4253,7 +4262,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgFLcode"||a==="lgFLplus"){fotoLagerSchreiben(a==="lgFLplus");return}
   if(a==="lgFotoNeuSorte"){const f=G.fotos[G.fotoAkt];if(!f)return;const cs=fotoCodes(f);const c=cs[0]||"";formModal(null,{codes:cs,hex:f.hex||"#808080",fotoId:f.id,hinweis:c?`Barcode ${c} wird gespeichert.`:"Neue Sorte vom Foto. Bitte ausfüllen."});return}
   if(a==="lgEtSave"){const i=document.getElementById("lgeturl");const u=etUrlSetzen(i?i.value:"");try{const d=await etTest(u);toast("Etikett-Leser verbunden (Version "+d.version+")");G.fotoEtFehler="";if(G.fotos.length)fotoVerarbeiten(G.fotos.map(x=>x.file))}catch(err){toast(err.message)}return}
-  if(a==="lgSerie"){serieStart();return}
+  if(a==="lgSerie"){tonAn();serieStart();return}
   if(a==="lgSerieListe"){serieModal();return}
   if(a==="lgSerieEnde"){clearTimeout(G.reopenT);G.serieAktiv=false;camStop();if(G.serie.length)serieModal();else{closeModal();draw(0)}return}
   if(a==="lgCodeOk"){const t=document.getElementById("lgctxt");const v=t?t.value.replace(/\s+/g,""):"";if(!v)return;if(G.serieAktiv){serieAdd(v,true);t.value="";return}onCode(v);return}
