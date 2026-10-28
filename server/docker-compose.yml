@@ -3,7 +3,6 @@
 services:
   schichtlohn:
     image: ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
-    container_name: schichtlohn-server
     ports:
       - "8093:8093"
     volumes:
@@ -14,5 +13,6 @@ services:
       # - TOKEN=ein-langes-geheimes-wort   # einschalten, wenn der Server von außen erreichbar ist
     pull_policy: always   # beim Erstellen immer die neueste Version holen
     init: true   # sauberes Stoppen
+    stop_grace_period: 5s   # spätestens nach 5 s hart beenden – kein Hängenbleiben beim Aktualisieren
     restart: unless-stopped
     mem_limit: 2g
