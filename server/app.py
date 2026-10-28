@@ -231,7 +231,7 @@ def fdb_info(pfad=None):
     except Exception as e:
         return {"vorhanden": False, "fehler": str(e)}
     return {"vorhanden": True, "stand": d.get("stand"), "marken": len(d.get("b", [])), "farben": len(d.get("c", [])),
-            "barcodes": len(d.get("g", {})), "quelle": "Synology" if pfad == FDB_DATEI else "im Container mitgeliefert",
+            "barcodes": len(d.get("g", {})), "quelle": "auf dem Server gespeichert" if pfad == FDB_DATEI else "im Container mitgeliefert",
             "geladen": time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(pfad)))}
 
 

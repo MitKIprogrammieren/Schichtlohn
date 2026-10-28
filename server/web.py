@@ -95,7 +95,7 @@ def app_info(o):
     if os.path.isdir(o.vendor):
         for _, _, fs in os.walk(o.vendor):
             n += sum(1 for f in fs if not f.endswith(".typ"))
-    return {"vorhanden": True, "stand": st, "quelle": "Synology" if p.startswith(o.app) else "im Container mitgeliefert",
+    return {"vorhanden": True, "stand": st, "quelle": "auf dem Server gespeichert" if p.startswith(o.app) else "im Container mitgeliefert",
             "bibliotheken": n}
 
 
