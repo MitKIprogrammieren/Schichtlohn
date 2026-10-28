@@ -67,6 +67,8 @@ nav.tabs button[aria-current="page"]{color:var(--accent-ink);background:var(--ac
 .sync i{width:7px;height:7px;border-radius:50%;background:var(--fg-3)}
 .sync.ok i{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .sync.busy i{background:var(--warn)}
+/* nicht angemeldet: ausblenden (anmelden unter Einstellungen) */
+#cloudst.off,#crst.off{display:none}
 .sync .synclogo{height:11px;width:auto;display:block;transition:opacity .2s,filter .2s}
 .sync .synclogo.hell{filter:invert(1)}
 .sync.off .synclogo,.sync.err .synclogo{opacity:.38;filter:grayscale(1)}
