@@ -406,7 +406,7 @@ const SRV=window.SRV=(()=>{
     const waageAdr=I.ha_app?`http://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname)?location.hostname:"&lt;IP von Home Assistant&gt;"}:8093`:esc(u.replace(/\/api\/hassio_ingress\/.*$/,""));
     return `<section class="panel pad stack" id="srvsec"><div class="sec-title"><h2>SchichtLohn-Server</h2></div>
       <div class="srvk srvok"><div class="srvh"><span class="srvi">${IC.srv}</span><div class="srvst"><h3>Verbunden</h3><small>Version ${esc(I.version||"")} · ${wo}</small></div><span class="sp"></span>
-        <button class="btn sm ghost" data-act="srvTest">Testen</button><a class="btn sm ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung</a>${window.__SL_SRV?"":`<button class="btn sm ghost" data-act="srvAus">Trennen</button>`}</div>
+        <div class="srvbtns"><button class="srvbtn" data-act="srvTest">${SVG('<path d="M20 6 9 17l-5-5"/>')}Testen</button><a class="srvbtn" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">${SVG('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>')}Sicherung</a>${window.__SL_SRV?"":`<button class="srvbtn" data-act="srvAus">Trennen</button>`}</div></div>
         <p>Lager, Verbrauch, Einstellungen, Portfolio und Aufträge liegen auf dem Server und sind auf allen Geräten gleich.</p></div>
       <div class="hint" id="srv_msg"></div>
       <div class="srvgrid">
@@ -443,7 +443,7 @@ const SRV=window.SRV=(()=>{
     if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""} style="margin-bottom:8px"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.66:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
       <div id="srv_handys"></div>
-      <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`;
+      <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button><button class="btn sm ghost" data-act="srvHaTest" title="Speichert die Auswahl und schickt eine Testmeldung an jedes angekreuzte Gerät">Test senden</button></div>`;
     handysLaden()}
   /* alle Handys aus Home Assistant zum Ankreuzen */
   async function handysLaden(){const box=document.getElementById("srv_handys"),inp=document.getElementById("srv_hanot");if(!box||!inp)return;
@@ -497,6 +497,11 @@ const SRV=window.SRV=(()=>{
       confirmBox(`Alles von ${q} hierher holen? Was auf diesem Server liegt, wird ersetzt.`,"Daten holen",async()=>{msg("Hole die Daten …");
         try{const d=await req("POST","/api/umzug",{quelle:q});const l=d.listen||{};msg(`✓ Übernommen: ${l["todo.filament"]||0} Einträge im Lager, ${l["todo.filament_verbrauch"]||0} im Verbrauch, ${d.daten} Datensätze, ${d.abdruecke} gelernte Fotos${d.filamentdb?", Filament-Datenbank":""}. Den alten Server jetzt im Container Manager stoppen. Seite wird neu geladen …`);setTimeout(()=>location.reload(),4000)}
         catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}});return}
+    if(a==="srvHaTest"){const v=id=>((document.getElementById(id)||{}).value||"").trim();msg("Sende Testmeldung …");
+      try{await req("PUT","/api/einstellungen",{ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}});
+        const d=await req("POST","/api/ha/notify/test");const name=z=>esc(String(z).replace(/^notify\.mobile_app_/,"").replace(/_/g," "));
+        msg((d.ok.length?`✓ Testmeldung gesendet an ${d.ok.map(name).join(", ")}.`:"")+(d.fehler.length?` <span style="color:var(--bad)">Nicht angekommen: ${d.fehler.map(f=>name(f.ziel)+" ("+esc(f.fehler)+")").join(", ")}</span>`:""))}
+      catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
     if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
       try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}
@@ -3304,6 +3309,10 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 #srvsec .srvh .sp{display:none}
 #srvsec .srvh>h3,#srvsec .srvh>.srvst{flex:1 1 150px;min-width:0}
 #srvsec a.btn{text-decoration:none}
+#srvsec .srvbtns{display:flex;gap:8px;flex-wrap:wrap}
+#srvsec .srvbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--fg) 5%,transparent);color:var(--fg);font:600 13px/1 var(--f-body);text-decoration:none;cursor:pointer;white-space:nowrap}
+#srvsec .srvbtn:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line));color:var(--accent)}
+#srvsec .srvbtn svg{width:15px;height:15px;flex:none}
 #srvsec .srvst{display:flex;flex-direction:column;gap:2px}#srvsec .srvst small{color:var(--fg-3);font-size:12px}
 #srvsec .srvi{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
 #srvsec .srvi svg{width:17px;height:17px}
@@ -4518,5 +4527,24 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 })();
 </script>
 
+<script>/* Einstellungen in Gruppen ordnen (nach den Überschriften der Bereiche, robust gegen später eingefügte Bereiche) */
+(()=>{const GR=[
+  ["Kalkulation",["Kosten und Preis","Drucker","Materialien"]],
+  ["Verkauf und Angebote",["Verkaufskanäle","Absender für Angebote"]],
+  ["Lager und Ansicht",["Lager","Reiter"]],
+  ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Creality-Cloud","Sync zwischen Geräten"]],
+  ["Daten",["Daten und Sicherung"]]];
+  const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
+  function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
+    const kids=[...st.children].filter(e=>!e.classList.contains("eg-h"));const kopf=kids.shift();if(!kopf)return;
+    const soll=[kopf],genutzt=new Set([kopf]);
+    GR.forEach(([name,liste])=>{const teile=[];liste.forEach(t=>{const e=kids.find(k=>!genutzt.has(k)&&titel(k)===t);if(e){teile.push(e);genutzt.add(e)}});
+      if(teile.length){let h=st.querySelector(`.eg-h[data-g="${name}"]`);if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g=name;h.textContent=name}soll.push(h,...teile)}});
+    const rest=kids.filter(k=>!genutzt.has(k));if(rest.length){let h=st.querySelector('.eg-h[data-g="Weitere"]');if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g="Weitere";h.textContent="Weitere"}soll.push(h,...rest)}
+    const ist=[...st.children];if(ist.length===soll.length&&ist.every((e,i)=>e===soll[i]))return;
+    st.querySelectorAll(".eg-h").forEach(h=>{if(!soll.includes(h))h.remove()});soll.forEach(e=>st.appendChild(e))}
+  const css=document.createElement("style");css.textContent=".eg-h{margin:14px 2px -4px;font:700 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}#main>.stack>.row+.eg-h{margin-top:2px}";document.head.appendChild(css);
+  let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ordnen,0)}).observe(m,{childList:true,subtree:true});
+  window.__einOrdnen=ordnen;ordnen()})();</script>
 </body>
 </html>

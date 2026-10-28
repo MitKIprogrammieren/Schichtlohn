@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.3"
+VERSION = "3.1.4"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1177,6 +1177,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, einstellungen_maskiert())
             if methode == "PUT":
                 return self._json(200, einstellungen_setzen(self._json_rumpf()))
+        if teile == ["ha", "notify", "test"] and methode == "POST":
+            if not all(ha_cfg()):
+                raise Fehler(503, "Home Assistant ist im Server nicht verbunden")
+            roh = einstellungen()["ha"].get("notify") or ""
+            ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
+            titel, text = "SchichtLohn – Test", "Benachrichtigungen funktionieren. Jede Schicht zählt."
+            ok, fehler = [], []
+            if not ziele:
+                ha_anfrage("/api/services/persistent_notification/create",
+                           {"title": titel, "message": text, "notification_id": "schichtlohn_test"})
+                return self._json(200, {"ok": ["Home Assistant (Mitteilungen)"], "fehler": []})
+            for ziel in ziele:
+                try:
+                    ha_anfrage("/api/services/notify/" + ziel[7:], {"title": titel, "message": text})
+                    ok.append(ziel)
+                except Exception as ex:
+                    fehler.append({"ziel": ziel, "fehler": str(ex)})
+            return self._json(200, {"ok": ok, "fehler": fehler})
         if teile == ["ha", "notify"] and methode == "GET":
             if not all(ha_cfg()):
                 return self._json(200, {"dienste": [], "verbunden": False})
