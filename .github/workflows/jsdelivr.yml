@@ -14,6 +14,6 @@ jobs:
     steps:
       - name: Zwischenspeicher leeren
         run: |
-          for f in app/index.html app/scan.html app/manifest.webmanifest app/icon.svg app/icon-180.png app/icon-192.png app/icon-512.png homeassistant/schichtlohn-card.js filamentdb.json; do
+          for f in app/index.html homeassistant/schichtlohn-loader.js app/scan.html app/manifest.webmanifest app/icon.svg app/icon-180.png app/icon-192.png app/icon-512.png homeassistant/schichtlohn-card.js filamentdb.json; do
             echo "$f: $(curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/$f" | head -c 120)"
           done

@@ -210,7 +210,7 @@ def sorten():
 # Liegt als Datei auf der Synology, damit die Suche auch ohne Internet funktioniert.
 # Eine Grundversion steckt im Container; „Aktualisieren“ holt die wöchentlich gebaute neue Fassung.
 
-FDB_URL = os.environ.get("FDB_URL", "https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/filamentdb.json")
+FDB_URL = os.environ.get("FDB_URL", "")  # leer = über jsDelivr, neuester Stand
 FDB_DATEI = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "filamentdb.json")
 FDB_EINGEBAUT = "/app/modelle/filamentdb.json"
 
@@ -238,7 +238,7 @@ def fdb_info(pfad=None):
 def fdb_aktualisieren():
     import urllib.request
     try:
-        with urllib.request.urlopen(urllib.request.Request(FDB_URL, headers={"User-Agent": "SchichtLohn-Server"}), timeout=60) as r:
+        with urllib.request.urlopen(urllib.request.Request(FDB_URL or web.cdn_basis() + "filamentdb.json", headers={"User-Agent": "SchichtLohn-Server"}), timeout=60) as r:
             roh = r.read()
     except Exception as e:
         raise Fehler(502, "Download fehlgeschlagen (Internet an der Synology?): " + str(e))

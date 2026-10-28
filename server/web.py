@@ -15,7 +15,21 @@ import re
 import time
 import urllib.request
 
-APP_URL = os.environ.get("APP_URL", "https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/app/")
+REPO = "MitKIprogrammieren/Schichtlohn"
+APP_URL = os.environ.get("APP_URL", "")  # leer = über jsDelivr, immer der neueste Stand des Repos
+
+
+def cdn_basis():
+    """jsDelivr-Adresse auf den neuesten Commit festgelegt (unter @main liefert jsDelivr bis zu 12 Stunden alte Dateien)."""
+    sha = ""
+    try:
+        req = urllib.request.Request("https://api.github.com/repos/%s/commits/main" % REPO,
+                                     headers={"Accept": "application/vnd.github.sha", "User-Agent": "SchichtLohn-Server"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            sha = r.read().decode().strip()
+    except Exception:
+        pass
+    return "https://cdn.jsdelivr.net/gh/%s@%s/" % (REPO, sha if re.fullmatch(r"[0-9a-f]{40}", sha) else "main")
 APP_DATEIEN = ["index.html", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "scan.html"]
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
       "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
@@ -183,9 +197,10 @@ def aktualisieren(o):
     """Neueste App über jsDelivr aus dem Repo holen, Bibliotheken vorladen."""
     os.makedirs(o.app, exist_ok=True)
     neu = {}
+    basis = APP_URL or cdn_basis() + "app/"
     for name in APP_DATEIEN:
         try:
-            body, _ = holen(APP_URL + name + ("?t=%d" % time.time()), timeout=60)
+            body, _ = holen(basis + name, timeout=60)
         except Exception as e:
             if name == "index.html":
                 raise RuntimeError("Download fehlgeschlagen (Internet an der Synology?): " + str(e))

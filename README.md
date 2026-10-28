@@ -79,7 +79,7 @@ In Safari öffnen, Teilen → „Zum Home-Bildschirm“. SchichtLohn startet dan
 
 `homeassistant/schichtlohn-card.js` ist eine Lovelace-Karte (`custom:schichtlohn-card`).
 
-1. Einstellungen → Dashboards → Ressourcen: `https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/homeassistant/schichtlohn-card.js` als **JavaScript-Modul** hinzufügen.
+1. Einstellungen → Dashboards → Ressourcen: den Inhalt von `homeassistant/schichtlohn-loader.js` (lädt immer den neuesten Stand über jsDelivr) als **JavaScript-Modul** hinzufügen.
 2. Ein Dashboard mit einer Ansicht vom Typ **Panel** anlegen und die Karte `type: custom:schichtlohn-card` einsetzen.
 
 In Home Assistant werden die Daten im HA-Benutzerkonto gespeichert (auf allen Geräten gleich), und Materialien lassen sich aus dem FilamentLager (`todo.filament`) übernehmen.
