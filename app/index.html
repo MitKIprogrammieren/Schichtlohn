@@ -1943,7 +1943,16 @@ const J={ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haEr
 
 /* --- Bambu-Konto (nur in diesem Browser) --- */
 function acct(){try{const v=JSON.parse(localStorage.getItem(BK)||"null");return v&&v.token?v:null}catch(e){return null}}
-function setAcct(v){try{v?localStorage.setItem(BK,JSON.stringify(v)):localStorage.removeItem(BK)}catch(e){}}
+function setAcct(v){try{if(!v){const alt=acct();if(alt)sessionStorage.setItem("sl_bk_nein",alt.token)}v?localStorage.setItem(BK,JSON.stringify(v)):localStorage.removeItem(BK)}catch(e){}}
+/* Läuft SchichtLohn über den SchichtLohn-Server, die Bambu-Anmeldung vom Server übernehmen: einmal anmelden, alle Geräte verbunden.
+   Nach Abmelden oder abgelaufenem Schlüssel wird derselbe Schlüssel in dieser Sitzung nicht wieder übernommen. */
+let srvAnmLauf=false;
+async function serverAnmeldung(){if(srvAnmLauf||acct()||!(S.srv&&window.SRV))return;srvAnmLauf=true;
+  try{const d=await SRV.req("GET","/api/cloud/zugang");let nein="";try{nein=sessionStorage.getItem("sl_bk_nein")||""}catch(e){}
+    if(d&&d.token&&d.token!==nein&&!acct()){setAcct({token:d.token,region:d.region==="china"?"cn":"global",account:d.konto||"",exp:Date.now()+30*864e5,vomServer:true});
+      J.cloud=[];J.cloudAt=0;J.cloudErr="";cloudStatus();if(S.tab==="einstellungen"&&window.render&&!document.querySelector("#modal.open, #modal[open]"))window.render()}}
+  catch(e){}finally{srvAnmLauf=false}}
+setTimeout(serverAnmeldung,1500);setInterval(serverAnmeldung,10000);
 async function api(path,o={}){
   const u=new URL(PROXY+"/"+path);if(o.region==="cn")u.searchParams.set("region","cn");
   for(const [k,v] of Object.entries(o.query||{}))if(v!=null&&v!=="")u.searchParams.set(k,v);

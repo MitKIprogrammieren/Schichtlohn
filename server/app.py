@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.4"
+VERSION = "3.1.5"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1216,6 +1216,12 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucker", "neu_starten"] and methode == "POST":
             BAMBU.neu_starten()
             return self._json(200, {"ok": True})
+        if teile == ["cloud", "zugang"] and methode == "GET":
+            # Bambu-Anmeldung für die App auf diesem Server (einmal anmelden, alle Geräte verbunden)
+            c = einstellungen()["cloud"]
+            if not c.get("token"):
+                return self._json(200, {})
+            return self._json(200, {"token": c["token"], "region": c.get("region") or "global", "konto": c.get("konto") or ""})
         if teile == ["cloud", "geraete"] and methode == "POST":
             b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
             c = einstellungen()["cloud"]
