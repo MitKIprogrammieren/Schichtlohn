@@ -3681,8 +3681,14 @@ function parse(it){const d=desc(it);const sp=Number(d.spulen);const spulen=Numbe
     ams_farben:Array.isArray(d.ams_farben)?d.ams_farben.filter(hexOk).map(x=>x.toLowerCase()):[]}}
 const entries=()=>G.items.filter(i=>!desc(i).typ).map(parse);
 const offen=()=>G.items.filter(i=>desc(i).typ==="offen").map(i=>{const d=desc(i);return {uid:i.uid,gramm:Number(d.gramm)||0,drucker:d.drucker||"",ort:d.ort||"",fid:d.fid?String(d.fid):"",hex:fHex(d.farbe),name:d.name||"",material:d.material||"",grund:d.grund||"",zeit:d.zeit||"",anlass:d.anlass||""}}).sort((a,b)=>String(b.zeit).localeCompare(String(a.zeit)));
-const name=e=>[e.hersteller,e.material,e.farbe].filter(Boolean).join(" ");
-const summary=e=>name(e)+(e.besonderheiten&&e.besonderheiten.length?` (${e.besonderheiten.join(", ")})`:"");
+/* Schreibweise wie im Katalog: „Marke Material Ausführung · Farbe“, z. B. „Bambu Lab PLA Basic · Mistletoe Green“ */
+const name=e=>[e.hersteller,e.material].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"");
+const summary=e=>[e.hersteller,e.material,...(e.besonderheiten||[])].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"");
+/* vorhandene Lager-Einträge einmal auf die neue Schreibweise umbenennen (nur der Name, Daten bleiben) */
+let umbenannt=false;
+async function namenAngleichen(){if(umbenannt||!G.loaded)return;umbenannt=true;
+  const alt=G.items.filter(i=>!desc(i).typ).map(i=>({i,e:parse(i)})).filter(x=>x.e.hersteller&&x.i.summary!==summary(x.e));
+  for(const x of alt){try{await svc("update_item",{item:x.i.uid,rename:summary(x.e)})}catch(err){}}}
 const total=e=>{if(e.spulen<=0)return 0;const rs=(e.reste||[]).slice(0,e.spulen);return (e.spulen-rs.length)*e.gewicht+rs.reduce((a,x)=>a+x,0)};
 const kg=g0=>g0>=1000?(g0/1000).toLocaleString("de-DE",{maximumFractionDigits:1})+" kg":Math.round(g0).toLocaleString("de-DE")+" g";
 const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const w=(it&&desc(it).werte)||{};return Object.assign({gruppe:"material",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35},w)};
@@ -3721,7 +3727,7 @@ async function start(){
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
   try{if(L()&&haDa()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
