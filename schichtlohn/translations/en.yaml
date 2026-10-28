@@ -1,0 +1,9 @@
+configuration:
+  lesemodell:
+    name: OCR model
+    description: "auto = fast for photos, accurate for label crops · genau = always the large model · standard = smallest model"
+  token:
+    name: Key
+    description: Only needed if port 8093 is reachable from outside.
+network:
+  8093/tcp: SchichtLohn on the local network (scale, browser)

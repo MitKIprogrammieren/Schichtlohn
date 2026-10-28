@@ -1,0 +1,9 @@
+configuration:
+  lesemodell:
+    name: Lesemodell für Spulenfotos
+    description: "auto = Foto schnell, Etikett-Ausschnitt genau · genau = immer das große Modell · standard = kleinstes Modell"
+  token:
+    name: Schlüssel
+    description: Nur nötig, wenn Port 8093 von außen erreichbar ist. Leer lassen im Heimnetz.
+network:
+  8093/tcp: SchichtLohn im Heimnetz (Waage, Browser)

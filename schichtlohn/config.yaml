@@ -1,0 +1,36 @@
+name: SchichtLohn-Server
+version: "3.1.0"
+slug: schichtlohn
+description: Filamentlager, Fotoerkennung, Bambu-Drucker mit automatischer Abbuchung und Waage – die SchichtLohn-App direkt auf Home Assistant
+url: https://github.com/MitKIprogrammieren/Schichtlohn
+image: ghcr.io/mitkiprogrammieren/schichtlohn-server
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: true
+ingress: true
+ingress_port: 8093
+ingress_entry: app/
+panel_icon: mdi:printer-3d-nozzle
+panel_title: SchichtLohn
+panel_admin: false
+homeassistant_api: true
+ports:
+  8093/tcp: 8093
+ports_description:
+  8093/tcp: SchichtLohn im Heimnetz (Waage, Browser)
+environment:
+  DB: /data/schichtlohn.db
+backup: hot
+backup_exclude:
+  - vendor
+  - "*.neu"
+watchdog: http://[HOST]:[PORT:8093]/
+options:
+  lesemodell: auto
+  token: ""
+schema:
+  lesemodell: list(auto|genau|standard)
+  token: str?

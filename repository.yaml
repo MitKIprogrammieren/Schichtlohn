@@ -1,0 +1,5 @@
+# Home-Assistant-Apps von SchichtLohn
+# In Home Assistant: Einstellungen → Apps → App-Store → ⋮ → Repositories → diese Adresse hinzufügen
+name: SchichtLohn
+url: https://github.com/MitKIprogrammieren/Schichtlohn
+maintainer: MitKIprogrammieren

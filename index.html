@@ -322,7 +322,8 @@ const SRV=window.SRV=(()=>{
   const lsg=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}};
   const lss=(k,v)=>{try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k)}catch(e){}};
   const id=Math.random().toString(36).slice(2,10);
-  const url=()=>(lsg(K_URL)||(window.__SL_SRV?location.origin:"")).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
+  /* Läuft die App vom SchichtLohn-Server (Synology oder Home-Assistant-App), ist der Server immer diese Seite */
+  const url=()=>(window.__SL_SRV?location.origin+(window.__SL_BASE||""):lsg(K_URL)).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
   const norm=u=>{u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;return u};
   /* https-Seite (auch die HA-Karte, die in einem eingebetteten Rahmen läuft) darf keinen http-Server ansprechen */
   const sicher=()=>{if(location.protocol==="https:")return true;try{if(top.location.protocol==="https:")return true}catch(e){}return location.protocol!=="http:"&&!!window.isSecureContext&&!/^(localhost|127\.)/.test(location.hostname)};
@@ -386,8 +387,10 @@ const SRV=window.SRV=(()=>{
       ${S.srv?`<div class="note" id="srv_fdb" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>Filament-Datenbank auf der Synology</b><br><span id="srv_fdbinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvFdb">Jetzt aktualisieren</button></div>
         <div class="note" id="srv_app" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>SchichtLohn von der Synology</b><br><span id="srv_appinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvApp">App aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}</div>
         <div class="note stack" id="srv_dr" style="gap:8px"><b>Bambu-Drucker</b><div id="srv_drliste" class="hint">wird geprüft …</div></div>
-        <div class="note stack" id="srv_ha" style="gap:8px"><b>Home Assistant (freiwillig)</b><span class="hint">Für Meldungen aufs Handy nach der Abbuchung und damit die Waage ihre Werte weiter auch an Home Assistant schickt.</span><div id="srv_haform" class="hint">…</div></div>
-        <div class="note"><b>Waage</b><br><span class="hint">In der Waage unter Home Assistant als Adresse <code>${esc(u)}</code> eintragen, beim Token ${t?"den Server-Schlüssel":"irgendetwas, z. B. <code>schichtlohn</code>"}, Liste <code>todo.filament</code>. Die Waage arbeitet dann direkt mit der Synology.</span></div>`:""}
+        <div class="note stack" id="srv_ha" style="gap:8px"><b>Home Assistant${(S.srvInfo||{}).ha_app?"":" (freiwillig)"}</b><span class="hint">${(S.srvInfo||{}).ha_app?"Der Server läuft als Home-Assistant-App und ist automatisch mit Home Assistant verbunden. Trag nur noch ein, wohin die Meldung nach der Abbuchung gehen soll.":"Für Meldungen aufs Handy nach der Abbuchung und damit die Waage ihre Werte weiter auch an Home Assistant schickt."}</span><div id="srv_haform" class="hint">…</div></div>
+        <div class="note stack" style="gap:8px"><b>Umzug von einem anderen SchichtLohn-Server</b><span class="hint">Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</span>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><input type="text" id="srv_umzug" value="${(S.srvInfo||{}).ha_app?"http://192.168.1.4:8093":""}" placeholder="http://192.168.1.4:8093" style="flex:1 1 200px" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvUmzug">Daten holen</button></div></div>
+        <div class="note"><b>Waage</b><br><span class="hint">In der Waage unter Home Assistant als Adresse <code>${(S.srvInfo||{}).ha_app?"http://&lt;IP deines Home-Assistant-Servers&gt;:8093":esc(u)}</code> eintragen, beim Token ${t?"den Server-Schlüssel":"irgendetwas, z. B. <code>schichtlohn</code>"}, Liste <code>todo.filament</code>. Die Waage arbeitet dann direkt mit diesem Server.</span></div>`:""}
       <div class="hint" id="srv_msg"></div></section>`}
   async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
       el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf der Synology – „Jetzt aktualisieren“ antippen."}
@@ -410,7 +413,7 @@ const SRV=window.SRV=(()=>{
       <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="srv_abb"${E.abbuchung!==false?" checked":""}> <span>Nach jedem Druck automatisch abbuchen</span></label>
       ${E.abbuchung!==false&&(E.drucker||[]).length?`<span class="hint">Schalte in Home Assistant die Automation „FilamentLager – Abbuchung nach Druckende“ aus, sonst kommen Meldungen doppelt.</span>`:""}`;
     const h=E.ha||{};const hf=document.getElementById("srv_haform");
-    if(hf)hf.innerHTML=`<div class="g2"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.10:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""}><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.10:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
       <label class="field"><span>Meldung aufs Handy</span><input type="text" id="srv_hanot" value="${esc(h.notify||"")}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <div class="row"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`}
@@ -454,6 +457,10 @@ const SRV=window.SRV=(()=>{
         if(!n){msg(r.geraete&&r.geraete.length?"Alle Drucker aus der Cloud sind schon eingetragen.":"In der Bambu-Cloud sind keine Drucker gebunden.");return}
         einstSpeichern({drucker:l},`✓ ${n} Drucker aus der Bambu-Cloud übernommen (Verbindung über die Cloud). Unter „Bearbeiten“ kannst du auf Heimnetz umstellen – IP eintragen, der Zugangscode ist schon da.`)}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvUmzug"){const q=((document.getElementById("srv_umzug")||{}).value||"").trim();if(!q){toast("Adresse des alten Servers fehlt");return}
+      confirmBox(`Alles von ${q} hierher holen? Was auf diesem Server liegt, wird ersetzt.`,"Daten holen",async()=>{msg("Hole die Daten …");
+        try{const d=await req("POST","/api/umzug",{quelle:q});const l=d.listen||{};msg(`✓ Übernommen: ${l["todo.filament"]||0} Einträge im Lager, ${l["todo.filament_verbrauch"]||0} im Verbrauch, ${d.daten} Datensätze, ${d.abdruecke} gelernte Fotos${d.filamentdb?", Filament-Datenbank":""}. Den alten Server jetzt im Container Manager stoppen. Seite wird neu geladen …`);setTimeout(()=>location.reload(),4000)}
+        catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}});return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
     if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
       try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}

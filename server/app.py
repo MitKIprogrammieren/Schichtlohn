@@ -46,7 +46,19 @@ from urllib.parse import parse_qs, unquote, urlparse
 import drucker as drucker_mod
 import web
 
-VERSION = "3.0.0"
+# Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
+try:
+    with open("/data/options.json", encoding="utf-8") as _f:
+        _opt = json.load(_f)
+    if _opt.get("lesemodell") and _opt["lesemodell"] != "auto":
+        os.environ.setdefault("LESEMODELL", str(_opt["lesemodell"]))
+    if _opt.get("token"):
+        os.environ.setdefault("TOKEN", str(_opt["token"]))
+except (OSError, ValueError):
+    pass
+HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
+
+VERSION = "3.1.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -617,6 +629,9 @@ def zustaende_liste():
 
 def ha_cfg():
     h = einstellungen()["ha"]
+    if (not h.get("url") or not h.get("token")) and HA_APP:
+        # Als Home-Assistant-App: direkter Zugang über den Supervisor, ohne eigenen Token
+        return "http://supervisor/core", os.environ["SUPERVISOR_TOKEN"]
     return (h.get("url") or "").rstrip("/"), h.get("token") or ""
 
 
@@ -773,6 +788,63 @@ def druck_abbuchen(druckername, erg):
     print(text, flush=True)
     melden({"typ": "abbuchung", "drucker": druckername, "text": text})
     handy_meldung("Filament abgebucht", text)
+
+
+def abdruecke_export():
+    import base64
+    return [{"uid": u, "vek": base64.b64encode(b).decode(), "zeit": z} for u, b, z in db().execute("SELECT uid, vek, zeit FROM abdruecke")]
+
+
+def umzug(quelle, token=""):
+    """Alles von einem anderen SchichtLohn-Server (z. B. der Synology) übernehmen."""
+    import base64
+    import urllib.request
+    quelle = quelle.rstrip("/")
+    if not re.match(r"^https?://", quelle):
+        quelle = "http://" + quelle
+
+    def holen(pfad, roh=False):
+        req = urllib.request.Request(quelle + pfad, headers={"X-Token": token} if token else {})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            b = r.read()
+        return b if roh else json.loads(b.decode("utf-8"))
+    try:
+        s = holen("/api/sicherung")
+    except Exception as e:
+        raise Fehler(502, f"{quelle} nicht erreichbar oder kein SchichtLohn-Server: {e}")
+    if s.get("dienst") != "schichtlohn-server":
+        raise Fehler(400, "Unter dieser Adresse läuft kein SchichtLohn-Server")
+    out = {"listen": {}, "daten": 0, "abdruecke": 0, "filamentdb": False}
+    for name, items in (s.get("listen") or {}).items():
+        liste_ersetzen(name, items)
+        out["listen"][name] = len(items)
+    for k, w in (s.get("daten") or {}).items():
+        if k == EINST_KEY and isinstance(w, dict) and HA_APP:
+            w.setdefault("ha", {})
+        daten_schreiben(k, w, "umzug")
+        out["daten"] += 1
+    try:
+        ab = holen("/api/abdruecke")
+        with _db_lock:
+            con = db()
+            con.execute("DELETE FROM abdruecke")
+            for a in ab:
+                con.execute("INSERT INTO abdruecke(uid, vek, zeit) VALUES(?,?,?)", (a["uid"], base64.b64decode(a["vek"]), a.get("zeit") or time.time()))
+        out["abdruecke"] = len(ab)
+    except Exception:
+        pass
+    try:
+        roh = holen("/filamentdb.json", roh=True)
+        if len(roh) > 100000:
+            with open(FDB_DATEI + ".neu", "wb") as f:
+                f.write(roh)
+            os.replace(FDB_DATEI + ".neu", FDB_DATEI)
+            out["filamentdb"] = True
+    except Exception:
+        pass
+    BAMBU.neu_starten()
+    melden({"typ": "neu"})
+    return out
 
 
 class _Wirt:
@@ -954,8 +1026,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return True
+        basis = (self.headers.get("X-Ingress-Path") or "").rstrip("/")
         if roh.path == "/app/" or roh.path == "/app/index.html":
-            html = web.app_html(WEB)
+            html = web.app_html(WEB, basis)
             if html is None:
                 raise Fehler(404, "App fehlt – in SchichtLohn unter Einstellungen → SchichtLohn-Server „App aktualisieren“")
             self._senden(200, html, "text/html; charset=utf-8")
@@ -977,7 +1050,10 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(502, "Nicht im Zwischenspeicher und ohne Internet nicht ladbar: " + str(e))
             if not r:
                 raise Fehler(404, "Unbekannt")
-            self._senden(200, r[0], r[1], "public, max-age=604800")
+            body = r[0]
+            if basis and any(t in r[1] for t in ("javascript", "css")):
+                body = re.sub(rb'(["\'(])/(npm|cdnjs|gfonts|gstatic)/', lambda m: m.group(1) + basis.encode() + b"/" + m.group(2) + b"/", body)
+            self._senden(200, body, r[1], "public, max-age=604800")
             return True
         return False
 
@@ -991,7 +1067,7 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q), "app": web.app_info(WEB).get("vorhanden", False), "drucker": len(BAMBU.drucker)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q), "app": web.app_info(WEB).get("vorhanden", False), "drucker": len(BAMBU.drucker), "ha_app": HA_APP})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             print(f"Foto empfangen ({self.headers.get('Content-Length') or self.headers.get('Transfer-Encoding') or '?'} Byte) …", flush=True)
@@ -1121,6 +1197,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"geraete": drucker_mod.cloud_geraete(token, region)})
             except Exception as ex:
                 raise Fehler(502, "Bambu-Cloud: " + str(ex))
+        if teile == ["abdruecke"] and methode == "GET":
+            return self._json(200, abdruecke_export())
+        if teile == ["umzug"] and methode == "POST":
+            b = self._json_rumpf()
+            if not b.get("quelle"):
+                raise Fehler(400, "Adresse des alten Servers fehlt")
+            return self._json(200, umzug(str(b["quelle"]), str(b.get("token") or "")))
         if teile == ["app"] and methode == "GET":
             return self._json(200, web.app_info(WEB))
         if teile == ["app", "aktualisieren"] and methode == "POST":

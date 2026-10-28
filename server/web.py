@@ -72,15 +72,18 @@ def app_datei(o, name):
     return None
 
 
-def app_html(o):
+def app_html(o, basis=""):
     p = app_datei(o, "index.html")
     if not p:
         return None
     with open(p, encoding="utf-8") as f:
         html = f.read()
     html = umschreiben(html)
+    if basis:  # Home Assistant (Ingress): alles liegt unter /api/hassio_ingress/<schlüssel>
+        for _, neu in UMSCHREIBEN:
+            html = html.replace('"' + neu, '"' + basis + neu).replace("'" + neu, "'" + basis + neu).replace("`" + neu, "`" + basis + neu)
     # Kennzeichen für die App: läuft vom SchichtLohn-Server (Server-Adresse = diese Seite)
-    return html.replace("<head>", "<head><script>window.__SL_SRV=1</script>", 1)
+    return html.replace("<head>", "<head><script>window.__SL_SRV=1;window.__SL_BASE=%s</script>" % json.dumps(basis), 1)
 
 
 def app_info(o):

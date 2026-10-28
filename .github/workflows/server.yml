@@ -5,7 +5,7 @@ name: SchichtLohn-Server (Container)
 on:
   push:
     branches: [main]
-    paths: ["server/**", ".github/workflows/server.yml"]
+    paths: ["server/**", "schichtlohn/config.yaml", ".github/workflows/server.yml"]
   workflow_dispatch:
 
 permissions:
@@ -24,13 +24,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Version aus app.py
+        id: v
+        run: |
+          v=$(grep -oP '^VERSION = "\K[^"]+' server/app.py)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          grep -q "version: \"$v\"" schichtlohn/config.yaml || { echo "::error::schichtlohn/config.yaml hat nicht Version $v"; exit 1; }
       - uses: docker/build-push-action@v6
         with:
           context: server
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
+          tags: |
+            ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
+            ghcr.io/mitkiprogrammieren/schichtlohn-server:${{ steps.v.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/MitKIprogrammieren/Schichtlohn
             org.opencontainers.image.description=SchichtLohn-Server: Lager-Datenbank und Etikett-Leser
             org.opencontainers.image.licenses=MIT
+            io.hass.name=SchichtLohn-Server
+            io.hass.type=addon
+            io.hass.version=${{ steps.v.outputs.version }}

@@ -30,6 +30,10 @@ Wird SchichtLohn über **https** geöffnet (schichtlohn.pages.dev, Home Assistan
 
 Schnittstelle (auch für die Waage): `GET /api/sorten`, `GET/POST /api/listen/<name>` (gleiches Format wie die To-do-Listen in HA), `GET/PUT /api/daten/<schlüssel>`, `GET /api/ereignisse` (Live-Meldungen), `GET /api/sicherung`, `POST /lesen` (Foto).
 
+### Als Home-Assistant-App (empfohlen bei Home Assistant OS)
+
+Einstellungen → Apps → App-Store → ⋮ → **Repositories** → `https://github.com/MitKIprogrammieren/Schichtlohn` hinzufügen, dann **SchichtLohn-Server** installieren und starten. SchichtLohn erscheint in der Seitenleiste (auch unterwegs über Nabu Casa), im Heimnetz unter `http://<home-assistant>:8093/app/`. Home Assistant ist automatisch verbunden (Meldungen, Waagen-Sensoren), die Daten sind in den HA-Backups. Von einem bisherigen Server (Synology) holt Einstellungen → SchichtLohn-Server → **Umzug** alles herüber.
+
 ### App direkt von der Synology
 
 Der Server liefert SchichtLohn selbst aus: `https://<synology>/app/` (bzw. über Tailscale). Die Server-Adresse ist dort schon eingetragen, Bibliotheken (Barcode-Leser, PDF, ZIP, Schriften) liegen nach dem ersten Abruf auf der Synology – so läuft alles auch ohne Internet. Einstellungen → SchichtLohn-Server → **App aktualisieren** holt die neueste Fassung von GitHub Pages. In Safari „Zum Home-Bildschirm“ wählen.
