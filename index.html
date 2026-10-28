@@ -3825,7 +3825,7 @@ function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return ou
   out.marken=[...marken];const matGel=MATERIALIEN.some(m=>W.has(fnorm(m)));
   /* passt eine Produktlinie ganz zum Text (z. B. „PLA Basic“), rutschen andere Linien (Silk+, Gradient …) nach hinten */
   const volle=idx.some(e=>(!marken.size||marken.has(e.b))&&e.lw.length&&e.lw.every(has));
-  const sc=[];const anders=new Set();out.anders=anders;const leer=!W.size&&!f.hex&&!f.hexAuto;
+  const sc=[];const anders=new Set();out.anders=anders;const farbName=new Set();out.farbName=farbName;out.farbNameL=new Set();const leer=!W.size&&!f.hex&&!f.hexAuto;
   const mNorm=new Set([...marken].map(i=>d.bw[i].n));
   if(!leer)idx.forEach(e=>{let s=0;const bh=marken.has(e.b)||e.al.some(w=>mNorm.has(w));if(marken.size&&!bh)return;if(bh)s+=6;
     let lh=0;[...e.lw,...e.al.filter(w=>!mNorm.has(w))].forEach(w=>{if(has(w))lh++});s+=lh*3;let pen=0;if(e.lw.length&&e.lw.every(has))s+=4;else if(volle)pen=Math.max(1,e.lw.length-lh)*3;
@@ -3834,14 +3834,14 @@ function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return ou
     /* erst prüfen, ob der Text passt; danach entscheidet die Farbe stark mit über die Reihenfolge (ferne Farben rutschen nach unten) */
     const fh=f.hex||f.hexAuto;const fd=fh?farbAbst(e.hex,fh):999;
     const ok=marken.size?s>=7:((lh>=1&&s>=6)||(mh&&cv)||(mh&&fh&&fd<90));
-    if(ok){sc.push([s-pen+(fh?farbPunkte(fd,!!f.hex):0),e.i]);if(pen)anders.add(e.i)}});
+    if(ok){sc.push([s-pen+(fh?farbPunkte(fd,!!f.hex):0)+(cv?6:0),e.i]);if(pen)anders.add(e.i);if(cv)farbName.add(e.i)}});
   const fh0=f.hex||f.hexAuto;out.vorne=vorne;out.marke=marken.size>0||vorne.length>0;sc.sort((a,b)=>b[0]-a[0]);out.db=[...vorne,...sc.map(x=>x[1]).filter(i=>!vorne.includes(i))].slice(0,20);out.dbS={};sc.forEach(x=>{if(out.dbS[x[1]]==null)out.dbS[x[1]]=x[0]-(fh0?farbPunkte(farbAbst(G.fdb.c[x[1]][2],fh0),!!f.hex):0)});
   /* eigenes Lager: deutsche Farb- und Merkmalnamen werden mit den englischen Etiketten verglichen */
   const top=out.db.slice(0,5).map(i=>fdbK(i)).filter(Boolean);
   const aeh={};(f.aehnlich||[]).forEach(a=>{aeh[a.uid]=a.score});
   out.fixL=[];out.lager=entries().map(e=>{if(alleCodes.some(c=>e.codes.includes(c))){out.fixL.push(e.uid);return [100,e,100,0]}if((aeh[e.uid]||0)>=0.9)out.fixL.push(e.uid);
       let s=0;const as=aeh[e.uid]||0;if(as>=0.78)s+=as>=0.9?24:10+(as-0.78)*100;const hw=fwords(e.hersteller);const eb=fdbMarkeIdx(e.hersteller);if(marken.size&&eb!=null&&marken.has(eb))s+=6;else if(marken.size&&!(hw.length&&hw.every(has)))s-=6;else if(hw.length&&hw.every(has))s+=6;else if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
-      if(has(fnorm(e.material)))s+=2;const fw=fwords(e.farbe);if(fw.length&&fw.every(hasS))s+=6;(e.besonderheiten||[]).forEach(b=>{if(hasS(fnorm(b)))s+=2});if(volle&&(e.besonderheiten||[]).length&&!e.besonderheiten.some(b=>hasS(fnorm(b))))s-=6;
+      if(has(fnorm(e.material)))s+=2;const fw=fwords(e.farbe);if(fw.length&&fw.every(hasS)){s+=6;out.farbNameL.add(e.uid)}(e.besonderheiten||[]).forEach(b=>{if(hasS(fnorm(b)))s+=2});if(volle&&(e.besonderheiten||[]).length&&!e.besonderheiten.some(b=>hasS(fnorm(b))))s-=6;
       if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
       const lh2=f.hex||f.hexAuto;const ld=lh2?farbAbst(e.hex,lh2):999;const st=s;if(lh2)s+=farbPunkte(ld,!!f.hex);return [s,e,st,ld]})
     .filter(x=>x[0]>=(W.size||(f.aehnlich||[]).length?(out.marke?8:6):(f.hex||f.hexAuto?3:99))&&(x[2]>=20||x[3]<(f.hex?50:45))).sort((a,b)=>b[0]-a[0]).slice(0,5).map(x=>{out.lagerS=out.lagerS||{};out.lagerS[x[1].uid]=x[2];return x[1]});
@@ -3891,11 +3891,11 @@ const farbSort=(a,b)=>{const u=hexLab(a),v=hexLab(b);const cu=Math.hypot(u[1],u[
   let dh=Math.abs(Math.atan2(u[2],u[1])-Math.atan2(v[2],v[1]))*180/Math.PI;if(dh>180)dh=360-dh;return dh+Math.abs(u[0]-v[0])*.8+Math.abs(cu-cv)*.3};
 function fotoZeilen(f){const fh=f.hex||f.hexAuto;
   const z=f.tr.lager.map((e,k)=>({h:`<div class="lgr" data-act="lgFotoLager" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">Im Lager: ${plural(e.spulen,"Rolle","Rollen")}${e.codes.length?" · "+plural(e.codes.length,"Code","Codes"):""}</div></div><div class="lgrt"><span class="lgsrc">Lager</span></div></div>`,
-      fix:(f.tr.fixL||[]).includes(e.uid),d:fh?farbSort(e.hex,fh):0,t:(f.tr.lagerS||{})[e.uid]||0,n:k}))
+      fix:(f.tr.fixL||[]).includes(e.uid),fn:!!(f.tr.farbNameL&&f.tr.farbNameL.has(e.uid)),d:fh?farbSort(e.hex,fh):0,t:(f.tr.lagerS||{})[e.uid]||0,n:k}))
     .concat(f.tr.db.map((i,k)=>{let h=fdbZeile(i).replace('data-act="lgNcDb"','data-act="lgFotoPick"');const ean=fdbEan(i);if(ean)h=h.replace('</div></div><div class="lgrt">',` · EAN ${ean}</div></div><div class="lgrt">`);
-      return {h,fix:(f.tr.vorne||[]).includes(i),d:fh?farbSort(G.fdb.c[i][2],fh):0,t:(f.tr.dbS||{})[i]||0,a:f.tr.anders&&f.tr.anders.has(i),n:100+k}}));
+      return {h,fix:(f.tr.vorne||[]).includes(i),d:fh?farbSort(G.fdb.c[i][2],fh):0,t:(f.tr.dbS||{})[i]||0,a:f.tr.anders&&f.tr.anders.has(i),fn:!!(f.tr.farbName&&f.tr.farbName.has(i)),n:100+k}}));
   /* eine gemeinsame Liste: Barcode- und sichere Bild-Treffer zuerst, danach die Farbe, die dem Foto am nächsten ist, ganz oben */
-  if(fh){z.forEach(x=>x.k=x.d-x.t*1.5+(x.a?10:0));z.sort((a,b)=>(b.fix-a.fix)||(a.k-b.k)||(a.n-b.n))}
+  if(fh){z.forEach(x=>x.k=x.d-x.t*1.5+(x.a?10:0));z.sort((a,b)=>(b.fix-a.fix)||(b.fn-a.fn)||(a.fn&&b.fn?(b.t-a.t)||(a.k-b.k):a.k-b.k)||(a.n-b.n))}
   return z.map(x=>x.h).join("")||`<div class="lghint" style="padding:10px 12px">Keine Vorschläge. Unten suchen oder neue Sorte anlegen.</div>`}
 function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;const n=G.fotos.length;const txt=(f.text||[]).map(x=>x.t).join(" · ");
   modal(n>1?`Foto ${id+1} von ${n}`:"Spule erkennen",`<div class="lgform">${fotoEtHinweis()}
