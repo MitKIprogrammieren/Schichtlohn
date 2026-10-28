@@ -18,6 +18,15 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/sorten                    Lager vereinfacht (für die Waage)
   GET  /api/sicherung                 alles als JSON (Backup)
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
+  GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
+  GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
+  GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
+
+Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
+  POST /api/services/todo/get_items|update_item|add_item|remove_item
+  GET/POST /api/states[/<entity>]     Drucker, AMS, Feuchte, Waage
+  POST /api/template                  AMS-Vorlage der Waage (sonst an HA weitergereicht)
+  POST /api/events/<name>             an HA weitergereicht, falls eingetragen
 
 Mit der Umgebungsvariable TOKEN verlangt der Server bei /api/* den Schlüssel
 (Kopfzeile X-Token oder ?token=…). Ohne TOKEN ist alles im Heimnetz offen.
@@ -25,6 +34,7 @@ Mit der Umgebungsvariable TOKEN verlangt der Server bei /api/* den Schlüssel
 import io
 import json
 import os
+import re
 import queue
 import sqlite3
 import threading
@@ -33,7 +43,10 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "2.5.1"
+import drucker as drucker_mod
+import web
+
+VERSION = "3.0.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -513,6 +526,325 @@ class Fehler(Exception):
         self.code = code
 
 
+# ---------------------------------------------------------------- Server-Einstellungen (Drucker, Bambu-Cloud, Home Assistant)
+# Liegen in der Tabelle daten unter „_server“; über /api/daten nicht lesbar, Schlüssel werden nur maskiert ausgegeben.
+
+EINST_KEY = "_server"
+GEHEIM = ("code", "token")
+MASKE = "••••••"
+
+
+def einstellungen():
+    w, _ = daten_lesen(EINST_KEY)
+    w = w if isinstance(w, dict) else {}
+    w.setdefault("drucker", [])
+    w.setdefault("cloud", {})
+    w.setdefault("ha", {})
+    w.setdefault("abbuchung", True)
+    return w
+
+
+def einstellungen_maskiert():
+    import copy
+    e = copy.deepcopy(einstellungen())
+    for d in e["drucker"]:
+        if d.get("code"):
+            d["code"] = MASKE
+    for k in ("cloud", "ha"):
+        if e[k].get("token"):
+            e[k]["token"] = MASKE
+    e["cloud"].pop("uid", None)
+    return e
+
+
+def einstellungen_setzen(neu):
+    alt = einstellungen()
+    e = dict(alt)
+    if isinstance(neu.get("drucker"), list):
+        alte = {d.get("id"): d for d in alt["drucker"]}
+        liste = []
+        for d in neu["drucker"]:
+            d = {k: (v.strip() if isinstance(v, str) else v) for k, v in d.items()}
+            d["id"] = d.get("id") or uuid.uuid4().hex[:8]
+            if d.get("code") == MASKE:
+                d["code"] = (alte.get(d["id"]) or {}).get("code", "")
+            if d.get("serial"):
+                d["serial"] = d["serial"].upper()
+                if not d.get("modell"):
+                    d["modell"] = drucker_mod.modell_aus_serie(d["serial"])
+            liste.append(d)
+        e["drucker"] = liste
+    for k in ("cloud", "ha"):
+        if isinstance(neu.get(k), dict):
+            x = dict(alt[k])
+            for kk, v in neu[k].items():
+                if v == MASKE:
+                    continue
+                x[kk] = v.strip() if isinstance(v, str) else v
+            if k == "cloud" and neu[k].get("token") not in (None, MASKE):
+                x.pop("uid", None)
+            e[k] = x
+    if "abbuchung" in neu:
+        e["abbuchung"] = bool(neu["abbuchung"])
+    daten_schreiben(EINST_KEY, e)
+    BAMBU.neu_starten()
+    return einstellungen_maskiert()
+
+
+# ---------------------------------------------------------------- Zustände (wie Home Assistant: Drucker, AMS, Waage)
+
+_zst = {}
+_zst_lock = threading.Lock()
+
+
+def zustand_setzen(eid, state, attrs, quelle=""):
+    jetzt = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    with _zst_lock:
+        alt = _zst.get(eid)
+        if alt and alt["state"] == state and alt["attributes"] == attrs:
+            return alt
+        z = {"entity_id": eid, "state": state, "attributes": attrs, "last_changed": jetzt if not alt or alt["state"] != state else alt["last_changed"],
+             "last_updated": jetzt}
+        _zst[eid] = z
+    melden({"typ": "zustand", "z": z, "quelle": quelle})
+    return z
+
+
+def zustaende_liste():
+    with _zst_lock:
+        return list(_zst.values())
+
+
+def ha_cfg():
+    h = einstellungen()["ha"]
+    return (h.get("url") or "").rstrip("/"), h.get("token") or ""
+
+
+def ha_anfrage(pfad, daten=None, timeout=10, roh=False):
+    import urllib.request
+    url, token = ha_cfg()
+    if not url or not token:
+        raise Fehler(503, "Home Assistant ist im Server nicht eingetragen")
+    req = urllib.request.Request(url + pfad, data=None if daten is None else json.dumps(daten).encode(),
+                                 headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                                 method="GET" if daten is None else "POST")
+    ctx = None
+    if url.startswith("https://"):
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        b = r.read()
+    return b if roh else json.loads(b.decode() or "null")
+
+
+def im_hintergrund(f, *a):
+    def lauf():
+        try:
+            f(*a)
+        except Exception as e:
+            print("Hintergrund:", e, flush=True)
+    threading.Thread(target=lauf, daemon=True).start()
+
+
+def handy_meldung(titel, text):
+    melden({"typ": "meldung", "titel": titel, "text": text})
+    h = einstellungen()["ha"]
+    ziel = (h.get("notify") or "").strip()
+    url, token = ha_cfg()
+    if not (url and token):
+        return
+    if ziel.startswith("notify."):
+        im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], {"title": titel, "message": text})
+    else:
+        im_hintergrund(ha_anfrage, "/api/services/persistent_notification/create",
+                       {"title": titel, "message": text, "notification_id": "filament_abbuchung"})
+
+
+# ---------------------------------------------------------------- Abbuchung nach Druckende (wie script.filament_abbuchen in HA)
+
+ENT, META = "todo.filament", "todo.filament_verbrauch"
+
+
+def _desc(it):
+    try:
+        d = json.loads(it.get("description") or "{}")
+        return d if isinstance(d, dict) else {}
+    except ValueError:
+        return {}
+
+
+def _zahl(x, std=0.0):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return std
+
+
+def sorte_fuer(fid, col):
+    """Sorte mit passender Bambu-ID und Bestand, bei mehreren die mit der nächsten Farbe (hex oder gelernte AMS-Farben)."""
+    beste, abst = None, 10 ** 9
+    for it in liste_lesen(ENT):
+        if it["status"] == "completed":
+            continue
+        d = _desc(it)
+        if not fid or str(d.get("bambu_id") or "") != fid or int(_zahl(d.get("spulen"))) <= 0:
+            continue
+        farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
+        dist = min(drucker_mod.farbabstand(h, col) if col else 0 for h in farben)
+        if dist < abst:
+            beste, abst = (it, d), dist
+    if beste and abst <= 19200:
+        return beste, ""
+    if beste:
+        return None, f"Farbe {col} passt zu keiner Sorte mit Bambu-ID {fid}"
+    return None, f"keine Sorte mit Bambu-ID {fid or '?'} und Bestand"
+
+
+def abbuchen_rechnen(d, gramm):
+    gw = _zahl(d.get("gewicht"), 1000) or 1000
+    sp = int(_zahl(d.get("spulen"), 1))
+    rq = d.get("reste") if isinstance(d.get("reste"), list) else ([d["rest"]] if d.get("rest") not in (None, "") else [])
+    rl = sorted(x for x in (_zahl(r) for r in rq) if 0 < x < gw)[:max(sp, 0)]
+    g = gramm
+    for _ in range(25):
+        if g > 0 and sp > 0:
+            if not rl:
+                rl = [gw]
+            elif rl[0] - g >= 1:
+                rl = [rl[0] - g] + rl[1:]
+                g = 0
+            else:
+                g = max(g - rl[0], 0)
+                rl = rl[1:]
+                sp -= 1
+    neu = {k: v for k, v in d.items() if k != "rest"}
+    neu.update({"v": 2, "spulen": sp, "reste": [int(round(x)) for x in rl if round(x) < gw],
+                "refills": min(int(_zahl(d.get("refills"), 0)), sp)})
+    bestand = ((sp - len(neu["reste"][:sp])) * gw + sum(neu["reste"][:sp])) if sp > 0 else 0
+    return neu, bestand
+
+
+def _gram(g):
+    return ("%.1f" % g).replace(".", ",")
+
+
+def druck_abbuchen(druckername, erg):
+    if not einstellungen().get("abbuchung", True):
+        print(f"{druckername}: {erg['anlass']} – automatische Abbuchung ist aus", flush=True)
+        return
+    zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    dt = time.strftime("%d.%m.%Y %H:%M")
+    bericht, offen = [], []
+    for po in erg["posten"]:
+        g = float(po.get("gramm") or 0)
+        if g <= 0.05:
+            continue
+        treffer, grund = sorte_fuer(po.get("fid") or "", (po.get("col") or "").lower())
+        if treffer:
+            it, d = treffer
+            neu, bestand = abbuchen_rechnen(d, g)
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+            preis = _zahl(d.get("preis"))
+            log = {"typ": "verbrauch", "v": 1, "zeit": zeit, "drucker": druckername, "ort": po.get("ort") or "", "sorte": it["summary"],
+                   "uid": it["uid"], "hersteller": d.get("hersteller") or "", "material": d.get("material") or "", "hex": d.get("hex") or "",
+                   "gramm": round(g, 1), "preis": preis or None, "kosten": round(g / 1000 * preis, 2) if preis else None,
+                   "anlass": erg["anlass"], "quelle": "SchichtLohn-Server · " + erg.get("quelle", "")}
+            liste_aendern(META, "add_item", {"item": f"{dt} · {druckername} · {_gram(g)} g · {it['summary']}",
+                                             "description": json.dumps(log, ensure_ascii=False)})
+            bericht.append(f"{it['summary']}: −{_gram(g)} g ({po.get('ort')}), Bestand {int(round(bestand))} g")
+        else:
+            offen.append(f"{po.get('ort')} ({_gram(g)} g): {grund}")
+            merk = {"typ": "offen", "v": 1, "gramm": round(g, 1), "drucker": druckername, "ort": po.get("ort") or "", "fid": po.get("fid") or "",
+                    "farbe": po.get("col") or "", "name": po.get("name") or "", "material": po.get("material") or "", "grund": grund,
+                    "anlass": erg["anlass"], "zeit": zeit}
+            liste_aendern(ENT, "add_item", {"item": f"⚠ Nicht zugeordnet: {_gram(g)} g · {druckername} · {po.get('ort')}",
+                                            "description": json.dumps(merk, ensure_ascii=False)})
+    teile = []
+    if bericht:
+        teile.append("Abgebucht: " + "; ".join(bericht))
+    if offen:
+        teile.append("Nicht abgebucht (in SchichtLohn zuordnen): " + "; ".join(offen))
+    if not erg["posten"]:
+        teile.append("Keine Verbrauchsangaben gefunden (" + erg.get("quelle", "") + ")")
+    anteil = erg.get("anteil", 1)
+    text = f"{druckername}, {erg['anlass']}{' (%d %%)' % round(anteil * 100) if anteil < 1 else ''}. " + ". ".join(teile)
+    print(text, flush=True)
+    melden({"typ": "abbuchung", "drucker": druckername, "text": text})
+    handy_meldung("Filament abgebucht", text)
+
+
+class _Wirt:
+    """Verbindet die Drucker (drucker.py) mit Lager und Zuständen."""
+
+    def einstellungen(self):
+        return einstellungen()
+
+    def cloud(self):
+        return dict(einstellungen()["cloud"])
+
+    def cloud_merken(self, c):
+        e = einstellungen()
+        e["cloud"].update({"uid": c.get("uid")})
+        daten_schreiben(EINST_KEY, e)
+
+    def zustaende(self, dr, z):
+        for eid, (s, a) in z.items():
+            zustand_setzen(eid, s, a, "drucker")
+
+    def druckende(self, dr, erg):
+        name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+        druck_abbuchen(name, erg)
+
+    def log(self, text):
+        print(text, flush=True)
+
+
+BAMBU = drucker_mod.Bambu(_Wirt())
+
+
+# ---------------------------------------------------------------- Waage: Antworten wie Home Assistant
+
+AMS_RE = re.compile(r"_(ams_\d+_slot_\d+|externalspool\d*_externe_spule)$")
+FEUCHTE_RE = re.compile(r"_ams_\d+_(luftfeuchtigkeit|index_der_luftfeuchtigkeit)(_\d+)?$")
+STATUS_RE = re.compile(r"^sensor\.[^_]+_[^_]+_druckstatus$")
+
+
+def ams_vorlage():
+    """Ergebnis der AMS-Vorlage der Waage (pi_system.AMS_VORLAGE), berechnet aus den eigenen Zuständen."""
+    slots, drucker = [], []
+    for z in zustaende_liste():
+        e, a = z["entity_id"], z["attributes"]
+        if e.startswith("sensor.") and (AMS_RE.search(e) or FEUCHTE_RE.search(e)):
+            slots.append({"e": e, "s": z["state"], "name": a.get("name"), "color": a.get("color"), "fid": a.get("filament_id"),
+                          "empty": a.get("empty"), "active": a.get("active"), "remain": a.get("remain"), "tag": a.get("tag_uid"),
+                          "type": a.get("type")})
+        if STATUS_RE.match(e):
+            drucker.append({"p": e[7:-12], "name": a.get("drucker_name") or "", "online": z["state"] not in ("unavailable", "unknown", "offline")})
+    return {"slots": slots, "drucker": drucker, "abbuchung": "on" if einstellungen().get("abbuchung", True) and BAMBU.drucker else "off"}
+
+
+def ha_dienst(domain, service, b):
+    """POST /api/services/<domain>/<service> – Todo-Listen beantwortet der Server selbst, alles andere geht an HA."""
+    if domain == "todo":
+        ents = b.get("entity_id") or (b.get("target") or {}).get("entity_id")
+        ents = ents if isinstance(ents, list) else [ents]
+        if service == "get_items":
+            st = b.get("status")
+            st = st if isinstance(st, list) else ([st] if st else None)
+            antwort = {}
+            for e in ents:
+                items = [{k: v for k, v in it.items()} for it in liste_lesen(e) if not st or it["status"] in st]
+                antwort[e] = {"items": items}
+            return {"changed_states": [], "service_response": antwort}
+        for e in ents:
+            daten = {k: v for k, v in b.items() if k not in ("entity_id", "target")}
+            liste_aendern(e, service, daten)
+        return []
+    return ha_anfrage(f"/api/services/{domain}/{service}", b)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "SchichtLohn-Server/" + VERSION
     protocol_version = "HTTP/1.1"
@@ -520,7 +852,7 @@ class Handler(BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Token")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Token, Authorization")
         self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Max-Age", "86400")
 
@@ -595,7 +927,59 @@ class Handler(BaseHTTPRequestHandler):
         if not TOKEN:
             return True
         t = self.headers.get("X-Token") or (q.get("token") or [""])[0]
+        a = self.headers.get("Authorization") or ""
+        if a.lower().startswith("bearer "):
+            t = t or a[7:].strip()
         return t == TOKEN
+
+    def _senden(self, code, body, typ, cache="no-cache"):
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        self.send_response(code)
+        self._cors()
+        self.send_header("Content-Type", typ)
+        self.send_header("Cache-Control", cache)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _web(self, methode):
+        """App und Bibliotheken; → True, wenn beantwortet"""
+        roh = urlparse(self.path)
+        if methode != "GET":
+            return False
+        if roh.path == "/app":
+            self.send_response(301)
+            self.send_header("Location", "/app/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if roh.path == "/app/" or roh.path == "/app/index.html":
+            html = web.app_html(WEB)
+            if html is None:
+                raise Fehler(404, "App fehlt – in SchichtLohn unter Einstellungen → SchichtLohn-Server „App aktualisieren“")
+            self._senden(200, html, "text/html; charset=utf-8")
+            return True
+        if roh.path.startswith("/app/"):
+            p = web.app_datei(WEB, roh.path[5:])
+            if not p:
+                raise Fehler(404, "Unbekannte Datei")
+            with open(p, "rb") as f:
+                self._senden(200, f.read(), web.typ_fuer(p))
+            return True
+        art, _, rest = roh.path.lstrip("/").partition("/")
+        if art in web.QUELLEN and rest:
+            if roh.query:
+                rest += "?" + roh.query
+            try:
+                r = web.vendor(WEB, art, rest)
+            except Exception as e:
+                raise Fehler(502, "Nicht im Zwischenspeicher und ohne Internet nicht ladbar: " + str(e))
+            if not r:
+                raise Fehler(404, "Unbekannt")
+            self._senden(200, r[0], r[1], "public, max-age=604800")
+            return True
+        return False
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -607,7 +991,7 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q)})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q), "app": web.app_info(WEB).get("vorhanden", False), "drucker": len(BAMBU.drucker)})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             print(f"Foto empfangen ({self.headers.get('Content-Length') or self.headers.get('Transfer-Encoding') or '?'} Byte) …", flush=True)
@@ -620,6 +1004,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, r)
         if pfad == "/filamentdb.json" and methode == "GET":
             return self._datei(fdb_pfad(), "application/json; charset=utf-8")
+        if self._web(methode):
+            return
+        if pfad == "/api" and methode == "GET":
+            return self._json(200, {"message": "API running."})
         if not pfad.startswith("/api/"):
             raise Fehler(404, "Unbekannter Pfad")
         if not self._darf(q):
@@ -644,6 +1032,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, liste_ersetzen(name, b["items"]))
         if teile[0] == "daten" and len(teile) == 2:
             k = teile[1]
+            if k.startswith("_"):
+                raise Fehler(403, "Geschützter Schlüssel")
             if methode == "GET":
                 w, t = daten_lesen(k)
                 if t is None:
@@ -667,6 +1057,77 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, sicherung())
         if teile == ["ereignisse"] and methode == "GET":
             return self._sse()
+        # --- wie Home Assistant (für die Waage und die Lager-Ansicht)
+        if teile[0] == "services" and len(teile) == 3 and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            try:
+                return self._json(200, ha_dienst(teile[1], teile[2], b))
+            except KeyError as e:
+                raise Fehler(404, str(e).strip("'"))
+            except ValueError as e:
+                raise Fehler(400, str(e))
+        if teile[0] == "states":
+            if len(teile) == 1 and methode == "GET":
+                return self._json(200, zustaende_liste())
+            if len(teile) == 2 and methode == "GET":
+                z = next((z for z in zustaende_liste() if z["entity_id"] == teile[1]), None)
+                if not z:
+                    raise Fehler(404, "Entity not found.")
+                return self._json(200, z)
+            if len(teile) == 2 and methode == "POST":
+                b = self._json_rumpf()
+                z = zustand_setzen(teile[1], str(b.get("state", "")), b.get("attributes") or {}, "api")
+                if all(ha_cfg()):
+                    im_hintergrund(ha_anfrage, "/api/states/" + teile[1], b)
+                return self._json(201, z)
+        if teile[0] == "events" and len(teile) == 2 and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            melden({"typ": "ereignis", "name": teile[1], "daten": b})
+            if all(ha_cfg()):
+                im_hintergrund(ha_anfrage, "/api/events/" + teile[1], b)
+            return self._json(200, {"message": f"Event {teile[1]} fired."})
+        if teile == ["template"] and methode == "POST":
+            t = str(self._json_rumpf().get("template") or "")
+            if "_ams_" in t and "states.sensor" in t and (BAMBU.drucker or not all(ha_cfg())):
+                return self._senden(200, json.dumps(ams_vorlage(), ensure_ascii=False), "text/plain; charset=utf-8", "no-store")
+            if all(ha_cfg()):
+                return self._senden(200, ha_anfrage("/api/template", {"template": t}, roh=True), "text/plain; charset=utf-8", "no-store")
+            raise Fehler(400, "Vorlagen gehen nur mit eingetragenem Home Assistant")
+        # --- Einstellungen, Drucker, App
+        if teile == ["einstellungen"]:
+            if methode == "GET":
+                return self._json(200, einstellungen_maskiert())
+            if methode == "PUT":
+                return self._json(200, einstellungen_setzen(self._json_rumpf()))
+        if teile == ["drucker"] and methode == "GET":
+            return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
+        if teile == ["drucker", "neu_starten"] and methode == "POST":
+            BAMBU.neu_starten()
+            return self._json(200, {"ok": True})
+        if teile == ["cloud", "geraete"] and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            c = einstellungen()["cloud"]
+            token = b.get("token") or c.get("token")
+            region = b.get("region") or c.get("region") or "global"
+            if not token:
+                raise Fehler(400, "Nicht bei der Bambu-Cloud angemeldet")
+            if b.get("token"):
+                e = einstellungen()
+                e["cloud"] = {"token": token, "region": region, "konto": b.get("konto") or ""}
+                daten_schreiben(EINST_KEY, e)
+                if any(d.get("modus") == "cloud" for d in e["drucker"]):
+                    BAMBU.neu_starten()
+            try:
+                return self._json(200, {"geraete": drucker_mod.cloud_geraete(token, region)})
+            except Exception as ex:
+                raise Fehler(502, "Bambu-Cloud: " + str(ex))
+        if teile == ["app"] and methode == "GET":
+            return self._json(200, web.app_info(WEB))
+        if teile == ["app", "aktualisieren"] and methode == "POST":
+            try:
+                return self._json(200, web.aktualisieren(WEB))
+            except RuntimeError as ex:
+                raise Fehler(502, str(ex))
         raise Fehler(404, "Unbekannter Pfad")
 
     def _sse(self):
@@ -719,6 +1180,9 @@ class Handler(BaseHTTPRequestHandler):
             print("%s %s" % (self.address_string(), fmt % args), flush=True)
 
 
+WEB = web.Ordner(os.path.dirname(os.path.abspath(DB_PFAD)))
+
+
 class Server(ThreadingHTTPServer):
     daemon_threads = True
 
@@ -731,4 +1195,5 @@ if __name__ == "__main__":
     # Als Hauptprozess im Container reagiert Python nicht von selbst auf „Stopp“ (SIGTERM) – sauber beenden
     import signal
     signal.signal(signal.SIGTERM, lambda *_: os._exit(0))
+    BAMBU.neu_starten()
     Server(("0.0.0.0", PORT), Handler).serve_forever()

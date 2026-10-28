@@ -322,7 +322,7 @@ const SRV=window.SRV=(()=>{
   const lsg=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}};
   const lss=(k,v)=>{try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k)}catch(e){}};
   const id=Math.random().toString(36).slice(2,10);
-  const url=()=>lsg(K_URL).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
+  const url=()=>(lsg(K_URL)||(window.__SL_SRV?location.origin:"")).replace(/\/+$/,"");const token=()=>lsg(K_TOK);
   const norm=u=>{u=String(u||"").trim().replace(/\/+$/,"");if(u&&!/^https?:\/\//i.test(u))u="http://"+u;return u};
   /* https-Seite (auch die HA-Karte, die in einem eingebetteten Rahmen läuft) darf keinen http-Server ansprechen */
   const sicher=()=>{if(location.protocol==="https:")return true;try{if(top.location.protocol==="https:")return true}catch(e){}return location.protocol!=="http:"&&!!window.isSecureContext&&!/^(localhost|127\.)/.test(location.hostname)};
@@ -351,8 +351,15 @@ const SRV=window.SRV=(()=>{
   /* Start: ist ein Server eingetragen und erreichbar? */
   async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
-      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu()})}
+      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
+        if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu")zstLaden();
+        if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180))});
+      zstLaden()}
     catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
+  /* Zustände im Format von Home Assistant (Drucker, AMS-Fächer, Feuchte, Waage) */
+  const zst={};let zstT=null;
+  async function zstLaden(){try{const l=await req("GET","/api/states");if(Array.isArray(l)){Object.keys(zst).forEach(k=>delete zst[k]);l.forEach(z=>{zst[z.entity_id]=z});zstNeu()}}catch(e){}}
+  function zstNeu(){zstNeu.v=(zstNeu.v||0)+1;clearTimeout(zstT);zstT=setTimeout(()=>{try{window.dispatchEvent(new Event("sl-zustand"))}catch(e){}},250)}
   let nlT={};function nachladen(k){clearTimeout(nlT[k]);nlT[k]=setTimeout(async()=>{try{const w=await get(k);if(w==null)return;
       if(k==="cfg"){const keep=S.cfg&&S.cfg.lagerLokal;S.cfg=Object.assign({},w);if(keep)S.cfg.lagerLokal=keep}else if(k==="portfolio")S.portfolio=w;else S.orders=w;
       const ae=document.activeElement;const tippt=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);if(!tippt&&!document.getElementById("modal")&&window.render)window.render()}catch(e){}},300)}
@@ -376,18 +383,78 @@ const SRV=window.SRV=(()=>{
         <label class="field"><span>Schlüssel (falls eingerichtet)</span><input type="text" id="srv_tok" value="${esc(t)}" placeholder="leer lassen, wenn keiner" autocomplete="off"></label></div>
       <div class="row" style="flex-wrap:wrap;gap:8px">${S.srv?`<button class="btn" data-act="srvTest">Verbindung testen</button><a class="btn ghost" href="${esc(u)}/api/sicherung${t?"?token="+encodeURIComponent(t):""}" target="_blank" rel="noopener" download="schichtlohn-sicherung.json">Sicherung herunterladen</a><button class="btn ghost" data-act="srvAus">Server nicht mehr verwenden</button>`
         :`<button class="btn" data-act="srvTest">Verbindung testen</button><button class="btn pri" data-act="srvNutzen">Daten übernehmen und Server verwenden</button><button class="btn ghost" data-act="srvNurNutzen">Nur verbinden (Server hat schon Daten)</button>`}</div>
-      ${S.srv?`<div class="note" id="srv_fdb" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>Filament-Datenbank auf der Synology</b><br><span id="srv_fdbinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvFdb">Jetzt aktualisieren</button></div>`:""}
+      ${S.srv?`<div class="note" id="srv_fdb" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>Filament-Datenbank auf der Synology</b><br><span id="srv_fdbinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvFdb">Jetzt aktualisieren</button></div>
+        <div class="note" id="srv_app" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1 1 220px"><b>SchichtLohn von der Synology</b><br><span id="srv_appinfo">wird geprüft …</span></span><button class="btn sm" data-act="srvApp">App aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}</div>
+        <div class="note stack" id="srv_dr" style="gap:8px"><b>Bambu-Drucker</b><div id="srv_drliste" class="hint">wird geprüft …</div></div>
+        <div class="note stack" id="srv_ha" style="gap:8px"><b>Home Assistant (freiwillig)</b><span class="hint">Für Meldungen aufs Handy nach der Abbuchung und damit die Waage ihre Werte weiter auch an Home Assistant schickt.</span><div id="srv_haform" class="hint">…</div></div>
+        <div class="note"><b>Waage</b><br><span class="hint">In der Waage unter Home Assistant als Adresse <code>${esc(u)}</code> eintragen, beim Token ${t?"den Server-Schlüssel":"irgendetwas, z. B. <code>schichtlohn</code>"}, Liste <code>todo.filament</code>. Die Waage arbeitet dann direkt mit der Synology.</span></div>`:""}
       <div class="hint" id="srv_msg"></div></section>`}
   async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
       el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf der Synology – „Jetzt aktualisieren“ antippen."}
     catch(e){el.textContent="Unbekannt ("+(e.message||e)+"). Der Server braucht Version 2.4."}}
-  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(fdbInfo,50)});
-  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …")fdbInfo()},1500);
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();drLaden()},50)});
+  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();drLaden()}},1500);
+  /* App von der Synology */
+  async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
+      el.innerHTML=d.vorhanden?`Stand ${esc(d.stand)} · ${esc(d.quelle)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf der Synology – „App aktualisieren“ antippen."}
+    catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+")."}}
+  /* Drucker und Home Assistant */
+  let E=null,DR=[];
+  const drStatus=d=>!d.online?(d.fehler?`<span style="color:var(--bad)">${esc(d.fehler)}</span>`:"verbindet …"):({RUNNING:"druckt",PAUSE:"pausiert",FINISH:"fertig",FAILED:"abgebrochen",IDLE:"bereit",PREPARE:"bereitet vor"}[d.status]||esc(d.status||"verbunden"))+(d.status==="RUNNING"?` · ${d.fortschritt} %`:"");
+  async function drLaden(){const el=document.getElementById("srv_drliste");if(!el)return;
+    try{E=await req("GET","/api/einstellungen");const l=await req("GET","/api/drucker");DR=l.drucker||[]}catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+").";return}
+    const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};
+      return `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1 1 180px"><b>${esc(d.name||d.serial)}</b> <span class="dim">· ${d.modus==="cloud"?"Bambu-Cloud":"Heimnetz "+esc(d.ip||"")}</span><br><span class="hint"><span style="color:${live.online?"var(--accent)":"var(--fg-3)"}">●</span> ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</span></span><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
+    el.innerHTML=`${zeilen||`<span class="hint">Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern (MQTT, wie Bambuddy) und bucht nach jedem Druck das Filament im Lager ab.</span>`}
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvDrNeu">${ICON.plus||"+"} Drucker</button><button class="btn sm ghost" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button></div>
+      <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="srv_abb"${E.abbuchung!==false?" checked":""}> <span>Nach jedem Druck automatisch abbuchen</span></label>
+      ${E.abbuchung!==false&&(E.drucker||[]).length?`<span class="hint">Schalte in Home Assistant die Automation „FilamentLager – Abbuchung nach Druckende“ aus, sonst kommen Meldungen doppelt.</span>`:""}`;
+    const h=E.ha||{};const hf=document.getElementById("srv_haform");
+    if(hf)hf.innerHTML=`<div class="g2"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.10:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
+      <label class="field"><span>Meldung aufs Handy</span><input type="text" id="srv_hanot" value="${esc(h.notify||"")}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="row"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button></div>`}
+  async function einstSpeichern(neu,ok){try{E=await req("PUT","/api/einstellungen",neu);if(ok)msg(ok);setTimeout(drLaden,1500);setTimeout(drLaden,6000)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}}
+  document.addEventListener("change",e=>{if(e.target&&e.target.id==="srv_abb")einstSpeichern({abbuchung:e.target.checked},e.target.checked?"✓ Automatische Abbuchung an.":"Automatische Abbuchung aus.")});
+  const MOD=[["","automatisch (aus der Seriennummer)"],["h2c","H2C"],["h2d","H2D"],["h2s","H2S"],["x1c","X1C"],["x1e","X1E"],["p1s","P1S"],["p1p","P1P"],["p2s","P2S"],["a1","A1"],["a1mini","A1 mini"]];
+  function drModal(i,vorlage){const d=Object.assign({modus:"lokal",aktiv:true},i!=null?E.drucker[i]:vorlage||{});
+    modal(i!=null?"Drucker bearbeiten":"Drucker hinzufügen",`<div class="stack" style="gap:10px">
+      <label class="field"><span>Name</span><input type="text" id="dr_name" value="${esc(d.name||"")}" placeholder="z. B. H2C"></label>
+      <label class="field"><span>Seriennummer</span><input type="text" id="dr_serial" value="${esc(d.serial||"")}" placeholder="am Drucker unter Einstellungen → Gerät" autocapitalize="characters" spellcheck="false"></label>
+      <label class="field"><span>Verbindung</span><select id="dr_modus"><option value="lokal"${d.modus!=="cloud"?" selected":""}>Heimnetz (IP + Zugangscode)</option><option value="cloud"${d.modus==="cloud"?" selected":""}>Bambu-Cloud</option></select></label>
+      <div class="g2" id="dr_lokal"${d.modus==="cloud"?" hidden":""}><label class="field"><span>IP-Adresse</span><input type="text" id="dr_ip" value="${esc(d.ip||"")}" placeholder="192.168.1.50" inputmode="decimal"></label>
+        <label class="field"><span>Zugangscode</span><input type="text" id="dr_code" value="${esc(d.code||"")}" placeholder="am Drucker: Netzwerk → Zugangscode" autocomplete="off" spellcheck="false"></label></div>
+      <label class="field"><span>Modell</span><select id="dr_modell">${MOD.map(([k,n])=>`<option value="${k}"${(d.modell||"")===k?" selected":""}>${n}</option>`).join("")}</select></label>
+      <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="dr_aktiv"${d.aktiv!==false?" checked":""}> <span>Verbindung an</span></label>
+      <div class="hint">Heimnetz: Am Drucker unter Netzwerk den <b>LAN-Modus</b> und für neuere Firmware den <b>Entwicklermodus</b> einschalten; zum Mitlesen reicht meist der LAN-Zugangscode. Für die Gramm je Filament in Bambu Studio „Gesendete Dateien auf externem Speicher speichern“ aktivieren (sonst kommt der Verbrauch aus der Cloud oder der AMS-Restanzeige).<br>Bambu-Cloud: nutzt deine Bambu-Anmeldung aus SchichtLohn (Einstellungen → Bambu-Cloud), am Drucker muss nichts umgestellt werden.</div></div>`,
+      `${i!=null?`<button class="btn ghost" data-act="srvDrWeg" data-i="${i}" style="color:var(--bad)">Entfernen</button>`:""}<span class="sp" style="flex:1"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="srvDrOk" data-i="${i!=null?i:""}">Speichern</button>`);
+    const m=document.getElementById("dr_modus");if(m)m.addEventListener("change",()=>{document.getElementById("dr_lokal").hidden=m.value==="cloud"})}
+  function bambuKonto(){try{const v=JSON.parse(localStorage.getItem("schichtlohn_bambu")||"null");return v&&v.token?v:null}catch(e){return null}}
   const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t};
   const feld=()=>({u:norm((document.getElementById("srv_url")||{}).value),t:((document.getElementById("srv_tok")||{}).value||"").trim()});
   async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
   document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
     const {u,t}=feld();
+    if(a==="srvApp"){msg("Lade die neueste App und ihre Bibliotheken auf die Synology …");b.disabled=true;
+      try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}.${window.__SL_SRV?" Seite neu laden, um sie zu nutzen.":""}`);appInfo()}
+      catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
+    if(a==="srvDrNeu"){drModal(null);return}
+    if(a==="srvDrEdit"){drModal(+b.dataset.i);return}
+    if(a==="srvDrWeg"){const l=(E.drucker||[]).filter((_,i)=>i!==+b.dataset.i);closeModal();einstSpeichern({drucker:l},"Drucker entfernt.");return}
+    if(a==="srvDrOk"){const v=id=>((document.getElementById(id)||{}).value||"").trim();
+      const d={name:v("dr_name"),serial:v("dr_serial").toUpperCase(),modus:v("dr_modus"),ip:v("dr_ip"),code:v("dr_code"),modell:v("dr_modell"),aktiv:document.getElementById("dr_aktiv").checked};
+      if(!d.serial){toast("Seriennummer fehlt");return}if(d.modus==="lokal"&&(!d.ip||!d.code)){toast("IP-Adresse und Zugangscode fehlen");return}
+      const l=[...(E.drucker||[])];const i=b.dataset.i;if(i!=="")l[+i]=Object.assign({},l[+i],d);else{const alt=l.findIndex(x=>x.serial===d.serial);if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d)}
+      if(d.modus==="cloud"){const k=bambuKonto();if(k)await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""}).catch(()=>{})}
+      closeModal();einstSpeichern({drucker:l},`✓ ${esc(d.name||d.serial)} gespeichert – der Server verbindet sich …`);return}
+    if(a==="srvDrCloud"){const k=bambuKonto();if(!k){msg(`<span style="color:var(--bad)">Erst unter Einstellungen → Bambu-Cloud anmelden.</span>`);return}
+      msg("Frage die Bambu-Cloud nach deinen Druckern …");
+      try{const r=await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""});const l=[...(E.drucker||[])];let n=0;
+        (r.geraete||[]).forEach(g=>{if(!g.serial||l.some(x=>x.serial===g.serial))return;l.push({name:g.name||g.produkt,serial:g.serial,modell:g.modell,modus:"cloud",code:g.code||"",aktiv:true});n++});
+        if(!n){msg(r.geraete&&r.geraete.length?"Alle Drucker aus der Cloud sind schon eingetragen.":"In der Bambu-Cloud sind keine Drucker gebunden.");return}
+        einstSpeichern({drucker:l},`✓ ${n} Drucker aus der Bambu-Cloud übernommen (Verbindung über die Cloud). Unter „Bearbeiten“ kannst du auf Heimnetz umstellen – IP eintragen, der Zugangscode ist schon da.`)}
+      catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
     if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
       try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
@@ -401,7 +468,7 @@ const SRV=window.SRV=(()=>{
     if(a==="srvAus"){confirmBox("Server nicht mehr verwenden? Die Daten bleiben auf dem Server; SchichtLohn arbeitet danach wieder mit "+(window.__PW_HA||(window.HAP&&HAP.savedConn&&HAP.savedConn())?"Home Assistant":"den Daten in diesem Browser")+".","Trennen",()=>{lss(K_URL,"");lss(K_TOK,"");location.reload()});return}});
   /* neue Datenbank sofort nutzen */
   function G_fdbNeu(){try{if(window.__fdbNeu)window.__fdbNeu()}catch(e){}}
-  return {url,token,norm,req,on,liste,svc,sub,get,put,init,html,cfgOhneLokal,id}})();
+  return {url,token,norm,req,on,liste,svc,sub,get,put,init,html,cfgOhneLokal,id,zst,zstV:()=>zstNeu.v||0}})();
 const Store={
   db:null,
   async init(){
@@ -1838,7 +1905,9 @@ async function api(path,o={}){
   if(!r.ok){const e=new Error((d&&(d.message||d.error||d.msg))||("HTTP "+r.status));e.status=r.status;throw e}
   return d||{};
 }
-function saveToken(d,login){const exp=Date.now()+(num(d.expiresIn)||7776000)*1000;setAcct({token:d.accessToken,region:login.region,account:login.account,exp});J.login=null;J.cloud=[];J.cloudAt=0;J.cloudErr="";cloudStatus()}
+function saveToken(d,login){const exp=Date.now()+(num(d.expiresIn)||7776000)*1000;setAcct({token:d.accessToken,region:login.region,account:login.account,exp});
+  /* SchichtLohn-Server: neue Anmeldung gleich an den Server geben (für Drucker über die Bambu-Cloud) */
+  if(S.srv&&window.SRV)SRV.req("POST","/api/cloud/geraete",{token:d.accessToken,region:login.region==="cn"||login.region==="china"?"china":"global",konto:login.account||""}).catch(()=>{});J.login=null;J.cloud=[];J.cloudAt=0;J.cloudErr="";cloudStatus()}
 function cloudStatus(){const el=document.getElementById("cloudst");if(!el)return;const a=acct();
   const st=J.cloudLoading?"busy":J.cloudErr?"err":a?"ok":"off";el.className="sync "+st;
   el.title=st==="busy"?"Bambu Cloud: lädt…":st==="err"?"Bambu Cloud: "+J.cloudErr:a?`Bambu Cloud verbunden (${a.account}) · antippen für die Druckaufträge`:"Bambu Cloud nicht verbunden · antippen zum Verbinden"}
@@ -2992,7 +3061,11 @@ window.addEventListener("pw-hass-update",()=>{if(!isWS()&&window.__hass){if(L.el
 let stT=null;function statusSoon(){if(stT)return;stT=setTimeout(()=>{stT=null;status()},1500)}
 
 /* --- Zustand von Waage und Druckbrücke --- */
-function stateMap(){return isWS()?(L.states||{}):((window.__hass&&window.__hass.states)||{})}
+function stateMap(){const b=isWS()?(L.states||{}):((window.__hass&&window.__hass.states)||{});
+  /* SchichtLohn-Server: Drucker, AMS und Waage kommen direkt vom Server (gleiches Format wie HA) */
+  if(!(S.srv&&window.SRV&&SRV.zst))return b;const v=SRV.zstV();if(stateMap.c&&stateMap.c.b===b&&stateMap.c.v===v)return stateMap.c.m;
+  const m=Object.assign({},b,SRV.zst);stateMap.c={b,v,m};return m}
+window.addEventListener("sl-zustand",()=>{if(S.tab==="lager")statusSoon();if(window.LGN)LGN.onStates()});
 function fmtVal(s){const u=(s.attributes||{}).unit_of_measurement||"";let v=s.state;const n=Number(v);
   if(isFinite(n)&&v!==""){if(/^(h|min|s|d)$/.test(u)){const mins=u==="h"?n*60:u==="d"?n*1440:u==="s"?n/60:n;return mins>=1440?N1.format(mins/1440)+" Tage":dur(mins)}v=N1.format(n)}
   return v+(u?" "+u:"")}
@@ -3620,7 +3693,7 @@ function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;cl
 function fitTop(){const t=document.getElementById("lgTop");if(t)t.dataset.n=String(t.querySelectorAll(".dcard").length)}
 function render(m){
   m.innerHTML=`<div class="stack"><div id="lgHead"></div><div class="lgtop" id="lgTop"><div id="lgBest" class="lgbestw"></div><div class="lstat" id="lagerStatus"></div></div><div class="stack" id="lgList"></div></div>`;
-  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L()&&haDa())L().status();start();draw()}
+  lastHTML="";lastHead="";const ls=document.getElementById("lagerStatus");if(ls&&window.MutationObserver)new MutationObserver(fitTop).observe(ls,{childList:true});if(L()&&(haDa()||srv()))L().status();start();draw()}
 function onStates(){if(S.tab==="lager")draw(1000)}
 
 /* --- Bearbeiten --- */
@@ -3843,7 +3916,7 @@ function fotoTreffer(f){const d=G.fdb;const out={db:[],lager:[]};if(!d)return ou
       let s=0;const as=aeh[e.uid]||0;if(as>=0.78)s+=as>=0.9?24:10+(as-0.78)*100;const hw=fwords(e.hersteller);const eb=fdbMarkeIdx(e.hersteller);if(marken.size&&eb!=null&&marken.has(eb))s+=6;else if(marken.size&&!(hw.length&&hw.every(has)))s-=6;else if(hw.length&&hw.every(has))s+=6;else if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)))s+=4;
       if(has(fnorm(e.material)))s+=2;const fw=fwords(e.farbe);if(fw.length&&fw.every(hasS)){s+=6;out.farbNameL.add(e.uid)}(e.besonderheiten||[]).forEach(b=>{if(hasS(fnorm(b)))s+=2});if(volle&&(e.besonderheiten||[]).length&&!e.besonderheiten.some(b=>hasS(fnorm(b))))s-=6;
       if(out.marke&&top.some(k=>fnorm(k.hersteller)===fnorm(e.hersteller)&&fnorm(k.material)===fnorm(e.material)&&fnorm(k.farbe)===fnorm(e.farbe)))s+=8;
-      const lh2=f.hex||f.hexAuto;const ld=lh2?farbAbst(e.hex,lh2):999;const st=s;if(lh2)s+=farbPunkte(ld,!!f.hex);return [s,e,st,ld]})
+      const lh2=f.hex||f.hexAuto;const ld=lh2?farbAbstSorte(e,lh2):999;const st=s;if(lh2)s+=farbPunkte(ld,!!f.hex);return [s,e,st,ld]})
     .filter(x=>x[0]>=(W.size||(f.aehnlich||[]).length?(out.marke?8:6):(f.hex||f.hexAuto?3:99))&&(x[2]>=20||x[3]<(f.hex?50:45))).sort((a,b)=>b[0]-a[0]).slice(0,5).map(x=>{out.lagerS=out.lagerS||{};out.lagerS[x[1].uid]=x[2];return x[1]});
   return out}
 
@@ -3891,7 +3964,7 @@ const farbSort=(a,b)=>{const u=hexLab(a),v=hexLab(b);const cu=Math.hypot(u[1],u[
   let dh=Math.abs(Math.atan2(u[2],u[1])-Math.atan2(v[2],v[1]))*180/Math.PI;if(dh>180)dh=360-dh;return dh+Math.abs(u[0]-v[0])*.8+Math.abs(cu-cv)*.3};
 function fotoZeilen(f){const fh=f.hex||f.hexAuto;
   const z=f.tr.lager.map((e,k)=>({h:`<div class="lgr" data-act="lgFotoLager" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">Im Lager: ${plural(e.spulen,"Rolle","Rollen")}${e.codes.length?" · "+plural(e.codes.length,"Code","Codes"):""}</div></div><div class="lgrt"><span class="lgsrc">Lager</span></div></div>`,
-      fix:(f.tr.fixL||[]).includes(e.uid),fn:!!(f.tr.farbNameL&&f.tr.farbNameL.has(e.uid)),d:fh?farbSort(e.hex,fh):0,t:(f.tr.lagerS||{})[e.uid]||0,n:k}))
+      fix:(f.tr.fixL||[]).includes(e.uid),fn:!!(f.tr.farbNameL&&f.tr.farbNameL.has(e.uid)),d:fh?farbSortSorte(e,fh):0,t:(f.tr.lagerS||{})[e.uid]||0,n:k}))
     .concat(f.tr.db.map((i,k)=>{let h=fdbZeile(i).replace('data-act="lgNcDb"','data-act="lgFotoPick"');const ean=fdbEan(i);if(ean)h=h.replace('</div></div><div class="lgrt">',` · EAN ${ean}</div></div><div class="lgrt">`);
       return {h,fix:(f.tr.vorne||[]).includes(i),d:fh?farbSort(G.fdb.c[i][2],fh):0,t:(f.tr.dbS||{})[i]||0,a:f.tr.anders&&f.tr.anders.has(i),fn:!!(f.tr.farbName&&f.tr.farbName.has(i)),n:100+k}}));
   /* eine gemeinsame Liste: Barcode- und sichere Bild-Treffer zuerst, danach die Farbe, die dem Foto am nächsten ist, ganz oben */
@@ -3942,7 +4015,16 @@ function fotoTap(ev,img){if(G.fotoCrop)return;const f=G.fotos[G.fotoAkt];if(!f||
   f.hex=farbeAn(f.cv,x,y);f.tr=fotoTreffer(f);const dot=document.getElementById("lgfdot");if(dot){dot.hidden=false;dot.style.left=(ev.clientX-r.left)+"px";dot.style.top=(ev.clientY-r.top)+"px";dot.style.background=f.hex}
   const fr=document.getElementById("lgfsw");const row=fr&&fr.parentElement;if(row)row.innerHTML=fotoFarbHtml(f);
   const box=document.getElementById("lgfres");if(box){box.innerHTML=fotoZeilen(f);box.scrollTop=0}}
-function fotoLernen(f,uid,form){if(!f||!f.vid||f.gelernt||!etUrl())return;
+/* Fotofarbe lernen: so sieht die Sorte auf deinen Fotos aus (oft blasser oder dunkler als die Herstellerfarbe) */
+function fotoFarbeLernen(uid,hex){if(!uid||!hexOk(hex))return;setTimeout(()=>{const e=entries().find(x=>x.uid===uid);if(!e)return;
+  const alt=(Array.isArray(e.raw.foto_farben)?e.raw.foto_farben:[]).filter(hexOk);if(alt.some(h=>farbAbst(h,hex)<6))return;
+  e.raw=Object.assign({},e.raw,{foto_farben:[hex.toLowerCase(),...alt].slice(0,6)});write(e,{}).catch(()=>{})},2500)}
+const fotoFarben=e=>[e.hex,...((e.raw&&Array.isArray(e.raw.foto_farben))?e.raw.foto_farben.filter(hexOk):[])];
+const farbAbstSorte=(e,h)=>Math.min(...fotoFarben(e).map(x=>farbAbst(x,h)));
+const farbSortSorte=(e,h)=>Math.min(...fotoFarben(e).map(x=>farbSort(x,h)));
+function fotoLernen(f,uid,form){if(!f)return;const fh=f.hex||f.hexAuto;
+  if(uid)fotoFarbeLernen(uid,fh);else if(form)setTimeout(()=>{const key=x=>[x.hersteller,x.material,x.farbe,[...(x.besonderheiten||[])].sort().join(",")].join("|").toLowerCase();const e=entries().find(x=>key(x)===key(form));if(e)fotoFarbeLernen(e.uid,fh)},1800);
+  if(!f.vid||f.gelernt||!etUrl())return;
   const senden=u=>{if(!u)return;f.gelernt=true;fetch(etUrl()+"/api/abdruck",{method:"POST",headers:Object.assign(etKopf(),{"Content-Type":"application/json"}),body:JSON.stringify({uid:u,vid:f.vid})}).catch(()=>{})};
   if(uid)return senden(uid);if(!form)return;
   setTimeout(()=>{const key=x=>[x.hersteller,x.material,x.farbe,[...(x.besonderheiten||[])].sort().join(",")].join("|").toLowerCase();const e=entries().find(x=>key(x)===key(form));if(e)senden(e.uid)},1800)}

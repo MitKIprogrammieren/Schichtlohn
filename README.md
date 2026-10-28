@@ -30,9 +30,26 @@ Wird SchichtLohn über **https** geöffnet (schichtlohn.pages.dev, Home Assistan
 
 Schnittstelle (auch für die Waage): `GET /api/sorten`, `GET/POST /api/listen/<name>` (gleiches Format wie die To-do-Listen in HA), `GET/PUT /api/daten/<schlüssel>`, `GET /api/ereignisse` (Live-Meldungen), `GET /api/sicherung`, `POST /lesen` (Foto).
 
+### App direkt von der Synology
+
+Der Server liefert SchichtLohn selbst aus: `https://<synology>/app/` (bzw. über Tailscale). Die Server-Adresse ist dort schon eingetragen, Bibliotheken (Barcode-Leser, PDF, ZIP, Schriften) liegen nach dem ersten Abruf auf der Synology – so läuft alles auch ohne Internet. Einstellungen → SchichtLohn-Server → **App aktualisieren** holt die neueste Fassung von GitHub Pages. In Safari „Zum Home-Bildschirm“ wählen.
+
+### Bambu-Drucker und automatische Abbuchung
+
+Unter Einstellungen → SchichtLohn-Server → **Bambu-Drucker** verbindet sich der Server direkt mit den Druckern (MQTT, wie Bambuddy bzw. die Bambu-Integration in Home Assistant):
+
+- **Heimnetz:** IP-Adresse, Seriennummer und Zugangscode des Druckers (LAN-Modus, bei neuerer Firmware Entwicklermodus).
+- **Bambu-Cloud:** nutzt die Bambu-Anmeldung aus SchichtLohn; am Drucker muss nichts umgestellt werden. „Aus Bambu-Cloud übernehmen“ trägt alle Drucker des Kontos ein.
+
+Nach jedem Druck (bei Abbruch anteilig) bucht der Server die Gramm je Filament im Lager ab – aus der Druckdatei auf dem Drucker (in Bambu Studio „Gesendete Dateien auf externem Speicher speichern“), sonst aus der Cloud-Druckaufgabe oder der AMS-Restanzeige. Die Sorte wird wie im Home-Assistant-Skript über die Bambu-ID und die nächste Farbe gefunden; was nicht passt, landet unter „Nicht zugeordnet“. AMS-Fächer und -Feuchte zeigt das Lager live an. Mit eingetragenem Home Assistant kommt eine Meldung aufs Handy. Die bisherige HA-Automation „FilamentLager – Abbuchung nach Druckende“ dann ausschalten.
+
+### Waage an der Synology
+
+Der Server beantwortet die Anfragen der Waage wie Home Assistant (`/api/services/todo/…`, `/api/states`, `/api/template`). In der Waage als Home-Assistant-Adresse `http://<synology>:8093` eintragen, als Token irgendetwas (bzw. den Server-Schlüssel), Liste `todo.filament`. Ist Home Assistant im Server eingetragen, gehen die Sensorwerte der Waage zusätzlich dorthin.
+
 ### Spule per Foto erkennen
 
-Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen, den Etikett-Text liest der Server (PaddleOCR-Modelle über RapidOCR, lokal, ohne Cloud). Danach im Foto aufs Filament tippen, um die Farbe festzulegen, und aus den Vorschlägen aus Lager und Filament-Datenbank wählen. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton. Die Farbe misst der Server automatisch (bis zu vier Vorschläge zum Antippen). Mit **✂ Etikett-Ausschnitt lesen** zieht man einen Rahmen ums Etikett; nur dieser Teil wird vergrößert, mit verstärktem Kontrast und leicht gedreht gelesen. Bei jeder Zuordnung merkt sich der Server einen Fingerabdruck des Fotos (MobileNetV2, Apache-2.0, lokal); spätere Fotos derselben Spule werden am Aussehen erkannt, auch ohne lesbaren Text. Gelernt wird nur aus den eigenen Fotos.
+Im Lager öffnet **Foto** die Kamera oder die Fotomediathek, auch mehrere Bilder auf einmal. Ein Barcode im Bild wird direkt gelesen, den Etikett-Text liest der Server (PaddleOCR-Modelle über RapidOCR, lokal, ohne Cloud). Danach im Foto aufs Filament tippen, um die Farbe festzulegen, und aus den Vorschlägen aus Lager und Filament-Datenbank wählen. Gibt es zur Sorte einen EAN, wird er bei der Sorte gespeichert; ab dann erkennt der Scanner den Karton. Die Farbe misst der Server automatisch (bis zu vier Vorschläge zum Antippen). Mit **✂ Etikett-Ausschnitt lesen** zieht man einen Rahmen ums Etikett; nur dieser Teil wird vergrößert, mit verstärktem Kontrast und leicht gedreht gelesen. Bei jeder Zuordnung merkt sich der Server einen Fingerabdruck des Fotos (MobileNetV2, Apache-2.0, lokal); spätere Fotos derselben Spule werden am Aussehen erkannt, auch ohne lesbaren Text. Gelernt wird nur aus den eigenen Fotos. Zusätzlich merkt sich jede Sorte, wie ihre Farbe auf deinen Fotos aussieht (oft blasser oder dunkler als die Herstellerfarbe), und vergleicht beim nächsten Foto auch damit.
 
 Das Container-Image wird per GitHub Action für x86 und ARM gebaut (`ghcr.io/mitkiprogrammieren/schichtlohn-server`).
 
