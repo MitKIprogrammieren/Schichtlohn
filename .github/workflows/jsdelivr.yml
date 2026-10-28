@@ -1,0 +1,19 @@
+name: jsDelivr auffrischen
+
+# jsDelivr hält Dateien bis zu 12 Stunden vor. Nach jedem Hochladen die geänderten
+# Dateien dort neu laden, damit Server und Home-Assistant-Karte sofort die neue Fassung bekommen.
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", "homeassistant/**", "filamentdb.json"]
+  workflow_dispatch:
+
+jobs:
+  auffrischen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Zwischenspeicher leeren
+        run: |
+          for f in app/index.html app/scan.html app/manifest.webmanifest app/icon.svg app/icon-180.png app/icon-192.png app/icon-512.png homeassistant/schichtlohn-card.js filamentdb.json; do
+            echo "$f: $(curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/$f" | head -c 120)"
+          done

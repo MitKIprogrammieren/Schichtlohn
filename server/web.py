@@ -6,7 +6,7 @@
   GET  /gfonts/… /gstatic/…  Internet geholt und auf der Synology gespeichert, danach offline
 
 Eine Grundversion der App steckt im Container; „App aktualisieren“ holt die neueste Fassung
-von GitHub Pages nach /daten/app und lädt alle Bibliotheken vorab in den Zwischenspeicher.
+über jsDelivr aus dem GitHub-Repo nach /daten/app und lädt alle Bibliotheken vorab in den Zwischenspeicher.
 """
 import hashlib
 import json
@@ -15,7 +15,7 @@ import re
 import time
 import urllib.request
 
-APP_URL = os.environ.get("APP_URL", "https://mitkiprogrammieren.github.io/Schichtlohn/")
+APP_URL = os.environ.get("APP_URL", "https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/app/")
 APP_DATEIEN = ["index.html", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "scan.html"]
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
       "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
@@ -180,7 +180,7 @@ def vorladen(o, html):
 
 
 def aktualisieren(o):
-    """Neueste App von GitHub Pages holen, Bibliotheken vorladen."""
+    """Neueste App über jsDelivr aus dem Repo holen, Bibliotheken vorladen."""
     os.makedirs(o.app, exist_ok=True)
     neu = {}
     for name in APP_DATEIEN:

@@ -38,3 +38,4 @@ jobs:
           git add filamentdb.json
           git commit -m "Filament-Datenbank aktualisiert"
           git push
+          curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/filamentdb.json" | head -c 200 || true

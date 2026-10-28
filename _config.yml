@@ -1,0 +1,13 @@
+# GitHub Pages zeigt nur die Logo-Seite (index.html). Die App liegt in app/ und wird
+# über jsDelivr an den SchichtLohn-Server und die Home-Assistant-Karte verteilt.
+exclude:
+  - app
+  - homeassistant
+  - server
+  - schichtlohn
+  - tools
+  - functions
+  - filamentdb.json
+  - repository.yaml
+  - README.md
+  - _headers

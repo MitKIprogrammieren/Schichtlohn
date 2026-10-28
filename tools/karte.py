@@ -25,7 +25,7 @@ def html_fuer_karte(index):
 
 
 def main():
-    idx = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "index.html")
+    idx = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "app", "index.html")
     karte = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "homeassistant", "schichtlohn-card.js")
     html = html_fuer_karte(open(idx, encoding="utf-8").read())
     js = open(karte, encoding="utf-8").read()

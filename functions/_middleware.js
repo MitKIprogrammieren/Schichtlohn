@@ -1,0 +1,28 @@
+// pages.dev zeigt keine App mehr: nur die Cloud-Dienste (Bambu, Creality, Sync) und der
+// Handy-Scanner (Kopplung per QR-Code) laufen weiter, alles andere zeigt das Logo.
+// Die App selbst läuft auf dem SchichtLohn-Server in Home Assistant.
+// Logo-Seite (gleich wie index.html im Repo)
+const LOGO_HTML = "<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex,nofollow\"><meta name=\"theme-color\" content=\"#1d1d22\"><title>SchichtLohn</title>\n<style>html,body{margin:0;height:100%;background:#1d1d22}body{display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Helvetica,Arial,sans-serif}\nmain{display:flex;flex-direction:column;align-items:center;gap:22px}svg{width:min(38vw,180px);height:auto}\np{margin:0;color:#8a8f98;font-size:15px;font-weight:600;letter-spacing:.32em;text-transform:uppercase;padding-left:.32em}p b{color:#19d36b;font-weight:700}</style></head>\n<body><main><svg role=\"img\" aria-label=\"SchichtLohn\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#19d36b\"/><stop offset=\"1\" stop-color=\"#00a845\"/></linearGradient><clipPath id=\"t\"><path d=\"M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z\"/></clipPath><mask id=\"h\"><rect width=\"48\" height=\"48\" fill=\"#fff\"/><circle cx=\"33.5\" cy=\"15.5\" r=\"4.4\" fill=\"#000\"/></mask></defs>\n<rect width=\"48\" height=\"48\" rx=\"10.5\" fill=\"#1d1f23\"/><g transform=\"translate(24 24) scale(.82) translate(-24 -24.5)\"><g clip-path=\"url(#t)\" mask=\"url(#h)\" fill=\"url(#g)\"><rect x=\"0\" y=\"8.0\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"11.4\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"14.8\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"18.2\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"21.6\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"25.0\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"28.4\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"31.8\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"35.2\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"38.6\" width=\"48\" height=\"2.4\"/></g><circle cx=\"33.5\" cy=\"15.5\" r=\"2.6\" fill=\"none\" stroke=\"#19d36b\" stroke-width=\"1.5\"/><path d=\"M33.5 12.9V3\" stroke=\"#19d36b\" stroke-width=\"1.5\" stroke-linecap=\"round\" fill=\"none\"/></g></svg><p>Jede <b>Schicht</b> zählt</p></main></body></html>\n";
+
+const DIENSTE = /^\/(bambu|creality|sync)(\/|$)/;
+const SCANNER = { "/scan.html": "/app/scan", "/scan": "/app/scan", "/icon-180.png": "/app/icon-180.png" };
+
+async function datei(ctx, pfad) {
+  let u = new URL(pfad, ctx.request.url);
+  for (let i = 0; i < 3; i++) {
+    const r = await ctx.env.ASSETS.fetch(new Request(u, { method: "GET" }));
+    if (r.status >= 300 && r.status < 400 && r.headers.get("location")) { u = new URL(r.headers.get("location"), u); continue; }
+    return r;
+  }
+  return new Response("Nicht gefunden", { status: 404 });
+}
+
+export async function onRequest(ctx) {
+  const pfad = new URL(ctx.request.url).pathname;
+  if (DIENSTE.test(pfad)) return ctx.next();
+  if (SCANNER[pfad]) return datei(ctx, SCANNER[pfad]);
+  if (pfad === "/robots.txt") return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } });
+  return new Response(LOGO_HTML, {
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache", "x-robots-tag": "noindex, nofollow" },
+  });
+}

@@ -35,7 +35,7 @@ for name, url in OCR.items():
 # Filament-Datenbank als Grundversion mitliefern (offline nutzbar); aktualisierbar über die App
 try:
     p = os.path.join(os.path.dirname(ziel), "filamentdb.json")
-    urllib.request.urlretrieve("https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json", p)
+    urllib.request.urlretrieve("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/filamentdb.json", p)
     print("Filament-Datenbank mitgeliefert:", os.path.getsize(p) // 1024, "KB")
 except Exception as e:
     print("Filament-Datenbank nicht mitgeliefert:", e)

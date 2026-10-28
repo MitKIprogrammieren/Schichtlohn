@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.0"
+VERSION = "3.1.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -210,7 +210,7 @@ def sorten():
 # Liegt als Datei auf der Synology, damit die Suche auch ohne Internet funktioniert.
 # Eine Grundversion steckt im Container; „Aktualisieren“ holt die wöchentlich gebaute neue Fassung.
 
-FDB_URL = os.environ.get("FDB_URL", "https://mitkiprogrammieren.github.io/Schichtlohn/filamentdb.json")
+FDB_URL = os.environ.get("FDB_URL", "https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/filamentdb.json")
 FDB_DATEI = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "filamentdb.json")
 FDB_EINGEBAUT = "/app/modelle/filamentdb.json"
 
