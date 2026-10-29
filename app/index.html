@@ -3594,6 +3594,12 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfbox.crop{outline:2px dashed var(--accent);outline-offset:-2px;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}.lgfbox.crop .lgfimg{pointer-events:none}
 #lgfrect{position:absolute;border:2px solid var(--accent);background:rgba(63,212,127,.18);pointer-events:none;border-radius:4px}
 .lgfcrophint{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#fff;font-size:12px;padding:4px 10px;border-radius:999px;pointer-events:none;white-space:nowrap}
+.lgfmehr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lgfmehr button{all:unset;cursor:pointer;width:56px;height:56px;border-radius:10px;background:var(--glass-2) center/cover no-repeat;border:2px solid transparent;box-sizing:border-box;display:grid;place-items:center;color:var(--fg-2);position:relative}
+.lgfmehr button.on{border-color:var(--accent)}.lgfmehr button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lgfmehr .add{border:1.5px dashed var(--line-2)!important;font-size:26px;font-weight:300}
+.lgfmehr button i{position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;background:var(--panel,#333);color:var(--fg);font-style:normal;font-size:13px;line-height:1;display:grid;place-items:center;border:1px solid var(--line-2)}
+.lgfmlade{background:rgba(0,0,0,.55);color:#fff;border-radius:8px;width:100%;height:100%;display:grid;place-items:center;font-weight:700}
 .lgpr{font-size:11px;font-weight:600;color:var(--accent);white-space:nowrap;margin-right:6px}.lgfchip{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);padding:0;cursor:pointer}.lgfchip.on{border-color:var(--fg);box-shadow:0 0 0 2px var(--accent)}.lgr.lgfrow{grid-template-columns:44px minmax(0,1fr) auto}.lgsrc{font-size:11px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
 details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0}
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
@@ -4252,6 +4258,30 @@ function farbeAn(cv,x,y){const r=Math.max(3,Math.round(Math.min(cv.width,cv.heig
   return "#"+ch.map(med).map(v=>v.toString(16).padStart(2,"0")).join("")}
 
 G.fotos=[];
+/* Ein Bild lesen (Etikett-Leser, sonst nur Barcodes im Browser) */
+async function bildLesen(cv){const url=etUrl();const d={text:[],codes:[],farben:[],aehnlich:[],vid:""};
+  if(url&&!G.fotoEtFehler&&!etMixed(url)){try{const ctl=new AbortController();const tmo=setTimeout(()=>ctl.abort(),90000);
+      try{const r=await fetch(url+"/lesen",{method:"POST",headers:etKopf(),body:await cvBlob(cv),signal:ctl.signal});const j=await r.json();if(r.ok)Object.assign(d,j)}finally{clearTimeout(tmo)}}catch(e){}}
+  if(!(d.codes||[]).length)d.codes=await browserCodes(cv);return d}
+const bildThumb=cv=>{const t=document.createElement("canvas");const s=Math.min(1,240/Math.max(cv.width,cv.height));t.width=Math.round(cv.width*s);t.height=Math.round(cv.height*s);t.getContext("2d").drawImage(cv,0,0,t.width,t.height);return t.toDataURL("image/jpeg",.8)};
+/* Weitere Fotos derselben Rolle (Rückseite, Etikett, Karton): Text, Barcodes und Ähnlichkeit werden zusammengeführt */
+function fotoBilder(f){if(!f.bilder)f.bilder=[{cv:f.cv,url:f.url||(f.cv?f.cv.toDataURL("image/jpeg",.85):""),thumb:f.thumb,text:f.text||[],codes:f.codes||[],farben:f.farben||[],aehnlich:f.aehnlich||[]}];if(f.zeige==null)f.zeige=0;return f.bilder}
+function fotoZusammen(f){const B=fotoBilder(f);const seen=new Set();f.text=[];
+  B.forEach(b=>(b.text||[]).forEach(x=>{const k=String(x.t||"").toLowerCase();if(k&&!seen.has(k)){seen.add(k);f.text.push(x)}}));
+  f.codes=[...new Set(B.flatMap(b=>b.codes||[]))];const ae={};B.forEach(b=>(b.aehnlich||[]).forEach(a=>{if(!ae[a.uid]||a.score>ae[a.uid].score)ae[a.uid]=a}));f.aehnlich=Object.values(ae);
+  f.farben=[...new Set(B.flatMap(b=>b.farben||[]))].slice(0,6);if(!f.hexAuto&&f.farben[0])f.hexAuto=f.farben[0];f.tr=fotoTreffer(f)}
+function fotoMehrHtml(f){const B=fotoBilder(f);
+  return `<div class="lgfmehr">${B.map((b,i)=>`<button type="button" class="${i===f.zeige?"on":""}" data-act="lgFotoZeige" data-i="${i}" style="background-image:url('${b.thumb||b.url}')" aria-label="Foto ${i+1} zeigen">${i&&!b.liest?`<i data-act="lgFotoWeg" data-i="${i}" role="button" aria-label="Foto entfernen">×</i>`:""}${b.liest?`<span class="lgfmlade">…</span>`:""}</button>`).join("")}
+    ${B.length<4?`<button type="button" class="add" data-act="lgFotoMehr" aria-label="Weiteres Foto dieser Rolle">+</button>`:""}</div>
+    <div class="lghint">${B.length>1?B.length+" Fotos dieser Rolle · ":""}Rückseite, Etikett oder Karton dazunehmen: Text und Barcodes aller Fotos werden zusammen gelesen.${B.length>1?" Antippen zeigt das Foto groß.":""}</div>`}
+function fotoMehrWahl(){const f=G.fotos[G.fotoAkt];if(!f)return;const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.style.display="none";document.body.appendChild(i);
+  i.addEventListener("change",async()=>{const fs=[...i.files].slice(0,4-fotoBilder(f).length);i.remove();if(!fs.length)return;
+    const neu=fs.map(()=>({liest:true}));f.bilder.push(...neu);G.fotoKeinScroll=true;fotoModal(f.id);
+    for(let k=0;k<fs.length;k++){const b=neu[k];try{b.cv=await bildLaden(fs[k]);b.thumb=bildThumb(b.cv);b.url=b.cv.toDataURL("image/jpeg",.85);if(G.fotoAkt===f.id){G.fotoKeinScroll=true;fotoModal(f.id)}
+        Object.assign(b,await bildLesen(b.cv))}catch(e){b.fehler=true}b.liest=false}
+    f.bilder=f.bilder.filter(b=>!b.fehler);const vor=(f.text||[]).length;fotoZusammen(f);
+    if(G.fotoAkt===f.id){G.fotoKeinScroll=true;fotoModal(f.id)}toast((f.text||[]).length>vor?`${(f.text||[]).length-vor} weitere Textstellen gelesen`:"Auf den weiteren Fotos nichts Neues gefunden")});
+  i.click()}
 document.addEventListener("change",e=>{if(!e.target||e.target.id!=="lgfmarke")return;const f=G.fotos[G.fotoAkt];if(!f)return;f.marke=+e.target.value;f.tr=fotoTreffer(f);G.fotoKeinScroll=true;fotoModal(f.id)});
 function fotoWahl(){tonAn();const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.style.display="none";document.body.appendChild(i);
   i.addEventListener("change",()=>{const fs=[...i.files];i.remove();if(fs.length)fotoVerarbeiten(fs)});i.click()}
@@ -4289,9 +4319,10 @@ function fotoZeilen(f){const fh=f.hex||f.hexAuto;
   /* eine gemeinsame Liste: Barcode- und sichere Bild-Treffer zuerst, danach die Farbe, die dem Foto am nächsten ist, ganz oben */
   if(fh){z.forEach(x=>x.k=x.d-x.t*1.5+(x.a?10:0));z.sort((a,b)=>(b.fix-a.fix)||(b.fn-a.fn)||(a.fn&&b.fn?(b.t-a.t)||(a.k-b.k):a.k-b.k)||(a.n-b.n))}
   return z.map(x=>x.h).join("")||`<div class="lghint" style="padding:10px 12px">Keine Vorschläge. Unten suchen oder neue Sorte anlegen.</div>`}
-function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;const n=G.fotos.length;const txt=(f.text||[]).map(x=>x.t).join(" · ");
+function fotoModal(id){const f=G.fotos[id];if(!f)return;G.fotoAkt=id;{const B=fotoBilder(f);const b=B[f.zeige]||B[0];if(b&&b.cv){f.cv=b.cv;f.url=b.url}}const n=G.fotos.length;const txt=(f.text||[]).map(x=>x.t).join(" · ");
   modal(n>1?`Foto ${id+1} von ${n}`:"Spule erkennen",`<div class="lgform">${fotoEtHinweis()}
     <div class="lgfbox${G.fotoCrop?" crop":""}" id="lgfbox"><img id="lgfimg" class="lgfimg" src="${f.url||(f.url=f.cv?f.cv.toDataURL("image/jpeg",.85):"")}" alt="Foto" data-act="lgFotoTap" draggable="false"><i id="lgfdot" hidden></i><b id="lgfrect" hidden></b>${G.fotoCrop?`<span class="lgfcrophint">Rahmen ums Etikett ziehen</span>`:""}</div>
+    ${fotoMehrHtml(f)}
     <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">${fotoFarbHtml(f)}</div>
     ${fotoMarkeHtml(f)}
     ${etUrl()&&!G.fotoEtFehler?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${G.fotoCrop?" pri":""}" data-act="lgFotoCrop">${G.fotoCrop?"Abbrechen":"✂ Etikett-Ausschnitt lesen"}</button><span class="lghint" id="lgfcropmsg">${G.fotoCrop?"Mit dem Finger einen Rahmen ziehen.":"Wird Text nicht erkannt: Rahmen ums Etikett ziehen, dann wird nur dieser Teil vergrößert gelesen."}</span></div>`:""}
@@ -4325,6 +4356,7 @@ async function cropLesen(f,x,y,w,h){const m=document.getElementById("lgfcropmsg"
   try{let r;try{r=await fetch(etUrl()+"/lesen?ausschnitt=1",{method:"POST",headers:etKopf(),body:await cvBlob(cv),signal:ctl.signal})}catch(x){throw new Error(x.name==="AbortError"?"Der Server hat über 2 Minuten gebraucht":"Verbindung abgebrochen – startet der Server gerade neu? Prüfe im Container Manager, wie lange schichtlohn-server schon läuft")}finally{clearTimeout(tmo)}const d=await r.json();if(!r.ok)throw new Error(d.fehler||"Fehler "+r.status);
     const alt=new Set((f.text||[]).map(t=>t.t));const neu=(d.text||[]).filter(t=>!alt.has(t.t));f.text=[...(f.text||[]),...neu];(d.codes||[]).forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)});
     if(!d.codes||!d.codes.length){const bc=await browserCodes(cv);bc.forEach(c=>{if(!f.codes.includes(c))f.codes.push(c)})}
+    {const B=fotoBilder(f);const bb=B[f.zeige]||B[0];if(bb){bb.text=[...(bb.text||[]),...neu];bb.codes=[...new Set([...(bb.codes||[]),...f.codes])]}}
     f.tr=fotoTreffer(f);G.fotoCrop=false;G.fotoKeinScroll=true;fotoModal(f.id);toast(neu.length?`${neu.length} weitere Textstellen gelesen`:"Im Ausschnitt nichts Neues gefunden")}
   catch(e){if(m)m.textContent="Ausschnitt konnte nicht gelesen werden: "+(e.message||e)}}
 function fotoTap(ev,img){if(G.fotoCrop)return;const f=G.fotos[G.fotoAkt];if(!f||!f.cv)return;const r=img.getBoundingClientRect();
@@ -4682,6 +4714,9 @@ document.addEventListener("click",async e=>{
   if(a==="lgFotoListe"){fotoListe();return}
   if(a==="lgFotoNext"){const nx=G.fotos.find(x=>x.id>G.fotoAkt&&!x.done&&x.status==="fertig")||G.fotos.find(x=>!x.done&&x.status==="fertig"&&x.id!==G.fotoAkt);if(nx)fotoModal(nx.id);else fotoListe();return}
   if(a==="lgFotoTap"){fotoTap(e,b);return}
+  if(a==="lgFotoMehr"){fotoMehrWahl();return}
+  if(a==="lgFotoWeg"){e.stopPropagation&&e.stopPropagation();const f=G.fotos[G.fotoAkt];if(!f)return;const i=+b.dataset.i;if(i>0&&f.bilder&&f.bilder[i]&&!f.bilder[i].liest){f.bilder.splice(i,1);if(f.zeige>=i)f.zeige=Math.max(0,f.zeige-1);fotoZusammen(f);G.fotoKeinScroll=true;fotoModal(f.id)}return}
+  if(a==="lgFotoZeige"){const f=G.fotos[G.fotoAkt];if(!f)return;const i=+b.dataset.i;const bb=fotoBilder(f)[i];if(!bb||!bb.cv)return;f.zeige=i;G.fotoKeinScroll=true;fotoModal(f.id);return}
   if(a==="lgFotoCrop"){G.fotoCrop=!G.fotoCrop;G.fotoKeinScroll=true;fotoModal(G.fotoAkt);return}
   if(a==="lgFotoFarbe"){const f=G.fotos[G.fotoAkt];if(!f)return;f.hexAuto=b.dataset.hex;f.tr=fotoTreffer(f);G.fotoKeinScroll=true;fotoModal(f.id);return}
   if(a==="lgFotoPick"){fotoPick(+b.dataset.i);return}
