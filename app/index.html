@@ -5200,13 +5200,13 @@ function preislisteModal(){const d=PL.d;let h=`<div class="lgform" id="lgPl">`;
   let spar=0,nsp=0;alle.forEach(({a})=>{const j=a.find(o=>o.shop==="3DJake");if(j&&a[0]&&a[0].shop!=="3DJake"){spar+=j.pk-a[0].pk;nsp++}});
   const st=new Date(d.stand);const stand=isNaN(st)?d.stand:st.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   h+=`<div class="plkpis"><div><b>${alle.length}</b><span>Sorten im Lager</span></div><div><b>${mit}</b><span>mit Preis</span></div>
-      <div><b>${Object.keys(shops).length}</b><span>Shops, Stand ${esc(stand)}</span></div><div class="plspar"><b>${nsp?eur(spar/nsp):"–"}</b><span>je kg günstiger als 3DJake${nsp?` (bei ${nsp} Sorten)`:""}</span></div></div>
+      <div><b>${Object.keys(shops).length}</b><span>Shops · ${esc(stand)}</span></div><div class="plspar"><b>${nsp?eur(spar/nsp):"–"}</b><span>je kg unter 3DJake</span></div></div>
     <div class="plbar"><input type="search" id="plq" placeholder="Marke, Material oder Farbe …" value="${esc(PL.q)}"><div class="lgtg">${[["alle","Alle"],["mit","Mit Preis"],["ohne","Ohne Treffer"]].map(([k,t])=>`<button type="button" class="chip${PL.f===k?" on":""}" data-act="lgPlF" data-f="${k}">${t}</button>`).join("")}</div></div>
     <div class="plshops">${Object.entries(shops).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span>${esc(k)} <b>${v}</b></span>`).join("")}</div><div class="pllist">`;
   const logo=m=>{const u=window.LAGER&&LAGER.logoUrls?LAGER.logoUrls(m).find(x=>x.own&&/^data:/.test(x.u)):null;return u?`<img class="plmkl" src="${u.u}" alt="" style="filter:${LAGER.darkUI&&LAGER.darkUI()?"none":"invert(1) brightness(.3)"}">`:""};
   let mk="";liste.forEach(({e,a})=>{if(e.hersteller!==mk){mk=e.hersteller;{const lg=logo(mk);h+=`<div class="plmk"${lg?` title="${esc(mk)}"`:""}>${lg||`<span>${esc(mk||"Ohne Marke")}</span>`}</div>`}}
     h+=`<div class="plz"><div class="pls">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><b>${esc([e.material,...(e.besonderheiten||[])].join(" "))} · ${esc(e.farbe)}</b><small>${kg(e.gewicht)}${e.ausfuehrung==="refill"?" Refill":""} · Bestand ${kg(total(e))}${e.preis?` · dein Preis ${eur(e.preis)}/kg`:""}</small></div></div>
-      <div class="pla">${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}"><b>${esc(o.shop)}</b><span>${eur(o.preis)}${o.normal>o.preis?` <s>${eur(o.normal)}</s>`:""} · ${eur(o.pk)}/kg</span><em>${o.gew!==e.gewicht?kg(o.gew)+" · ":""}${o.ean?"EAN":"Name"}</em></a>`).join(""):`<span class="plkein">kein Shop-Treffer</span>`}</div></div>`});
+      <div class="pla">${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}"><span class="plon">${esc(o.shop)}${i===0&&a.length>1?`<i>günstigste</i>`:""}${o.gew!==e.gewicht?`<small>${kg(o.gew)}</small>`:""}</span><span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b></span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`).join(""):`<span class="plkein">kein Shop-Treffer</span>`}</div></div>`});
   h+=`</div></div>`;const b=document.querySelector("#modal #lgPl");if(b){b.outerHTML=h;return}
   modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plq"){PL.q=ev.target.value;clearTimeout(preislisteModal.t);preislisteModal.t=setTimeout(()=>{const p=ev.target.selectionStart;preislisteModal();const n=document.getElementById("plq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250)}});
@@ -5315,25 +5315,32 @@ body.rx-einfach #mbar{display:none!important}
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
 [data-skin] nav.tabs button[aria-current="page"],[data-skin] .seg button[aria-pressed="true"],.rx-seg button[aria-pressed="true"]{color:var(--accent-ink)!important}
-.plkpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.plkpis>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass-2,var(--glass))}
-.plkpis b{font-size:20px;font-variant-numeric:tabular-nums;line-height:1.2}.plkpis span{font-size:12px;color:var(--fg-3)}
+.plkpis{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass-2,var(--glass));overflow:hidden}
+.plkpis>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;padding:9px 4px}
+.plkpis>div+div{border-left:1px solid var(--line)}
+.plkpis b{font-size:18px;font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap}.plkpis span{font-size:10.5px;line-height:1.25;color:var(--fg-3)}
 .plkpis .plspar b{color:var(--accent)}
-@media (min-width:640px){.plkpis{grid-template-columns:repeat(4,1fr)}}
 .plbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.plbar input{flex:1;min-width:160px}
 .plshops{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--fg-3)}.plshops b{color:var(--fg-2)}
 .pllist{display:flex;flex-direction:column;gap:6px}
 .plmk{display:flex;align-items:center;gap:8px;margin:12px 2px 2px;font:700 11px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
 .plmkl{height:16px;max-width:110px;object-fit:contain}
-.plz{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass)}
-.pls{display:flex;gap:10px;align-items:center;min-width:0}.pls b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pls small{display:block;color:var(--fg-3);font-size:12px}
+.plz{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass)}
+.pls{display:flex;gap:10px;align-items:center;min-width:0}.pls b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pls small{display:block;color:var(--fg-3);font-size:12px}
 .pls .lgsp,.pls svg{flex:none}
-.pla{display:flex;flex-wrap:wrap;gap:6px}
-.plo{display:flex;flex-direction:column;gap:1px;padding:5px 9px;border-radius:var(--r-s);border:1px solid var(--line);text-decoration:none;color:var(--fg);min-width:0;flex:0 1 auto}
-.plo b{font-size:12.5px}.plo span{font-size:12px;color:var(--fg-2);white-space:nowrap}.plo em{font-style:normal;font-size:10.5px;color:var(--fg-3)}
-.plo.best{border-color:var(--accent);background:var(--accent-soft)}.plo.best b::after{content:" · günstigste";color:var(--accent);font-weight:600;font-size:10.5px}
-.plkein{font-size:12px;color:var(--fg-3)}
-@media (min-width:760px){.plz{grid-template-columns:minmax(220px,1fr) 2fr;align-items:center}}
+.pla{display:flex;flex-direction:column;border-top:1px solid var(--line);margin:0 -12px -10px}
+.plo{display:grid;grid-template-columns:minmax(0,1fr) auto 76px 12px;gap:10px;align-items:center;padding:8px 12px;text-decoration:none;color:var(--fg)}
+.plo+.plo{border-top:1px solid var(--line)}
+.plo:last-child{border-radius:0 0 var(--r-s) var(--r-s)}
+.plon{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plon i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:1px 6px;border-radius:999px}
+.plon small{font-weight:400;font-size:11.5px;color:var(--fg-3)}
+.plop{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}.plop b{font-size:14px}.plop s{font-size:11.5px;color:var(--fg-3)}
+.plok{text-align:right;font-size:12px;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.ploa{color:var(--fg-3);font-size:18px;line-height:1}
+.plo.best{background:var(--accent-soft)}.plo.best .plop b{color:var(--accent)}
+.plkein{font-size:12px;color:var(--fg-3);padding:8px 12px}
+@media (min-width:760px){.plz{display:grid;grid-template-columns:minmax(220px,1fr) 1.4fr;align-items:center}.pla{border-top:0;border-left:1px solid var(--line);margin:-10px -12px -10px 0;align-self:stretch;justify-content:center}}
 .dsstile{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
 .dss{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:transparent;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
 .dss.on{border-color:var(--accent);color:var(--fg);box-shadow:0 0 0 1px var(--accent) inset}

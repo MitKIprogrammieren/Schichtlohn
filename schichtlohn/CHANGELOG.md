@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.6 – 29.10.2026
+- Preisliste aufgeräumt: Shops stehen als Zeilen in der Sorten-Kachel (Name, Preis, €/kg), die günstigste ist grün hinterlegt und markiert.
+- Kennzahlen als schmale Leiste statt großer Kacheln.
+
 ## 3.2.5 – 29.10.2026
 - Preisliste neu gestaltet: Kennzahlen oben (Sorten, mit Preis, Shops, Ersparnis gegenüber 3DJake), Markenlogos statt Namen, kompakte Shop-Kästchen, günstigstes Angebot grün markiert.
 - 3DJake wird jetzt täglich aufgefrischt (Preise, Normalpreise, EAN) und findet neue Farben bekannter Serien selbst.
