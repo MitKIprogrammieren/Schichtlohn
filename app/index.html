@@ -1105,7 +1105,7 @@ function renderSettings(m){
           <div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
           <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
-          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><button class="btn ghost sm" data-act="lgPreiseDb" title="Normalpreis je kg aus der Filament-Datenbank (Händlerpreise) in die Sorten eintragen">Preise aus Datenbank übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
+          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><button class="btn ghost sm" data-act="lgPreiseDb" title="Normalpreis je kg und fehlende Barcodes aus der Filament-Datenbank in die Sorten eintragen">Preise und Barcodes aus Datenbank übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
@@ -4035,6 +4035,10 @@ function fdbFuer(e){const d=G.fdb;if(!d)return null;for(const c of [...(e.codes|
     const sc=(nn(l[1])===m?2:0)-[...lw].filter(w=>w&&!["pla","petg","abs","asa","pc","tpu","basic",...mw,...need].includes(w)).length*0.5+(d.o&&d.o[i]?1:0);
     if(!best||sc>best[0])best=[sc,i]}return best?best[1]:null}
 const eur=p=>p==null?"":String((+p).toFixed(2)).replace(".",",")+" €";
+/* Gültige EAN-13 einer Farbe aus der Datenbank, getrennt nach Spule und Refill */
+const eanOk=k=>{if(!/^\d{13}$/.test(k))return false;let t=0;for(let j=0;j<12;j++)t+=(+k[j])*(j%2?3:1);return (10-t%10)%10===+k[12]};
+function fdbCodes(i,gew){const d=G.fdb;if(!d.ci2g){d.ci2g={};Object.entries(d.g).forEach(([k,v])=>{(d.ci2g[v[0]]=d.ci2g[v[0]]||[]).push({k:k.padStart(13,"0"),gew:v[1],refill:!!v[2]})})}
+  return (d.ci2g[i]||[]).filter(x=>eanOk(x.k)&&!/^0?921/.test(x.k)&&(!gew||!x.gew||x.gew===gew))}
 /* Angebot passend zur Ausführung (Spule/Refill) und zum Gewicht; sonst das erste mit Preis */
 function fdbAngFuer(i,refill,gew){const a=fdbAng(i).filter(x=>x.normal);if(!a.length)return null;const r=!!refill;
   return a.find(x=>x.refill===r&&(!gew||x.gewicht===gew))||a.find(x=>x.refill===r)||null}
@@ -4638,16 +4642,24 @@ document.addEventListener("click",async e=>{
   if(a==="lgSilica"){silicaModal();return}
   if(a==="lgPreiseDb"||a==="lgPreiseDbAlle"){try{await fdbLaden()}catch(err){toast(err.message);return}
     const alle=a==="lgPreiseDbAlle";const l=[];
-    entries().forEach(e=>{if(e.preis&&!alle)return;const i=fdbFuer(e);if(i==null)return;const an=fdbAngFuer(i,e.ausfuehrung==="refill",e.gewicht);if(!an)return;
-      const p=+(an.normal/(an.gewicht/1000)).toFixed(2);if(p>0&&p!==e.preis)l.push({e,p,an})});
-    G.preisNeu=l;const vor=entries().filter(e=>e.preis).length;
-    modal("Preise aus Filament-Datenbank",`<div class="lgform"><div class="lghint">Normalpreis je kg vom Händler (ohne Rabattaktion), nur für Sorten, die per Barcode oder Name sicher zugeordnet sind. ${alle?"Vorhandene Preise werden ersetzt.":"Sorten mit eigenem Preis bleiben unverändert."}</div>
-      ${l.length?`<div class="lgpick" style="max-height:55vh">${l.map(({e,p,an})=>`<div class="lgr">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div><div class="lgs">${e.preis?`${String(e.preis).replace(".",",")} → `:""}<b>${String(p).replace(".",",")} €/kg</b> · ${esc(an.haendler)} ${eur(an.normal)} je ${an.refill?"Refill":"Spule"} ${kg(an.gewicht)}</div></div></div>`).join("")}</div>`
-        :`<div class="panel empty">Keine Sorte gefunden, für die ein Preis übernommen werden kann.</div>`}</div>`,
-      `${!alle&&vor?`<button class="btn ghost" data-act="lgPreiseDbAlle">Auch vorhandene ersetzen (${vor})</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>${l.length?`<button class="btn pri" data-act="lgPreiseDbOk">${l.length} Preise übernehmen</button>`:""}`);return}
+    entries().forEach(e=>{const i=fdbFuer(e);if(i==null)return;const z={e};
+      const an=fdbAngFuer(i,e.ausfuehrung==="refill",e.gewicht);if(an&&(alle||!e.preis)){const p=+(an.normal/(an.gewicht/1000)).toFixed(2);if(p>0&&p!==e.preis){z.p=p;z.an=an}}
+      const have=new Set([...(e.codes||[]),...(e.codes_refill||[])]);const nc=fdbCodes(i,e.gewicht).filter(x=>!have.has(x.k));
+      if(nc.length){z.sp=nc.filter(x=>!x.refill).map(x=>x.k);z.rf=nc.filter(x=>x.refill).map(x=>x.k)}
+      if(z.p||z.sp)l.push(z)});
+    G.preisNeu=l;const vor=entries().filter(e=>e.preis).length;const np=l.filter(z=>z.p).length,nb=l.reduce((t,z)=>t+(z.sp?z.sp.length+z.rf.length:0),0);
+    const cd=k=>`<span class="mono" style="font-size:12px">${esc(k)}</span>`;
+    modal("Preise und Barcodes aus der Datenbank",`<div class="lgform"><div class="lghint">Normalpreis je kg vom Händler (ohne Rabattaktion) und fehlende Barcodes (EAN), nur für Sorten, die per Barcode oder Name sicher zugeordnet sind. ${alle?"Vorhandene Preise werden ersetzt.":"Eigene Preise bleiben unverändert."} Refill-Barcodes werden als Refill markiert. Vorhandene Barcodes bleiben.</div>
+      ${l.length?`<div class="lgpick" style="max-height:55vh">${l.map(({e,p,an,sp,rf})=>`<div class="lgr">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>
+        ${p?`<div class="lgs">${e.preis?`${String(e.preis).replace(".",",")} → `:""}<b>${String(p).replace(".",",")} €/kg</b> · ${esc(an.haendler)} ${eur(an.normal)} je ${an.refill?"Refill":"Spule"} ${kg(an.gewicht)}</div>`:""}
+        ${sp&&sp.length?`<div class="lgs">+ Spule ${sp.map(cd).join(", ")}</div>`:""}${rf&&rf.length?`<div class="lgs">+ Refill ${rf.map(cd).join(", ")}</div>`:""}</div></div>`).join("")}</div>`
+        :`<div class="panel empty">Nichts zu übernehmen: Preise und Barcodes sind schon eingetragen oder nicht sicher zuzuordnen.</div>`}</div>`,
+      `${!alle&&vor?`<button class="btn ghost" data-act="lgPreiseDbAlle">Auch vorhandene Preise ersetzen (${vor})</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>${l.length?`<button class="btn pri" data-act="lgPreiseDbOk">${[np?np+" Preise":"",nb?nb+" Barcodes":""].filter(Boolean).join(" und ")} übernehmen</button>`:""}`);return}
   if(a==="lgPreiseDbOk"){const l=G.preisNeu||[];G.preisNeu=null;let n=0;b.disabled=true;
-    for(const {e,p} of l){try{await write(e,{preis:p});n++}catch(err){}}
-    {const m=document.getElementById("modal");if(m)m.remove()}toast(`${n} von ${l.length} Preisen übernommen`);return}
+    for(const {e,p,sp,rf} of l){const patch={};if(p)patch.preis=p;
+      if(sp||rf){const neuC=[...(sp||[]),...(rf||[])];patch.codes=[...new Set([...(e.codes||[]),...neuC])];patch.codes_refill=[...new Set([...(e.codes_refill||[]),...(rf||[])])]}
+      try{await write(e,patch);n++}catch(err){}}
+    {const m=document.getElementById("modal");if(m)m.remove()}toast(`${n} von ${l.length} Sorten aktualisiert`);return}
   if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
     confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht SchichtLohn danach selbst.`,"Getauscht",async()=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
