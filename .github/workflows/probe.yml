@@ -1,0 +1,25 @@
+name: Seiten prüfen (Hilfslauf)
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Adressen, mit Leerzeichen getrennt"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  holen:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir -p /tmp/roh && cd /tmp/roh
+          i=0
+          for u in ${{ inputs.urls }}; do
+            i=$((i+1)); curl -sL -A "Mozilla/5.0 (compatible; SchichtLohn-Preise/1.0)" "$u" -o "seite$i.html" -w "$u %{http_code} %{size_download}\n" || true
+            sleep 1
+          done
+          git init -q -b probe && git config user.name "MitKIprogrammieren" && git config user.email "MitKIprogrammieren@users.noreply.github.com"
+          git add -A && git commit -q -m probe && git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" probe
