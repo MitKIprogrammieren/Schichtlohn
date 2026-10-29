@@ -1,5 +1,5 @@
 name: SchichtLohn-Server
-version: "3.1.8"
+version: "3.1.9"
 slug: schichtlohn
 description: Filamentlager, Fotoerkennung, Bambu-Drucker mit automatischer Abbuchung und Waage – die SchichtLohn-App direkt auf Home Assistant
 url: https://github.com/MitKIprogrammieren/Schichtlohn

@@ -747,6 +747,35 @@ function rxRechnen(q){const mehr=rxFarben(q).length>1;
   const r=calc(Object.assign({},q,{parts:teile,channelId:null,paymentId:null,override:"",shipping:0,extra:0}));
   const kosten=r.material+r.energy+r.machine;const st=RX_STUFEN.find(s=>s[0]===(S.cfg.rxStufe||"normal"))||RX_STUFEN[1];
   const preis=q.parts.length?rxRunden(kosten*(1+st[2]/100),kosten):0;return {r,kosten,preis,gewinn:preis-kosten,st}}
+/* ---------- Reicht die Rolle? Bedarf je Filament gegen den Bestand im Lager ---------- */
+const fnAn=window.fnAn=k=>!((S.cfg&&S.cfg.fnAus)||[]).includes(k);
+function reichtBedarf(q){const gr=new Map();const einf=rxEinfach();const mehr=einf&&rxFarben(q).length>1;
+  q.parts.forEach(p=>{const n=Math.max(1,Math.round(num(p.qty)));(p.mats||[]).forEach((m,i)=>{
+    const mid=einf?(mehr?(m.matId||q.matId):q.matId):(m.matId||q.matId);const c=String(m.color||"").toLowerCase();const k=mid+"|"+c;
+    const x=gr.get(k)||{matId:mid,color:c,g:0};x.g+=(num(m.g)+(i===0?num(p.purge):0))*n;gr.set(k,x)})});
+  return [...gr.values()].filter(x=>x.g>0)}
+const lgRest=x=>{const sp=Math.max(0,Math.round(num(x.spulen??1)));if(!sp)return 0;const rs=(x.reste||[]).slice(0,sp);return (sp-rs.length)*x.weight+rs.reduce((a,y)=>a+y,0)};
+const lgAnbruch=x=>{const sp=Math.max(0,Math.round(num(x.spulen??1)));if(!sp)return 0;const rs=(x.reste||[]).slice(0,sp);return rs.length?Math.min(...rs):x.weight};
+function reichtSpulen(mt,kinds){const L=S.lager||[];if(!mt)return [];
+  if(mt.lagerUid){const x=L.find(y=>y.uid===mt.lagerUid);if(x)return [x]}
+  if(mt.kindKey){const k=kinds().find(y=>y.key===mt.kindKey);return k&&k.uids?L.filter(y=>k.uids.includes(y.uid)):[]}
+  const tk=typeKey(mt.type),b=mpNorm(mt.brand);return L.filter(y=>y.type&&typeKey(y.type)===tk&&(!b||mpNorm(y.brand)===b))}
+function reichtHTML(q){if(!fnAn("reicht")||!q.parts.length||!S.lager)return "";
+  const bed=reichtBedarf(q);if(!bed.length)return "";let ks=null;const kinds=()=>ks||(ks=mpKinds());
+  const nm=x=>x.farbe?[x.brand,x.type,...(x.bes||[]).filter(b=>!/^basic$/i.test(b))].filter(Boolean).join(" ")+" · "+x.farbe:x.name;
+  const zeilen=bed.map(b=>{const mt=byId(S.cfg.materials,b.matId);const sp=reichtSpulen(mt,kinds);const need=Math.ceil(b.g);
+    const titel=mt?mt.name:"Filament";
+    if(!sp.length)return {k:"aus",hex:b.color||(mt&&mt.hex),t:`<b>${esc(titel)}</b> ist nicht im Lager`,s:`braucht ${g(need)}`};
+    let wahl,fremd=false;
+    if(b.color&&sp.length>1){const d=sp.map(x=>({x,d:hexDist(x.hex,b.color)})).sort((u,v)=>u.d-v.d||lgRest(v.x)-lgRest(u.x));wahl=d[0].x;fremd=d[0].d>90}
+    else wahl=sp.slice().sort((u,v)=>lgRest(v)-lgRest(u))[0];
+    const rest=lgRest(wahl),anb=lgAnbruch(wahl);
+    const alt=rest<need?sp.filter(x=>x!==wahl&&lgRest(x)>=need&&(!b.color||hexDist(x.hex,b.color)<60)).sort((u,v)=>lgRest(u)-lgRest(v))[0]:null;
+    const sub=`braucht ${g(need)} · noch ${g(rest)}`+(fremd?" · Farbe aus der Datei nicht im Lager, nächste genommen":"");
+    if(rest>=need)return {k:"ok",hex:wahl.hex,t:`Reicht: <b>${esc(nm(wahl))}</b>`,s:sub+(anb<need&&rest>anb?` · angebrochene Rolle hat nur ${g(anb)}, unterwegs wechseln`:"")};
+    if(rest>0)return {k:"knapp",hex:wahl.hex,t:`Knapp: <b>${esc(nm(wahl))}</b>, es fehlen ${g(need-rest)}`,s:sub+(alt?` · Alternative: ${esc(nm(alt))} (${g(lgRest(alt))})`:"")};
+    return {k:"aus",hex:wahl.hex,t:`<b>${esc(nm(wahl))}</b> ist aufgebraucht`,s:`braucht ${g(need)}`+(alt?` · Alternative: ${esc(nm(alt))} (${g(lgRest(alt))})`:"")}});
+  return `<div class="reicht" aria-label="Reicht das Filament?">${zeilen.map(z=>`<div class="rc rc-${z.k}"><i style="background:${esc(z.hex||"#888")}"></i><div><div>${z.t}</div><small>${z.s}</small></div></div>`).join("")}</div>`}
 function renderEinfach(m){
   const q=S.quote,c=S.cfg;
   const sig=q.parts.map(p=>p.id).join(",");if(q._rxSig!==sig){const neu=q.parts.find(p=>!(q._rxSig||"").split(",").includes(p.id))||q.parts[q.parts.length-1];
@@ -767,7 +796,7 @@ function renderEinfach(m){
     <section class="rx-k" aria-label="Filament"><div class="rx-st">2 · Mit welchem Filament?</div>
       ${(()=>{const fb=rxFarben(q);const dr=`<label class="field"><span>Drucker</span><select id="q_printer" data-bind="q.printerId" data-rerender>${opt(c.printers,q.printerId)}</select></label>`;
         if(fb.length<=1)return `<div class="rx-mat">${matPick("q",q.matId,null,true)}${dr}</div>`;
-        return fb.map(f=>`<div class="rx-frow"><i class="rx-fdot" style="background:${esc(f.color||"#888")}"></i><div class="rx-fl"><b>${esc(f.label||(f.color?"Farbe "+f.color.toUpperCase():"Ohne Farbe"))}</b><small>${g(f.g)}</small></div><div class="rx-fp">${matPick("rxc:"+f.key,f.matId||q.matId,null,false)}</div></div>`).join("")+`<div class="rx-mat">${dr}</div>`})()}</section>
+        return fb.map(f=>`<div class="rx-frow"><i class="rx-fdot" style="background:${esc(f.color||"#888")}"></i><div class="rx-fl"><b>${esc(f.label||(f.color?"Farbe "+f.color.toUpperCase():"Ohne Farbe"))}</b><small>${g(f.g)}</small></div><div class="rx-fp">${matPick("rxc:"+f.key,f.matId||q.matId,null,false)}</div></div>`).join("")+`<div class="rx-mat">${dr}</div>`})()}${reichtHTML(q)}</section>
     <section class="rx-k" aria-label="Ergebnis"><div class="rx-st">3 · Ergebnis</div>
       <div class="rx-big"><span>Das kostet dich</span><b class="num">${eur(x.kosten)}</b></div>
       <div class="rx-row"><span>Filament${x.r.grams?` (${g(x.r.grams)})`:""}</span><span class="num">${eur(x.r.material)}</span></div>
@@ -932,6 +961,7 @@ function renderResult(){
       </div>
     </div>
     <div class="hint">Material ${g(r.grams)} · Druckzeit ${dur(r.minutes)} · Aufschlag tatsächlich ${pct(r.realMarkup)}</div>
+    ${reichtHTML(q)}
     <div class="row">
       <button class="btn pri" style="flex:1" data-act="saveOrder" ${q.parts.length?"":"disabled"}>${ICON.save} ${q.id?"Auftrag aktualisieren":"Als Auftrag speichern"}</button>
       <button class="btn" data-act="pdf" ${q.parts.length?"":"disabled"}>${ICON.file} Angebot (PDF)</button>
@@ -1118,6 +1148,8 @@ function renderSettings(m){
           <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund. Einfarbige Logos werden im dunklen Design automatisch weiß, farbige bleiben farbig – für dunkle Schrift kannst du eine helle Version fürs dunkle Design hinzufügen. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/ (helle Version: Name mit „-dunkel“, z. B. das-filament-dunkel.png).":""}</small></div>`})()}
     </section>
 
+    ${funktionenHTML()}
+
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
       <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
@@ -1132,6 +1164,33 @@ function renderSettings(m){
   </div>`;
 }
 
+/* ---------- Funktionen: einzeln abschaltbar (z. B. ohne Drucker oder ohne Etikettendrucker) ---------- */
+const SLF=window.SLF={e:null,laden:false,fehler:false};
+function fnServerLaden(){if(!S.srv||!window.SRV||SLF.laden||SLF.e||SLF.fehler)return;SLF.laden=true;
+  SRV.req("GET","/api/einstellungen").then(e=>{SLF.e=e;if(S.tab==="einstellungen")render()}).catch(()=>{SLF.fehler=true}).finally(()=>{SLF.laden=false})}
+function rolleBasis(){let b=String((S.cfg&&S.cfg.etQrBasis)||"").trim();
+  if(b){if(!/^https?:\/\//i.test(b))b="https://"+b;try{const u=new URL(b);if(u.pathname==="/"||!u.pathname)u.pathname="/app/";return u.origin+u.pathname}catch(e){return b}}
+  if(window.__SL_SRV)return location.origin+location.pathname;if(window.SRV&&SRV.url())return SRV.url()+"/app/";
+  try{return location.origin+location.pathname}catch(e){return ""}}
+window.rolleUrl=id=>{const b=rolleBasis();return b+(b.includes("?")?"&":"?")+"rolle="+encodeURIComponent(id)};
+function funktionenHTML(){fnServerLaden();const E=SLF.e;
+  const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  const chip=(k,t,on)=>`<button type="button" class="chip${on?" on":""}" data-act="fnToggle" data-k="${k}" aria-pressed="${on}">${on?ok:""}${t}</button>`;
+  const fertig=E?E.fertig_meldung!==false:true;
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Funktionen</h2></div>
+    <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("etikett","Spulen-Etiketten",fnAn("etikett"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}</div>
+    <div class="fnliste">
+      <div><b>Reicht die Rolle?</b> Der Rechner zeigt unter dem Filament, ob die Rolle im Lager reicht, wie viel danach übrig bleibt und welche Rolle als Ersatz passt.</div>
+      <div><b>Spulen-Etiketten</b> Knopf „Etikett“ beim Bearbeiten einer Sorte: dieselben Etiketten wie auf der Filamentwaage, mit QR-Code zur Rolle. Drucken über die Waage oder als Bild teilen.</div>
+      <div><b>Jahresrückblick</b> Knopf „Rückblick“ im Lager: Kilo, Kosten, Drucke, Lieblingsfarben und Fehldrucke eines Jahres.</div>
+      ${S.srv?`<div><b>Druck fertig</b> Nach jedem Druck eine Handymeldung mit Vorschaubild, Dauer und Verbrauch. Geht an die Handys, die unter „SchichtLohn-Server“ eingetragen sind.</div>`:""}
+    </div>
+    ${fnAn("etikett")?`<div class="cols2">${S.srv?`<label class="field"><span>Filamentwaage für den Etikettendruck</span><input type="text" id="fn_waage" value="${esc((E&&E.waage_url)||"")}" placeholder="z. B. 192.168.1.50:8080" autocomplete="off" spellcheck="false"><small class="hint">Leer lassen, wenn es keine Waage mit Etikettendrucker gibt.</small></label>`:""}
+      <label class="field"><span>Adresse im QR-Code</span><input type="text" id="fn_qr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="${esc(rolleBasis())}" autocomplete="off" spellcheck="false"><small class="hint">Leer = automatisch. Für unterwegs die Tailscale-Adresse eintragen.</small></label></div>`:""}
+  </section>`}
+document.addEventListener("change",ev=>{const t=ev.target;if(!t)return;
+  if(t.id==="fn_qr"){S.cfg.etQrBasis=t.value.trim();saveCfgSoon();toast(t.value.trim()?"QR-Adresse gespeichert":"QR-Adresse wieder automatisch")}
+  if(t.id==="fn_waage"&&window.SRV)SRV.req("PUT","/api/einstellungen",{waage_url:t.value.trim()}).then(e=>{SLF.e=e;t.value=e.waage_url||"";toast(e.waage_url?"Waage eingetragen":"Waage entfernt")}).catch(x=>toast(x.message||String(x)))});
 /* ---------- Modal und Meldungen ---------- */
 function modal(title,body,foot){
   closeModal();
@@ -1266,7 +1325,7 @@ async function importFiles(files,target="quote"){
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
   const r=S.srv?{items:await SRV.liste("todo.filament")}:S.backend==="ha"?await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"}):{items:((S.cfg.lagerLokal||{})["todo.filament"]||[]).filter(i=>{try{return !JSON.parse(i.description||"{}").typ}catch(e){return true}})};
-  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen}});
+  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen,farbe:d.farbe||"",reste:Array.isArray(d.reste)?d.reste.map(num).filter(x=>x>0):(num(d.rest)>0?[num(d.rest)]:[])}});
 }
 async function lagerModal(){
   modal("Aus FilamentLager übernehmen",`<div class="hint">Wähle Filamente aus deinem FilamentLager. Ist dort kein Preis hinterlegt, wird der übliche Preis je Typ vorgeschlagen. Du kannst ihn danach ändern.</div><input type="search" id="lagerSearch" placeholder="Hersteller, Typ oder Farbe"><div class="pick" id="lagerList"><div class="empty">Lädt…</div></div>`,`<button class="btn ghost" data-act="close">Fertig</button>`);
@@ -1385,6 +1444,9 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
+  if(a==="fnToggle"){const k=b.dataset.k;
+    if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;render();toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>toast(x.message||String(x)));return}
+    const h=new Set(S.cfg.fnAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.fnAus=[...h];saveCfgSoon();render();return}
   if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();render();return}
   if(a==="logoWeg"){const l=Object.assign({},S.cfg.logos||{});delete l[b.dataset.s];S.cfg.logos=l;saveCfgSoon();render();return}
   if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();render();return}
@@ -1451,7 +1513,7 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
   catch(err){toast("Das ist keine gültige SchichtLohn-Sicherung.")}});
 
 /* ---------- Start ---------- */
-function startTabPref(){const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
+function startTabPref(){try{if(new URLSearchParams(location.search).get("rolle"))return "lager"}catch(e){}const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
 async function start(){
   S.cfg=defaultCfg();S.quote=newQuote();S.tab=startTabPref();render();setSync("busy");
   await Store.init();
@@ -3605,6 +3667,124 @@ details.lgx summary{cursor:pointer;color:var(--fg-2);font-size:13px;margin:2px 0
 @media (max-width:620px){.lgform .g3,.lgform .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.lgbar select,.lgfx select{max-width:none;flex:1 1 45%}.lgr{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 12px}.lgsw{width:26px;height:26px}}
 </style>
 <script>
+/* ===== Spulen-Etiketten: 1:1 wie die Filamentwaage (bambu-scale, web/etikett.js) – gleiche Formate, Felder und Zeichnung ===== */
+window.Etikett=(()=>{
+  "use strict";
+  const PX_MM=8; // 203 dpi
+  const FORMATE={classic:{name:"Classic",b:40,h:30},expanded:{name:"Expanded",b:50,h:30},compact:{name:"Compact",b:40,h:25},vertikal:{name:"Vertikal",b:30,h:40}};
+  const KOPF_MM=48;
+  function formatVon(k){if(FORMATE[k])return FORMATE[k];const m=/^eigen-(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/.exec(k||"");
+    if(m){const b=Number(m[1]),h=Number(m[2]);if(b>=15&&b<=KOPF_MM&&h>=10&&h<=100)return {name:"Eigene",b,h,eigen:true}}return null}
+  const SCHRIFT="Montserrat, Arial, sans-serif";
+  /* Montserrat wie auf der Waage – aus jsDelivr; fehlt das Netz, zeichnet Arial */
+  const SCHRIFT_URL="https://cdn.jsdelivr.net/npm/@fontsource/montserrat@5.0.8/files/";
+  let schriftLaden=null;
+  function schrift(){if(schriftLaden)return schriftLaden;
+    schriftLaden=Promise.all([500,600,700,800].map(w=>{try{const f=new FontFace("Montserrat",`url(${SCHRIFT_URL}montserrat-latin-${w}-normal.woff2) format("woff2")`,{weight:String(w)});
+      return f.load().then(x=>{document.fonts.add(x)}).catch(()=>{})}catch(e){return null}})).catch(()=>{});return schriftLaden}
+  /* QR-Code (qrcode-generator, wie im Rest von SchichtLohn) */
+  let qrLaden=null;
+  function qrLib(){if(window.qrcode)return Promise.resolve(window.qrcode);if(qrLaden)return qrLaden;
+    qrLaden=new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";s.onload=()=>window.qrcode?ok(window.qrcode):no(new Error("QR fehlt"));s.onerror=()=>{qrLaden=null;no(new Error("QR-Code konnte nicht geladen werden"))};document.head.appendChild(s)});return qrLaden}
+  const bilder=new Map();
+
+  function bereich(a,b,e){if(a<0&&b<0)return "";if(a<0||a===b)return `${b}${e}`;if(b<0)return `${a}${e}`;return `${a}–${b}${e}`}
+  const komma=v=>String(Math.round(v*100)/100);
+  const FELDER=[["duese","Düse"],["bett","Bett"],["trocknen","Trocknen"],["getrocknet","Zuletzt getrocknet"],["flow","Flow / TD"],["netto","Nettogewicht"],["leer","Leergewicht"],["ort","Lagerort"],["eigene","Eigene Zeile"],["rest","Rest"]];
+  const STANDARD_FELDER=["duese","bett","trocknen","flow"];
+  const TROCKNEN_RICHTWERTE=[[/TPU|TPE/,55,8],[/PETG|PET|PCTG/,65,8],[/ASA|ABS/,80,8],[/PC\b|PC-|POLYCARB/,80,8],[/PA|NYLON|PAHT|PPA/,80,12],[/PVA|BVOH/,50,8],[/PLA/,55,8]];
+  function trocknen(s){if(s.trocknen_c>0)return {c:s.trocknen_c,h:s.trocknen_h,richtwert:false};const m=String(s.material||"").toUpperCase();const t=TROCKNEN_RICHTWERTE.find(([re])=>re.test(m));return t?{c:t[1],h:t[2],richtwert:true}:null}
+  function datum(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?`${m[3]}.${m[2]}.${m[1].slice(2)}`:""}
+  function feldZeile(s,f,o={}){
+    if(f==="duese"){const v=bereich(s.duese_min,s.duese_max," °C");return v?["Düse",v]:null}
+    if(f==="bett"){const v=bereich(s.bett_min??-1,s.bett_max??-1," °C");return v?["Bett",v]:null}
+    if(f==="trocknen"){const t=trocknen(s);return t?["Trocknen",`${t.richtwert?"~":""}${t.c} °C${t.h>0?` · ${t.h} h`:""}`]:null}
+    if(f==="getrocknet"){const d=datum(s.getrocknet);return d?["Getrockn.",d]:null}
+    if(f==="flow"){if(s.flow>0&&s.td>0)return ["Flow / TD",`${komma(s.flow)} / ${komma(s.td)}`];if(s.flow>0)return ["Flow",komma(s.flow)];if(s.td>0)return ["TD",komma(s.td)];return null}
+    if(f==="netto")return s.gewicht>0?["Netto",`${s.gewicht} g`]:null;
+    if(f==="leer"){const l=s.leer_g>0?s.leer_g:o.leerStandard||0;return l>0?["Leer",`${l} g`]:null}
+    if(f==="ort")return s.ort?["Ort",s.ort]:null;
+    if(f==="eigene"){const t=String(o.eigene||"").trim();return t?["",t]:null}
+    if(f==="rest")return (o.rest||0)>0?["Rest",`${o.rest} g`]:null;
+    return null}
+  const hatWert=(s,f,o)=>!!feldZeile(s,f,o);
+  function zeilen(s,o,max){const felder=o.felder||STANDARD_FELDER;const rest=o.rest||0;const z=[];let restZeile=null;
+    for(const f of felder){if(f==="rest"){if(rest>0)restZeile=["Rest",`${rest} g`];continue}const zeile=feldZeile(s,f,o);if(zeile)z.push(zeile)}
+    if(!z.length&&!restZeile)z.push(["Ø",`${komma(s.durchmesser||1.75)} mm · ${s.gewicht} g`]);
+    const platz=Math.max(restZeile?0:1,max-(restZeile?1:0));const out=z.slice(0,platz);
+    const lang={"Getrockn.":"Zuletzt getrocknet",Ort:"Lagerort",Leer:"Leergewicht",Netto:"Nettogewicht"};
+    out.weg=z.slice(platz).map(([n])=>(n?lang[n]||n:"Eigene Zeile"));if(restZeile)out.push(restZeile);return out}
+  function passend(ctx,text,maxB,groesse,gewicht,min=10){let g=groesse;for(;g>min;g--){ctx.font=`${gewicht} ${g}px ${SCHRIFT}`;if(ctx.measureText(text).width<=maxB)return {text,g}}
+    ctx.font=`${gewicht} ${min}px ${SCHRIFT}`;let t=text;while(t.length>1&&ctx.measureText(t+"…").width>maxB)t=t.slice(0,-1);return {text:t===text?t:t+"…",g:min}}
+  function text(ctx,t,x,y,g,gewicht,farbe="#000",ausrichtung="left"){ctx.font=`${gewicht} ${g}px ${SCHRIFT}`;ctx.fillStyle=farbe;ctx.textAlign=ausrichtung;ctx.textBaseline="alphabetic";ctx.fillText(t,x,y)}
+  function qr(ctx,inhalt,x,y,groesse,mitte=false){if(!inhalt||!window.qrcode||groesse<40)return;let modell;
+    try{modell=window.qrcode(0,"L");modell.addData(inhalt);modell.make()}catch(e){return}
+    const n=modell.getModuleCount();const m=Math.floor(groesse/n);if(m<2)return;
+    const ox=x+(mitte?Math.floor((groesse-n*m)/2):groesse-n*m),oy=y+groesse-n*m;ctx.fillStyle="#000";
+    for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(modell.isDark(r,c))ctx.fillRect(ox+c*m,oy+r*m,m,m)}
+  /* Logo: dieselben Bilder wie im Lager (eigene Logos, HA-Ordner www/hersteller, eingebaute) – fürs Etikett die helle Fassung, nicht die fürs dunkle Design */
+  async function bild(hersteller){if(!hersteller)return null;const k=String(hersteller).toLowerCase();if(bilder.has(k))return bilder.get(k);
+    const urls=(window.LAGER&&LAGER.logoUrls?LAGER.logoUrls(hersteller):[]).filter(x=>!x.dunkel).map(x=>x.u);let erg=null;
+    for(const u of urls){const img=new Image();if(!/^data:/.test(u))img.crossOrigin="anonymous";img.src=u;try{await img.decode()}catch(e){continue}
+      const d=fuerDruck(img);if(d){erg=d;break}}
+    bilder.set(k,erg);return erg}
+  /* Thermodruck: alles, was nicht Hintergrund ist, wird schwarz. Helle Logos (weiß auf durchsichtig, fürs dunkle Design) werden umgedreht. */
+  function fuerDruck(img){try{const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;if(!c.width||!c.height)return null;const x=c.getContext("2d");x.drawImage(img,0,0);
+      const d=x.getImageData(0,0,c.width,c.height),p=d.data;let sum=0,n=0,durch=0;
+      for(let i=0;i<p.length;i+=4){if(p[i+3]>128){sum+=Math.min(p[i],p[i+1],p[i+2]);n++}else durch++}
+      const hellAufDurchsichtig=n>0&&durch>n*0.2&&sum/n>200;
+      for(let i=0;i<p.length;i+=4){const r=p[i],g=p[i+1],b=p[i+2],a=p[i+3];const hell=Math.min(r,g,b),bunt=Math.max(r,g,b)-hell;
+        const tinte=hellAufDurchsichtig?a/255:(a/255)*Math.max((255-hell)/255,bunt/120>1?1:bunt/120);const v=tinte>0.3?0:255;p[i]=p[i+1]=p[i+2]=v;p[i+3]=255}
+      x.putImageData(d,0,0);return c}catch(e){return null}}
+  function kopf(ctx,s,img,x,y,b,h){if(img){const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;const f=Math.min(b/iw,h/ih);const w=Math.round(iw*f),hh=Math.round(ih*f);
+      ctx.imageSmoothingEnabled=true;ctx.drawImage(img,x,y+Math.round((h-hh)/2),w,hh);return}
+    const name=s.hersteller||"Filament";const p=passend(ctx,name,b,Math.round(h*1.05),800,12);text(ctx,p.text,x,y+Math.round(h*0.86),p.g,800)}
+  /** o: { format, rest, qr (Inhalt), felder, eigene, leerStandard, hochkant } */
+  async function zeichnen(canvas,s,o={}){
+    const f=formatVon(o.format)||FORMATE.expanded;const drehen=!!o.hochkant&&f.b>f.h;
+    const W=Math.round((drehen?f.h:f.b)*PX_MM),H=Math.round((drehen?f.b:f.h)*PX_MM);canvas.width=W;canvas.height=H;canvas.dataset.drehen=drehen?"1":"";
+    await Promise.race([Promise.all([schrift(),o.qr?qrLib().catch(()=>{}):null]),new Promise(r=>setTimeout(r,4000))]);
+    await Promise.all([document.fonts.load(`800 20px Montserrat`),document.fonts.load(`700 20px Montserrat`),document.fonts.load(`500 20px Montserrat`)]).catch(()=>{});
+    const img=await bild(s.hersteller).catch(()=>null);
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);
+    const hoch=H>W;const ref=hoch?W:H;const m=Math.round(ref*0.055);const innen=W-2*m;let y=m;
+    const kh=Math.round(ref*0.16);kopf(ctx,s,img,m,y,innen,kh);y+=kh+Math.round(ref*0.02);
+    const bh=Math.round(ref*0.17);const material=[s.material,(s.besonderheiten||[])[0]].filter(Boolean).join(" ")||s.summary;const hex=(s.hex||"").toUpperCase();
+    ctx.font=`700 ${Math.round(bh*0.5)}px ${SCHRIFT}`;const hexB=hoch?0:ctx.measureText(hex).width+Math.round(ref*0.03);const balkenB=innen-hexB;
+    ctx.fillStyle="#000";ctx.fillRect(m,y,balkenB,bh);const mp=passend(ctx,material,balkenB-Math.round(bh*0.3),Math.round(bh*0.82),800,12);
+    text(ctx,mp.text,m+Math.round(bh*0.15),y+Math.round(bh*0.5+mp.g*0.36),mp.g,800,"#fff");
+    if(!hoch)text(ctx,hex,W-m,y+Math.round(bh*0.5+bh*0.18),Math.round(bh*0.5),700,"#000","right");y+=bh+Math.round(ref*0.02);
+    const farbe=[s.farbe,s.fcode?`(${s.fcode})`:""].filter(Boolean).join(" ");const fp=passend(ctx,farbe,innen,Math.round(ref*0.12),700,11);
+    y+=Math.round(fp.g*1.0);text(ctx,fp.text,m,y,fp.g,700);if(hoch&&hex){y+=Math.round(ref*0.1);text(ctx,hex,m,y,Math.round(ref*0.08),700)}y+=Math.round(ref*0.05);
+    const unten=H-m;const voll=zeilen(s,o,6).length;const zh=Math.round(Math.max(ref*0.072,Math.min(ref*0.095,(unten-y)/voll)));const zg=Math.round(zh*0.82);
+    const werte=(liste,x,yy,breite)=>{ctx.font=`600 ${zg}px ${SCHRIFT}`;const spalte=Math.max(0,...liste.filter(([n])=>n).map(([n])=>ctx.measureText(n).width))+Math.round(ref*0.04);
+      liste.forEach(([n,w],i)=>{const zy=yy+(i+1)*zh-Math.round(zh*0.2);if(!n){const ep=passend(ctx,w,breite,zg,700,10);text(ctx,ep.text,x,zy,ep.g,700);return}
+        text(ctx,n,x,zy,zg,600);const wp=passend(ctx,w,breite-spalte,zg,n==="Rest"?800:700,10);text(ctx,wp.text,x+spalte,zy,wp.g,n==="Rest"?800:700)})};
+    let weg=[];
+    if(hoch){const luecke=Math.round(ref*0.04);const q0=o.qr?Math.round(W*0.4):0;const oben=Math.max(0,Math.floor((unten-y-(q0?q0+luecke:0))/zh));const daneben=q0?Math.floor(q0/zh):0;
+      const liste=zeilen(s,o,Math.max(1,Math.min(8,oben+daneben)));weg=liste.weg;const obenListe=liste.slice(0,oben),nebenListe=liste.slice(oben);
+      werte(obenListe,m,y,innen);y+=obenListe.length*zh+luecke;
+      if(o.qr){if(nebenListe.length){werte(nebenListe,m,unten-q0,innen-q0-luecke);if(q0>=48)qr(ctx,o.qr,W-m-q0,unten-q0,q0)}
+        else{const q=Math.min(innen,unten-y);if(q>=48)qr(ctx,o.qr,Math.round((W-q)/2),unten-q,q,true)}}}
+    else{const q=o.qr?Math.min(unten-y,Math.round(W*0.3)):0;const liste=zeilen(s,o,Math.max(1,Math.min(6,Math.floor((unten-y)/zh))));
+      werte(liste,m,unten-liste.length*zh,innen-q-Math.round(ref*0.03));weg=liste.weg;if(q)qr(ctx,o.qr,W-m-q,unten-q,q)}
+    schwarzWeiss(ctx,W,H);return {breite:W,hoehe:H,weg}}
+  function schwarzWeiss(ctx,W,H){try{const d=ctx.getImageData(0,0,W,H);const p=d.data;
+    for(let i=0;i<p.length;i+=4){const a=p[i+3]/255;const l=(0.299*p[i]+0.587*p[i+1]+0.114*p[i+2])*a+255*(1-a);const v=l<140?0:255;p[i]=p[i+1]=p[i+2]=v;p[i+3]=255}
+    ctx.putImageData(d,0,0)}catch(e){}}
+  function aufrecht(canvas){if(canvas.dataset.drehen!=="1")return canvas;const g=document.createElement("canvas");g.width=canvas.height;g.height=canvas.width;const c=g.getContext("2d");
+    c.fillStyle="#fff";c.fillRect(0,0,g.width,g.height);c.translate(g.width,0);c.rotate(Math.PI/2);c.drawImage(canvas,0,0);return g}
+  /** 1-Bit-Raster für den Drucker der Waage: 1 = schwarz, Breite auf 8 Punkte aufgerundet, Base64 */
+  function raster(canvas){canvas=aufrecht(canvas);const W=canvas.width,H=canvas.height;const bpr=Math.ceil(W/8);const p=canvas.getContext("2d").getImageData(0,0,W,H).data;const out=new Uint8Array(bpr*H);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(p[(y*W+x)*4]<128)out[y*bpr+(x>>3)]|=0x80>>(x&7)}
+    let bin="";for(let i=0;i<out.length;i+=0x8000)bin+=String.fromCharCode.apply(null,out.subarray(i,i+0x8000));return {breite:bpr*8,hoehe:H,daten:btoa(bin)}}
+  /* Bild zum Teilen oder Ausdrucken auf Papier: 4-fach vergrößert, scharfe Kanten */
+  function png(canvas,faktor=4){const g=document.createElement("canvas");g.width=canvas.width*faktor;g.height=canvas.height*faktor;const c=g.getContext("2d");c.imageSmoothingEnabled=false;c.drawImage(canvas,0,0,g.width,g.height);
+    return new Promise(ok=>g.toBlob(b=>ok(b),"image/png"))}
+  return {FORMATE,KOPF_MM,formatVon,hatWert,FELDER,STANDARD_FELDER,trocknen,datum,zeichnen,raster,png}
+})();
+</script>
+<script>
 /* ===== Lager in SchichtLohn: liest und schreibt todo.filament direkt, gleiches Datenformat wie die FilamentLager-Karte ===== */
 (function(){
 "use strict";
@@ -3768,7 +3948,7 @@ async function start(){
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
   try{if(L()&&haDa()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(rolleAusAdresse,200);setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
@@ -3848,7 +4028,7 @@ function body0(){G._allZu=false;
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
   let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -3968,7 +4148,7 @@ function formModal(e,prefill){
       ${f.codes.length?`<div class="field"><span>Strichcodes</span><div class="lgtg">${f.codes.map(c=>`<span class="chip">${esc(c)} · ${f.codes_refill.includes(c)?"Refill":"Spule"} <button type="button" class="btn icon ghost" style="width:20px;height:20px;padding:0" data-act="lgCode" data-c="${esc(c)}" aria-label="Code entfernen">${ICON.x}</button></span>`).join("")}</div></div>`:""}
     </div></details>
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
-    `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
+    `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}${!isNew&&fnAn("etikett")?`<button class="btn ghost" data-act="lgEtikett" title="Etikett mit QR-Code für diese Rolle">${SV_ETIKETT} Etikett</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
 }
 function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};
@@ -4401,7 +4581,7 @@ G.serie=serieLaden();
 const serieSichern=()=>{try{localStorage.setItem(SERIE_KEY,JSON.stringify(G.serie))}catch(e){}};
 const serieSumme=()=>G.serie.reduce((a,x)=>a+x.n,0);
 const serieWeg=code=>{G.serie=G.serie.filter(x=>x.code!==code);serieSichern()};
-const codeSorte=code=>entries().find(e=>e.codes.includes(code));
+const codeSorte=code=>entries().find(e=>e.codes.includes(code)||(/^SL-/.test(code)&&slId(e)===code));
 function serieGruppen(){const bekannt=[],unbekannt=[];G.serie.forEach(x=>{const e=codeSorte(x.code);if(e)bekannt.push(Object.assign({},x,{e,refill:e.codes_refill.includes(x.code)}));else unbekannt.push(Object.assign({},x,{k:kBekannt(x.code)}))});return {bekannt,unbekannt}}
 const plural=(n,a,b)=>n+" "+(n===1?a:b);
 /* Piepton wie beim Kassenscanner (WebAudio). iOS gibt Ton nur frei, wenn er bei einem Tipp entsperrt wurde → tonAn() beim Öffnen von Kamera/Fotos */
@@ -4467,15 +4647,15 @@ function scanModal(serie){
     ${serie?"":`<div class="row"><button class="btn ghost sm" data-act="lgFoto">${CAMI} Kein Barcode? Spule fotografieren</button></div>`}</div>`,foot);
   setTimeout(()=>{const ae=document.activeElement;if(ae&&ae.id==="lgctxt")ae.blur()},60);
   camStart(code=>{if(G.serieAktiv)serieAdd(code,false);else onCode(code)})}
-async function onCode(raw){const code=String(raw||"").trim();if(!code)return;camStop();brumm();piep();
+async function onCode(raw){const code=slCode(raw);if(!code)return;camStop();brumm();piep();
   const e=codeSorte(code);if(e)return hitModal(code,e);
   if(!CODES_BEKANNT[code]&&!G.fdb&&fdbCodeKey(code))try{await Promise.race([fdbLaden(),new Promise((_,r)=>setTimeout(r,4000))])}catch(err){}
   neuModal(code,1,false)}
 function hitModal(code,e){const ref=e.codes_refill.includes(code);G.hit={code,uid:e.uid};
   modal("Erkannt",`<div class="lgform"><div class="lgr" style="border:1px solid var(--line);border-radius:var(--r-s)" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}${deF(e.farbe)}</div>
     <div class="lgs">Bestand: ${plural(e.spulen,"Rolle","Rollen")} (${Math.max(0,e.spulen-e.refills)} mit Spule, ${e.refills} Refill) · ${kg(total(e))}</div></div><div></div></div>
-    <div class="lghint">Code ${esc(code)} · ${ref?"Refill (ohne Spule)":"mit Spule"}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
-    `<button class="btn ghost" data-act="lgHitEdit">Bearbeiten</button><button class="btn ghost" data-act="lgScan">Weiter scannen</button><span class="sp"></span><button class="btn pri" data-act="lgHitPlus">${ICON.plus} 1 ${ref?"Refill":"Spule"}</button>`)}
+    <div class="lghint">${/^SL-/.test(code)?`Etikett ${esc(code)}`:`Code ${esc(code)} · ${ref?"Refill (ohne Spule)":"mit Spule"}`}</div><div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
+    `<button class="btn ghost" data-act="lgHitEdit">Bearbeiten</button>${fnAn("etikett")?`<button class="btn ghost" data-act="lgEtikett">Etikett</button>`:""}<button class="btn ghost" data-act="lgScan">Weiter scannen</button><span class="sp"></span><button class="btn pri" data-act="lgHitPlus">${ICON.plus} 1 ${ref?"Refill":"Spule"}</button>`)}
 function neuModal(code,anzahl,ausSerie){const k=kBekannt(code);G.neu={code,k,anzahl:anzahl||1,serie:!!ausSerie,refill:!!(k&&k.ausfuehrung==="refill")};
   const all=entries().sort((a,b)=>summary(a).localeCompare(summary(b),"de"));const n=G.neu.anzahl;
   modal("Neuer Strichcode",`<div class="lgform">
@@ -4492,7 +4672,7 @@ function neuModal(code,anzahl,ausSerie){const k=kBekannt(code);G.neu={code,k,anz
 
 /* Serienscan */
 function serieStart(){fdbVorladen();G.serieAktiv=true;G.serieLetzt="";G.serieZuletzt=null;if(extern())return serieNativ();scanModal(true)}
-function serieAdd(raw,vonHand){const code=String(raw||"").trim();if(!code)return null;const jetzt=Date.now();
+function serieAdd(raw,vonHand){const code=slCode(raw);if(!code)return null;const jetzt=Date.now();
   if(!vonHand&&G.serieZuletzt&&G.serieZuletzt.code===code&&jetzt-G.serieZuletzt.t<3000){G.serieZuletzt.t=jetzt;return null}
   G.serieZuletzt={code,t:jetzt};let x=G.serie.find(y=>y.code===code);if(x)x.n+=1;else{x={code,n:1};G.serie.push(x)}serieSichern();brumm();piep();
   const e=codeSorte(code),k=kBekannt(code);const nm=e?summary(e):k?summary(k)+" (neu)":"Unbekannter Code "+code;
@@ -4701,6 +4881,15 @@ document.addEventListener("click",async e=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
       try{await silicaSpeichern(w);toast("Silica-Tausch gespeichert");setTimeout(()=>silicaModal(),400)}catch(err){toast("Speichern fehlgeschlagen")}});return}
   if(a==="lgStat"){statModal();return}
+  if(a==="lgRueck"){rueckblickModal();return}
+  if(a==="lgRbJahr"){G.rbJahr=Number(b.dataset.j);rueckblickModal();return}
+  if(a==="lgEtikett"){const uid=(G.form&&G.form.uid)||(G.hit&&G.hit.uid);if(uid)etikettModal(uid);return}
+  if(a==="lgEtF"){const o=etOpt();o.format=b.dataset.f;etOptSave(o);document.querySelectorAll('[data-act="lgEtF"]').forEach(c=>c.classList.toggle("on",c===b));etZeichnen();return}
+  if(a==="lgEtHoch"){const o=etOpt();o.hochkant=!o.hochkant;etOptSave(o);b.classList.toggle("on",o.hochkant);etZeichnen();return}
+  if(a==="lgEtFeld"){const o=etOpt();const f=b.dataset.f;o.felder=o.felder.includes(f)?o.felder.filter(x=>x!==f):Etikett.FELDER.map(x=>x[0]).filter(x=>x===f||o.felder.includes(x));etOptSave(o);
+    if(f==="eigene"&&G.et){etikettModal(G.et.uid);return}b.classList.toggle("on",o.felder.includes(f));etZeichnen();return}
+  if(a==="lgEtTeilen"){etTeilen();return}
+  if(a==="lgEtWaage"){etWaage(b);return}
   if(a==="lgEinkauf"){einkaufModal();if(!G.fdb)fdbLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});return}
   if(a==="lgEkAus"){G.ekAus=[...new Set([...(G.ekAus||[]),b.dataset.uid])];try{localStorage.setItem("sl_ek_aus",JSON.stringify(G.ekAus))}catch(x){}einkaufModal();draw(0);return}
   if(a==="lgEkReset"){G.ekAus=[];try{localStorage.removeItem("sl_ek_aus")}catch(x){}closeModal();einkaufModal();draw(0);return}
@@ -4799,6 +4988,99 @@ const BOOK={ready:()=>!!G.loaded&&(lokal()||srv()||!!window.__hass),start:()=>{s
   abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
   offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
     description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
+/* ---------- Spulen-Etiketten (gleich wie auf der Filamentwaage) ---------- */
+const ET_OPT="sl_etikett";
+function etOpt(){let o={};try{o=JSON.parse(localStorage.getItem(ET_OPT)||"{}")||{}}catch(x){}return Object.assign({format:"",felder:Etikett.STANDARD_FELDER.slice(),hochkant:false,eigene:"",kopien:1},o)}
+function etOptSave(o){try{localStorage.setItem(ET_OPT,JSON.stringify(o))}catch(x){}}
+const SV_ETIKETT=`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l4-4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7l-4-4z"/><path d="M14 8h3v3h-3zM14 14h3M9 9v6"/></svg>`;
+const slNeu=()=>{const z="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let a;try{a=crypto.getRandomValues(new Uint8Array(6))}catch(x){a=Array.from({length:6},()=>Math.floor(Math.random()*256))}return "SL-"+Array.from(a,b=>z[b%32]).join("")};
+const slId=e=>e&&e.raw&&e.raw.sl_id?String(e.raw.sl_id):"";
+function etSorte(e){const r=e.raw||{};const n=v=>{if(v===null||v===undefined||v==="")return -1;const x=Number(v);return Number.isFinite(x)?x:-1};
+  return {hersteller:e.hersteller,material:e.material,besonderheiten:e.besonderheiten,farbe:e.farbe,hex:e.hex,fcode:e.fcode,summary:summary(e),
+    duese_min:n(e.duese_min),duese_max:n(e.duese_max),bett_min:n(e.bett_min),bett_max:n(e.bett_max),trocknen_c:n(e.trocknen_c),trocknen_h:n(e.trocknen_h),
+    flow:n(r.flow),td:n(r.td),durchmesser:e.durchmesser||1.75,gewicht:e.gewicht,leer_g:n(r.leer_g),ort:r.ort||"",getrocknet:r.getrocknet||""}}
+const etRest=e=>{const rs=(e.reste||[]).slice(0,Math.max(0,e.spulen));return rs.length?Math.round(Math.min(...rs)):0};
+async function slEin(){if(!(window.SRV&&S.srv))return {};if(window.SLF&&SLF.e)return SLF.e;try{const x=await SRV.req("GET","/api/einstellungen");if(window.SLF)SLF.e=x;return x}catch(err){return {}}}
+async function etikettModal(uid){let e=entries().find(x=>x.uid===uid);if(!e)return;
+  if(!slId(e)){e.raw=Object.assign({},e.raw,{sl_id:slNeu()});try{await write(e,{})}catch(err){toast("Etikett-Nummer konnte nicht gespeichert werden")}}
+  const o=etOpt();G.et={uid,id:slId(e),e};
+  const waage=!!(await slEin()).waage_url;G.et.waage=waage;
+  if(!o.format&&waage&&!G.waageFormat)try{const w=await SRV.req("GET","/api/waage/etikett");if(w&&w.format)G.waageFormat=w.format}catch(err){}
+  const fmt=o.format||G.waageFormat||"expanded";
+  modal("Etikett",`<div class="lgform" id="lgEt">
+    <div class="etvor"><canvas id="etCv" aria-label="Vorschau des Etiketts"></canvas></div><div class="lghint" id="etWeg"></div>
+    <div class="field"><span>Format</span><div class="lgtg">${Object.entries(Etikett.FORMATE).map(([k,f])=>`<button type="button" class="chip${k===fmt?" on":""}" data-act="lgEtF" data-f="${k}">${f.name} <small>${f.b}×${f.h}</small></button>`).join("")}<button type="button" class="chip${o.hochkant?" on":""}" data-act="lgEtHoch" title="Auf derselben Rolle um 90° gedreht">Hochkant</button></div></div>
+    <div class="field"><span>Angaben</span><div class="lgtg">${Etikett.FELDER.map(([k,t])=>{const s=etSorte(e);const da=k==="eigene"||k==="rest"?true:Etikett.hatWert(s,k,{leerStandard:250});
+      return `<button type="button" class="chip${o.felder.includes(k)?" on":""}${da?"":" etleer"}" data-act="lgEtFeld" data-f="${k}"${da?"":` title="Für diese Sorte nicht hinterlegt"`}>${esc(t)}</button>`}).join("")}</div></div>
+    ${o.felder.includes("eigene")?`<label class="field"><span>Eigene Zeile</span><input type="text" id="etEig" value="${esc(o.eigene||"")}" maxlength="40" placeholder="z. B. Regal oben links"></label>`:""}
+    <div class="lghint">Der QR-Code öffnet diese Rolle in SchichtLohn (${esc(G.et.id)}) – mit der Kamera vom Handy oder im Scanner im Lager.${waage?"":" Gedruckt wird über die Filamentwaage; ohne Waage das Bild teilen und ausdrucken."}</div>
+    <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
+    `<button class="btn ghost" data-act="lgEtTeilen">Bild teilen</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>${waage?`<button class="btn pri" data-act="lgEtWaage">Auf der Waage drucken</button>`:""}`);
+  etZeichnen()}
+let etLauf=0;
+async function etZeichnen(){const cv=document.getElementById("etCv");if(!cv||!G.et)return;const n=++etLauf;const o=etOpt();const e=G.et.e;
+  const fmt=o.format||G.waageFormat||"expanded";
+  const tmp=document.createElement("canvas");
+  let erg;try{erg=await Etikett.zeichnen(tmp,etSorte(e),{format:fmt,felder:o.felder,eigene:o.eigene,hochkant:o.hochkant,rest:etRest(e),qr:window.rolleUrl?rolleUrl(G.et.id):G.et.id,leerStandard:250})}
+  catch(err){const m=document.getElementById("lf_msg");if(m)m.textContent="Etikett konnte nicht gezeichnet werden: "+(err.message||err);return}
+  if(n!==etLauf)return;cv.width=tmp.width;cv.height=tmp.height;cv.dataset.drehen=tmp.dataset.drehen||"";cv.getContext("2d").drawImage(tmp,0,0);
+  const f=Etikett.formatVon(fmt)||Etikett.FORMATE.expanded;cv.style.width=Math.min(100,Math.round((tmp.width/8)/56*100))+"%";
+  const w=document.getElementById("etWeg");if(w)w.textContent=erg&&erg.weg&&erg.weg.length?`Passt nicht mehr drauf: ${erg.weg.join(", ")}`:`${f.name} · ${f.b} × ${f.h} mm${o.hochkant&&f.b>f.h?" · hochkant":""}`}
+async function etTeilen(){const cv=document.getElementById("etCv");if(!cv||!G.et)return;const blob=await Etikett.png(cv);if(!blob)return toast("Bild nicht möglich");
+  const name=`Etikett ${summary(G.et.e).replace(/[\\/:*?"<>|·]+/g," ").replace(/\s+/g," ").trim()}.png`;
+  try{const file=new File([blob],name,{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(err){if(err&&err.name==="AbortError")return}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast("Etikett als Bild gespeichert")}
+async function etWaage(b){const cv=document.getElementById("etCv");if(!cv||!G.et)return;const r=Etikett.raster(cv);const o=etOpt();
+  if(b)b.disabled=true;try{const d=await SRV.req("POST","/api/waage/drucken",Object.assign(r,{kopien:Math.max(1,Math.min(10,o.kopien||1))}));toast(d&&d.ok===false?(d.text||"Waage meldet einen Fehler"):"Etikett geht an die Waage")}
+  catch(err){toast(err.message||String(err))}finally{if(b)b.disabled=false}}
+document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="etEig"){const o=etOpt();o.eigene=ev.target.value;etOptSave(o);clearTimeout(etZeichnen.t);etZeichnen.t=setTimeout(etZeichnen,200)}});
+/* QR-Code einer Rolle (aus der Kamera oder vom Scanner): „…?rolle=SL-ABC123“ → SL-ABC123 */
+const slCode=raw=>{const s=String(raw||"").trim();const m=/[?&]rolle=([^&#\s]+)/i.exec(s);if(m){let c=m[1];try{c=decodeURIComponent(c)}catch(x){}return c.toUpperCase()}return /^sl-[a-z0-9]{6}$/i.test(s)?s.toUpperCase():s};
+/* Aufruf über den QR-Code: Rolle öffnen, sobald das Lager geladen ist */
+function rolleAusAdresse(){if(G.rolleFertig||!G.loaded)return;G.rolleFertig=true;let id="";
+  try{id=new URLSearchParams(location.search).get("rolle")||""}catch(x){}
+  if(!id)try{id=new URLSearchParams(top.location.search).get("rolle")||""}catch(x){}
+  if(!id)return;id=slCode(id);
+  try{const u=new URL(location.href);if(u.searchParams.has("rolle")){u.searchParams.delete("rolle");history.replaceState(null,"",u.pathname+u.search+u.hash)}}catch(x){}
+  const e=codeSorte(id);
+  if(S.tab!=="lager"){S.tab="lager";window.render&&window.render()}
+  setTimeout(()=>{if(e)hitModal(id,e);else toast("Rolle "+id+" ist nicht (mehr) im Lager")},300)}
+
+/* ---------- Jahresrückblick aus der Verbrauchsliste ---------- */
+function rueckblickModal(){
+  const alle=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit)));
+  const jahrVon=d=>new Date(d.zeit).getFullYear();
+  const jahre=[...new Set(alle.map(jahrVon))].sort((a,b)=>b-a);const j=jahre.includes(G.rbJahr)?G.rbJahr:(jahre[0]||new Date().getFullYear());
+  const D=alle.filter(d=>jahrVon(d)===j),V=alle.filter(d=>jahrVon(d)===j-1);
+  const eur=x=>x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});const gr=a=>a.reduce((s,d)=>s+(Number(d.gramm)||0),0);const ko=a=>a.reduce((s,d)=>s+(Number(d.kosten)||0),0);
+  const druckKey=d=>String(d.zeit).slice(0,16)+"|"+(d.drucker||"");const drucke=a=>new Set(a.map(druckKey)).size;
+  const sel=jahre.length>1?`<div class="lgtg">${jahre.map(y=>`<button type="button" class="chip${y===j?" on":""}" data-act="lgRbJahr" data-j="${y}">${y}</button>`).join("")}</div>`:"";
+  let h=`<div class="lgform rb" id="lgRb">${sel}`;
+  if(!metaDa())h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt.</div>`;
+  else if(!D.length)h+=`<div class="panel empty">Für ${j} gibt es noch keinen Verbrauch. Jede Abbuchung nach einem Druck zählt hier mit.</div>`;
+  else{const g0=gr(D),k0=ko(D),n0=drucke(D);
+    const fehl=D.filter(d=>/abgebrochen/i.test(d.anlass||""));const fg=gr(fehl),fk=ko(fehl),fn=drucke(fehl);
+    const dichte=m=>{try{return (TYPE_DEFAULTS[typeKey(m)]||{}).d||1.24}catch(x){return 1.24}};
+    const meter=D.reduce((s,d)=>s+(Number(d.gramm)||0)/(dichte(d.material)*Math.PI*0.0875*0.0875*100),0);
+    const mon=Array(12).fill(0);D.forEach(d=>{mon[new Date(d.zeit).getMonth()]+=Number(d.gramm)||0});const mMax=Math.max(...mon,1);const mTop=mon.indexOf(Math.max(...mon));
+    const MN=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+    const gruppe=(key)=>{const m={};D.forEach(d=>{const k=key(d);if(!k)return;const x=m[k]||(m[k]={k,g:0,n:new Set(),hex:d.hex,sorte:{}});x.g+=Number(d.gramm)||0;x.n.add(druckKey(d));if(d.sorte)x.sorte[d.sorte]=(x.sorte[d.sorte]||0)+(Number(d.gramm)||0)});return Object.values(m).sort((a,b)=>b.g-a.g)};
+    const farben=gruppe(d=>d.hex?String(d.hex).toLowerCase():"").slice(0,3);const druckerL=gruppe(d=>d.drucker).slice(0,3);const matL=gruppe(d=>d.material).slice(0,3);const sorten=gruppe(d=>d.sorte);
+    const fname=x=>{const s=Object.entries(x.sorte).sort((a,b)=>b[1]-a[1])[0];const nm=s?String(s[0]).split(" · ").pop():"";return nm||((window.farbName&&farbName(x.k))||x.k.toUpperCase())};
+    const vg=gr(V);const vgl=vg>0?Math.round((g0/vg-1)*100):null;
+    const zahl=x=>Math.round(x).toLocaleString("de-DE");
+    h+=`<div class="rb-hero"><span>Dein Druckjahr ${j}</span><b>${kg(g0)}</b><small>Filament verdruckt${vgl!=null?` · ${vgl>=0?"+":""}${vgl} % zu ${j-1}`:""}</small></div>
+      <div class="rb-tiles"><div><b>${zahl(n0)}</b><span>Drucke</span></div><div><b>${k0>0?eur(k0):"–"}</b><span>Filamentkosten</span></div><div><b>${meter>=1000?(meter/1000).toLocaleString("de-DE",{maximumFractionDigits:1})+" km":zahl(meter)+" m"}</b><span>Filament am Stück</span></div><div><b>${(g0/1000).toLocaleString("de-DE",{maximumFractionDigits:1})}</b><span>Rollen à 1 kg</span></div></div>
+      <div class="lgsh"><span>Pro Monat</span></div><div class="rb-mon">${mon.map((x,i)=>`<div class="${i===mTop&&x>0?"top":""}" title="${MN[i]}: ${kg(x)}"><i style="height:${x>0?Math.max(4,Math.round(x/mMax*100)):0}%"></i><span>${MN[i]}</span></div>`).join("")}</div>
+      <div class="lghint">Fleißigster Monat: <b>${["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"][mTop]}</b> mit ${kg(mon[mTop])}.</div>
+      ${farben.length?`<div class="lgsh"><span>Lieblingsfarben</span></div><div class="rb-farben">${farben.map((x,i)=>`<div><i style="background:${esc(x.k)}"></i><b>${i+1}. ${esc(fname(x))}</b><small>${kg(x.g)}</small></div>`).join("")}</div>`:""}
+      <div class="rb-top">${druckerL.length?`<div><span>Fleißigster Drucker</span><b>${esc(druckerL[0].k)}</b><small>${zahl(druckerL[0].n.size)} Drucke · ${kg(druckerL[0].g)}</small></div>`:""}
+        ${matL.length?`<div><span>Lieblingsmaterial</span><b>${esc(matL[0].k)}</b><small>${kg(matL[0].g)}${matL[1]?` · danach ${esc(matL[1].k)}`:""}</small></div>`:""}
+        ${sorten.length?`<div><span>Meistgenutzte Sorte</span><b>${esc(sorten[0].k)}</b><small>${kg(sorten[0].g)}</small></div>`:""}</div>
+      <div class="rb-fehl${fn?"":" gut"}"><b>${fn?`${zahl(fn)} Fehldruck${fn===1?"":"e"}`:"Kein einziger Fehldruck"}</b><small>${fn?`${kg(fg)} Filament${fk>0?` · ${eur(fk)}`:""} – ${Math.round(fn/Math.max(1,n0)*100)} % der Drucke abgebrochen`:"Alle Drucke liefen bis zum Ende durch."}</small></div>`}
+  h+=`</div>`;
+  const b=document.querySelector("#modal #lgRb");if(b){b.outerHTML=h;return}
+  modal("Jahresrückblick",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
@@ -4808,7 +5090,7 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 (()=>{const GR=[
   ["Kalkulation",["Kosten und Preis","Drucker","Materialien"]],
   ["Verkauf und Angebote",["Verkaufskanäle","Absender für Angebote"]],
-  ["Lager und Ansicht",["Lager","Reiter"]],
+  ["Lager und Ansicht",["Lager","Funktionen","Reiter"]],
   ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Creality-Cloud","Sync zwischen Geräten"]],
   ["Daten",["Daten und Sicherung"]]];
   const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
@@ -4867,6 +5149,49 @@ body.rx-einfach #mbar{display:none!important}
 [data-skin="ha"] #sync span::before{display:none}</style>
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
+<style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
+.reicht{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.rc{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:var(--r-s,8px);border:1px solid var(--line);font-size:13.5px;line-height:1.35}
+.rc>i{width:14px;height:14px;border-radius:50%;margin-top:2px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
+.rc small{display:block;color:var(--fg-3);font-size:12.5px;margin-top:1px}
+.rc-ok{border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 9%,transparent)}
+.rc-knapp{border-color:color-mix(in srgb,var(--warn) 55%,transparent);background:color-mix(in srgb,var(--warn) 10%,transparent)}
+.rc-aus{background:color-mix(in srgb,var(--fg) 4%,transparent)}
+.etvor{display:flex;justify-content:center;padding:14px;border-radius:var(--r-s,8px);background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.etvor canvas{display:block;max-width:100%;height:auto;image-rendering:pixelated;background:#fff;border-radius:3px;box-shadow:0 1px 6px rgba(0,0,0,.25)}
+.chip.etleer{opacity:.55}
+.chip small{opacity:.7;font-size:11px;margin-left:2px}
+.lgbest .lgekbtn.lgrbbtn{margin-left:8px}
+.fnliste{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--fg-3)}
+.fnliste b{color:var(--fg);margin-right:4px}
+.rb{gap:14px}
+.rb-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 12px;border-radius:var(--r,12px);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 6%,transparent));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.rb-hero span{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.rb-hero b{font-size:44px;line-height:1.1;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.rb-hero small{color:var(--fg-3);font-size:13px}
+.rb-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rb-tiles>div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line);border-radius:var(--r-s,8px)}
+.rb-tiles b{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rb-tiles span{font-size:12px;color:var(--fg-3)}
+.rb-mon{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;height:120px;align-items:end}
+.rb-mon>div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+.rb-mon i{display:block;width:100%;max-width:22px;border-radius:4px 4px 1px 1px;background:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rb-mon .top i{background:var(--accent)}
+.rb-mon span{font-size:10.5px;color:var(--fg-3)}
+.rb-farben{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rb-farben>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:10px 6px;border:1px solid var(--line);border-radius:var(--r-s,8px);min-width:0}
+.rb-farben i{width:44px;height:44px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(127,127,127,.4),0 2px 6px rgba(0,0,0,.15)}
+.rb-farben b{font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-farben small,.rb-top small{color:var(--fg-3);font-size:12px}
+.rb-top{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rb-top>div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line);border-radius:var(--r-s,8px);min-width:0}
+.rb-top span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+.rb-top b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-fehl{padding:10px 12px;border-radius:var(--r-s,8px);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent);background:color-mix(in srgb,var(--bad) 8%,transparent);display:flex;flex-direction:column;gap:2px}
+.rb-fehl.gut{border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 9%,transparent)}
+.rb-fehl small{color:var(--fg-3);font-size:12.5px}
+@media (max-width:560px){.rb-tiles{grid-template-columns:repeat(2,1fr)}.rb-top{grid-template-columns:1fr}.rb-hero b{font-size:38px}}
+</style>
 <style>.rx-frow{display:grid;grid-template-columns:auto minmax(90px,1fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.rx-frow:first-of-type{border-top:0}.rx-fdot{width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}.rx-fl{min-width:0}.rx-fl b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rx-fl small{color:var(--fg-3);font-size:12.5px}.rx-fp .mpick{display:grid;grid-template-columns:1fr 1fr;gap:6px}@media (max-width:520px){.rx-frow{grid-template-columns:auto 1fr}.rx-fp{grid-column:1/-1}}</style>
 <style>.lgcol .lghexin{flex:0 0 96px;width:96px;font-family:var(--f-mono,ui-monospace,Menlo,monospace);text-transform:uppercase;letter-spacing:.03em}.lgcol .lghexin.bad{border-color:var(--bad)}</style>
 <style>.lggw{display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}.lggw .chip{font-variant-numeric:tabular-nums;cursor:pointer}.lggw .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}</style>

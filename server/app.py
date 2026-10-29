@@ -20,6 +20,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
+  POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
 
 Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
@@ -58,7 +59,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.8"
+VERSION = "3.1.9"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -583,6 +584,8 @@ def einstellungen():
     w.setdefault("cloud", {})
     w.setdefault("ha", {})
     w.setdefault("abbuchung", True)
+    w.setdefault("fertig_meldung", True)
+    w.setdefault("waage_url", "")
     return w
 
 
@@ -628,8 +631,17 @@ def einstellungen_setzen(neu):
             e[k] = x
     if "abbuchung" in neu:
         e["abbuchung"] = bool(neu["abbuchung"])
+    if "fertig_meldung" in neu:
+        e["fertig_meldung"] = bool(neu["fertig_meldung"])
+    nur_extras = set(neu) <= {"fertig_meldung", "waage_url"}
+    if "waage_url" in neu:
+        u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
+        if u and not re.match(r"^https?://", u):
+            u = "http://" + u
+        e["waage_url"] = u
     daten_schreiben(EINST_KEY, e)
-    BAMBU.neu_starten()
+    if not nur_extras:
+        BAMBU.neu_starten()
     return einstellungen_maskiert()
 
 
@@ -693,7 +705,31 @@ def im_hintergrund(f, *a):
     threading.Thread(target=lauf, daemon=True).start()
 
 
-def handy_meldung(titel, text):
+def waage_weiter(was, methode, rumpf):
+    """Etikettendruck über die Filamentwaage (bambu-scale): SchichtLohn reicht das fertige Raster an die Waage weiter."""
+    import urllib.request
+    basis = einstellungen().get("waage_url") or ""
+    if not basis:
+        raise Fehler(400, "Keine Waage eingetragen (Einstellungen → Funktionen → Spulen-Etiketten)")
+    pfade = {("drucken", "POST"): "/api/etikett/drucken", ("etikett", "GET"): "/api/etikett/einstellungen",
+             ("zustand", "GET"): "/api/zustand"}
+    pfad = pfade.get((was, methode))
+    if not pfad:
+        raise Fehler(404, "Unbekannt")
+    if rumpf is not None:
+        rumpf = {k: rumpf[k] for k in ("breite", "hoehe", "daten", "kopien") if k in rumpf}
+    req = urllib.request.Request(basis + pfad, method=methode, headers={"Content-Type": "application/json"},
+                                 data=json.dumps(rumpf).encode() if rumpf is not None else None)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8") or "{}")
+    except Exception as e:
+        grund = getattr(e, "reason", None) or e
+        raise Fehler(502, f"Waage unter {basis} nicht erreichbar ({getattr(grund, 'strerror', None) or grund}). "
+                          "Läuft sie, und steht in ihrer config.toml unter [server] adresse = \"0.0.0.0\"?")
+
+
+def handy_meldung(titel, text, bild=""):
     melden({"typ": "meldung", "titel": titel, "text": text})
     h = einstellungen()["ha"]
     roh = h.get("notify") or ""
@@ -703,7 +739,10 @@ def handy_meldung(titel, text):
         return
     if ziele:
         for ziel in ziele:  # mehrere Handys: an jedes einzeln
-            im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], {"title": titel, "message": text})
+            nachricht = {"title": titel, "message": text}
+            if bild:  # iOS und Android zeigen das Bild in der Meldung
+                nachricht["data"] = {"image": bild, "attachment": {"url": bild, "content-type": "png"}}
+            im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], nachricht)
     else:
         im_hintergrund(ha_anfrage, "/api/services/persistent_notification/create",
                        {"title": titel, "message": text, "notification_id": "filament_abbuchung"})
@@ -827,10 +866,32 @@ def trocknen_pruefen(z):
         st["geaendert"], st["zuletzt"] = False, jetzt
 
 
+def _dauer(s):
+    s = int(s or 0)
+    if s <= 0:
+        return ""
+    h, m = s // 3600, (s % 3600) // 60
+    return f"{h} h {m} min" if h else f"{max(1, m)} min"
+
+
+def fertig_melden(druckername, erg, kurz):
+    """Eine Handymeldung zum Druckende: Auftrag, Drucker, Dauer, Verbrauch – mit Vorschaubild, wenn die Cloud eins hat."""
+    aufgabe = (erg.get("aufgabe") or "").strip() or "Druckauftrag"
+    titel = f"{erg['anlass']}: {aufgabe}"
+    kopf = " · ".join(x for x in (druckername, _dauer(erg.get("dauer")),
+                                  ("%d %%" % round(erg.get("anteil", 1) * 100)) if erg.get("anteil", 1) < 1 else "") if x)
+    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "")
+
+
 def druck_abbuchen(druckername, erg):
-    if not einstellungen().get("abbuchung", True):
+    e0 = einstellungen()
+    fertig = e0.get("fertig_meldung", True)
+    if not e0.get("abbuchung", True):
         print(f"{druckername}: {erg['anlass']} – automatische Abbuchung ist aus", flush=True)
+        if fertig:
+            fertig_melden(druckername, erg, [])
         return
+    kurz = []
     zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     dt = time.strftime("%d.%m.%Y %H:%M")
     bericht, offen, knapp = [], [], []
@@ -857,7 +918,9 @@ def druck_abbuchen(druckername, erg):
             liste_aendern(META, "add_item", {"item": f"{dt} · {druckername} · {_gram(g)} g · {it['summary']}",
                                              "description": json.dumps(log, ensure_ascii=False)})
             bericht.append(f"{it['summary']}: −{_gram(g)} g ({po.get('ort')}), Bestand {int(round(bestand))} g")
+            kurz.append(f"{_gram(g)} g {it['summary']}, noch {int(round(bestand))} g")
         else:
+            kurz.append(f"{_gram(g)} g nicht zugeordnet ({po.get('ort')})")
             offen.append(f"{po.get('ort')} ({_gram(g)} g): {grund}")
             merk = {"typ": "offen", "v": 1, "gramm": round(g, 1), "drucker": druckername, "ort": po.get("ort") or "", "fid": po.get("fid") or "",
                     "farbe": po.get("col") or "", "name": po.get("name") or "", "material": po.get("material") or "", "grund": grund,
@@ -875,7 +938,10 @@ def druck_abbuchen(druckername, erg):
     text = f"{druckername}, {erg['anlass']}{' (%d %%)' % round(anteil * 100) if anteil < 1 else ''}. " + ". ".join(teile)
     print(text, flush=True)
     melden({"typ": "abbuchung", "drucker": druckername, "text": text})
-    handy_meldung("Filament abgebucht", text)
+    if fertig:
+        fertig_melden(druckername, erg, kurz)
+    else:
+        handy_meldung("Filament abgebucht", text)
     if knapp:
         handy_meldung("Filament wird knapp", "; ".join(knapp) + ". Steht jetzt auf der Einkaufsliste in SchichtLohn.")
 
@@ -1282,6 +1348,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, einstellungen_maskiert())
             if methode == "PUT":
                 return self._json(200, einstellungen_setzen(self._json_rumpf()))
+        if teile[0] == "waage" and len(teile) == 2:
+            return self._json(200, waage_weiter(teile[1], methode, self._json_rumpf() if methode == "POST" else None))
         if teile == ["ha", "notify", "test"] and methode == "POST":
             if not all(ha_cfg()):
                 raise Fehler(503, "Home Assistant ist im Server nicht verbunden")

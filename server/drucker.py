@@ -563,8 +563,17 @@ class Drucker:
         except Exception as e:
             posten, quelle = [], "Fehler: " + str(e)
         anlass = "Druck fertig" if st == "FINISH" else "Druck abgebrochen"
+        dauer = int(time.time() - a["start"]) if a.get("start") else 0
+        bild = ""
+        c = self.wirt.cloud()
+        if c.get("token"):  # Vorschaubild des Auftrags für die Handymeldung
+            try:
+                h = cloud_aufgabe(c["token"], c.get("region", "global"), self.serial, a.get("task"), a.get("name"))
+                bild = str((h or {}).get("cover") or "")
+            except Exception as e:
+                self.wirt.log(f"Drucker {self.serial}: Vorschaubild nicht abrufbar: {e}")
         self.wirt.druckende(self, {"anlass": anlass, "anteil": anteil, "posten": posten, "quelle": quelle,
-                                   "aufgabe": a.get("name") or "", "task": a.get("task") or ""})
+                                   "aufgabe": a.get("name") or "", "task": a.get("task") or "", "dauer": dauer, "bild": bild})
 
 
 class Bambu:
