@@ -3925,7 +3925,7 @@ function formModal(e,prefill){
     ${isNew&&!f.hinweis?`<div class="row"><button type="button" class="btn sm" data-act="lgAms">${SV.ams} Aus dem AMS übernehmen</button><span class="lghint">oder unten von Hand ausfüllen</span></div>`:""}
     <div class="g2"><label class="field"><span>Hersteller</span><select id="lf_h">${herstOpts(f.hersteller)}</select><input type="text" id="lf_hx" class="lgother" placeholder="Hersteller eingeben" hidden></label>
       <label class="field"><span>Material</span><select id="lf_m">${matOpts(f.hersteller,f.material)}</select><input type="text" id="lf_mx" class="lgother" placeholder="Material eingeben" hidden></label></div>
-    <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
+    <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_hx6" class="lghexin" value="${fHex(f.hex).toUpperCase()}" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Hex-Code" placeholder="#RRGGBB"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
     <div class="lgdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>
     <div class="field"><span>Besonderheiten</span><div class="lgtg" id="lf_bes">${bes.map(b=>`<button type="button" class="chip${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`).join("")}</div></div>
     <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
@@ -4073,16 +4073,29 @@ function ausLager(name){const n=nn(name);if(!n)return "";const e=entries().find(
 window.farbeErkennen=function(name,her,mat){const t=String(name||"").trim();
   const m=t.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);if(m){let h=m[1];if(h.length===3)h=h.split("").map(c=>c+c).join("");return {hex:"#"+h.toLowerCase(),quelle:"hex"}}
   let h=ausKatalog(t,her,mat);if(h)return {hex:h,quelle:"Katalog"};h=ausLager(t);if(h)return {hex:h,quelle:"Lager"};h=ausWoerterbuch(t);if(h)return {hex:h,quelle:"Name"};return null};
+/* Name zum Farbton: erst Katalog der gewählten Marke (fast gleicher Farbton), sonst nächster deutscher Grundname */
+const katalogName=h=>{const d=G.fdb;const her=wert("lf_h")===ANDERE?wert("lf_hx"):wert("lf_h");if(!d||!her)return "";const hb=nn(her),mat=String(wert("lf_m")||"").toUpperCase();const a=hexLab(h);let best="",bd=1e9;
+  for(const c of d.c){const l=d.l[c[0]];if(nn(d.b[l[0]])!==hb||!c[2])continue;const b=hexLab(c[2]);const e=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])+(mat&&String(l[1]).toUpperCase()!==mat?3:0);if(e<bd){bd=e;best=c[1]}}
+  return bd<6?best:""};
+const nameZu=h=>katalogName(h)||naechsterName(h);
 const naechsterName=h=>{let b=null,d=1e9;FARBEN.forEach(([n,x])=>{const a=hexLab(h),c=hexLab(x);const e=Math.hypot(a[0]-c[0],a[1]-c[1],a[2]-c[2]);if(e<d){d=e;b=n}});return b};
 const wert=id=>{const e=document.getElementById(id);return e?e.value:""};
 function hinweis(txt){const f=document.getElementById("lf_f");if(!f)return;let h=document.getElementById("lf_fhint");if(!h){h=document.createElement("div");h.id="lf_fhint";h.className="lghint";h.style.marginTop="4px";f.closest(".field").appendChild(h)}h.textContent=txt;h.hidden=!txt}
 let t=0;
 document.addEventListener("input",e=>{const el=e.target;if(!el)return;
   if(el.id==="lf_f"){clearTimeout(t);t=setTimeout(()=>{const her=wert("lf_h")===ANDERE?wert("lf_hx"):wert("lf_h");const r=farbeErkennen(el.value,her,wert("lf_m"));
-      if(!r){hinweis("");return}const hx=document.getElementById("lf_hex");if(hx)hx.value=r.hex;
-      if(r.quelle==="hex"){el.value=naechsterName(r.hex);hinweis(`Farbwert ${r.hex} übernommen, Name „${el.value}“ vorgeschlagen`)}
+      if(!r){hinweis("");return}const hx=document.getElementById("lf_hex");if(hx)hx.value=r.hex;hexFeld();
+      if(r.quelle==="hex"){el.value=nameZu(r.hex);el.dataset.auto="1";hinweis(`Farbwert ${r.hex} übernommen, Name „${el.value}“ vorgeschlagen`)}
       else hinweis(r.quelle==="Katalog"?`Farbe aus dem Katalog von ${her} übernommen`:r.quelle==="Lager"?"Farbe wie in deinem Lager übernommen":"Farbe am Namen erkannt")},350)}
-  if(el.id==="lf_hex"){const f=document.getElementById("lf_f");if(f&&(!f.value.trim()||FARBEN.some(([n])=>n===f.value.trim()))){f.value=naechsterName(el.value);hinweis("")}}});
+  if(el.id==="lf_f"&&e.isTrusted)delete el.dataset.auto;
+  if(el.id==="lf_hex"){const f=document.getElementById("lf_f");if(f&&autoName(f)){f.value=nameZu(el.value);f.dataset.auto="1";hinweis("")}hexFeld()}
+  if(el.id==="lf_hx6"){const m=el.value.trim().match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);el.classList.toggle("bad",!!el.value.trim()&&!m);if(!m)return;let h=m[1];if(h.length===3)h=h.split("").map(c=>c+c).join("");h="#"+h.toLowerCase();
+    const hx=document.getElementById("lf_hex");if(hx)hx.value=h;const f=document.getElementById("lf_f");if(f&&autoName(f)){f.value=nameZu(h);f.dataset.auto="1";hinweis(`Name „${f.value}“ zum Farbton vorgeschlagen`)}else hinweis("")}});
+function autoName(f){const v=f.value.trim();return !v||f.dataset.auto==="1"||FARBEN.some(([n])=>n===v)}
+/* Hex-Feld immer passend zum Kästchen halten (auch nach Farbpunkt, Namen oder AMS) */
+function hexFeld(){const hx=document.getElementById("lf_hex"),f6=document.getElementById("lf_hx6");if(hx&&f6&&document.activeElement!==f6){f6.value=hx.value.toUpperCase();f6.classList.remove("bad")}}
+document.addEventListener("paste",e=>{if(e.target&&e.target.id==="lf_hx6"){setTimeout(()=>e.target.dispatchEvent(new Event("input",{bubbles:true})),0)}});
+document.addEventListener("click",()=>setTimeout(hexFeld,0));document.addEventListener("focusout",e=>{if(e.target&&e.target.id==="lf_hx6")setTimeout(hexFeld,0)});
 })();
 /* Farbe als Sortierkriterium: gleiche Farbe bis +12 (angetippt) bzw. +8 (automatisch), ganz andere Farbe bis zu −12/−8 */
 const farbPunkte=(d,getippt)=>{const w=getippt?12:8;return Math.max(-w,Math.min(w,w*(1-d/40)))};
@@ -4725,5 +4738,6 @@ body.rx-einfach #mbar{display:none!important}
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>.rx-frow{display:grid;grid-template-columns:auto minmax(90px,1fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.rx-frow:first-of-type{border-top:0}.rx-fdot{width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}.rx-fl{min-width:0}.rx-fl b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rx-fl small{color:var(--fg-3);font-size:12.5px}.rx-fp .mpick{display:grid;grid-template-columns:1fr 1fr;gap:6px}@media (max-width:520px){.rx-frow{grid-template-columns:auto 1fr}.rx-fp{grid-column:1/-1}}</style>
+<style>.lgcol .lghexin{flex:0 0 96px;width:96px;font-family:var(--f-mono,ui-monospace,Menlo,monospace);text-transform:uppercase;letter-spacing:.03em}.lgcol .lghexin.bad{border-color:var(--bad)}</style>
 </body>
 </html>
