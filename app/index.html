@@ -1168,7 +1168,7 @@ function renderSettings(m){
 }
 
 /* ---------- Design: Farbe, Ecken, Rahmen, Schatten, Durchsichtigkeit – frei einstellbar, gilt sofort ---------- */
-const DESIGN_STD={vorlage:"standard",modus:"auto",akzent:"",ecken:null,rahmen:true,schatten:"aus",deckkraft:100,hintergrund:"standard",hgfarbe:"#20242a",dichte:"normal"};
+const DESIGN_STD={vorlage:"standard",stil:"",modus:"auto",akzent:"",ecken:null,rahmen:true,schatten:"aus",deckkraft:100,hintergrund:"standard",hgfarbe:"#20242a",dichte:"normal"};
 const DESIGN_VORLAGEN={standard:["Standard",{}],glas:["Glas",{ecken:16,rahmen:true,schatten:"leicht",deckkraft:55,hintergrund:"verlauf"}],
   flach:["Flach & eckig",{ecken:0,rahmen:true,schatten:"aus",deckkraft:100,hintergrund:"standard"}],weich:["Weich & rund",{ecken:22,rahmen:false,schatten:"weich",deckkraft:100,hintergrund:"standard"}],
   schwebend:["Schwebend",{ecken:12,rahmen:false,schatten:"stark",deckkraft:100,hintergrund:"verlauf"}],durchsichtig:["Durchsichtig",{ecken:14,rahmen:true,schatten:"aus",deckkraft:30,hintergrund:"durchsichtig"}]};
@@ -1178,9 +1178,30 @@ function hexRgb(h){h=String(h||"").replace("#","");if(h.length===3)h=h.split("")
 const SCHATTEN={leicht:"0 1px 2px rgba(0,0,0,.10),0 3px 10px rgba(0,0,0,.08)",weich:"0 8px 28px rgba(0,0,0,.16)",stark:"0 14px 34px rgba(0,0,0,.38),0 2px 6px rgba(0,0,0,.2)"};
 const DUNKEL_VARS="--bg:#232326;--glass:#2c2c30;--glass-2:#38383d;--line:#3c3c42;--line-2:#4c4c53;--fg:#e8e8ea;--fg-2:#a7a7ae;--fg-3:#7c7c84;--solid:#2c2c30;--header-bg:#1b1b1d;--strip:#35353a;--sunken:#1f1f22;--track:#4c4c53;color-scheme:dark";
 const HELL_VARS="--bg:#ececee;--glass:#ffffff;--glass-2:#f4f4f5;--line:#dedee2;--line-2:#cbcbd1;--fg:#262e30;--fg-2:#5b6265;--fg-3:#8b9194;--solid:#ffffff;--header-bg:#ffffff;--strip:#f3f3f5;--sunken:#f5f5f6;--track:#d3d3d8;color-scheme:light";
-function designCss(d){let c="";const K=":is(.panel,.dcard,.rx-k,.job,.grp,.spanel,.lgsil,.modal,.kpi)";const a=hexRgb(d.akzent);
-  if(!window.__PW_HA&&d.modus==="hell")c+=`:root[data-skin="bambu"][data-theme="hell"]{${HELL_VARS}}`;
-  if(!window.__PW_HA&&d.modus==="dunkel")c+=`:root[data-skin="bambu"][data-theme="dunkel"]{${DUNKEL_VARS}}`;
+/* Fertige Stile, jeweils hell und dunkel: [Name, Hell, Dunkel, Ecken groß/klein] – Werte für die Farbvariablen */
+const STIL_VARS=(o)=>`--bg:${o.bg};--glass:${o.k};--glass-2:${o.k2};--line:${o.l};--line-2:${o.l2};--fg:${o.fg};--fg-2:${o.fg2};--fg-3:${o.fg3};--accent:${o.a};--accent-ink:${o.ai||"#fff"};--accent-soft:${o.as};--good:${o.ok||o.a};--c-mat:${o.a};--warn:${o.w};--bad:${o.b};--solid:${o.so||o.k};--header-bg:${o.h};--strip:${o.st};--sunken:${o.su};--track:${o.l2};--body-bg:${o.bg};color-scheme:${o.cs}`;
+const STILE={
+  bambu:["Bambu Lab",{bg:"#ececee",k:"#ffffff",k2:"#f4f4f5",l:"#dedee2",l2:"#cbcbd1",fg:"#262e30",fg2:"#5b6265",fg3:"#8b9194",a:"#00ae42",as:"rgba(0,174,66,.12)",w:"#e8a317",b:"#e5484d",h:"#ffffff",st:"#f3f3f5",su:"#f5f5f6",cs:"light"},
+    {bg:"#232326",k:"#2c2c30",k2:"#38383d",l:"#3c3c42",l2:"#4c4c53",fg:"#e8e8ea",fg2:"#a7a7ae",fg3:"#7c7c84",a:"#00ae42",as:"rgba(0,174,66,.2)",w:"#f2b84b",b:"#ff6b5e",h:"#1b1b1d",st:"#35353a",su:"#1f1f22",cs:"dark"},6],
+  solidcraft:["SolidCraft",{bg:"#eceef2",k:"#fafbfc",k2:"#f6f7f9",l:"#d0d4dc",l2:"#c3cbd6",fg:"#262a32",fg2:"#4a5868",fg3:"#6e7480",a:"#2678da",as:"#d6e6fa",ok:"#276b2c",w:"#de961e",b:"#d63636",so:"#ffffff",h:"#f6f7f9",st:"#eceef2",su:"#f4f6f9",cs:"light"},
+    {bg:"#1c1f26",k:"#272b34",k2:"#2f343e",l:"#3f4552",l2:"#4a5262",fg:"#dee2e8",fg2:"#949ba8",fg3:"#7a8190",a:"#3a88ee",as:"#2a466e",ok:"#4cc27a",w:"#ecaa46",b:"#f06460",h:"#1c1f26",st:"#2f343e",su:"#1c1f26",cs:"dark"},8],
+  graphit:["Graphit",{bg:"#f4f4f6",k:"#ffffff",k2:"#f7f7f9",l:"#e4e4e8",l2:"#d4d4da",fg:"#18181b",fg2:"#52525b",fg3:"#8a8a93",a:"#5b5ff0",as:"rgba(91,95,240,.12)",ok:"#16a34a",w:"#d97706",b:"#dc2626",h:"#ffffff",st:"#f1f1f4",su:"#f4f4f6",cs:"light"},
+    {bg:"#0f0f12",k:"#18181c",k2:"#202026",l:"#2a2a31",l2:"#3a3a43",fg:"#f4f4f5",fg2:"#a1a1aa",fg3:"#71717a",a:"#818cf8",as:"rgba(129,140,248,.18)",ok:"#4ade80",w:"#fbbf24",b:"#f87171",h:"#0f0f12",st:"#1d1d22",su:"#0b0b0e",cs:"dark"},12],
+  nord:["Nord",{bg:"#eceff4",k:"#ffffff",k2:"#f5f7fa",l:"#d8dee9",l2:"#c5cedd",fg:"#2e3440",fg2:"#4c566a",fg3:"#7b8494",a:"#5e81ac",as:"rgba(94,129,172,.14)",ok:"#5f8a4e",w:"#c98a1b",b:"#bf616a",h:"#ffffff",st:"#e5e9f0",su:"#eef1f6",cs:"light"},
+    {bg:"#2e3440",k:"#3b4252",k2:"#434c5e",l:"#4c566a",l2:"#5b6579",fg:"#eceff4",fg2:"#d8dee9",fg3:"#9aa3b5",a:"#88c0d0",ai:"#1f252e",as:"rgba(136,192,208,.18)",ok:"#a3be8c",w:"#ebcb8b",b:"#bf616a",h:"#2b303b",st:"#434c5e",su:"#2a2f3a",cs:"dark"},10],
+  ozean:["Ozean",{bg:"#eef5fb",k:"#ffffff",k2:"#f5f9fd",l:"#d7e3ef",l2:"#c3d4e6",fg:"#0b1b2e",fg2:"#3d5470",fg3:"#7189a6",a:"#0891b2",as:"rgba(8,145,178,.12)",ok:"#059669",w:"#d97706",b:"#e11d48",h:"#ffffff",st:"#e8f1f9",su:"#f0f6fb",cs:"light"},
+    {bg:"#0b1220",k:"#111a2e",k2:"#17223a",l:"#1e2a44",l2:"#2a3a5c",fg:"#e6edf7",fg2:"#9fb0cc",fg3:"#6b7c99",a:"#22d3ee",ai:"#04131a",as:"rgba(34,211,238,.16)",ok:"#34d399",w:"#fbbf24",b:"#fb7185",h:"#0a101c",st:"#16203a",su:"#08101c",cs:"dark"},14],
+  sand:["Sand",{bg:"#f5f1ea",k:"#fffdf9",k2:"#faf6ef",l:"#e6ddd0",l2:"#d8ccbb",fg:"#2b2420",fg2:"#5e534a",fg3:"#8f8378",a:"#c2410c",as:"rgba(194,65,12,.12)",ok:"#4d7c0f",w:"#b45309",b:"#b91c1c",h:"#fffdf9",st:"#f1ebe1",su:"#f6f1e9",cs:"light"},
+    {bg:"#1c1917",k:"#26221f",k2:"#2f2a26",l:"#3a332d",l2:"#4a4139",fg:"#f5efe6",fg2:"#c9bfb2",fg3:"#8f8378",a:"#fb923c",ai:"#1c0d02",as:"rgba(251,146,60,.16)",ok:"#a3e635",w:"#fbbf24",b:"#f87171",h:"#1a1715",st:"#2f2a26",su:"#171412",cs:"dark"},10],
+  kontrast:["Kontrast",{bg:"#ffffff",k:"#ffffff",k2:"#f2f2f2",l:"#1a1a1a",l2:"#000000",fg:"#000000",fg2:"#1f1f1f",fg3:"#4a4a4a",a:"#0047ff",as:"rgba(0,71,255,.12)",ok:"#007a2e",w:"#a15c00",b:"#c40000",h:"#ffffff",st:"#f2f2f2",su:"#f7f7f7",cs:"light"},
+    {bg:"#000000",k:"#0d0d0d",k2:"#161616",l:"#3d3d3d",l2:"#5c5c5c",fg:"#ffffff",fg2:"#dcdcdc",fg3:"#a8a8a8",a:"#ffd400",ai:"#000000",as:"rgba(255,212,0,.18)",ok:"#3ddc84",w:"#ffb020",b:"#ff5a5a",h:"#000000",st:"#141414",su:"#000000",cs:"dark"},4]};
+function stilCss(d){const x=STILE[d.stil];if(!x)return "";const r=`--r:${x[3]}px;--r-s:${Math.max(2,Math.round(x[3]*0.6))}px;`;const sel=":root:root:root";
+  const m=window.__PW_HA?"auto":d.modus;
+  if(m==="hell")return `${sel}{${STIL_VARS(x[1])};${r}}`;if(m==="dunkel")return `${sel}{${STIL_VARS(x[2])};${r}}`;
+  return `${sel}{${STIL_VARS(x[2])};${r}}@media (prefers-color-scheme:light){${sel}{${STIL_VARS(x[1])}}}`}
+function designCss(d){let c=stilCss(d);const K=":is(.panel,.dcard,.rx-k,.job,.grp,.spanel,.lgsil,.modal,.kpi)";const a=hexRgb(d.akzent);
+  if(!d.stil&&!window.__PW_HA&&d.modus==="hell")c+=`:root[data-skin="bambu"][data-theme="hell"]{${HELL_VARS}}`;
+  if(!d.stil&&!window.__PW_HA&&d.modus==="dunkel")c+=`:root[data-skin="bambu"][data-theme="dunkel"]{${DUNKEL_VARS}}`;
   let v="";if(a){const ink=(0.299*a[0]+0.587*a[1]+0.114*a[2])/255>0.62?"#111":"#fff";v+=`--accent:${d.akzent};--good:${d.akzent};--c-mat:${d.akzent};--accent-soft:rgba(${a.join(",")},.16);--accent-ink:${ink};`}
   if(d.ecken!=null){const e=Math.max(0,Math.min(28,+d.ecken));v+=`--r:${e}px;--r-s:${Math.round(e*0.6)}px;`}
   if(d.hintergrund==="farbe"&&hexRgb(d.hgfarbe)){v+=`--bg:${d.hgfarbe};--body-bg:${d.hgfarbe};`;
@@ -1208,10 +1229,11 @@ function designHTML(){const d=designCfg();const ok=`<svg viewBox="0 0 24 24" fil
   const chips=(k,liste,wert)=>`<div class="tabtg">${liste.map(([v,t])=>{const on=String(wert)===String(v);return `<button type="button" class="chip${on?" on":""}" data-act="dsSet" data-k="${k}" data-v="${esc(String(v))}" aria-pressed="${on}">${on?ok:""}${t}</button>`}).join("")}</div>`;
   const ecken=d.ecken==null?"":d.ecken;
   return `<section class="panel pad stack"><div class="sec-title"><h2>Design</h2></div>
-    <div class="field"><span>Vorlage</span><div class="dsvl">${Object.entries(DESIGN_VORLAGEN).map(([k,[t,o]])=>{const x=Object.assign({},DESIGN_STD,o);const r=x.ecken==null?10:x.ecken;
+    <div class="field"><span>Stil</span><div class="dsstile"><button type="button" class="dss${d.stil?"":" on"}" data-act="dsSet" data-k="stil" data-v=""><i class="dss-std"></i><span>Standard</span></button>${Object.entries(STILE).map(([k,[t,h,dk]])=>`<button type="button" class="dss${d.stil===k?" on":""}" data-act="dsSet" data-k="stil" data-v="${k}"><i><u style="background:${h.bg}"><b style="background:${h.k};border-color:${h.l}"><s style="background:${h.a}"></s><s style="background:${h.fg3}"></s></b></u><u style="background:${dk.bg}"><b style="background:${dk.k};border-color:${dk.l}"><s style="background:${dk.a}"></s><s style="background:${dk.fg3}"></s></b></u></i><span>${t}</span></button>`).join("")}</div><small class="hint">Jeder Stil hat eine helle und eine dunkle Fassung – welche gilt, stellst du unter „Hell oder dunkel“ ein.</small></div>
+    <div class="field"><span>Kacheln</span><div class="dsvl">${Object.entries(DESIGN_VORLAGEN).map(([k,[t,o]])=>{const x=Object.assign({},DESIGN_STD,o);const r=x.ecken==null?10:x.ecken;
       return `<button type="button" class="dsv${d.vorlage===k?" on":""}" data-act="dsVorlage" data-v="${k}"><i style="border-radius:${r}px;${x.rahmen?"":"border-color:transparent;"}${SCHATTEN[x.schatten]?`box-shadow:${SCHATTEN[x.schatten]};`:""}${x.deckkraft<100?`background:color-mix(in srgb,var(--glass) ${x.deckkraft}%,transparent);`:""}"><b style="border-radius:${Math.round(r*.6)}px"></b><b style="border-radius:${Math.round(r*.6)}px;width:60%"></b></i><span>${t}</span></button>`}).join("")}</div></div>
     ${window.__PW_HA?"":`<div class="field"><span>Hell oder dunkel</span>${chips("modus",[["auto","Wie das Gerät"],["hell","Immer hell"],["dunkel","Immer dunkel"]],d.modus)}</div>`}
-    <div class="field"><span>Akzentfarbe</span><div class="dsfarben"><button type="button" class="dsf${d.akzent?"":" on"}" data-act="dsSet" data-k="akzent" data-v="" title="Standard"><span>Std</span></button>${DESIGN_FARBEN.map(f=>`<button type="button" class="dsf${d.akzent.toLowerCase()===f?" on":""}" data-act="dsSet" data-k="akzent" data-v="${f}" style="background:${f}" aria-label="${f}"></button>`).join("")}<label class="dsf dsfe" title="Eigene Farbe"><input type="color" id="ds_akzent" value="${esc(d.akzent||"#00ae42")}">+</label></div></div>
+    <div class="field"><span>Akzentfarbe</span><div class="dsfarben"><button type="button" class="dsf${d.akzent?"":" on"}" data-act="dsSet" data-k="akzent" data-v="" title="Farbe des Stils"><span>Stil</span></button>${DESIGN_FARBEN.map(f=>`<button type="button" class="dsf${d.akzent.toLowerCase()===f?" on":""}" data-act="dsSet" data-k="akzent" data-v="${f}" style="background:${f}" aria-label="${f}"></button>`).join("")}<label class="dsf dsfe" title="Eigene Farbe"><input type="color" id="ds_akzent" value="${esc(d.akzent||"#00ae42")}">+</label></div></div>
     <div class="field"><span>Ecken</span>${chips("ecken",[["","Standard"],[0,"Eckig"],[6,"Leicht rund"],[14,"Rund"],[24,"Sehr rund"]],ecken)}<input type="range" id="ds_ecken" min="0" max="28" step="1" value="${d.ecken==null?10:d.ecken}" aria-label="Rundung der Ecken"></div>
     <div class="cols2"><div class="field"><span>Rahmen um Kacheln</span>${chips("rahmen",[[true,"Mit Rahmen"],[false,"Ohne"]],d.rahmen)}</div>
       <div class="field"><span>Schatten</span>${chips("schatten",[["aus","Keiner"],["leicht","Leicht"],["weich","Weich"],["stark","Stark"]],d.schatten)}</div></div>
@@ -1522,8 +1544,9 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
-  if(a==="dsSet"){const k=b.dataset.k;let v=b.dataset.v;if(k==="rahmen")v=v==="true";else if(k==="ecken")v=v===""?null:+v;designSetzen({[k]:v,vorlage:""},true);return}
-  if(a==="dsVorlage"){const k=b.dataset.v;designSetzen(Object.assign({},DESIGN_STD,{modus:designCfg().modus,akzent:designCfg().akzent},DESIGN_VORLAGEN[k][1],{vorlage:k}),true);return}
+  if(a==="dsSet"){const k=b.dataset.k;let v=b.dataset.v;if(k==="rahmen")v=v==="true";else if(k==="ecken")v=v===""?null:+v;
+    designSetzen(k==="stil"?{stil:v,ecken:null,akzent:""}:{[k]:v,vorlage:""},true);return}
+  if(a==="dsVorlage"){const k=b.dataset.v;designSetzen(Object.assign({},DESIGN_STD,{modus:designCfg().modus,akzent:designCfg().akzent,stil:designCfg().stil},DESIGN_VORLAGEN[k][1],{vorlage:k}),true);return}
   if(a==="dsReset"){S.cfg.design={};designAnwenden();saveCfgSoon();render();toast("Design zurückgesetzt");return}
   if(a==="pvSave"){const v=id=>{const el=document.getElementById(id);return el?el.value.trim():""};
     SRV.req("PUT","/api/einstellungen",{preise:{ebay:{id:v("pv_eid"),secret:v("pv_esec")},ali:{key:v("pv_ak"),secret:v("pv_asec"),tracking:v("pv_atr")}}})
@@ -5235,6 +5258,15 @@ body.rx-einfach #mbar{display:none!important}
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
+[data-skin] nav.tabs button[aria-current="page"],[data-skin] .seg button[aria-pressed="true"],.rx-seg button[aria-pressed="true"]{color:var(--accent-ink)!important}
+.dsstile{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.dss{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:transparent;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
+.dss.on{border-color:var(--accent);color:var(--fg);box-shadow:0 0 0 1px var(--accent) inset}
+.dss i{display:flex;width:92px;height:52px;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--line-2)}
+.dss i u{flex:1;display:grid;place-items:center;padding:6px 5px}
+.dss i b{display:flex;flex-direction:column;gap:4px;width:100%;padding:5px;border:1px solid;border-radius:4px}
+.dss i s{display:block;height:5px;border-radius:2px}.dss i s+s{width:60%}
+.dss-std{background:linear-gradient(135deg,var(--glass) 50%,var(--bg) 50%)}
 .dsvl{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .dsv{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:transparent;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
 .dsv.on{border-color:var(--accent);color:var(--fg);box-shadow:0 0 0 1px var(--accent) inset}
