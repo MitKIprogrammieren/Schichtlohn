@@ -413,20 +413,22 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
-        ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
-        ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
+        ${karte(IC.db,"Filament-Datenbank","",`<p id="srv_fdbinfo">wird geprüft …</p>`)}
+        ${karte(IC.app,"App",`${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
         <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
           <p>Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</p>
           <div class="srvcopy"><input type="text" id="srv_umzug" value="" placeholder="http://192.168.1.4:8093" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvUmzug">Daten holen</button></div></details>
       </div></section>`}
+  /* Der Server holt App und Filament-Datenbank selbst (beim Start, dann alle 6 Stunden) */
+  const autoText=a=>!a?" Wird automatisch aktuell gehalten (ab Server 3.1.7).":a.fehler?` Automatische Prüfung fehlgeschlagen: ${a.fehler}`:` Wird automatisch alle ${a.alle_h||6} Stunden geprüft${a.geprueft?", zuletzt "+a.geprueft.slice(8,10)+"."+a.geprueft.slice(5,7)+". "+a.geprueft.slice(11):""}.`;
   async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
-      el.textContent=d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes · ${d.quelle}. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf dem Server – „Aktualisieren“ antippen."}
+      el.textContent=(d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf dem Server.")+autoText(d.auto)}
     catch(e){el.textContent="Unbekannt ("+(e.message||e)+"). Der Server braucht Version 2.4."}}
   document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();drLaden()},50)});
   setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();drLaden()}},1500);
   /* App von der Synology */
   async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
-      el.innerHTML=d.vorhanden?`Stand ${esc(d.stand)} · ${esc(d.quelle)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server – „Aktualisieren“ antippen."}
+      el.innerHTML=(d.vorhanden?`Stand ${esc(d.stand)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server.")+esc(autoText(d.auto))}
     catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+")."}}
   /* Drucker und Home Assistant */
   let E=null,DR=[];
@@ -1105,7 +1107,8 @@ function renderSettings(m){
           <div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
           <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
-          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><button class="btn ghost sm" data-act="lgPreiseDb" title="Normalpreis je kg und fehlende Barcodes aus der Filament-Datenbank in die Sorten eintragen">Preise und Barcodes aus Datenbank übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div></div>`})()}
+          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div>
+</div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe"><option value="rolle"${S.cfg.lagerFarbe!=="quadrat"?" selected":""}>Filamentrolle</option><option value="quadrat"${S.cfg.lagerFarbe==="quadrat"?" selected":""}>Farbquadrat</option></select></label>
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
@@ -1784,8 +1787,11 @@ function panelHTML(){
   const q=hq.trim().toLowerCase();
   return `<div class="stack" style="gap:10px">${list.length>1?`<div class="hafilter"><select id="ha_pr" aria-label="Drucker wählen"><option value="">Alle Drucker</option>${list.map(p=>`<option value="${esc(p.dev)}"${p.dev===hp?" selected":""}>${esc(p.name)}</option>`).join("")}</select><input type="search" id="ha_q" placeholder="Suchen: Drucker, Status oder Druck" value="${esc(hq)}" aria-label="Drucker und Drucke suchen"></div>`:""}
     <div class="stack" id="haList" style="gap:10px">${printerCards(q)}</div>
-    <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler.</span><span class="sp"></span><button class="btn sm ghost" data-act="haReload">Aktualisieren</button></div></div>`;
+    <div class="row"><span class="hint">Gewicht und Filamente kommen vom Drucker, die Zeit aus Start und Ende, der Strom aus deinem Energiezähler. Aktualisiert sich von selbst.</span></div></div>`;
 }
+/* Druckerliste hält sich selbst aktuell: beim Zurückkehren zur App und alle 2 Minuten, solange sie offen ist */
+const haAuto=()=>{if(!document.hidden&&!loading&&document.querySelector(".ha-panel"))reload()};
+document.addEventListener("visibilitychange",haAuto);setInterval(haAuto,120000);
 let hq="",hp="";
 function printerCards(q){
   const vis=list.filter(p=>{if(hp&&p.dev!==hp)return false;if(!q)return true;const s=p.snap||snapshot(p);if([p.name,p.model,statusText(s.status),s.status,s.task].join(" ").toLowerCase().includes(q))return true;
@@ -2185,8 +2191,7 @@ function render(m){
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
     <button class="btn pri sm" data-act="jobToOrder">${ICON.save} Auftrag …</button></div>`:"";
   m.innerHTML=`<div class="stack">
-    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
-      <button class="btn ghost sm" data-act="jobReload">Aktualisieren</button></div>
+    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span></div>
     ${sources}
     ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
@@ -2329,7 +2334,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
@@ -2537,6 +2542,9 @@ async function load(force){
 function fail(e){if(e.status===401){C.err="Die Anmeldung bei Creality ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else C.err=String(e&&e.message||e)}
 function rerender(){crStatus();if(S.tab==="drucke"&&window.JOBS){const q=document.getElementById("job_q");const foc=q&&document.activeElement===q;if(!foc)JOBS.render()}else if(S.tab==="einstellungen"&&window.render&&!document.querySelector("#modal.open, #modal[open]"))window.render()}
 setInterval(()=>{if(on()&&acct()&&S.tab==="drucke"&&!document.hidden)loadStatus(false)},30000);
+/* Druckaufträge halten sich selbst aktuell: beim Zurückkehren zur App und jede Minute, solange der Reiter offen ist */
+const jobsAuto=()=>{if(S.tab!=="drucke"||document.hidden||!window.JOBS)return;try{window.JOBS.auto&&window.JOBS.auto()}catch(e){}};
+document.addEventListener("visibilitychange",jobsAuto);setInterval(jobsAuto,60000);
 
 /* --- Abbuchen im Lager (nur neue, fertige Drucke seit dem Verbinden; jeder Druck nur einmal) --- */
 function gebucht(){try{return new Set(JSON.parse(localStorage.getItem(DONE_K)||"[]"))}catch(e){return new Set()}}
@@ -3752,7 +3760,7 @@ async function start(){
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
   try{if(L()&&haDa()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
@@ -4009,7 +4017,7 @@ function fdbLaden(){if(G.fdb)return Promise.resolve(G.fdb);if(fdbP)return fdbP;
       d.s=d.c.map(c=>{const l=d.l[c[0]];return (d.b[l[0]]+" "+l[2]+" "+l[1]+" "+c[1]+" "+(c[7]||"")+" "+(l[8]||"")).toLowerCase()});G.fdb=d;return d}}catch(e){}}
     fdbP=null;throw new Error("Filament-Datenbank nicht erreichbar")})();return fdbP}
 const fdbVorladen=()=>{fdbLaden().catch(()=>{})};
-window.__fdbNeu=()=>{G.fdb=null;fdbP=null};
+window.__fdbNeu=()=>{G.fdb=null;fdbP=null;setTimeout(()=>{try{fdbAuto()}catch(e){}},3000)};
 const fdbCodeKey=c=>{const d=String(c||"").replace(/\D/g,"").replace(/^0+/,"");return d.length>=6?d:""};
 function fdbK(i,gew,refill){const d=G.fdb;const c=d&&d.c[i];if(!c)return null;const l=d.l[c[0]];const nn=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
   const bn=d.b[l[0]];const her=known("hersteller").find(h=>nn(h)===nn(bn))||bn;const r=refill!=null?refill:c[6];
@@ -4039,6 +4047,20 @@ const eur=p=>p==null?"":String((+p).toFixed(2)).replace(".",",")+" €";
 const eanOk=k=>{if(!/^\d{13}$/.test(k))return false;let t=0;for(let j=0;j<12;j++)t+=(+k[j])*(j%2?3:1);return (10-t%10)%10===+k[12]};
 function fdbCodes(i,gew){const d=G.fdb;if(!d.ci2g){d.ci2g={};Object.entries(d.g).forEach(([k,v])=>{(d.ci2g[v[0]]=d.ci2g[v[0]]||[]).push({k:k.padStart(13,"0"),gew:v[1],refill:!!v[2]})})}
   return (d.ci2g[i]||[]).filter(x=>eanOk(x.k)&&!/^0?921/.test(x.k)&&(!gew||!x.gew||x.gew===gew))}
+/* Neuer Stand der Filament-Datenbank → fehlende Preise (Normalpreis je kg) und fehlende Barcodes einmal automatisch nachtragen.
+   Nur leere Felder, nur sicher zugeordnete Sorten; vorhandene Preise und Barcodes bleiben. Gemerkt wird der Stand in den gemeinsamen Lager-Einstellungen. */
+let fdbAutoLauf=false;
+async function fdbAuto(){if(fdbAutoLauf||!G.loaded)return;fdbAutoLauf=true;
+  try{await fdbLaden();const st=G.fdb.stand;const merk=metaDa()&&G.metaOk?einGespeichert().fdb_stand:(()=>{try{return localStorage.getItem("sl_fdb_stand")}catch(e){return null}})();
+    if(!st||merk===st)return;let np=0,nb=0,ns=0;
+    for(const e of entries()){const i=fdbFuer(e);if(i==null)continue;const patch={};
+      if(!e.preis){const an=fdbAngFuer(i,e.ausfuehrung==="refill",e.gewicht);if(an){const p=+(an.normal/(an.gewicht/1000)).toFixed(2);if(p>0){patch.preis=p;np++}}}
+      const have=new Set([...(e.codes||[]),...(e.codes_refill||[])]);const nc=fdbCodes(i,e.gewicht).filter(x=>!have.has(x.k));
+      if(nc.length){patch.codes=[...new Set([...(e.codes||[]),...nc.map(x=>x.k)])];patch.codes_refill=[...new Set([...(e.codes_refill||[]),...nc.filter(x=>x.refill).map(x=>x.k)])];nb+=nc.length}
+      if(Object.keys(patch).length){try{await write(e,patch);ns++}catch(err){}}}
+    if(metaDa()&&G.metaOk)await einSpeichern({fdb_stand:st});else{try{localStorage.setItem("sl_fdb_stand",st)}catch(e){}}
+    if(ns)toast(`Filament-Datenbank ${st}: ${[np?np+" Preise":"",nb?nb+" Barcodes":""].filter(Boolean).join(" und ")} bei ${ns} Sorten ergänzt`)}
+  catch(e){}finally{fdbAutoLauf=false}}
 /* Angebot passend zur Ausführung (Spule/Refill) und zum Gewicht; sonst das erste mit Preis */
 function fdbAngFuer(i,refill,gew){const a=fdbAng(i).filter(x=>x.normal);if(!a.length)return null;const r=!!refill;
   return a.find(x=>x.refill===r&&(!gew||x.gewicht===gew))||a.find(x=>x.refill===r)||null}
@@ -4640,26 +4662,6 @@ document.addEventListener("click",async e=>{
     const gs=document.getElementById("lge_gruppe"),ls=document.getElementById("lge_leer");if(gs)g.gruppe=gs.value;if(ls)g.leer_zeigen=ls.value==="1";
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
-  if(a==="lgPreiseDb"||a==="lgPreiseDbAlle"){try{await fdbLaden()}catch(err){toast(err.message);return}
-    const alle=a==="lgPreiseDbAlle";const l=[];
-    entries().forEach(e=>{const i=fdbFuer(e);if(i==null)return;const z={e};
-      const an=fdbAngFuer(i,e.ausfuehrung==="refill",e.gewicht);if(an&&(alle||!e.preis)){const p=+(an.normal/(an.gewicht/1000)).toFixed(2);if(p>0&&p!==e.preis){z.p=p;z.an=an}}
-      const have=new Set([...(e.codes||[]),...(e.codes_refill||[])]);const nc=fdbCodes(i,e.gewicht).filter(x=>!have.has(x.k));
-      if(nc.length){z.sp=nc.filter(x=>!x.refill).map(x=>x.k);z.rf=nc.filter(x=>x.refill).map(x=>x.k)}
-      if(z.p||z.sp)l.push(z)});
-    G.preisNeu=l;const vor=entries().filter(e=>e.preis).length;const np=l.filter(z=>z.p).length,nb=l.reduce((t,z)=>t+(z.sp?z.sp.length+z.rf.length:0),0);
-    const cd=k=>`<span class="mono" style="font-size:12px">${esc(k)}</span>`;
-    modal("Preise und Barcodes aus der Datenbank",`<div class="lgform"><div class="lghint">Normalpreis je kg vom Händler (ohne Rabattaktion) und fehlende Barcodes (EAN), nur für Sorten, die per Barcode oder Name sicher zugeordnet sind. ${alle?"Vorhandene Preise werden ersetzt.":"Eigene Preise bleiben unverändert."} Refill-Barcodes werden als Refill markiert. Vorhandene Barcodes bleiben.</div>
-      ${l.length?`<div class="lgpick" style="max-height:55vh">${l.map(({e,p,an,sp,rf})=>`<div class="lgr">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}</div>
-        ${p?`<div class="lgs">${e.preis?`${String(e.preis).replace(".",",")} → `:""}<b>${String(p).replace(".",",")} €/kg</b> · ${esc(an.haendler)} ${eur(an.normal)} je ${an.refill?"Refill":"Spule"} ${kg(an.gewicht)}</div>`:""}
-        ${sp&&sp.length?`<div class="lgs">+ Spule ${sp.map(cd).join(", ")}</div>`:""}${rf&&rf.length?`<div class="lgs">+ Refill ${rf.map(cd).join(", ")}</div>`:""}</div></div>`).join("")}</div>`
-        :`<div class="panel empty">Nichts zu übernehmen: Preise und Barcodes sind schon eingetragen oder nicht sicher zuzuordnen.</div>`}</div>`,
-      `${!alle&&vor?`<button class="btn ghost" data-act="lgPreiseDbAlle">Auch vorhandene Preise ersetzen (${vor})</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button>${l.length?`<button class="btn pri" data-act="lgPreiseDbOk">${[np?np+" Preise":"",nb?nb+" Barcodes":""].filter(Boolean).join(" und ")} übernehmen</button>`:""}`);return}
-  if(a==="lgPreiseDbOk"){const l=G.preisNeu||[];G.preisNeu=null;let n=0;b.disabled=true;
-    for(const {e,p,sp,rf} of l){const patch={};if(p)patch.preis=p;
-      if(sp||rf){const neuC=[...(sp||[]),...(rf||[])];patch.codes=[...new Set([...(e.codes||[]),...neuC])];patch.codes_refill=[...new Set([...(e.codes_refill||[]),...(rf||[])])]}
-      try{await write(e,patch);n++}catch(err){}}
-    {const m=document.getElementById("modal");if(m)m.remove()}toast(`${n} von ${l.length} Sorten aktualisiert`);return}
   if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
     confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht SchichtLohn danach selbst.`,"Getauscht",async()=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};

@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.6"
+VERSION = "3.1.7"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -248,6 +248,10 @@ def fdb_aktualisieren():
     except Exception:
         raise Fehler(502, "Die geladene Datenbank ist unvollständig, die bisherige bleibt erhalten")
     alt = fdb_info().get("stand")
+    if alt and d.get("stand") == alt and os.path.exists(FDB_DATEI):
+        info = fdb_info(FDB_DATEI)
+        info["vorher"] = alt
+        return info  # schon aktuell, nichts ersetzen
     tmp = FDB_DATEI + ".neu"
     with open(tmp, "wb") as f:
         f.write(roh)
@@ -256,6 +260,30 @@ def fdb_aktualisieren():
     info["vorher"] = alt
     melden({"typ": "filamentdb", "stand": info.get("stand")})
     return info
+
+
+# Automatisch: beim Start (nach 1 Minute) und dann alle 6 Stunden App und Filament-Datenbank holen
+AUTO = {"geprueft": None, "fehler": None, "alle_h": 6}
+
+
+def auto_aktualisieren():
+    time.sleep(60)
+    while True:
+        fehler = []
+        try:
+            fdb_aktualisieren()
+        except Exception as e:
+            fehler.append("Filament-Datenbank: " + str(getattr(e, "text", e)))
+        try:
+            vorher = web.app_info(WEB).get("stand")
+            info = web.aktualisieren(WEB)
+            if info.get("stand") != vorher:
+                melden({"typ": "app", "stand": info.get("stand")})
+        except Exception as e:
+            fehler.append("App: " + str(e))
+        AUTO["geprueft"] = time.strftime("%Y-%m-%d %H:%M")
+        AUTO["fehler"] = "; ".join(fehler) or None
+        time.sleep(AUTO["alle_h"] * 3600)
 
 
 def sicherung():
@@ -1188,7 +1216,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(400, "uid und vid fehlen")
             return self._json(200, abdruck_speichern(str(b["uid"]), str(b["vid"])))
         if teile == ["filamentdb"] and methode == "GET":
-            return self._json(200, fdb_info())
+            return self._json(200, dict(fdb_info(), auto=AUTO))
         if teile == ["filamentdb", "aktualisieren"] and methode == "POST":
             return self._json(200, fdb_aktualisieren())
         if teile == ["sorten"] and methode == "GET":
@@ -1309,7 +1337,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(400, "Adresse des alten Servers fehlt")
             return self._json(200, umzug(str(b["quelle"]), str(b.get("token") or "")))
         if teile == ["app"] and methode == "GET":
-            return self._json(200, web.app_info(WEB))
+            return self._json(200, dict(web.app_info(WEB), auto=AUTO))
         if teile == ["app", "aktualisieren"] and methode == "POST":
             try:
                 return self._json(200, web.aktualisieren(WEB))
@@ -1383,4 +1411,6 @@ if __name__ == "__main__":
     import signal
     signal.signal(signal.SIGTERM, lambda *_: os._exit(0))
     BAMBU.neu_starten()
+    if os.environ.get("AUTO_AKTUALISIEREN", "1") != "0":
+        threading.Thread(target=auto_aktualisieren, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
