@@ -1,6 +1,6 @@
 name: Preise der Shops aktualisieren
 
-# Holt jeden Morgen die Produktlisten der Herstellershops und baut preise.json (für die Preisliste in SchichtLohn).
+# Holt jeden Morgen die Produktlisten der Herstellershops und 3DJake und baut preise.json (für die Preisliste in SchichtLohn).
 on:
   schedule:
     - cron: "23 4 * * *"
@@ -16,6 +16,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shops holen
         run: python3 tools/shops_roh.py tools/shops.json /tmp/roh
+      - name: 3DJake auffrischen (Preise, neue Farben)
+        run: python3 tools/jake.py tools/haendler/3djake.jsonl 2500
+        timeout-minutes: 90
+        continue-on-error: true
       - name: Vereinheitlichen und preise.json bauen
         run: |
           python3 tools/shops.py /tmp/roh /tmp/norm
@@ -31,10 +35,10 @@ jobs:
               alt={}
           open("/tmp/gleich","w").write("1" if neu.get("z")==alt.get("z") else "0")
           PY
-          if [ "$(cat /tmp/gleich)" = "1" ]; then git checkout -- preise.json; echo "Keine Änderung"; exit 0; fi
+          if [ "$(cat /tmp/gleich)" = "1" ]; then git checkout -- preise.json tools/haendler/3djake.jsonl; echo "Keine Änderung"; exit 0; fi
           git config user.name "MitKIprogrammieren"
           git config user.email "MitKIprogrammieren@users.noreply.github.com"
-          git add preise.json
+          git add preise.json tools/haendler/3djake.jsonl
           git commit -m "Shoppreise aktualisiert"
           for i in 1 2 3; do git pull -q --rebase && git push && break; sleep 5; done
           curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json" | head -c 200 || true
