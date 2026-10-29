@@ -3931,6 +3931,8 @@ function formModal(e,prefill){
     <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
       <label class="field"><span>Anzahl Rollen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_s" value="${v(f.spulen)}"><em>Stk</em></div></label>
       <label class="field"><span>Reste angebrochen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_r" value="${v((f.reste||[]).join(", "))}" placeholder="voll"><em>g</em></div></label></div>
+    <div class="lgaus" role="group" aria-label="Spule oder Refill">${(()=>{const sp=Number(f.spulen)||0,rf=Number(f.refills)||0;const art=sp>0&&rf>=sp?"refill":rf>0?"gemischt":"spule";
+      return [["spule","Mit Spule"],["refill","Refill (ohne Spule)"]].map(([k,t])=>`<button type="button" class="chip${art===k?" on":""}" data-act="lgAus" data-v="${k}">${t}</button>`).join("")+(art==="gemischt"?`<span class="lghint" style="align-self:center">gemischt: ${rf} von ${sp} Refill</span>`:"")})()}</div>
     <div class="lggw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
     <div class="lghint">Mehrere angebrochene Rollen mit Komma trennen, z. B. „300, 500“. Sie zählen bei „Anzahl Rollen“ mit.</div>
     ${isNew?"":`<div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="lgMinus">− 1 Rolle verbraucht</button><button class="btn sm" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn ghost sm" data-act="lgCopy">${ICON.copy} Als Vorlage kopieren</button></div><div id="lf_ask"></div>`}
@@ -4581,6 +4583,8 @@ document.addEventListener("click",async e=>{
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}
+  if(a==="lgAus"){const rf=document.getElementById("lf_rf"),sp=document.getElementById("lf_s");const n=Math.max(0,Math.round(fNum(sp?sp.value:"")||0));if(rf)rf.value=b.dataset.v==="refill"?String(Math.max(n,1)):"0";
+    document.querySelectorAll(".lgaus .chip").forEach(c=>c.classList.toggle("on",c===b));const h=document.querySelector(".lgaus .lghint");if(h)h.remove();return}
   if(a==="lgGw"){const i=document.getElementById("lf_g");if(i){i.value=b.dataset.w;i.dispatchEvent(new Event("input",{bubbles:true}))}document.querySelectorAll(".lggw .chip").forEach(c=>c.classList.toggle("on",c===b));return}
   if(a==="lgEinSave"){const g={},msgEl=document.getElementById("lge_msg");const say=t=>{if(msgEl)msgEl.textContent=t};
     for(const [k,t,,min,max] of EIN_ZAHLEN){const el=document.querySelector(`[data-lge="${k}"]`);const n=fNum(el?el.value:"");if(n==null||n<min||n>max)return say(`„${t}“: bitte eine Zahl von ${min} bis ${max}.`);g[k]=n}
@@ -4756,5 +4760,7 @@ body.rx-einfach #mbar{display:none!important}
 <style>.lgcol .lghexin{flex:0 0 96px;width:96px;font-family:var(--f-mono,ui-monospace,Menlo,monospace);text-transform:uppercase;letter-spacing:.03em}.lgcol .lghexin.bad{border-color:var(--bad)}</style>
 <style>.lggw{display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}.lggw .chip{font-variant-numeric:tabular-nums;cursor:pointer}.lggw .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}</style>
 <script>document.addEventListener("input",e=>{if(e.target&&e.target.id==="lf_g"){const w=Number(String(e.target.value).replace(/[^0-9]/g,""));document.querySelectorAll(".lggw .chip").forEach(c=>c.classList.toggle("on",Number(c.dataset.w)===w))}})</script>
+<style>.lgaus{display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}.lgaus .chip{cursor:pointer}.lgaus .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}</style>
+<script>/* Anzahl Rollen geändert: bei „Refill“ zählt jede Rolle als Refill */document.addEventListener("input",e=>{if(e.target&&e.target.id==="lf_s"){const on=document.querySelector('.lgaus .chip.on[data-v="refill"]');const rf=document.getElementById("lf_rf");if(on&&rf){const n=Math.round(Number(String(e.target.value).replace(",","."))||0);rf.value=String(n)}}})</script>
 </body>
 </html>
