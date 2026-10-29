@@ -4078,7 +4078,20 @@ const katalogName=h=>{const d=G.fdb;const her=wert("lf_h")===ANDERE?wert("lf_hx"
   for(const c of d.c){const l=d.l[c[0]];if(nn(d.b[l[0]])!==hb||!c[2])continue;const b=hexLab(c[2]);const e=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])+(mat&&String(l[1]).toUpperCase()!==mat?3:0);if(e<bd){bd=e;best=c[1]}}
   return bd<6?best:""};
 const nameZu=h=>katalogName(h)||naechsterName(h);
-const naechsterName=h=>{let b=null,d=1e9;FARBEN.forEach(([n,x])=>{const a=hexLab(h),c=hexLab(x);const e=Math.hypot(a[0]-c[0],a[1]-c[1],a[2]-c[2]);if(e<d){d=e;b=n}});return b};
+/* deutscher Farbname aus dem Farbton (HSL): Grautöne, dann Farbton mit hell/dunkel bzw. eigenen Namen */
+function farbName(h){const [r,g,b]=hexRgb(h).map(v=>v/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,d=mx-mn;
+  const s=d===0?0:d/(1-Math.abs(2*l-1));let hu=0;if(d){if(mx===r)hu=((g-b)/d)%6;else if(mx===g)hu=(b-r)/d+2;else hu=(r-g)/d+4;hu*=60;if(hu<0)hu+=360}
+  if(s<.12||d<.06){if(l<.13)return "Schwarz";if(l>.93)return "Weiß";if(l<.33)return "Dunkelgrau";if(l>.72)return "Hellgrau";return "Grau"}
+  /* Braun und Beige: Orange-/Gelbtöne, dunkel bzw. hell und blass */
+  if(hu>=12&&hu<55&&l<.42&&s<.75)return l<.22?"Dunkelbraun":"Braun";
+  if(hu>=20&&hu<60&&l>.7&&s<.55)return "Beige";
+  const t=hu<12?"rot":hu<40?"orange":hu<68?"gelb":hu<160?"grün":hu<195?"türkis":hu<255?"blau":hu<295?"lila":hu<340?"pink":"rot";
+  const hell={rot:"Rosa",orange:"Pfirsich",gelb:"Hellgelb",grün:"Hellgrün",türkis:"Helltürkis",blau:"Hellblau",lila:"Flieder",pink:"Rosa"};
+  const dunkel={rot:"Dunkelrot",orange:"Braun",gelb:"Oliv",grün:"Dunkelgrün",türkis:"Petrol",blau:"Dunkelblau",lila:"Dunkellila",pink:"Beere"};
+  if(l>.7)return hell[t];if(l<.33)return dunkel[t];
+  if(t==="gelb"&&hu<55&&s<.7&&l<.55)return "Gold";
+  return t[0].toUpperCase()+t.slice(1)}
+const naechsterName=h=>{const p=FARBEN.find(([,x])=>x.toLowerCase()===String(h).toLowerCase());return p?p[0]:farbName(h)};
 const wert=id=>{const e=document.getElementById(id);return e?e.value:""};
 function hinweis(txt){const f=document.getElementById("lf_f");if(!f)return;let h=document.getElementById("lf_fhint");if(!h){h=document.createElement("div");h.id="lf_fhint";h.className="lghint";h.style.marginTop="4px";f.closest(".field").appendChild(h)}h.textContent=txt;h.hidden=!txt}
 let t=0;
@@ -4091,7 +4104,7 @@ document.addEventListener("input",e=>{const el=e.target;if(!el)return;
   if(el.id==="lf_hex"){const f=document.getElementById("lf_f");if(f&&autoName(f)){f.value=nameZu(el.value);f.dataset.auto="1";hinweis("")}hexFeld()}
   if(el.id==="lf_hx6"){const m=el.value.trim().match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);el.classList.toggle("bad",!!el.value.trim()&&!m);if(!m)return;let h=m[1];if(h.length===3)h=h.split("").map(c=>c+c).join("");h="#"+h.toLowerCase();
     const hx=document.getElementById("lf_hex");if(hx)hx.value=h;const f=document.getElementById("lf_f");if(f&&autoName(f)){f.value=nameZu(h);f.dataset.auto="1";hinweis(`Name „${f.value}“ zum Farbton vorgeschlagen`)}else hinweis("")}});
-function autoName(f){const v=f.value.trim();return !v||f.dataset.auto==="1"||FARBEN.some(([n])=>n===v)}
+function autoName(f){const v=f.value.trim();return !v||f.dataset.auto==="1"||FARBEN.some(([n])=>n===v)||["Flieder","Rosa","Pfirsich","Hellgelb","Helltürkis","Petrol","Oliv","Beere","Dunkellila","Dunkelbraun","Hellgrün","Hellblau","Dunkelgrün","Dunkelblau","Dunkelrot","Gelb","Grün","Blau","Lila","Pink","Türkis","Rot","Orange","Braun","Beige","Gold","Grau","Hellgrau","Dunkelgrau","Schwarz","Weiß"].includes(v)}
 /* Hex-Feld immer passend zum Kästchen halten (auch nach Farbpunkt, Namen oder AMS) */
 function hexFeld(){const hx=document.getElementById("lf_hex"),f6=document.getElementById("lf_hx6");if(hx&&f6&&document.activeElement!==f6){f6.value=hx.value.toUpperCase();f6.classList.remove("bad")}}
 document.addEventListener("paste",e=>{if(e.target&&e.target.id==="lf_hx6"){setTimeout(()=>e.target.dispatchEvent(new Event("input",{bubbles:true})),0)}});
