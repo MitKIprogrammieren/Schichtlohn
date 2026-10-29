@@ -4050,6 +4050,40 @@ const hexRgb=h=>[1,3,5].map(i=>parseInt(fHex(h).slice(i,i+2),16));
 function hexLab(h){const [r,g,b]=hexRgb(h).map(v=>{v/=255;return v>.04045?((v+.055)/1.055)**2.4:v/12.92});
   const f=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;const x=f((r*.4124+g*.3576+b*.1805)/.95047),y=f(r*.2126+g*.7152+b*.0722),z=f((r*.0193+g*.1192+b*.9505)/1.08883);
   return [116*y-16,500*(x-y),200*(y-z)]}
+/* Formular „Filament hinzufügen“: Farbe aus Name oder Hex-Code erkennen.
+   Reihenfolge: Hex-Code → Katalog (gleiche Marke, gleicher Farbname) → eigenes Lager → Wörterbuch (deutsch/englisch, hell/dunkel) */
+(()=>{
+const BASIS={schwarz:"#000000",weiß:"#ffffff",weiss:"#ffffff",grau:"#8a8a8a",silber:"#b0b4b8",rot:"#d32f2f",orange:"#f57c00",gelb:"#fdd835",gold:"#c9a227",beige:"#d8c3a0",braun:"#6d4c41",grün:"#43a047",gruen:"#43a047",türkis:"#26a69a",tuerkis:"#26a69a",blau:"#1e63c8",lila:"#7b3fb0",violett:"#6a1b9a",pink:"#ec5f9a",rosa:"#f48fb1",magenta:"#d81b60",cyan:"#00bcd4",petrol:"#00796b",marineblau:"#1a237e",oliv:"#7a7a2e",mint:"#a5d6a7",limette:"#c0ca33",bronze:"#a97142",kupfer:"#b87333",elfenbein:"#f3ecd8",creme:"#f1e6c8",khaki:"#bdb76b",koralle:"#ff7f6a",lavendel:"#b39ddb",weinrot:"#7b1f2b",bordeaux:"#6d1a2a",anthrazit:"#3a3d40",titan:"#878681",natur:"#efe6d2",pfirsich:"#ffcc99",lachs:"#fa8072",sand:"#d6c49a",karamell:"#a5652a",schoko:"#4e342e",indigo:"#3f51b5",aqua:"#4dd0e1",bernstein:"#ffb300",transparent:"#e8f4f8",klar:"#e8f4f8"};
+const VOR={hell:.45,dunkel:-.45,pastell:.55,leucht:.15,tief:-.3,blass:.5};
+const hex2=h=>"#"+h.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");
+const misch=(h,t)=>{const c=hexRgb(h);return hex2(c.map(v=>t>0?v+(255-v)*t:v*(1+t)))};
+const nn=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+function ausWoerterbuch(name){const s=String(name||"").toLowerCase().trim();if(!s)return "";
+  const voll=FARBEN.find(([n])=>n.toLowerCase()===s);if(voll)return voll[1];
+  /* englische Wörter auf Deutsch, dann zu einem Wort zusammen (Light Blue → hellblau) */
+  let de=s.split(/[\s-]+/).map(w=>(typeof FDE_V!=="undefined"&&FDE_V[w])||(typeof FDE_F!=="undefined"&&FDE_F[w])||w).join("");
+  const v2=FARBEN.find(([n])=>n.toLowerCase()===de);if(v2)return v2[1];
+  /* Grundfarbe am Wortende suchen (Mistelgrün → grün), Vorsilbe hell/dunkel anwenden */
+  const keys=Object.keys(BASIS).sort((a,b)=>b.length-a.length);const k=keys.find(k=>de.endsWith(k))||keys.find(k=>de.includes(k));if(!k)return "";
+  let h=BASIS[k];const vor=de.slice(0,de.lastIndexOf(k));Object.entries(VOR).forEach(([w,t])=>{if(vor.includes(w))h=misch(h,t)});return h}
+function ausKatalog(name,her,mat){const d=G.fdb;if(!d||!name)return "";const n=nn(name),hb=nn(her);let best="",rang=-1;
+  for(const c of d.c){if(nn(c[1])!==n)continue;const l=d.l[c[0]];const r=(hb&&nn(d.b[l[0]])===hb?2:0)+(mat&&String(l[1]).toUpperCase()===String(mat).toUpperCase()?1:0);if(r>rang){rang=r;best=c[2]}if(rang===3)break}
+  return rang>=2?best:""}
+function ausLager(name){const n=nn(name);if(!n)return "";const e=entries().find(x=>nn(x.farbe)===n&&x.hex&&x.hex!=="#808080");return e?e.hex:""}
+window.farbeErkennen=function(name,her,mat){const t=String(name||"").trim();
+  const m=t.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);if(m){let h=m[1];if(h.length===3)h=h.split("").map(c=>c+c).join("");return {hex:"#"+h.toLowerCase(),quelle:"hex"}}
+  let h=ausKatalog(t,her,mat);if(h)return {hex:h,quelle:"Katalog"};h=ausLager(t);if(h)return {hex:h,quelle:"Lager"};h=ausWoerterbuch(t);if(h)return {hex:h,quelle:"Name"};return null};
+const naechsterName=h=>{let b=null,d=1e9;FARBEN.forEach(([n,x])=>{const a=hexLab(h),c=hexLab(x);const e=Math.hypot(a[0]-c[0],a[1]-c[1],a[2]-c[2]);if(e<d){d=e;b=n}});return b};
+const wert=id=>{const e=document.getElementById(id);return e?e.value:""};
+function hinweis(txt){const f=document.getElementById("lf_f");if(!f)return;let h=document.getElementById("lf_fhint");if(!h){h=document.createElement("div");h.id="lf_fhint";h.className="lghint";h.style.marginTop="4px";f.closest(".field").appendChild(h)}h.textContent=txt;h.hidden=!txt}
+let t=0;
+document.addEventListener("input",e=>{const el=e.target;if(!el)return;
+  if(el.id==="lf_f"){clearTimeout(t);t=setTimeout(()=>{const her=wert("lf_h")===ANDERE?wert("lf_hx"):wert("lf_h");const r=farbeErkennen(el.value,her,wert("lf_m"));
+      if(!r){hinweis("");return}const hx=document.getElementById("lf_hex");if(hx)hx.value=r.hex;
+      if(r.quelle==="hex"){el.value=naechsterName(r.hex);hinweis(`Farbwert ${r.hex} übernommen, Name „${el.value}“ vorgeschlagen`)}
+      else hinweis(r.quelle==="Katalog"?`Farbe aus dem Katalog von ${her} übernommen`:r.quelle==="Lager"?"Farbe wie in deinem Lager übernommen":"Farbe am Namen erkannt")},350)}
+  if(el.id==="lf_hex"){const f=document.getElementById("lf_f");if(f&&(!f.value.trim()||FARBEN.some(([n])=>n===f.value.trim()))){f.value=naechsterName(el.value);hinweis("")}}});
+})();
 /* Farbe als Sortierkriterium: gleiche Farbe bis +12 (angetippt) bzw. +8 (automatisch), ganz andere Farbe bis zu −12/−8 */
 const farbPunkte=(d,getippt)=>{const w=getippt?12:8;return Math.max(-w,Math.min(w,w*(1-d/40)))};
 /* Farbton zählt am meisten (Rosa auf dem Foto = „Pink“ in der Datenbank, auch wenn das Foto blasser ist);
