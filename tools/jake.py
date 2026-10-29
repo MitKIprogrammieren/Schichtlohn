@@ -109,7 +109,10 @@ def main():
         x = lesen(url, h)
         for v in sorted(verweise(url, h)):
             if v not in gesehen and v not in offen:
-                offen.append(v)
+                if "/bambu-lab/" in v:  # größte Marke zuerst: neue Bambu-Farben vor dem Rest
+                    offen.insert(0, v)
+                else:
+                    offen.append(v)
         time.sleep(PAUSE)
         if not x or not x["preis_eur"]:
             continue
