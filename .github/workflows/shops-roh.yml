@@ -1,0 +1,16 @@
+name: Shopdaten roh holen
+
+# Zum Prüfen: holt die Produktlisten der Herstellershops und legt sie als Artefakt ab.
+on:
+  workflow_dispatch:
+
+jobs:
+  holen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/shops_roh.py tools/shops.json /tmp/roh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shops-roh
+          path: /tmp/roh

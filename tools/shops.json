@@ -1,0 +1,10 @@
+{
+  "tinmorry":      {"name": "Tinmorry",       "marke": "Tinmorry",       "art": "shopify", "basis": "https://tinmorry.net"},
+  "princore":      {"name": "Princore",       "marke": "",               "art": "shopify", "basis": "https://princore.de"},
+  "sunlu":         {"name": "Sunlu",          "marke": "Sunlu",          "art": "shopify", "basis": "https://store.sunlu.com", "waehrung": "EUR"},
+  "polymaker":     {"name": "Polymaker",      "marke": "Polymaker",      "art": "shopify", "basis": "https://shop.polymaker.com", "waehrung": "EUR"},
+  "material4print":{"name": "Material4Print", "marke": "Material4Print", "art": "shopify", "basis": "https://material4print.de"},
+  "cr3d":          {"name": "CR3D",           "marke": "CR3D",           "art": "woo",     "basis": "https://www.cr3d.de"},
+  "dasfilament":   {"name": "Das Filament",   "marke": "Das Filament",   "art": "woo",     "basis": "https://dasfilament.de"},
+  "nobufil":       {"name": "Nobufil",        "marke": "Nobufil",        "art": "wix",     "basis": "https://www.nobufil.com"}
+}
