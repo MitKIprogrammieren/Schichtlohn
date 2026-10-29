@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.5"
+VERSION = "3.1.6"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -747,13 +747,63 @@ def _gram(g):
     return ("%.1f" % g).replace(".", ",")
 
 
+# ---------------------------------------------------------------- Trocknungs-Hinweis
+# Feuchteempfindliches Filament, das lange offen im AMS bzw. an der externen Spule hängt → einmal Meldung aufs Handy.
+TROCKNEN_TAGE = [(("PVA", "BVOH"), 1), (("PA", "PAHT", "PA6", "PA12", "PPA", "NYLON"), 2), (("PC", "PET", "PPS"), 3), (("TPU", "TPE"), 4),
+                 (("PETG", "PCTG", "ABS", "ASA", "HIPS"), 10)]
+TROCKNEN_KEY = "_trocknen"
+_trocknen = {"stand": None, "geaendert": False, "zuletzt": 0}
+
+
+def _trocknen_tage(typ):
+    t = str(typ or "").upper().replace("-", " ").split()
+    if not t:
+        return None
+    for namen, tage in TROCKNEN_TAGE:
+        if t[0] in namen or any(x in namen for x in t[:2]):
+            return tage
+    return None
+
+
+def trocknen_pruefen(z):
+    st = _trocknen
+    if st["stand"] is None:
+        w, _ = daten_lesen(TROCKNEN_KEY)
+        st["stand"] = w if isinstance(w, dict) else {}
+    jetzt = time.time()
+    for eid, (s, a) in z.items():
+        if not (("_ams_" in eid and "_slot_" in eid) or "externe_spule" in eid) or not isinstance(a, dict):
+            continue
+        if a.get("empty") or not a.get("type"):
+            if st["stand"].pop(eid, None) is not None:
+                st["geaendert"] = True
+            continue
+        key = "|".join(str(a.get(k) or "") for k in ("type", "color", "tag_uid", "filament_id"))
+        alt = st["stand"].get(eid)
+        if not alt or alt.get("k") != key:
+            st["stand"][eid] = {"k": key, "t": jetzt, "m": 0}
+            st["geaendert"] = True
+            continue
+        tage = _trocknen_tage(a.get("type"))
+        if tage and not alt.get("m") and jetzt - alt["t"] > tage * 86400:
+            alt["m"] = 1
+            st["geaendert"] = True
+            wo = str(a.get("friendly_name") or eid)
+            d = int((jetzt - alt["t"]) // 86400)
+            handy_meldung("Filament trocknen?", f"{a.get('name') or a.get('type')} steckt seit {d} Tagen offen in {wo}. "
+                                                 f"{a.get('type')} zieht Feuchtigkeit – vor wichtigen Drucken trocknen oder in eine Trockenbox legen.")
+    if st["geaendert"] and jetzt - st["zuletzt"] > 60:
+        daten_schreiben(TROCKNEN_KEY, st["stand"])
+        st["geaendert"], st["zuletzt"] = False, jetzt
+
+
 def druck_abbuchen(druckername, erg):
     if not einstellungen().get("abbuchung", True):
         print(f"{druckername}: {erg['anlass']} – automatische Abbuchung ist aus", flush=True)
         return
     zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     dt = time.strftime("%d.%m.%Y %H:%M")
-    bericht, offen = [], []
+    bericht, offen, knapp = [], [], []
     for po in erg["posten"]:
         g = float(po.get("gramm") or 0)
         if g <= 0.05:
@@ -761,8 +811,14 @@ def druck_abbuchen(druckername, erg):
         treffer, grund = sorte_fuer(po.get("fid") or "", (po.get("col") or "").lower())
         if treffer:
             it, d = treffer
+            vorher = abbuchen_rechnen(d, 0)[1]
             neu, bestand = abbuchen_rechnen(d, g)
             liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+            gw = _zahl(d.get("gewicht"), 1000) or 1000
+            if bestand <= 0 < vorher:
+                knapp.append(f"{it['summary']} ist aufgebraucht")
+            elif bestand < gw <= vorher:
+                knapp.append(f"{it['summary']}: nur noch {int(round(bestand))} g")
             preis = _zahl(d.get("preis"))
             log = {"typ": "verbrauch", "v": 1, "zeit": zeit, "drucker": druckername, "ort": po.get("ort") or "", "sorte": it["summary"],
                    "uid": it["uid"], "hersteller": d.get("hersteller") or "", "material": d.get("material") or "", "hex": d.get("hex") or "",
@@ -790,6 +846,8 @@ def druck_abbuchen(druckername, erg):
     print(text, flush=True)
     melden({"typ": "abbuchung", "drucker": druckername, "text": text})
     handy_meldung("Filament abgebucht", text)
+    if knapp:
+        handy_meldung("Filament wird knapp", "; ".join(knapp) + ". Steht jetzt auf der Einkaufsliste in SchichtLohn.")
 
 
 def abdruecke_export():
@@ -866,6 +924,10 @@ class _Wirt:
     def zustaende(self, dr, z):
         for eid, (s, a) in z.items():
             zustand_setzen(eid, s, a, "drucker")
+        try:
+            trocknen_pruefen(z)
+        except Exception as ex:
+            print("Trocknen:", ex, flush=True)
 
     def druckende(self, dr, erg):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
