@@ -1,0 +1,166 @@
+{
+ "esun": [
+  "https://www.esun3d.com/media/logo/websites/3/esun_logo_white.png",
+  "https://www.esun3d.com/media/catalog/category/High-Tech_Industry.png",
+  "https://www.esun3d.com/media/catalog/category/Medical_Applications.jpg",
+  "https://www.esun3d.com/media/catalog/category/Other_Industries.jpg",
+  "https://www.esun3d.com/media/catalog/category/wiki_Manual.jpg",
+  "https://www.esun3d.com/media/catalog/category/3D_Printing_Parameters.jpg"
+ ],
+ "extrudr": [
+  "https://www.extrudr.com/extrudr-white.gif",
+  "https://www.extrudr.com/payments/mastercard.svg",
+  "https://www.extrudr.com/payments/paypal.svg",
+  "https://www.extrudr.com/payments/visa.svg",
+  "https://www.extrudr.com/payments/applePay.svg",
+  "https://www.extrudr.com/payments/googlePay.svg"
+ ],
+ "fiberlogy": [
+  "https://fiberlogy.com/app/uploads/2026/04/logo.svg",
+  "https://fiberlogy.com/app/uploads/2026/04/hamburger.svg",
+  "https://fiberlogy.com/app/uploads/2026/09/PROMO_S2_bcgrd_4k-scaled-1920x0-c-default.webp",
+  "https://fiberlogy.com/app/uploads/2026/09/PROMO_S2_-1200x0-c-default.webp",
+  "https://fiberlogy.com/app/uploads/2026/08/fiberworks_bcgrd-1-1920x0-c-default.webp",
+  "https://fiberlogy.com/app/uploads/2026/08/FIBERWORKS_baner_promo_ENG-1200x0-c-default.webp"
+ ],
+ "filaxix": "FEHLER <urlopen error [Errno -2] Name or service not known>",
+ "ifilament": "FEHLER <urlopen error [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1000)>",
+ "jayo": [
+  "https://jayo3d.com/cdn/shop/files/800-400_1.jpg?v=1727232047&width=800",
+  "https://jayo3d.com/cdn/shop/files/17271730567414.png?v=1727173268&width=800",
+  "https://jayo3d.com/cdn/shop/files/PLA_-5KGspool.webp?v=1728378462&width=800",
+  "https://jayo3d.com/cdn/shop/files/2_4f5c246d-057a-4b1e-a17e-522fff69134e.png?v=1729063823&width=800",
+  "https://jayo3d.com/cdn/shop/files/PLA_10.webp?v=1728377674&width=800",
+  "https://jayo3d.com/cdn/shop/files/10.png?v=1729158540&width=800"
+ ],
+ "material4print": [
+  "https://www.material4print.de/cdn/shop/files/m4p_logo_mit-claim_transparent.svg?v=1718272360&width=800",
+  "https://www.material4print.de/cdn/shop/files/Homepage_Banner_Refill__Desktop.png?v=1767902917&width=800",
+  "https://www.material4print.de/cdn/shop/files/1_56ff6755-127d-435a-a0d9-e8b9413b107a.png?v=1719215581&width=800",
+  "https://www.material4print.de/cdn/shop/files/2_e89e9933-7a4d-4473-92b4-8b1054f26426.png?v=1719218681&width=800",
+  "https://www.material4print.de/cdn/shop/files/FLIP-FLOP-308x363.jpg?v=1718998963&width=800",
+  "https://www.material4print.de/cdn/shop/files/PETG-Wase-308x363.jpg?v=1718998969&width=800"
+ ],
+ "nobufil": [],
+ "polymaker": [
+  "https://shop.polymaker.com/cdn/shop/files/Polymaker_New_Logo.png?v=1756260800&width=800",
+  "https://shop.polymaker.com/cdn/shop/files/exec-7833942f-e820-4602-873a-fd38edefd956.png?v=1790665777&width=800",
+  "https://shop.polymaker.com/cdn/shop/files/PolyLite-PETG_1.75mm_1kg_Black.png?v=1685247501&width=800",
+  "https://shop.polymaker.com/cdn/shop/files/buy-more-save-more-1-1.png?v=1789454585&width=800",
+  "https://shop.polymaker.com/cdn/shop/files/PA20001_Isometric_Top.png?v=1784707681&width=800",
+  "https://shop.polymaker.com/cdn/shop/files/CA02001_Isometric_Top.png?v=1721221807&width=800"
+ ],
+ "princore": [
+  "https://princore.de/cdn/shop/files/princore_font_white_2_105x.png?v=1697433709",
+  "https://princore.de/cdn/shop/files/princore_font_white_2.png?v=1697433709&width=800",
+  "https://princore.de/cdn/shop/products/PA12_CFBogen.jpg?v=1680896672&width=800",
+  "https://princore.de/cdn/shop/files/PA12_in_schwarz.jpg?v=1792951726&width=800",
+  "https://princore.de/cdn/shop/files/Hauptbild_c0f63c0b-57be-46d7-b982-784126493531.png?v=1788459786&width=800",
+  "https://princore.de/cdn/shop/files/Prinplate_Extreme_Set_472061b9-fa9e-49da-849c-d6ee2233f8ab.jpg?v=1774343738&width=800"
+ ],
+ "qidi-tech": [
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1790732642_0_{width}x.png?v=13645194412851817019: HTTP Error 404: Not Found",
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1790732693_0_{width}x.png?v=14864353119768432783: HTTP Error 404: Not Found",
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1791793000_0_{width}x.png?v=1887133722035405123: HTTP Error 404: Not Found",
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1791793053_0_{width}x.png?v=8446845554250239887: HTTP Error 404: Not Found",
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1788775487_0_{width}x.png?v=7588013802984626912: HTTP Error 404: Not Found",
+  "FEHLER https://eu.qidi3d.com/cdn/shop/files/1788775475_0_{width}x.png?v=9086443121831656733: HTTP Error 404: Not Found"
+ ],
+ "siraya-tech": [
+  "https://siraya.tech/cdn/shop/files/11_sales_PIC_4.png?v=1721727170&width=800",
+  "https://siraya.tech/cdn/shop/files/Buy_in_bulk_saving_big_38d0c0ca-4383-4d46-bb09-86ec7bc0643d.png?v=1721727007&width=800",
+  "https://siraya.tech/cdn/shop/files/85A_Roamr_1.png?v=1769074748&width=800",
+  "https://siraya.tech/cdn/shop/files/siraya_-_horz_140x_2x_ea59b6fd-c52f-4d50-8484-a3b13b644ab7_160x@2x.png?v=1685081422",
+  "https://siraya.tech/cdn/shop/files/Siraya_Tech_Halloween_Sale_Banner_1920x760_300ppi.jpg?v=1791960448&width=800",
+  "https://siraya.tech/cdn/shop/files/CTA_-_Siraya_Tech_Halloween_Sale_1920x2500_300ppi.jpg?v=1791960449&width=800"
+ ],
+ "spectrum": [
+  "https://shop.spectrumfilaments.com/data/gfx/mask/eng/logo_5_big.png",
+  "https://shop.spectrumfilaments.com/data/include/img/news/1764081723.jpg",
+  "https://shop.spectrumfilaments.com/data/include/img/news/1761878571.jpg",
+  "FEHLER https://shop.spectrumfilaments.com/data/include/pwa/5/icon-128.png: HTTP Error 404: Not Found"
+ ],
+ "sunlu": [
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1792474961_0_{width}x.jpg?v=7927411181430216238: HTTP Error 404: Not Found",
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1792474956_0_{width}x.jpg?v=15804841676419660269: HTTP Error 404: Not Found",
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1785911804_0_{width}x.png?v=13425493892229396898: HTTP Error 404: Not Found",
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1784104783_0_{width}x.jpg?v=17678655133149565287: HTTP Error 404: Not Found",
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1790143966_0_{width}x.png?v=14081657673646278854: HTTP Error 404: Not Found",
+  "FEHLER https://store.sunlu.com/cdn/shop/files/1780625121_0_{width}x.png?v=15221825521002460841: HTTP Error 404: Not Found"
+ ],
+ "tinmorry": [
+  "https://tinmorry.net/cdn/shop/files/26_77b42360-88d0-4022-9c23-23c1802b51f8.jpg?v=1772503921&width=800",
+  "https://tinmorry.net/cdn/shop/files/1._5aae8d8b-a459-4c04-80c5-8fe5617176ad.jpg?v=1763362079&width=800",
+  "https://tinmorry.net/cdn/shop/files/A-1_710a94f1-abce-4605-9ecb-513da9b1ffdf.jpg?v=1763361107&width=800",
+  "https://tinmorry.net/cdn/shop/files/1_5f1d06e3-cab7-41eb-8dd1-a217966cfb4b.jpg?v=1764642055&width=800",
+  "https://tinmorry.net/cdn/shop/files/1_a5e07bed-9b79-4e22-b7d1-4533f1071db5.jpg?v=1763374755&width=800",
+  "https://tinmorry.net/cdn/shop/files/1_c2d90921-8644-44e7-abfe-7b61e04e7ff3.jpg?v=1763363017&width=800"
+ ],
+ "eryone": [
+  "https://eryone3d.com/cdn/shop/files/flag_small.png?v=1748584449",
+  "https://eryone3d.com/cdn/shop/files/canada_small.png?v=1748491416",
+  "https://eryone3d.com/cdn/shop/files/uk_small.png?v=1748491477",
+  "https://eryone3d.com/cdn/shop/files/de_small.png?v=1748491616",
+  "https://eryone3d.com/cdn/shop/files/fr_small.png?v=1748491741",
+  "https://eryone3d.com/cdn/shop/files/italy_701a7470-ddb8-4cc6-b8b8-7b6466035f7f_small.png?v=1748491777"
+ ],
+ "geeetech": [
+  "https://www.geeetech.com/cdn/shop/files/logo_r.png?v=1780653605&width=800",
+  "https://www.geeetech.com/cdn/shop/files/PLA_Purple.jpg?crop=center&height=300&v=1788234193&width=800",
+  "https://www.geeetech.com/cdn/shop/files/geeetech-petg-3d-printer-filament-175mm-1kg-spool-1863854.jpg?crop=center&height=300&v=1782872119&width=800",
+  "https://www.geeetech.com/cdn/shop/files/geeetech-abs-3d-printer-filament-175mm-1kg-spool-4121791.jpg?crop=center&height=300&v=1782872116&width=800",
+  "https://www.geeetech.com/cdn/shop/files/geeetech-asa-3d-printer-filament-175mm-1kg-spool-4538457.jpg?crop=center&height=300&v=1782872114&width=800",
+  "https://www.geeetech.com/cdn/shop/files/m1_02ea2bab-bfcd-446d-b5d0-99c0401764f6.png?crop=center&height=300&v=1793086064&width=800"
+ ],
+ "3dk-berlin": [
+  "https://3dk.berlin/img/3dkberlin-logo-1594384245.jpg",
+  "https://3dk.berlin/modules/layerslider/views/img/layerslider/skins/nothumb.png",
+  "https://3dk.berlin/img/Neon%20Slider%20ohne.jpg",
+  "https://3dk.berlin/img/Neu-PETG.png",
+  "https://3dk.berlin/img/BlackBox1.png",
+  "https://3dk.berlin/img/0035.png"
+ ],
+ "devil-design": [
+  "https://devildesign.com/wp-content/uploads/2018/11/xLogo-RGB-Red-300ppi-.png.pagespeed.ic.oBOlidyhGs.png",
+  "https://devildesign.com/wp-content/plugins/revslider/public/assets/assets/dummy.png",
+  "https://devildesign.com/wp-content/uploads/2018/12/xgoblet2.png.pagespeed.ic.VXr1cUvxLH.png",
+  "https://devildesign.com/wp-content/uploads/2018/12/xcheck.png.pagespeed.ic.1-eYkPXM77.png",
+  "https://devildesign.com/wp-content/uploads/2018/12/xtruck-1.png.pagespeed.ic.Vc4vkZ3JRr.png",
+  "https://devildesign.com/wp-content/uploads/2025/10/xicon1.png.pagespeed.ic.7nw7yNXq__.png"
+ ],
+ "cr3d": [
+  "FEHLER https://www.cr3d.de/wp-content/uploads/2020/07/cropped-CR3D_White_Black_Türkis.png: 'ascii' codec can't encode character '\\u0308' in position 59: ordinal not in range(128)",
+  "https://www.cr3d.de/wp-content/uploads/2026/06/matrix_single_logo.svg",
+  "https://www.cr3d.de/wp-content/uploads/2026/06/smartfab_logo_v2.svg",
+  "https://www.cr3d.de/wp-content/uploads/2020/12/IMG_5806-scaled.jpg",
+  "https://www.cr3d.de/wp-content/uploads/2026/07/i444_hero_banner26.webp",
+  "https://www.cr3d.de/wp-content/uploads/2026/07/fieldrack_hero_banner26.webp"
+ ],
+ "das-filament": [
+  "https://dasfilament.de/wp-content/uploads/2025/11/DAS_FILAMENT_LOGO-scaled.png",
+  "https://dasfilament.de/wp-content/uploads/2026/05/Bildschirmfoto-2026-05-21-um-09.03.50-scaled.png",
+  "https://dasfilament.de/wp-content/uploads/2026/06/PLA8-300x210.png",
+  "https://dasfilament.de/wp-content/uploads/2026/06/PETG7-300x210.png",
+  "https://dasfilament.de/wp-content/uploads/2026/06/TPU7-300x210.png",
+  "https://dasfilament.de/wp-content/uploads/2026/06/Zubehoer8-300x210.png"
+ ],
+ "colorfabb": [
+  "https://colorfabb.com/static/version1792565382/frontend/ISM/color-fabb/default/images/logo.svg",
+  "https://colorfabb.com/media/nav-value.png",
+  "https://colorfabb.com/media/nav-colors.png",
+  "https://colorfabb.com/media/nav-shoe.png",
+  "https://colorfabb.com/media/.renditions/wysiwyg/Homepage_afbeeldingen_DEF_Homepage_03_Banner.png",
+  "https://colorfabb.com/media/.renditions/wysiwyg/Homepage_afbeeldingen_DEF_Homepage_06_Banner.png"
+ ],
+ "creality": [
+  "https://store.creality.com/logo.png"
+ ],
+ "3djake": [
+  "https://3d.nice-cdn.com/disco/build/assets/Logo/threedjake-logo.e0559f435h0p.svg",
+  "https://3d.nice-cdn.com/upload/image/banner/large/default/79666_3e9e9e15.b-162x162.jpg",
+  "https://3d.nice-cdn.com/library/images/frontend/footer/co2-climate-conscious-white.svg",
+  "https://3d.nice-cdn.com/library/images/frontend/payment/payment_mastercard.svg",
+  "https://3d.nice-cdn.com/library/images/frontend/payment/payment_visa.svg",
+  "https://3d.nice-cdn.com/library/images/frontend/payment/payment_amex.svg"
+ ]
+}
