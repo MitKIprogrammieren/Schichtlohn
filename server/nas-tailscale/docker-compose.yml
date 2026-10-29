@@ -1,0 +1,43 @@
+# SchichtLohn-Server mit Tailscale – für eine Synology (Container Manager) oder jeden anderen Rechner mit Docker
+#
+# Vorher in File Station anlegen:  docker/schichtlohn/daten   docker/schichtlohn/tailscale   docker/schichtlohn/tailscale-config
+# In docker/schichtlohn/tailscale-config die Datei serve.json aus diesem Paket legen.
+# Unten bei TS_AUTHKEY den eigenen Tailscale-Schlüssel eintragen (tskey-auth-…). Nach dem ersten Start wird er nicht mehr gebraucht.
+#
+# Danach erreichbar:
+#   über Tailscale (überall):  https://schichtlohn.DEIN-TAILNET.ts.net/app/
+#   im Heimnetz:               http://IP-DER-NAS:8093/app/
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: schichtlohn
+    environment:
+      - TS_AUTHKEY=tskey-auth-HIER-EINTRAGEN
+      - TS_HOSTNAME=schichtlohn
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_USERSPACE=true          # läuft so auf jeder Synology, ohne Zusatzeinstellungen
+      - TS_ACCEPT_DNS=false
+    volumes:
+      - /volume1/docker/schichtlohn/tailscale:/var/lib/tailscale
+      - /volume1/docker/schichtlohn/tailscale-config:/config:ro
+    ports:
+      - "8093:8093"                # SchichtLohn im Heimnetz
+    restart: unless-stopped
+
+  schichtlohn:
+    image: ghcr.io/mitkiprogrammieren/schichtlohn-server:latest
+    network_mode: service:tailscale   # teilt sich das Netz mit Tailscale
+    depends_on:
+      - tailscale
+    volumes:
+      - /volume1/docker/schichtlohn/daten:/daten
+    environment:
+      - TZ=Europe/Berlin
+      # - TOKEN=ein-langes-geheimes-wort   # optional: Schlüssel, den die App beim ersten Öffnen abfragt
+      # - LESEMODELL=genau                 # großes Lesemodell – nur für starke NAS, sonst sehr langsam
+    pull_policy: always
+    init: true
+    stop_grace_period: 5s
+    restart: unless-stopped
+    mem_limit: 2g

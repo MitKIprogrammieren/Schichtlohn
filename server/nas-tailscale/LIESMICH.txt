@@ -1,0 +1,20 @@
+SchichtLohn-Server mit Tailscale
+================================
+
+1. Diesen Ordner "schichtlohn" komplett nach  docker/  auf der NAS hochladen
+   (File Station → Freigabe "docker"), so dass es  /volume1/docker/schichtlohn/  gibt.
+
+2. In docker-compose.yml bei TS_AUTHKEY den eigenen Tailscale-Schlüssel eintragen.
+   Liegt die Freigabe "docker" nicht auf volume1: in docker-compose.yml überall /volume1 anpassen.
+
+3. Container Manager → Projekt → Erstellen
+   Name: schichtlohn · Pfad: /docker/schichtlohn · "Vorhandene docker-compose.yml verwenden" → Fertig.
+
+4. Nach 1–2 Minuten im Browser öffnen:
+   über Tailscale:  https://schichtlohn.DEIN-TAILNET.ts.net/app/
+   im Heimnetz:     http://IP-DER-NAS:8093/app/
+
+Ausführliche Anleitung mit Bildern der einzelnen Schritte: siehe die mitgeschickte Anleitung.
+
+daten/hersteller/  enthält Herstellerlogos (eigene PNGs mit gleichem Namensschema dürfen dazu).
+Logos fremder Firmen bitte nicht weitergeben oder veröffentlichen.
