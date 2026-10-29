@@ -3493,7 +3493,10 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgr:hover{background:var(--sunken)}
 .lgr.leer{opacity:.55}
 .lgsw{width:30px;height:30px;border-radius:var(--r-s);box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
-.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}
+/* Lagerliste: größere Rollen (nur in der Liste, Dialoge und Scanner bleiben kompakt) */
+.lgr[data-act="lgEdit"]:has(.lgspool){grid-template-columns:56px minmax(0,1fr) auto}
+.lgr[data-act="lgEdit"] .lgsw.lgspool{width:72px;height:72px;margin:-8px}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
 .lgn{font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
 .lgn small{color:var(--fg-2);font-weight:400;font-size:13px}
 .lgs{font-size:12.5px;color:var(--fg-2);margin-top:2px}
