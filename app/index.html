@@ -1984,12 +1984,12 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .jhead select,.jhead input[type=search]{width:auto;max-width:220px}
 .jsrc{display:flex;flex-wrap:wrap;gap:8px}
 .jday{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2);padding:14px 4px 6px}
-.job{display:grid;grid-template-columns:26px 56px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel,transparent);cursor:pointer;margin-bottom:6px}
+.job{display:grid;grid-template-columns:26px 96px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel,transparent);cursor:pointer;margin-bottom:6px}
 .job:hover{border-color:var(--line-2)}
 .job.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .job.used{opacity:.62}
 .job input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:pointer}
-.job .thumb{width:56px;height:56px}
+.job .thumb{width:96px;height:96px}
 .job h3{font-size:15px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .job .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px;color:var(--fg-2);margin-top:3px;align-items:center}
 .job .sw{display:inline-flex;gap:3px;vertical-align:-2px}
@@ -2001,7 +2001,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .jbar .info b{font-size:15px}
 .chip.cl{color:var(--accent)}
 .chip.bad{color:var(--bad)}
-@media (max-width:620px){.job{grid-template-columns:24px 44px minmax(0,1fr)}.job .thumb{width:44px;height:44px}.job .right{grid-column:3;text-align:left}.job .right b{display:inline;margin-right:8px}.jbar{bottom:8px}}
+@media (max-width:620px){.job{grid-template-columns:24px 76px minmax(0,1fr)}.job .thumb{width:76px;height:76px;grid-row:span 2}.job input[type=checkbox]{grid-row:span 2}.job .right{grid-column:3;text-align:left}.job .right b{display:inline;margin-right:8px}.jbar{bottom:8px}}
 </style>
 <script>
 /* ===== Druckaufträge: Druckprotokoll aus Home Assistant und Druckhistorie aus der Bambu-Cloud ===== */
