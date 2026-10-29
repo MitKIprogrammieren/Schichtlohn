@@ -3931,6 +3931,7 @@ function formModal(e,prefill){
     <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
       <label class="field"><span>Anzahl Rollen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_s" value="${v(f.spulen)}"><em>Stk</em></div></label>
       <label class="field"><span>Reste angebrochen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_r" value="${v((f.reste||[]).join(", "))}" placeholder="voll"><em>g</em></div></label></div>
+    <div class="lggw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
     <div class="lghint">Mehrere angebrochene Rollen mit Komma trennen, z. B. „300, 500“. Sie zählen bei „Anzahl Rollen“ mit.</div>
     ${isNew?"":`<div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="lgMinus">− 1 Rolle verbraucht</button><button class="btn sm" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn ghost sm" data-act="lgCopy">${ICON.copy} Als Vorlage kopieren</button></div><div id="lf_ask"></div>`}
     <details class="lgx"${(f.bambu_id||f.preis||f.duese_min||f.fcode)?" open":""}><summary>Technische Daten, Preis und Bambu-ID</summary><div class="lgform" style="margin-top:10px">
@@ -4580,6 +4581,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgLeer"){G.showLeer=!(G.showLeer??ein().leer_zeigen);savePref();draw();return}
   if(a==="lgMore"){G[b.dataset.k]=!G[b.dataset.k];draw();return}
   if(a==="lgNew"){formModal(null);return}
+  if(a==="lgGw"){const i=document.getElementById("lf_g");if(i){i.value=b.dataset.w;i.dispatchEvent(new Event("input",{bubbles:true}))}document.querySelectorAll(".lggw .chip").forEach(c=>c.classList.toggle("on",c===b));return}
   if(a==="lgEinSave"){const g={},msgEl=document.getElementById("lge_msg");const say=t=>{if(msgEl)msgEl.textContent=t};
     for(const [k,t,,min,max] of EIN_ZAHLEN){const el=document.querySelector(`[data-lge="${k}"]`);const n=fNum(el?el.value:"");if(n==null||n<min||n>max)return say(`„${t}“: bitte eine Zahl von ${min} bis ${max}.`);g[k]=n}
     if(g.feuchte_gruen>=g.feuchte_warnung)return say("„Grün unter“ muss kleiner sein als „Warnung ab“.");
@@ -4752,5 +4754,7 @@ body.rx-einfach #mbar{display:none!important}
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>.rx-frow{display:grid;grid-template-columns:auto minmax(90px,1fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.rx-frow:first-of-type{border-top:0}.rx-fdot{width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}.rx-fl{min-width:0}.rx-fl b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rx-fl small{color:var(--fg-3);font-size:12.5px}.rx-fp .mpick{display:grid;grid-template-columns:1fr 1fr;gap:6px}@media (max-width:520px){.rx-frow{grid-template-columns:auto 1fr}.rx-fp{grid-column:1/-1}}</style>
 <style>.lgcol .lghexin{flex:0 0 96px;width:96px;font-family:var(--f-mono,ui-monospace,Menlo,monospace);text-transform:uppercase;letter-spacing:.03em}.lgcol .lghexin.bad{border-color:var(--bad)}</style>
+<style>.lggw{display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}.lggw .chip{font-variant-numeric:tabular-nums;cursor:pointer}.lggw .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}</style>
+<script>document.addEventListener("input",e=>{if(e.target&&e.target.id==="lf_g"){const w=Number(String(e.target.value).replace(/[^0-9]/g,""));document.querySelectorAll(".lggw .chip").forEach(c=>c.classList.toggle("on",Number(c.dataset.w)===w))}})</script>
 </body>
 </html>
