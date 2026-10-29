@@ -654,7 +654,7 @@ function roundPrice(p,mode){
 /* ---------- Rendering ---------- */
 const TABNAMES={lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
 function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
-function render(){
+function render(){try{designAnwenden()}catch(e){}
   const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
   if(hid.includes(S.tab)){const f=$$("#tabs button").find(b=>!b.hidden);S.tab=f?f.dataset.tab:"einstellungen"}
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
@@ -1149,6 +1149,7 @@ function renderSettings(m){
           <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund. Einfarbige Logos werden im dunklen Design automatisch weiß, farbige bleiben farbig – für dunkle Schrift kannst du eine helle Version fürs dunkle Design hinzufügen. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/ (helle Version: Name mit „-dunkel“, z. B. das-filament-dunkel.png).":""}</small></div>`})()}
     </section>
 
+    ${designHTML()}
     ${funktionenHTML()}
     ${preisHTML()}
 
@@ -1166,6 +1167,66 @@ function renderSettings(m){
   </div>`;
 }
 
+/* ---------- Design: Farbe, Ecken, Rahmen, Schatten, Durchsichtigkeit – frei einstellbar, gilt sofort ---------- */
+const DESIGN_STD={vorlage:"standard",modus:"auto",akzent:"",ecken:null,rahmen:true,schatten:"aus",deckkraft:100,hintergrund:"standard",hgfarbe:"#20242a",dichte:"normal"};
+const DESIGN_VORLAGEN={standard:["Standard",{}],glas:["Glas",{ecken:16,rahmen:true,schatten:"leicht",deckkraft:55,hintergrund:"verlauf"}],
+  flach:["Flach & eckig",{ecken:0,rahmen:true,schatten:"aus",deckkraft:100,hintergrund:"standard"}],weich:["Weich & rund",{ecken:22,rahmen:false,schatten:"weich",deckkraft:100,hintergrund:"standard"}],
+  schwebend:["Schwebend",{ecken:12,rahmen:false,schatten:"stark",deckkraft:100,hintergrund:"verlauf"}],durchsichtig:["Durchsichtig",{ecken:14,rahmen:true,schatten:"aus",deckkraft:30,hintergrund:"durchsichtig"}]};
+const DESIGN_FARBEN=["#00ae42","#3fd47f","#1e88e5","#7c4dff","#e91e63","#ff6d00","#f5b400","#00acc1","#8d6e63","#607d8b"];
+const designCfg=()=>Object.assign({},DESIGN_STD,(S.cfg&&S.cfg.design)||{});
+function hexRgb(h){h=String(h||"").replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");const n=parseInt(h,16);return Number.isFinite(n)&&h.length===6?[n>>16&255,n>>8&255,n&255]:null}
+const SCHATTEN={leicht:"0 1px 2px rgba(0,0,0,.10),0 3px 10px rgba(0,0,0,.08)",weich:"0 8px 28px rgba(0,0,0,.16)",stark:"0 14px 34px rgba(0,0,0,.38),0 2px 6px rgba(0,0,0,.2)"};
+const DUNKEL_VARS="--bg:#232326;--glass:#2c2c30;--glass-2:#38383d;--line:#3c3c42;--line-2:#4c4c53;--fg:#e8e8ea;--fg-2:#a7a7ae;--fg-3:#7c7c84;--solid:#2c2c30;--header-bg:#1b1b1d;--strip:#35353a;--sunken:#1f1f22;--track:#4c4c53;color-scheme:dark";
+const HELL_VARS="--bg:#ececee;--glass:#ffffff;--glass-2:#f4f4f5;--line:#dedee2;--line-2:#cbcbd1;--fg:#262e30;--fg-2:#5b6265;--fg-3:#8b9194;--solid:#ffffff;--header-bg:#ffffff;--strip:#f3f3f5;--sunken:#f5f5f6;--track:#d3d3d8;color-scheme:light";
+function designCss(d){let c="";const K=":is(.panel,.dcard,.rx-k,.job,.grp,.spanel,.lgsil,.modal,.kpi)";const a=hexRgb(d.akzent);
+  if(!window.__PW_HA&&d.modus==="hell")c+=`:root[data-skin="bambu"][data-theme="hell"]{${HELL_VARS}}`;
+  if(!window.__PW_HA&&d.modus==="dunkel")c+=`:root[data-skin="bambu"][data-theme="dunkel"]{${DUNKEL_VARS}}`;
+  let v="";if(a){const ink=(0.299*a[0]+0.587*a[1]+0.114*a[2])/255>0.62?"#111":"#fff";v+=`--accent:${d.akzent};--good:${d.akzent};--c-mat:${d.akzent};--accent-soft:rgba(${a.join(",")},.16);--accent-ink:${ink};`}
+  if(d.ecken!=null){const e=Math.max(0,Math.min(28,+d.ecken));v+=`--r:${e}px;--r-s:${Math.round(e*0.6)}px;`}
+  if(d.hintergrund==="farbe"&&hexRgb(d.hgfarbe)){v+=`--bg:${d.hgfarbe};--body-bg:${d.hgfarbe};`;
+    /* Schrift passend zum Hintergrund: auf dunkler Farbe hell, auf heller Farbe dunkel (nur wenn die Kacheln durchscheinen) */
+    const g=hexRgb(d.hgfarbe),hell=(0.299*g[0]+0.587*g[1]+0.114*g[2])/255>0.55;
+    if(+d.deckkraft<70)v+=hell?"--fg:#1d2326;--fg-2:#3f474b;--fg-3:#5b6468;":"--fg:#f3f5f7;--fg-2:#d3d8de;--fg-3:#b3bac3;"}
+  if(d.hintergrund==="durchsichtig")v+=`--bg:transparent;--body-bg:transparent;--header-bg:transparent;`;
+  if(v)c+=`:root:root:root:root{${v}}`;
+  if(d.ecken!=null){const e=+d.ecken;c+=`${K}{border-radius:var(--r)!important}.job,.kpi{border-radius:var(--r-s)!important}`;
+    if(e<=4)c+=`.btn,.chip,.seg,.seg button,nav.tabs button,input,select,textarea,.rx-seg,.rx-seg button,.rx-pills button{border-radius:${e}px!important}`}
+  if(!d.rahmen)c+=`${K}{border-color:transparent!important}`;
+  if(SCHATTEN[d.schatten])c+=`${K}:not(.kpi){box-shadow:${SCHATTEN[d.schatten]}!important}`;
+  const p=Math.max(0,Math.min(100,+d.deckkraft||0));
+  if(p<100)c+=`${K}:not(.modal){background:color-mix(in srgb,var(--glass) ${p}%,transparent)!important;backdrop-filter:blur(14px) saturate(1.15);-webkit-backdrop-filter:blur(14px) saturate(1.15)}`;
+  if(d.hintergrund==="verlauf")c+=`body{background:radial-gradient(1100px 620px at 88% -12%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 62%),radial-gradient(900px 520px at -12% 108%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),var(--bg)!important;background-attachment:fixed!important}`;
+  if(d.hintergrund==="durchsichtig")c+=`html,body{background:transparent!important}body::before{background:transparent!important}header.top{backdrop-filter:blur(14px)}`;
+  if(d.dichte==="kompakt")c+=`.pad{padding:11px}.dcard,.rx-k{padding:10px 12px}.stack{gap:10px}`;
+  if(d.dichte==="luftig")c+=`.pad{padding:22px}.dcard,.rx-k{padding:18px 20px}.stack{gap:22px}`;
+  return c}
+function designAnwenden(){const d=designCfg();const css=designCss(d);let el=document.getElementById("slDesign");
+  if(!el){el=document.createElement("style");el.id="slDesign";document.head.appendChild(el)}if(el.textContent!==css)el.textContent=css;
+  const t=!window.__PW_HA&&d.modus!=="auto"?(d.modus==="hell"?"hell":"dunkel"):"";if((document.documentElement.dataset.theme||"")!==t){if(t)document.documentElement.dataset.theme=t;else delete document.documentElement.dataset.theme}}
+function designSetzen(neu,neuZeichnen){S.cfg.design=Object.assign({},designCfg(),neu);designAnwenden();saveCfgSoon();if(neuZeichnen&&S.tab==="einstellungen"){const y=scrollY;render();scrollTo(0,y)}}
+function designHTML(){const d=designCfg();const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  const chips=(k,liste,wert)=>`<div class="tabtg">${liste.map(([v,t])=>{const on=String(wert)===String(v);return `<button type="button" class="chip${on?" on":""}" data-act="dsSet" data-k="${k}" data-v="${esc(String(v))}" aria-pressed="${on}">${on?ok:""}${t}</button>`}).join("")}</div>`;
+  const ecken=d.ecken==null?"":d.ecken;
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Design</h2></div>
+    <div class="field"><span>Vorlage</span><div class="dsvl">${Object.entries(DESIGN_VORLAGEN).map(([k,[t,o]])=>{const x=Object.assign({},DESIGN_STD,o);const r=x.ecken==null?10:x.ecken;
+      return `<button type="button" class="dsv${d.vorlage===k?" on":""}" data-act="dsVorlage" data-v="${k}"><i style="border-radius:${r}px;${x.rahmen?"":"border-color:transparent;"}${SCHATTEN[x.schatten]?`box-shadow:${SCHATTEN[x.schatten]};`:""}${x.deckkraft<100?`background:color-mix(in srgb,var(--glass) ${x.deckkraft}%,transparent);`:""}"><b style="border-radius:${Math.round(r*.6)}px"></b><b style="border-radius:${Math.round(r*.6)}px;width:60%"></b></i><span>${t}</span></button>`}).join("")}</div></div>
+    ${window.__PW_HA?"":`<div class="field"><span>Hell oder dunkel</span>${chips("modus",[["auto","Wie das Gerät"],["hell","Immer hell"],["dunkel","Immer dunkel"]],d.modus)}</div>`}
+    <div class="field"><span>Akzentfarbe</span><div class="dsfarben"><button type="button" class="dsf${d.akzent?"":" on"}" data-act="dsSet" data-k="akzent" data-v="" title="Standard"><span>Std</span></button>${DESIGN_FARBEN.map(f=>`<button type="button" class="dsf${d.akzent.toLowerCase()===f?" on":""}" data-act="dsSet" data-k="akzent" data-v="${f}" style="background:${f}" aria-label="${f}"></button>`).join("")}<label class="dsf dsfe" title="Eigene Farbe"><input type="color" id="ds_akzent" value="${esc(d.akzent||"#00ae42")}">+</label></div></div>
+    <div class="field"><span>Ecken</span>${chips("ecken",[["","Standard"],[0,"Eckig"],[6,"Leicht rund"],[14,"Rund"],[24,"Sehr rund"]],ecken)}<input type="range" id="ds_ecken" min="0" max="28" step="1" value="${d.ecken==null?10:d.ecken}" aria-label="Rundung der Ecken"></div>
+    <div class="cols2"><div class="field"><span>Rahmen um Kacheln</span>${chips("rahmen",[[true,"Mit Rahmen"],[false,"Ohne"]],d.rahmen)}</div>
+      <div class="field"><span>Schatten</span>${chips("schatten",[["aus","Keiner"],["leicht","Leicht"],["weich","Weich"],["stark","Stark"]],d.schatten)}</div></div>
+    <div class="field"><span>Kacheln: ${d.deckkraft>=100?"deckend":d.deckkraft+" % deckend (durchsichtig)"}</span><input type="range" id="ds_deck" min="10" max="100" step="5" value="${d.deckkraft}" aria-label="Deckkraft der Kacheln"></div>
+    <div class="field"><span>Seitenhintergrund</span>${chips("hintergrund",[["standard","Standard"],["verlauf","Farbverlauf"],["farbe","Eigene Farbe"],["durchsichtig","Durchsichtig"]],d.hintergrund)}
+      ${d.hintergrund==="farbe"?`<label class="dsfe2"><input type="color" id="ds_hg" value="${esc(d.hgfarbe)}"> Farbe wählen</label>`:""}${d.hintergrund==="durchsichtig"?`<small class="hint">Gedacht für die Karte in Home Assistant: dahinter scheint der Dashboard-Hintergrund durch.</small>`:""}</div>
+    <div class="field"><span>Abstände</span>${chips("dichte",[["kompakt","Kompakt"],["normal","Normal"],["luftig","Luftig"]],d.dichte)}</div>
+    <div class="row"><button type="button" class="btn ghost sm" data-act="dsReset">Alles zurücksetzen</button><span class="hint">Gilt sofort und auf allen Geräten mit denselben Daten.</span></div>
+  </section>`}
+document.addEventListener("input",ev=>{const t=ev.target;if(!t||!t.id||!/^ds_/.test(t.id))return;
+  if(t.id==="ds_ecken")designSetzen({ecken:+t.value,vorlage:""});
+  if(t.id==="ds_deck"){designSetzen({deckkraft:+t.value,vorlage:""});const l=t.closest(".field");if(l&&l.firstElementChild)l.firstElementChild.textContent="Kacheln: "+(+t.value>=100?"deckend":t.value+" % deckend (durchsichtig)")}
+  if(t.id==="ds_akzent")designSetzen({akzent:t.value,vorlage:""});
+  if(t.id==="ds_hg")designSetzen({hgfarbe:t.value,vorlage:""})});
+document.addEventListener("change",ev=>{const t=ev.target;if(t&&/^ds_(ecken|akzent)$/.test(t.id||"")&&S.tab==="einstellungen"){const y=scrollY;render();scrollTo(0,y)}});
 /* ---------- Funktionen: einzeln abschaltbar (z. B. ohne Drucker oder ohne Etikettendrucker) ---------- */
 const SLF=window.SLF={e:null,laden:false,fehler:false};
 function fnServerLaden(){if(!S.srv||!window.SRV||SLF.laden||SLF.e||SLF.fehler)return;SLF.laden=true;
@@ -1461,6 +1522,9 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
+  if(a==="dsSet"){const k=b.dataset.k;let v=b.dataset.v;if(k==="rahmen")v=v==="true";else if(k==="ecken")v=v===""?null:+v;designSetzen({[k]:v,vorlage:""},true);return}
+  if(a==="dsVorlage"){const k=b.dataset.v;designSetzen(Object.assign({},DESIGN_STD,{modus:designCfg().modus,akzent:designCfg().akzent},DESIGN_VORLAGEN[k][1],{vorlage:k}),true);return}
+  if(a==="dsReset"){S.cfg.design={};designAnwenden();saveCfgSoon();render();toast("Design zurückgesetzt");return}
   if(a==="pvSave"){const v=id=>{const el=document.getElementById(id);return el?el.value.trim():""};
     SRV.req("PUT","/api/einstellungen",{preise:{ebay:{id:v("pv_eid"),secret:v("pv_esec")},ali:{key:v("pv_ak"),secret:v("pv_asec"),tracking:v("pv_atr")}}})
       .then(e=>{SLF.e=e;toast("Gespeichert – Preise werden abgerufen");PV.d=Object.assign({},PV.d,{laeuft:true});render()}).catch(x=>toast(x.message||String(x)));return}
@@ -5111,7 +5175,7 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 (()=>{const GR=[
   ["Kalkulation",["Kosten und Preis","Drucker","Materialien"]],
   ["Verkauf und Angebote",["Verkaufskanäle","Absender für Angebote"]],
-  ["Lager und Ansicht",["Lager","Funktionen","Reiter"]],
+  ["Lager und Ansicht",["Design","Lager","Funktionen","Reiter"]],
   ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Preisvergleich","Creality-Cloud","Sync zwischen Geräten"]],
   ["Daten",["Daten und Sicherung"]]];
   const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
@@ -5171,6 +5235,18 @@ body.rx-einfach #mbar{display:none!important}
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
+.dsvl{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.dsv{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:transparent;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
+.dsv.on{border-color:var(--accent);color:var(--fg);box-shadow:0 0 0 1px var(--accent) inset}
+.dsv i{display:flex;flex-direction:column;gap:5px;width:72px;height:46px;padding:8px;border:1px solid var(--line-2);background:var(--glass)}
+.dsv i b{display:block;height:7px;width:100%;background:var(--accent-soft)}
+.dsfarben{display:flex;flex-wrap:wrap;gap:8px}
+.dsf{position:relative;width:34px;height:34px;border-radius:50%;border:2px solid var(--line-2);cursor:pointer;padding:0;display:grid;place-items:center;font-size:11px;color:var(--fg-2);background:var(--glass)}
+.dsf.on{outline:2px solid var(--fg);outline-offset:2px}
+.dsfe{background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);color:#fff;font-weight:700;font-size:16px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.dsfe input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dsfe2{display:inline-flex;align-items:center;gap:8px;font-size:13px;margin-top:6px}
+.dsfe2 input{width:44px;height:30px;border:0;padding:0;background:none}
 .pvk{display:flex;flex-direction:column;gap:2px;margin-top:4px}.pvk small{color:var(--fg-3);font-size:12.5px}
 .reicht{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .rc{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:var(--r-s,8px);border:1px solid var(--line);font-size:13.5px;line-height:1.35}
