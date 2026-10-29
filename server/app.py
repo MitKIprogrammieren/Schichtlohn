@@ -21,6 +21,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
+  GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
 
 Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
@@ -45,6 +46,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 import drucker as drucker_mod
+import preise as preise_mod
 import web
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
@@ -59,7 +61,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.9"
+VERSION = "3.2.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -586,6 +588,9 @@ def einstellungen():
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
     w.setdefault("waage_url", "")
+    w.setdefault("preise", {})
+    w["preise"].setdefault("ebay", {})
+    w["preise"].setdefault("ali", {})
     return w
 
 
@@ -599,6 +604,9 @@ def einstellungen_maskiert():
         if e[k].get("token"):
             e[k]["token"] = MASKE
     e["cloud"].pop("uid", None)
+    for k in ("ebay", "ali"):
+        if e["preise"][k].get("secret"):
+            e["preise"][k]["secret"] = MASKE
     return e
 
 
@@ -631,15 +639,24 @@ def einstellungen_setzen(neu):
             e[k] = x
     if "abbuchung" in neu:
         e["abbuchung"] = bool(neu["abbuchung"])
+    if isinstance(neu.get("preise"), dict):
+        pr = {k: dict(v) for k, v in alt["preise"].items()}
+        for k in ("ebay", "ali"):
+            for kk, v in (neu["preise"].get(k) or {}).items():
+                if kk in ("id", "secret", "key", "tracking") and v != MASKE:
+                    pr.setdefault(k, {})[kk] = str(v or "").strip()
+        e["preise"] = pr
     if "fertig_meldung" in neu:
         e["fertig_meldung"] = bool(neu["fertig_meldung"])
-    nur_extras = set(neu) <= {"fertig_meldung", "waage_url"}
+    nur_extras = set(neu) <= {"fertig_meldung", "waage_url", "preise"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
             u = "http://" + u
         e["waage_url"] = u
     daten_schreiben(EINST_KEY, e)
+    if isinstance(neu.get("preise"), dict):
+        im_hintergrund(preise_abrufen)
     if not nur_extras:
         BAMBU.neu_starten()
     return einstellungen_maskiert()
@@ -703,6 +720,51 @@ def im_hintergrund(f, *a):
         except Exception as e:
             print("Hintergrund:", e, flush=True)
     threading.Thread(target=lauf, daemon=True).start()
+
+
+PREISE_KEY = "_preisvergleich"
+_preise_lock = threading.Lock()
+PREISE_STAND = {"laeuft": False}
+
+
+def preise_abrufen():
+    """Aktuelle eBay- und AliExpress-Angebote für alle Sorten im Lager holen (täglich und nach dem Eintragen der Schlüssel)."""
+    cfg = einstellungen().get("preise") or {}
+    if not any(all((cfg.get(k) or {}).get(x) for x in f) for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret")))):
+        return None
+    if not _preise_lock.acquire(blocking=False):
+        return None
+    PREISE_STAND["laeuft"] = True
+    melden({"typ": "preise", "laeuft": True})
+    try:
+        alt, _ = daten_lesen(PREISE_KEY)
+        alt = alt if isinstance(alt, dict) else {}
+        sorten = []
+        for it in liste_lesen(ENT):
+            d = _desc(it)
+            if not d.get("typ") and it.get("status") != "completed":
+                sorten.append((it["uid"], d))
+        werte, stat = preise_mod.abrufen(cfg, sorten, alt.get("werte"))
+        neu = {"stand": time.strftime("%Y-%m-%d %H:%M"), "werte": werte, "ebay": stat["ebay"], "ali": stat["ali"],
+               "sorten": len(sorten), "fehler": "; ".join(dict.fromkeys(stat["fehler"])) or None}
+        daten_schreiben(PREISE_KEY, neu)
+        print(f"Preisvergleich: {stat['ebay']} eBay, {stat['ali']} AliExpress bei {len(sorten)} Sorten"
+              + (f" – {neu['fehler']}" if neu["fehler"] else ""), flush=True)
+        return neu
+    finally:
+        PREISE_STAND["laeuft"] = False
+        _preise_lock.release()
+        melden({"typ": "preise", "laeuft": False})
+
+
+def preise_auto():
+    time.sleep(180)
+    while True:
+        try:
+            preise_abrufen()
+        except Exception as e:
+            print("Preisvergleich:", e, flush=True)
+        time.sleep(24 * 3600)
 
 
 def waage_weiter(was, methode, rumpf):
@@ -1348,6 +1410,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, einstellungen_maskiert())
             if methode == "PUT":
                 return self._json(200, einstellungen_setzen(self._json_rumpf()))
+        if teile == ["preise"] and methode == "GET":
+            w, _ = daten_lesen(PREISE_KEY)
+            return self._json(200, dict(w if isinstance(w, dict) else {}, laeuft=PREISE_STAND["laeuft"]))
+        if teile == ["preise", "abrufen"] and methode == "POST":
+            im_hintergrund(preise_abrufen)
+            return self._json(200, {"ok": True, "laeuft": True})
         if teile[0] == "waage" and len(teile) == 2:
             return self._json(200, waage_weiter(teile[1], methode, self._json_rumpf() if methode == "POST" else None))
         if teile == ["ha", "notify", "test"] and methode == "POST":
@@ -1496,4 +1564,5 @@ if __name__ == "__main__":
     BAMBU.neu_starten()
     if os.environ.get("AUTO_AKTUALISIEREN", "1") != "0":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
+    threading.Thread(target=preise_auto, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()

@@ -96,7 +96,7 @@ h1{font-size:26px}h2{font-size:18px}h3{font-size:15px}
 .cols4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field>span{font-size:12px;color:var(--fg-2)}
-input[type=text],input[type=search],input[type=url],input[type=email],select,textarea{width:100%;background:var(--sunken);border:1px solid var(--line-2);border-radius:var(--r-s);padding:9px 11px;outline:none;min-width:0}
+input[type=text],input[type=password],input[type=search],input[type=url],input[type=email],select,textarea{width:100%;background:var(--sunken);border:1px solid var(--line-2);border-radius:var(--r-s);padding:9px 11px;outline:none;min-width:0}
 textarea{resize:vertical;min-height:70px}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--fg-2) 50%),linear-gradient(135deg,var(--fg-2) 50%,transparent 50%);background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat;padding-right:28px}
@@ -362,7 +362,8 @@ const SRV=window.SRV=(()=>{
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
       on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
         if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu")zstLaden();
-        if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180))});
+        if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
+        if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}});
       zstLaden()}
     catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
   /* Zustände im Format von Home Assistant (Drucker, AMS-Fächer, Feuchte, Waage) */
@@ -1149,6 +1150,7 @@ function renderSettings(m){
     </section>
 
     ${funktionenHTML()}
+    ${preisHTML()}
 
     <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
@@ -1188,6 +1190,21 @@ function funktionenHTML(){fnServerLaden();const E=SLF.e;
     ${fnAn("etikett")?`<div class="cols2">${S.srv?`<label class="field"><span>Filamentwaage für den Etikettendruck</span><input type="text" id="fn_waage" value="${esc((E&&E.waage_url)||"")}" placeholder="z. B. 192.168.1.50:8080" autocomplete="off" spellcheck="false"><small class="hint">Leer lassen, wenn es keine Waage mit Etikettendrucker gibt.</small></label>`:""}
       <label class="field"><span>Adresse im QR-Code</span><input type="text" id="fn_qr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="${esc(rolleBasis())}" autocomplete="off" spellcheck="false"><small class="hint">Leer = automatisch. Für unterwegs die Tailscale-Adresse eintragen.</small></label></div>`:""}
   </section>`}
+/* ---------- Preisvergleich: Zugangsdaten für eBay und AliExpress (liegen nur auf dem SchichtLohn-Server) ---------- */
+const PV={d:null,laden:false};
+function pvLaden(){if(!S.srv||PV.laden)return;PV.laden=true;SRV.req("GET","/api/preise").then(d=>{PV.d=d;const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand()}).catch(()=>{}).finally(()=>{PV.laden=false})}
+function pvStand(){const d=PV.d;if(!d)return "";if(d.laeuft)return "Preise werden gerade abgerufen …";if(!d.stand)return "Noch nicht abgerufen.";
+  return `Zuletzt ${esc(d.stand)}: ${d.ebay||0} eBay- und ${d.ali||0} AliExpress-Preise für ${d.sorten||0} Sorten.${d.fehler?` <span style="color:var(--bad)">${esc(d.fehler)}</span>`:""}`}
+function preisHTML(){const sec=(inh)=>`<section class="panel pad stack"><div class="sec-title"><h2>Preisvergleich</h2></div>${inh}</section>`;
+  if(!S.srv)return sec(`<div class="hint">Der Preisvergleich mit eBay und AliExpress läuft auf dem SchichtLohn-Server. Verbinde dich oben unter „SchichtLohn-Server“.</div>`);
+  fnServerLaden();if(!PV.d)setTimeout(pvLaden,0);const P=(SLF.e&&SLF.e.preise)||{ebay:{},ali:{}};const eb=P.ebay||{},al=P.ali||{};
+  const f=(id,t,v,ph,pw)=>`<label class="field"><span>${t}</span><input type="${pw?"password":"text"}" id="${id}" value="${esc(v||"")}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false"></label>`;
+  return sec(`<div class="hint">Der Server sucht einmal am Tag für jede Sorte im Lager das günstigste Angebot (inkl. Versand nach Deutschland) und zeigt es in der Einkaufsliste. eBay sucht per EAN, AliExpress über Marke, Material und Farbe.</div>
+    <div class="pvk"><b>eBay</b><small>Kostenlos: auf <a href="https://developer.ebay.com/" target="_blank" rel="noopener">developer.ebay.com</a> anmelden, eine App anlegen, die Production-Schlüssel kopieren.</small></div>
+    <div class="cols2">${f("pv_eid","Client-ID (App ID)",eb.id,"MeinName-SchichtL-PRD-…")}${f("pv_esec","Client-Secret (Cert ID)",eb.secret,"PRD-…",true)}</div>
+    <div class="pvk"><b>AliExpress</b><small>Kostenlos: auf <a href="https://portals.aliexpress.com/" target="_blank" rel="noopener">portals.aliexpress.com</a> Partner werden, unter „API“ eine App anlegen.</small></div>
+    <div class="cols3">${f("pv_ak","App-Key",al.key,"12345678")}${f("pv_asec","App-Secret",al.secret,"",true)}${f("pv_atr","Tracking-ID",al.tracking,"default")}</div>
+    <div class="row"><button class="btn pri sm" data-act="pvSave">Speichern</button><button class="btn ghost sm" data-act="pvJetzt">Jetzt abrufen</button><span class="hint" id="pv_stand">${pvStand()}</span></div>`)}
 document.addEventListener("change",ev=>{const t=ev.target;if(!t)return;
   if(t.id==="fn_qr"){S.cfg.etQrBasis=t.value.trim();saveCfgSoon();toast(t.value.trim()?"QR-Adresse gespeichert":"QR-Adresse wieder automatisch")}
   if(t.id==="fn_waage"&&window.SRV)SRV.req("PUT","/api/einstellungen",{waage_url:t.value.trim()}).then(e=>{SLF.e=e;t.value=e.waage_url||"";toast(e.waage_url?"Waage eingetragen":"Waage entfernt")}).catch(x=>toast(x.message||String(x)))});
@@ -1444,6 +1461,10 @@ document.addEventListener("click",async e=>{
   if(b.dataset.tab){S.tab=b.dataset.tab;LS.set("lasttab",S.tab);render();window.scrollTo({top:0});return}
   const a=b.dataset.act;if(b.tagName==="SELECT")return;
   const row=b.closest("[data-part]");const part=row?S.quote.parts.find(x=>x.id===row.dataset.part):null;
+  if(a==="pvSave"){const v=id=>{const el=document.getElementById(id);return el?el.value.trim():""};
+    SRV.req("PUT","/api/einstellungen",{preise:{ebay:{id:v("pv_eid"),secret:v("pv_esec")},ali:{key:v("pv_ak"),secret:v("pv_asec"),tracking:v("pv_atr")}}})
+      .then(e=>{SLF.e=e;toast("Gespeichert – Preise werden abgerufen");PV.d=Object.assign({},PV.d,{laeuft:true});render()}).catch(x=>toast(x.message||String(x)));return}
+  if(a==="pvJetzt"){SRV.req("POST","/api/preise/abrufen").then(()=>{PV.d=Object.assign({},PV.d,{laeuft:true});const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand();toast("Preise werden abgerufen")}).catch(x=>toast(x.message||String(x)));return}
   if(a==="fnToggle"){const k=b.dataset.k;
     if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;render();toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>toast(x.message||String(x)));return}
     const h=new Set(S.cfg.fnAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.fnAus=[...h];saveCfgSoon();render();return}
@@ -3092,7 +3113,7 @@ ha-card{padding:0!important;background:none!important;border:0!important;box-sha
 .chip.ort,.chip.rf,.chip.hu-ok{color:var(--fil-ok)!important;border-color:color-mix(in srgb,var(--fil-ok) 40%,transparent)!important;background:color-mix(in srgb,var(--fil-ok) 18%,transparent)!important}
 .kg{font-variant-numeric:tabular-nums;color:var(--fg)!important}
 .bar,.hbar,.sbar .bk{background:var(--track)!important}
-.inp,input[type=text],input[type=number],input[type=search],select{background:var(--sunken)!important;border:1px solid var(--line-2)!important;border-radius:var(--r-s)!important;color:var(--fg)!important;font-family:var(--f-body)!important}
+.inp,input[type=text],input[type=password],input[type=number],input[type=search],select{background:var(--sunken)!important;border:1px solid var(--line-2)!important;border-radius:var(--r-s)!important;color:var(--fg)!important;font-family:var(--f-body)!important}
 .inp:focus,input:focus,select:focus{border-color:var(--fil-ok)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--fil-ok) 18%,transparent)!important;outline:none!important}
 select option{background:var(--solid);color:var(--fg)}
 .sb,.kn,.tg{border:1px solid var(--line-2)!important;background:var(--glass-2)!important;border-radius:var(--r-s)!important;color:var(--fg)!important;font-weight:500!important}
@@ -4812,7 +4833,7 @@ function einkaufModal(){const l=einkauf();const E=ein();
       <div class="lgs">${e.spulen<=0?`<span style="color:var(--bad)">aufgebraucht</span>`:`noch ${kg(t)}`}${e.preis?` · zuletzt ${String(e.preis).replace(".",",")} €/kg`:""}</div>
       <div class="lgeka">${(()=>{const i=fdbFuer(e);const a=i==null?[]:fdbAng(i);const r=e.ausfuehrung==="refill";const j=a.find(x=>/3djake/i.test(x.haendler)&&x.refill===r)||a.find(x=>/3djake/i.test(x.haendler));
         return (j?`<a class="btn sm" href="${esc(j.url)}" target="_blank" rel="noopener" title="${esc(j.artnr)}">3DJake${j.preis?" "+eur(j.preis):""}</a>`:`<a class="btn sm" href="https://www.3djake.de/search?keyword=${such(e)}" target="_blank" rel="noopener">3DJake</a>`)
-          +a.filter(x=>!/3djake/i.test(x.haendler)&&x.refill===r).map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.haendler)}${x.preis?" "+eur(x.preis):""}</a>`).join("")})()}<a class="btn sm" href="https://www.amazon.de/s?k=${such(e)}" target="_blank" rel="noopener">Amazon</a><a class="btn sm" href="https://www.google.com/search?tbm=shop&q=${such(e)}" target="_blank" rel="noopener">Google Shopping</a><button class="btn ghost sm" data-act="lgEkAus" data-uid="${esc(e.uid)}" title="Nicht mehr nachkaufen – aus der Liste nehmen">Nicht nachkaufen</button></div></div></div>`).join("")}</div>`
+          +a.filter(x=>!/3djake/i.test(x.haendler)&&x.refill===r).map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.haendler)}${x.preis?" "+eur(x.preis):""}</a>`).join("")})()}${(()=>{const p=(G.preise&&G.preise[e.uid])||{};return [["ebay","eBay"],["ali","AliExpress"]].filter(([k])=>p[k]&&p[k].url).map(([k,n])=>`<a class="btn sm" href="${esc(p[k].url)}" target="_blank" rel="noopener" title="${esc(p[k].titel||"")}${p[k].versand?" · inkl. "+eur(p[k].versand)+" Versand":""}">${n} ${eur(p[k].preis)}</a>`).join("")})()}<a class="btn sm" href="https://www.amazon.de/s?k=${such(e)}" target="_blank" rel="noopener">Amazon</a><a class="btn sm" href="https://www.google.com/search?tbm=shop&q=${such(e)}" target="_blank" rel="noopener">Google Shopping</a><button class="btn ghost sm" data-act="lgEkAus" data-uid="${esc(e.uid)}" title="Nicht mehr nachkaufen – aus der Liste nehmen">Nicht nachkaufen</button></div></div></div>`).join("")}</div>`
       :`<div class="panel empty">Alles gut gefüllt – nichts nachzukaufen.</div>`}</div>`;
   const b=document.querySelector("#modal #lgEk");if(b){b.outerHTML=h;return}
   modal(`Einkaufsliste${l.length?" ("+l.length+")":""}`,h,`${l.length?`<button class="btn ghost" data-act="lgEkKopie">Liste kopieren</button>`:""}${(G.ekAus||[]).length?`<button class="btn ghost" data-act="lgEkReset">Ausgeblendete wieder zeigen (${G.ekAus.length})</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
@@ -4890,7 +4911,7 @@ document.addEventListener("click",async e=>{
     if(f==="eigene"&&G.et){etikettModal(G.et.uid);return}b.classList.toggle("on",o.felder.includes(f));etZeichnen();return}
   if(a==="lgEtTeilen"){etTeilen();return}
   if(a==="lgEtWaage"){etWaage(b);return}
-  if(a==="lgEinkauf"){einkaufModal();if(!G.fdb)fdbLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});return}
+  if(a==="lgEinkauf"){if(srv())SRV.req("GET","/api/preise").then(d=>{G.preise=(d&&d.werte)||{};if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});einkaufModal();if(!G.fdb)fdbLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});return}
   if(a==="lgEkAus"){G.ekAus=[...new Set([...(G.ekAus||[]),b.dataset.uid])];try{localStorage.setItem("sl_ek_aus",JSON.stringify(G.ekAus))}catch(x){}einkaufModal();draw(0);return}
   if(a==="lgEkReset"){G.ekAus=[];try{localStorage.removeItem("sl_ek_aus")}catch(x){}closeModal();einkaufModal();draw(0);return}
   if(a==="lgEkKopie"){const t=einkauf().map(({e,t})=>{const i=fdbFuer(e);const a=i==null?null:(fdbAngFuer(i,e.ausfuehrung==="refill",e.gewicht)||fdbAng(i)[0]);return "• "+summary(e)+(e.spulen<=0?" (aufgebraucht)":" (noch "+kg(t)+")")+(a?" – "+a.haendler+(a.preis?" "+eur(a.preis):"")+" "+a.url:"")}).join("\n");try{navigator.clipboard.writeText(t).then(()=>toast("Einkaufsliste kopiert"),()=>toast("Kopieren nicht möglich"))}catch(x){toast("Kopieren nicht möglich")}return}
@@ -5091,7 +5112,7 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
   ["Kalkulation",["Kosten und Preis","Drucker","Materialien"]],
   ["Verkauf und Angebote",["Verkaufskanäle","Absender für Angebote"]],
   ["Lager und Ansicht",["Lager","Funktionen","Reiter"]],
-  ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Creality-Cloud","Sync zwischen Geräten"]],
+  ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Preisvergleich","Creality-Cloud","Sync zwischen Geräten"]],
   ["Daten",["Daten und Sicherung"]]];
   const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
   function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
@@ -5150,6 +5171,7 @@ body.rx-einfach #mbar{display:none!important}
 <style>.lgn .lgde{color:var(--fg-3);font-weight:400;margin-left:6px}</style>
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
+.pvk{display:flex;flex-direction:column;gap:2px;margin-top:4px}.pvk small{color:var(--fg-3);font-size:12.5px}
 .reicht{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .rc{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:var(--r-s,8px);border:1px solid var(--line);font-size:13.5px;line-height:1.35}
 .rc>i{width:14px;height:14px;border-radius:50%;margin-top:2px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
