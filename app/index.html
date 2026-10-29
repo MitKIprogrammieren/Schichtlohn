@@ -3927,13 +3927,13 @@ function formModal(e,prefill){
       <label class="field"><span>Material</span><select id="lf_m">${matOpts(f.hersteller,f.material)}</select><input type="text" id="lf_mx" class="lgother" placeholder="Material eingeben" hidden></label></div>
     <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_hx6" class="lghexin" value="${fHex(f.hex).toUpperCase()}" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Hex-Code" placeholder="#RRGGBB"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
     <div class="lgdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>
-    <div class="field"><span>Besonderheiten</span><div class="lgtg" id="lf_bes">${bes.map(b=>`<button type="button" class="chip${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`).join("")}</div></div>
+    <div class="field"><span>Besonderheiten</span><div class="lgtg lgbesw" id="lf_bes">${bes.map(b=>{const x=besOf(b);const fs=/^(cf|gf)$/i.test(b)?" bxf bxf-"+b.toLowerCase():"";return `<button type="button" class="chip${x?" bx bx-"+x.k:""}${fs}${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`}).join("")}</div></div>
     <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
       <label class="field"><span>Anzahl Rollen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_s" value="${v(f.spulen)}"><em>Stk</em></div></label>
       <label class="field"><span>Reste angebrochen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_r" value="${v((f.reste||[]).join(", "))}" placeholder="voll"><em>g</em></div></label></div>
     <div class="lgaus" role="group" aria-label="Spule oder Refill">${(()=>{const sp=Number(f.spulen)||0,rf=Number(f.refills)||0;const art=sp>0&&rf>=sp?"refill":rf>0?"gemischt":"spule";
       return [["spule","Mit Spule"],["refill","Refill (ohne Spule)"]].map(([k,t])=>`<button type="button" class="chip${art===k?" on":""}" data-act="lgAus" data-v="${k}">${t}</button>`).join("")+(art==="gemischt"?`<span class="lghint" style="align-self:center">gemischt: ${rf} von ${sp} Refill</span>`:"")})()}</div>
-    <div class="lggw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
+    <div class="lggw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
     <div class="lghint">Mehrere angebrochene Rollen mit Komma trennen, z. B. „300, 500“. Sie zählen bei „Anzahl Rollen“ mit.</div>
     ${isNew?"":`<div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="lgMinus">− 1 Rolle verbraucht</button><button class="btn sm" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn ghost sm" data-act="lgCopy">${ICON.copy} Als Vorlage kopieren</button></div><div id="lf_ask"></div>`}
     <details class="lgx"${(f.bambu_id||f.preis||f.duese_min||f.fcode)?" open":""}><summary>Technische Daten, Preis und Bambu-ID</summary><div class="lgform" style="margin-top:10px">
@@ -4762,5 +4762,13 @@ body.rx-einfach #mbar{display:none!important}
 <script>document.addEventListener("input",e=>{if(e.target&&e.target.id==="lf_g"){const w=Number(String(e.target.value).replace(/[^0-9]/g,""));document.querySelectorAll(".lggw .chip").forEach(c=>c.classList.toggle("on",Number(c.dataset.w)===w))}})</script>
 <style>.lgaus{display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}.lgaus .chip{cursor:pointer}.lgaus .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}</style>
 <script>/* Anzahl Rollen geändert: bei „Refill“ zählt jede Rolle als Refill */document.addEventListener("input",e=>{if(e.target&&e.target.id==="lf_s"){const on=document.querySelector('.lgaus .chip.on[data-v="refill"]');const rf=document.getElementById("lf_rf");if(on&&rf){const n=Math.round(Number(String(e.target.value).replace(",","."))||0);rf.value=String(n)}}})</script>
+<style>/* Besonderheiten im Formular im Look der Lager-Schildchen: nicht gewählt blass, gewählt voll mit grünem Ring */
+#lf_bes.lgbesw .chip.bx,#lf_bes.lgbesw .chip.bxf{opacity:.42;filter:saturate(.55);transition:opacity .12s,filter .12s,box-shadow .12s}
+#lf_bes.lgbesw .chip.bx:hover,#lf_bes.lgbesw .chip.bxf:hover{opacity:.75;filter:none}
+#lf_bes.lgbesw .chip.bx.on,#lf_bes.lgbesw .chip.bxf.on{opacity:1;filter:none;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+#lf_bes.lgbesw .chip.bxf-cf{background:repeating-linear-gradient(135deg,#2b2b2b 0 3px,#444 3px 6px);color:#eee;border-color:#555}
+#lf_bes.lgbesw .chip.bxf-gf{background:repeating-linear-gradient(135deg,#cfd8dc 0 3px,#eceff1 3px 6px);color:#263238;border-color:#b0bec5}
+#lf_bes.lgbesw .chip.bx-hf,#lf_bes.lgbesw .chip.bx-hs{font-weight:700}
+</style>
 </body>
 </html>
