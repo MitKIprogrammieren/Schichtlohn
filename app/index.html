@@ -3149,7 +3149,9 @@ function haLocal(){/* Home-Assistant-App (Ingress): gleiche Adresse wie Home Ass
   if(!window.__hass&&window.__SL_BASE&&/\/api\/hassio_ingress\//.test(window.__SL_BASE))return "/local/hersteller/";
   if(!window.__hass)return "";return isWS()?window.__hass.__base+"/local/hersteller/":"/local/hersteller/"}
 const logoMiss=new Set();
-function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
+function logoUrls(name){const out=[];const sl=logoSlug(name);let base=haLocal();
+  /* ohne Home Assistant (z. B. über Tailscale direkt auf dem SchichtLohn-Server): Logos aus HA-Ordner www/hersteller über den Server */
+  if(!base&&window.SRV&&SRV.url())base=SRV.url()+"/hersteller/";
   /* eigenes Logo aus den Einstellungen (geht auch ohne Home Assistant) */
   /* im Dunkelmodus zuerst die helle Variante (Name „…-dunkel“), farbig wie hochgeladen */
   const dk=darkUI(),lg=(S.cfg&&S.cfg.logos)||{};
@@ -3158,7 +3160,7 @@ function logoUrls(name){const out=[];const sl=logoSlug(name),base=haLocal();
   {const ek=LOGO_EIN[sl]?sl:({"3djake":"3d-jake","bambulab":"bambu-lab","cr-3d":"cr3d","color-fabb":"colorfabb","dasfilament":"das-filament","devildesign":"devil-design","3dk":"3dk-berlin"})[sl];if(ek&&LOGO_EIN[ek])out.push({u:LOGO_EIN[ek],own:true})}
   if(sl&&base){const cv="?v="+Math.floor(Date.now()/36e5);if(dk)for(const ext of ["png","webp"])out.push({u:base+sl+"-dunkel."+ext+cv,own:true,dunkel:true});for(const ext of ["png","webp","jpg"])out.push({u:base+sl+"."+ext+cv,own:true})}
   const li=LOGO_IMG[String(name||"").trim().toLowerCase()];if(li)out.push({u:li,own:true,mono:true});
-  const d=logoDomain(name);if(d)out.push({u:"https://www.google.com/s2/favicons?sz=128&domain="+encodeURIComponent(d),own:false});
+  /* keine Favicons mehr: ohne echtes Logo bleibt der Markenname stehen */
   return out.filter(x=>!logoMiss.has(x.u))}
 /* Scroll-Schutz: springt die Seite ohne eigenes Scrollen (z. B. wenn die Karte neu zeichnet), zurück an die alte Stelle */
 let lastY=0,userT=0,guardUntil=0;

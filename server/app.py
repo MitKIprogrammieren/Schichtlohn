@@ -58,7 +58,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.1.7"
+VERSION = "3.1.8"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -210,6 +210,8 @@ def sorten():
 # Liegt als Datei auf der Synology, damit die Suche auch ohne Internet funktioniert.
 # Eine Grundversion steckt im Container; „Aktualisieren“ holt die wöchentlich gebaute neue Fassung.
 
+HERSTELLER_ORDNER = ["/homeassistant/www/hersteller", "/config/www/hersteller",
+                     os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "hersteller")]
 FDB_URL = os.environ.get("FDB_URL", "")  # leer = über jsDelivr, neuester Stand
 FDB_DATEI = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "filamentdb.json")
 FDB_EINGEBAUT = "/app/modelle/filamentdb.json"
@@ -1125,6 +1127,19 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(404, "App fehlt – in SchichtLohn unter Einstellungen → SchichtLohn-Server „App aktualisieren“")
             self._senden(200, html, "text/html; charset=utf-8")
             return True
+        if roh.path.startswith("/hersteller/"):
+            # Herstellerlogos aus Home Assistant (/config/www/hersteller, nur lesend eingebunden) – damit die App
+            # sie auch ohne Home Assistant zeigt (z. B. über Tailscale)
+            from urllib.parse import unquote
+            name = os.path.basename(unquote(roh.path[len("/hersteller/"):]))
+            if re.fullmatch(r"[a-z0-9][a-z0-9-]*\.(png|webp|jpg|svg)", name):
+                for d in HERSTELLER_ORDNER:
+                    p = os.path.join(d, name)
+                    if os.path.isfile(p):
+                        with open(p, "rb") as f:
+                            self._senden(200, f.read(), web.typ_fuer(p), "max-age=3600")
+                        return True
+            raise Fehler(404, "Kein Logo")
         if roh.path.startswith("/app/"):
             p = web.app_datei(WEB, roh.path[5:])
             if not p:
