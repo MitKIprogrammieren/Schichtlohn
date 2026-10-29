@@ -3679,11 +3679,14 @@ function fam(hex){const h=fHex(hex),r=parseInt(h.slice(1,3),16)/255,g=parseInt(h
   if(l<.13)return "Schwarz";if(l>.9&&s<.5)return "Weiß";if(s<.15)return l>.82?"Weiß":"Grau";if(hue>=10&&hue<45&&(l<.4||(l<.5&&s<.6)))return "Braun";if(hue>=20&&hue<55&&l>=.55&&(s<.5||l>.75))return "Beige";
   if(hue<15||hue>=345)return "Rot";if(hue<40)return "Orange";if(hue<70)return "Gelb";if(hue<165)return "Grün";if(hue<195)return "Türkis";if(hue<255)return "Blau";if(hue<300)return "Lila";return "Pink"}
 const desc=it=>{try{return JSON.parse(it.description||"{}")||{}}catch(e){return {}}};
+/* feste Reihenfolge der Besonderheiten: erst Linie, dann Oberfläche, dann Eigenschaften, dann Fasern */
+const BES_RANG=["basic","pro","tough","tough+","plus","+","matt","matte","seide","silk","glanz","transparent","translucent","metallic","marmor","marble","glitzer","sparkle","galaxy","leuchtend","glow","holz","wood","stein","rainbow","dual","tri","hf","high speed","hs","rapid","cf","gf","aero"];
+const besOrdnen=a=>[...a].map((x,i)=>({x,i,r:(k=>k<0?999:k)(BES_RANG.indexOf(String(x).toLowerCase()))})).sort((u,v)=>u.r-v.r||u.i-v.i).map(o=>o.x);
 function parse(it){const d=desc(it);const sp=Number(d.spulen);const spulen=Number.isFinite(sp)?sp:1;const gewicht=Number(d.gewicht)>0?Number(d.gewicht):1000;
   const reste=fReste(Array.isArray(d.reste)?d.reste:(leer(d.rest)?[]:[d.rest]),gewicht);const rf=Number(d.refills);
   const refills=d.refills!=null&&Number.isFinite(rf)?Math.max(0,Math.min(Math.round(rf),Math.max(0,spulen))):(d.ausfuehrung==="refill"?Math.max(0,spulen):0);
   const codes=Array.isArray(d.codes)?d.codes.map(String):[];const cr=Array.isArray(d.codes_refill)?d.codes_refill.map(String).filter(c=>codes.includes(c)):(d.ausfuehrung==="refill"?[...codes]:[]);
-  return {uid:it.uid,raw:d,hersteller:d.hersteller||"",material:d.material||"",farbe:d.farbe||(d.material?"":it.summary||""),hex:fHex(d.hex),besonderheiten:Array.isArray(d.besonderheiten)?d.besonderheiten:[],
+  return {uid:it.uid,raw:d,hersteller:d.hersteller||"",material:d.material||"",farbe:d.farbe||(d.material?"":it.summary||""),hex:fHex(d.hex),besonderheiten:Array.isArray(d.besonderheiten)?besOrdnen(d.besonderheiten):[],
     gewicht,spulen,refills,reste,codes,codes_refill:cr,durchmesser:fNum(d.durchmesser)??1.75,duese_min:fNum(d.duese_min),duese_max:fNum(d.duese_max),bett_min:fNum(d.bett_min),bett_max:fNum(d.bett_max),
     trocknen_c:fNum(d.trocknen_c),trocknen_h:fNum(d.trocknen_h),fcode:d.fcode?String(d.fcode):"",bambu_id:d.bambu_id?String(d.bambu_id):"",preis:fNum(d.preis),
     ams_farben:Array.isArray(d.ams_farben)?d.ams_farben.filter(hexOk).map(x=>x.toLowerCase()):[]}}
@@ -3757,7 +3760,7 @@ async function start(){
 async function write(e,patch){
   const x=Object.assign({},e,patch);const spulen=Math.max(0,Math.round(Number(x.spulen)||0));
   const refills=Math.min(spulen,Math.max(0,Math.round(Number(x.refills)||0)));const codes=[...new Set(x.codes||[])];
-  const d=Object.assign({},e.raw||{},{v:2,hersteller:x.hersteller,material:x.material,farbe:x.farbe,hex:fHex(x.hex),besonderheiten:[...(x.besonderheiten||[])],gewicht:Number(x.gewicht)||1000,spulen,refills,
+  const d=Object.assign({},e.raw||{},{v:2,hersteller:x.hersteller,material:x.material,farbe:x.farbe,hex:fHex(x.hex),besonderheiten:besOrdnen(x.besonderheiten||[]),gewicht:Number(x.gewicht)||1000,spulen,refills,
     reste:fReste(x.reste||[],Number(x.gewicht)),codes,codes_refill:[...new Set(x.codes_refill||[])].filter(c=>codes.includes(c)),durchmesser:fNum(x.durchmesser)??1.75,
     ausfuehrung:refills>0&&refills>=spulen?"refill":"spule",duese_min:fNum(x.duese_min),duese_max:fNum(x.duese_max),bett_min:fNum(x.bett_min),bett_max:fNum(x.bett_max),
     trocknen_c:fNum(x.trocknen_c),trocknen_h:fNum(x.trocknen_h),fcode:x.fcode?String(x.fcode).trim():"",bambu_id:x.bambu_id?String(x.bambu_id).trim():"",preis:fNum(x.preis),
