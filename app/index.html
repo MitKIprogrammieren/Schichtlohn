@@ -3956,7 +3956,7 @@ window.Etikett=(()=>{
     const gap=Math.round(ref*0.04);const unten=H-m;const q=o.qr?Math.round(W*(fett?0.34:0.32)):0;const yQ=y;
     const fb=innen-(q?q+gap:0);const fg0=Math.round(ref*(fett?0.13:0.11));const ein=passend(ctx,farbeVon(s),fb,fg0,700,Math.round(fg0*0.7/K));
     const z=ein.text.endsWith("…")?umbrechen(ctx,farbeVon(s),fb,fg0,700,2):[ein.text];const fg=z.length>1?fg0:ein.g;
-    z.forEach(t=>{y+=Math.round(fg*1.1);text(ctx,t,m,y,fg,700)});
+    z.forEach((t,i)=>{y+=Math.round(fg*(i?1.02:0.86));text(ctx,t,m,y,fg,700)});
     if(hex){const hp=passend(ctx,hex,fb,Math.round(ref*0.085),700,8);y+=Math.round(ref*0.095);text(ctx,hp.text,m,y,hp.g,700)}
     if(q)qr(ctx,o.qr,W-m-q,yQ,q,"oben-rechts");
     y=Math.max(y+Math.round(ref*0.04),yQ+q+gap);
@@ -5466,10 +5466,10 @@ body.rx-einfach #mbar{display:none!important}
 .plo{display:grid;grid-template-columns:minmax(0,1fr) auto 76px 12px;gap:10px;align-items:center;padding:8px 12px;text-decoration:none;color:var(--fg)}
 .plo+.plo{border-top:1px solid var(--line)}
 .plo:last-child{border-radius:0 0 var(--r-s) var(--r-s)}
-.plon{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.plon i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:1px 6px;border-radius:999px}
+.plon{display:flex;flex-direction:column;align-items:flex-start;gap:3px;font-size:13.5px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plon i{font-style:normal;font-size:10px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:0 6px;border-radius:999px;flex-shrink:0}
 .plon small{font-weight:400;font-size:11.5px;color:var(--fg-3)}
-.plop{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}.plop b{font-size:14px}.plop s{font-size:11.5px;color:var(--fg-3)}
+.plop{display:flex;flex-direction:column;align-items:flex-end;gap:0;line-height:1.15;font-variant-numeric:tabular-nums}.plop b{font-size:14px}.plop s{font-size:10.5px;color:var(--fg-3)}
 .plok{text-align:right;font-size:12px;color:var(--fg-2);font-variant-numeric:tabular-nums}
 .ploa{color:var(--fg-3);font-size:18px;line-height:1}
 .plo.best{background:var(--accent-soft)}.plo.best .plop b{color:var(--accent)}
