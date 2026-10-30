@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.11 – 30.10.2026
+- Standardwerte für Carbon- und Glasfaser-Filamente (z. B. ASA CF, PETG GF) kommen jetzt von den passenden CF-/GF-Profilen.
+
 ## 3.2.10 – 30.10.2026
 - Druckwerte ergänzt: Fehlen bei einer Spule Düse, Bett, Flow, K-Wert oder max. Volumenstrom, kommen sie jetzt aus den Filamentprofilen von OrcaSlicer und Bambu Studio (passend zu Marke, Material, Matt/Seide/CF …). Eigene Werte bleiben unverändert.
 - Gibt es kein Profil der Marke, steht der übliche Wert des Materials drin und ist als Standardwert gekennzeichnet. Der K-Wert wird nie geschätzt.

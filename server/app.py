@@ -63,7 +63,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.10"
+VERSION = "3.2.11"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -944,14 +944,18 @@ def werte_ergaenzen(vorschau=False, neu_laden=False):
                 stat["datenbank"] += 1
         rest = [f for f in leer if f not in neu and f != "k"]  # K hängt am Drucker – nie als Standardwert
         basis = _sw_basis(_sw_material(material))
-        m = sw.get("material", {}).get(_sw_material(material)) or (sw.get("material", {}).get(basis) if basis else None)
+        mat = sw.get("material", {})
+        faser = [f for f in ("CF", "GF") if f.lower() in {str(x).lower() for x in merkmale}]
+        schluessel = [k + "-" + f for k in (_sw_material(material), basis) if k for f in faser] + [_sw_material(material), basis]
+        mschl = next((k for k in schluessel if k and mat.get(k)), None)
+        m = mat.get(mschl) if mschl else None
         if rest and m:
             for f, v in zip(SW_FELDER, m):
                 if f in rest and v is not None:
                     neu[f] = v
                     standard.append(f)
             if standard:
-                quelle.append("Standardwert " + (_sw_material(material) if sw["material"].get(_sw_material(material)) else basis))
+                quelle.append("Standardwert " + mschl)
                 stat["standard"] += 1
         if not neu:
             stat["ohne"].append(it["summary"])
