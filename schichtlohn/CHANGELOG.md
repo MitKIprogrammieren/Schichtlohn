@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.16 – 30.10.2026
+- Druckmeldungen über Telegram klappen jetzt auch ohne Anmeldung bei der Bambu-Cloud: SchichtLohn liest Start, Stand, Pause, Fehler und Ende dann aus Home Assistant.
+- „Fertig ca.“ zeigt die richtige Uhrzeit, und die Telegram-Testmeldung kommt mit einem Bild aus der Druckerkamera.
+
 ## 3.2.15 – 30.10.2026
 - Telegram meldet jetzt den ganzen Druck: Start mit Vorschaubild und Fertig-Uhrzeit, Stand bei 25, 50 und 75 % mit Foto aus der Druckerkamera, Pause und Druckerfehler.
 - Die Meldung zum Druckende kommt mit einem Kamerafoto vom fertigen Druck.

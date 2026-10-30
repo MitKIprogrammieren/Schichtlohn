@@ -64,7 +64,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.15"
+VERSION = "3.2.16"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1235,14 +1235,18 @@ def druck_beobachten(dr):
     hms = {"%s_%s" % (h.get("attr"), h.get("code")) for h in (p.get("hms") or []) if isinstance(h, dict)}
     alt = DRUCK_STAND.get(dr.serial)
     if alt is None:  # erster Blick nach dem Serverstart: nur merken, nichts nachmelden
-        DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in STUFEN if pct >= x}, "hms": hms, "start": False}
+        DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in STUFEN if pct >= x}, "hms": hms,
+                                  "frei": st not in drucker_mod.LAUFEND}
         return
     meldungen = []
     codes = sorted(hms - alt["hms"])
-    if st in drucker_mod.LAUFEND and job != alt["job"]:
-        alt.update(job=job, stufen=set(), start=True)
-    if st == "RUNNING" and alt["start"]:
-        alt["start"] = False
+    if st not in drucker_mod.LAUFEND:
+        alt["frei"] = True  # nächster Druck darf wieder eine Startmeldung bekommen
+    elif job != alt["job"] and alt["st"] in ("FINISH", "FAILED", "IDLE"):
+        alt["frei"] = True
+    alt["job"] = job
+    if st == "RUNNING" and alt["frei"]:
+        alt.update(frei=False, stufen={x for x in STUFEN if pct >= x})
         meldungen.append("start")
     if st == "RUNNING":
         neu = [x for x in STUFEN if pct >= x and x not in alt["stufen"]]
@@ -1253,24 +1257,45 @@ def druck_beobachten(dr):
         meldungen.append("pause")
     if codes:
         meldungen.append("fehler")
+    alt_st = alt["st"]
     alt["hms"], alt["st"] = hms, st
+    if getattr(dr, "ha", False) and alt_st in drucker_mod.LAUFEND and st in ("FINISH", "FAILED"):
+        meldungen.append("fertig" if st == "FINISH" else "abbruch")
     t = einstellungen()["telegram"]
     if not meldungen or not (t.get("token") and t.get("chat")) or t.get("aus") or t.get("druckverlauf") is False:
         return
     name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
-    pre = drucker_mod.praefix(dr.d)
+    pre = dr.d.get("praefix") or drucker_mod.praefix(dr.d)
     aufgabe = str(p.get("subtask_name") or "").strip() or "Druckauftrag"
-    rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
-    ende = time.strftime("%H:%M", time.localtime(time.time() + rest * 60)) if rest else ""
-    zeit = (" · noch %s" % _dauer(rest * 60) if rest else "") + (" · fertig ca. %s Uhr" % ende if ende else "")
+    zeit = _zeittext(p)
     task = str(p.get("task_id") or "")
     for m in meldungen:
-        im_hintergrund(druck_telegram, m, name, pre, aufgabe, pct, zeit, codes, dr.serial, task)
+        im_hintergrund(druck_telegram, m, name, pre, aufgabe, pct, zeit, codes, dr.serial, task, dr)
 
 
-def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task):
+def uhrzeit(ts):
+    """Ortszeit als HH:MM – die Zeitzone kommt von Home Assistant (TZ), sonst Deutschland."""
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(os.environ.get("TZ") or "Europe/Berlin")
+    except Exception:
+        return time.strftime("%H:%M", time.localtime(ts))
+    return datetime.datetime.fromtimestamp(ts, tz).strftime("%H:%M")
+
+
+def _zeittext(p):
+    rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
+    ende = uhrzeit(time.time() + rest * 60) if rest else ""
+    return (" · noch %s" % _dauer(rest * 60) if rest else "") + (" · fertig ca. %s Uhr" % ende if ende else "")
+
+
+def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=None):
     if art == "start":
-        time.sleep(15)  # Vorschaubild ist in HA/Cloud erst kurz nach dem Start da
+        time.sleep(25)  # Name, Restzeit und Vorschaubild stehen erst kurz nach dem Start fest
+        if dr is not None:
+            aufgabe = str(dr.p.get("subtask_name") or "").strip() or aufgabe
+            zeit = _zeittext(dr.p) or zeit
         foto = ha_bild(f"/api/image_proxy/image.{pre}_titelbild")
         bild = ""
         c = einstellungen()["cloud"]
@@ -1285,9 +1310,66 @@ def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task):
     elif art == "pause":
         telegram_senden(f"⏸️ {name}: Druck pausiert", aufgabe + " – der Drucker wartet, vielleicht ist das Filament leer.",
                         "", kamera_foto(pre))
+    elif art in ("fertig", "abbruch"):
+        telegram_senden(("✅ %s: Druck fertig" if art == "fertig" else "❌ %s: Druck abgebrochen") % name, aufgabe,
+                        "", kamera_foto(pre))
     elif art == "fehler":
-        telegram_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + " – HMS " + ", ".join(codes)
+        nr = [c for c in codes if not c.startswith("ha_")]
+        telegram_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + (" – HMS " + ", ".join(nr) if nr else "")
                         + "\nDetails in der Bambu-App oder am Drucker.", "", kamera_foto(pre))
+
+
+# Ohne eigene Bambu-Verbindung (Cloud nicht angemeldet): Druckerwerte aus Home Assistant (ha-bambulab) lesen
+HA_DRUCKER_VORLAGE = ("{% set ns = namespace(o=[]) %}{% for s in states.sensor if s.entity_id.endswith('_druckstatus') "
+                      "and s.attributes.get('quelle') != 'schichtlohn' %}{% set p = s.entity_id[7:-12] %}"
+                      "{% set ns.o = ns.o + [[p, s.state, states('sensor.' ~ p ~ '_druckfortschritt'), "
+                      "states('sensor.' ~ p ~ '_verbleibende_zeit'), states('sensor.' ~ p ~ '_name_der_aufgabe'), "
+                      "states('binary_sensor.' ~ p ~ '_hms_fehler'), states('sensor.' ~ p ~ '_startzeit')]] %}"
+                      "{% endfor %}{{ ns.o | tojson }}")
+HA_DRUCKER = {}
+
+
+class _HaDrucker:
+    ha = True
+
+    def __init__(self, pre):
+        self.serial = "ha:" + pre
+        self.d = {"praefix": pre}
+        self.p = {}
+
+
+def ha_drucker_abfragen():
+    url, token = ha_cfg()
+    if not (url and token):
+        return
+    eigene = {dr.serial.lower() for dr in BAMBU.drucker.values() if dr.online}
+    namen = {str(d.get("serial") or "").lower(): d.get("name") for d in einstellungen().get("drucker") or []}
+    zeilen = json.loads(ha_anfrage("/api/template", {"template": HA_DRUCKER_VORLAGE}, timeout=15, roh=True).decode() or "[]")
+    for pre, st, pct, rest, aufgabe, hms, start in zeilen:
+        serie = pre.split("_", 1)[-1]
+        if serie in eigene:  # läuft schon über die eigene Bambu-Verbindung
+            continue
+        dr = HA_DRUCKER.get(pre) or HA_DRUCKER.setdefault(pre, _HaDrucker(pre))
+        dr.d["name"] = namen.get(serie) or pre.split("_")[0].upper()
+        ok = lambda v: v not in ("unknown", "unavailable", "", None)
+        try:
+            rest_min = round(float(rest) * 60)
+        except (TypeError, ValueError):
+            rest_min = 0
+        dr.p = {"gcode_state": st.upper() if ok(st) else "", "mc_percent": pct if ok(pct) else 0,
+                "mc_remaining_time": rest_min, "subtask_name": aufgabe if ok(aufgabe) else "",
+                "task_id": start if ok(start) else "", "hms": [{"attr": "ha", "code": "1"}] if hms == "on" else []}
+        druck_beobachten(dr)
+
+
+def ha_drucker_schleife():
+    time.sleep(30)
+    while True:
+        try:
+            ha_drucker_abfragen()
+        except Exception as ex:
+            print("Drucker aus HA:", ex, flush=True)
+        time.sleep(20)
 
 
 def fertig_melden(druckername, erg, kurz):
@@ -1789,7 +1871,10 @@ class Handler(BaseHTTPRequestHandler):
             einstellungen_setzen({"telegram": {"chat": gefunden["chat"], "chat_name": gefunden["name"]}})
             return self._json(200, gefunden)
         if teile == ["telegram", "test"] and methode == "POST":
-            if not telegram_senden("SchichtLohn – Test", "Telegram-Meldungen funktionieren. Jede Schicht zählt."):
+            # Mit Kamerabild des ersten Druckers, den Home Assistant kennt – so sieht man gleich, ob Bilder ankommen
+            foto = next((f for f in (kamera_foto(pre) for pre in list(HA_DRUCKER)[:3]) if f), None)
+            if not telegram_senden("SchichtLohn – Test", "Telegram-Meldungen funktionieren. Jede Schicht zählt."
+                                   + (" Das Bild kommt aus der Druckerkamera." if foto else ""), "", foto):
                 raise Fehler(400, "Telegram ist noch nicht vollständig eingerichtet (Token und Chat fehlen)")
             return self._json(200, {"ok": True})
         if teile == ["ha", "notify", "test"] and methode == "POST":
@@ -1939,4 +2024,5 @@ if __name__ == "__main__":
     if os.environ.get("AUTO_AKTUALISIEREN", "1") != "0":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
     threading.Thread(target=preise_auto, daemon=True).start()
+    threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
