@@ -512,7 +512,7 @@ const SRV=window.SRV=(()=>{
         const d=await req("POST","/api/ha/notify/test");const name=z=>esc(String(z).replace(/^notify\.mobile_app_/,"").replace(/_/g," "));
         msg((d.ok.length?`✓ Testmeldung gesendet an ${d.ok.map(name).join(", ")}.`:"")+(d.fehler.length?` <span style="color:var(--bad)">Nicht angekommen: ${d.fehler.map(f=>name(f.ziel)+" ("+esc(f.fehler)+")").join(", ")}</span>`:""))}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
-    if(a==="srvTgVerb"){const tok=((document.getElementById("srv_tgtok")||{}).value||"").trim();if(!tok)return msg("Bitte zuerst den Token von @BotFather eintragen.");msg("Suche deinen Chat …");
+    if(a==="srvTgVerb"){const tok=((document.getElementById("srv_tgtok")||{}).value||"").replace(/\s+/g,"");if(!tok)return msg("Bitte zuerst den Token von @BotFather eintragen.");msg("Suche deinen Chat …");
       try{const d=await req("POST","/api/telegram/chat",{token:tok});E=await req("GET","/api/einstellungen");telegramForm();await req("POST","/api/telegram/test");msg(`✓ Verbunden mit ${esc(d.name||d.chat)} – Testmeldung ist unterwegs.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
     if(a==="srvTgTest"){msg("Sende Testmeldung …");try{await req("POST","/api/telegram/test");msg("✓ Testmeldung an Telegram gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
     if(a==="srvTgAus"){try{E=await req("PUT","/api/einstellungen",{telegram:{token:"",chat:"",chat_name:""}});telegramForm();msg("Telegram getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}

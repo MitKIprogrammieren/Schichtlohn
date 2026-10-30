@@ -64,7 +64,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.13"
+VERSION = "3.2.14"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -983,7 +983,8 @@ def werte_ergaenzen(vorschau=False, neu_laden=False):
 def telegram_anfrage(methode, daten, token=None):
     import urllib.request
     import urllib.error
-    token = token or einstellungen()["telegram"].get("token") or ""
+    # Beim Kopieren aus Telegram rutschen leicht Leerzeichen oder Umbrüche in den Token
+    token = re.sub(r"\s+", "", token or einstellungen()["telegram"].get("token") or "")
     if not token:
         raise Fehler(400, "Kein Telegram-Bot eingetragen")
     req = urllib.request.Request("https://api.telegram.org/bot%s/%s" % (token, methode), method="POST",
@@ -996,9 +997,12 @@ def telegram_anfrage(methode, daten, token=None):
             d = json.loads(ex.read().decode("utf-8") or "{}")
         except ValueError:
             d = {}
-        raise Fehler(502, "Telegram: " + str(d.get("description") or ex))
+        grund = str(d.get("description") or ex).replace(token, "…")
+        if "Unauthorized" in grund or "Not Found" in grund:
+            grund = "Der Token stimmt nicht – bitte noch einmal aus der BotFather-Nachricht kopieren"
+        raise Fehler(502, "Telegram: " + grund)
     except Exception as ex:
-        raise Fehler(502, "Telegram nicht erreichbar (Internet?): " + str(ex))
+        raise Fehler(502, "Telegram nicht erreichbar (Internet?): " + str(ex).replace(token, "…"))
     if not d.get("ok"):
         raise Fehler(502, "Telegram: " + str(d.get("description") or "unbekannter Fehler"))
     return d.get("result")
@@ -1668,7 +1672,7 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["telegram", "chat"] and methode == "POST":
             b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
             if b.get("token") and b["token"] != MASKE:
-                einstellungen_setzen({"telegram": {"token": str(b["token"]).strip()}})
+                einstellungen_setzen({"telegram": {"token": re.sub(r"\s+", "", str(b["token"]))}})
             gefunden = telegram_chat_finden()
             einstellungen_setzen({"telegram": {"chat": gefunden["chat"], "chat_name": gefunden["name"]}})
             return self._json(200, gefunden)

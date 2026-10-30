@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.14 – 30.10.2026
+- Telegram: Leerzeichen oder Zeilenumbrüche im kopierten Token stören nicht mehr; der Token taucht nie in Fehlermeldungen auf.
+
 ## 3.2.13 – 30.10.2026
 - Neu: Handy-Meldungen über Telegram – auch ohne Home Assistant. Bot bei @BotFather anlegen, Token unter Einstellungen → Server → Telegram eintragen, fertig.
 
