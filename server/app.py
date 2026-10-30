@@ -21,6 +21,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
+  POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
@@ -62,7 +63,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.9"
+VERSION = "3.2.10"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -809,6 +810,168 @@ def waage_drucker(basis):
         return {"ok": True, "drucker": []}
 
 
+# ------------------------------------------------------------ Druckwerte ergänzen
+# Füllt im Lager nur LEERE Felder: Düse, Bett, Flow, K (Pressure Advance), max. Volumenstrom.
+# Reihenfolge: Slicerprofil der Marke (OrcaSlicer/Bambu Studio) → SchichtLohn-Datenbank (nur Temperaturen)
+# → Standardwert des Materials (Median aller Slicerprofile, ohne K). Eigene Werte bleiben unangetastet.
+SW_DATEI = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "slicerwerte.json")
+SW_MERKMALE = {"matt": "matte", "seide": "silk", "hf": "hf", "holz": "wood", "marmor": "marble", "glitzer": "sparkle",
+               "leuchtend": "glow", "transparent": "translucent", "metallic": "metal", "basic": "basic", "tough+": "tough+",
+               "tough": "tough", "cf": "cf", "gf": "gf", "lite": "lite", "galaxy": "galaxy", "silk+": "silk+", "pro": "pro",
+               "schäumend": "foam", "esd": "esd", "high speed": "hs"}
+SW_FELDER = ("duese_min", "duese_max", "bett_min", "bett_max", "flow", "k", "mvs")
+
+
+def _sw_marke(t):
+    t = str(t or "").lower().replace("ß", "ss")
+    for w in ("3d", "filament", "lab", "tech", "polymers", "printing"):
+        t = re.sub(r"\b" + w + r"\b", " ", t)
+    return re.sub(r"[^a-z0-9]+", "", t)
+
+
+def _sw_material(t):
+    t = str(t or "").upper().replace(" ", "-")
+    return t
+
+
+def _sw_basis(m):
+    for b in ("PETG-CF", "PLA-CF", "PETG", "PCTG", "PLA", "ABS", "ASA", "TPU", "PC", "PA"):
+        if re.search(r"(^|[^A-Z])" + b.replace("-", "[- ]?") + r"([^A-Z]|X|\+|$)", m) or m.startswith(b):
+            return b
+    if m.startswith("PET"):
+        return "PETG"
+    return "PLA" if "PLA" in m else None
+
+
+def slicerwerte(neu_laden=False):
+    import urllib.request
+    if neu_laden or not os.path.exists(SW_DATEI):
+        with urllib.request.urlopen(urllib.request.Request(web.cdn_basis() + "tools/slicerwerte.json",
+                                                           headers={"User-Agent": "SchichtLohn-Server"}), timeout=60) as r:
+            roh = r.read()
+        d = json.loads(roh.decode("utf-8"))
+        if not d.get("profile"):
+            raise Fehler(502, "Slicerwerte unvollständig")
+        with open(SW_DATEI + ".neu", "wb") as f:
+            f.write(roh)
+        os.replace(SW_DATEI + ".neu", SW_DATEI)
+    with open(SW_DATEI, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _sw_profil(sw, marke, material, merkmale):
+    """Bestes Slicerprofil derselben Marke und desselben Materials; Merkmale (Matt, Seide …) entscheiden."""
+    mk, mt = _sw_marke(marke), _sw_material(material)
+    if not mk:
+        return None
+    gesucht = {SW_MERKMALE.get(str(x).lower(), str(x).lower()) for x in merkmale or []}
+    erlaubt = {mt, _sw_basis(mt)}
+    erlaubt |= {t + "-" + f.upper() for t in list(erlaubt) if t for f in ("cf", "gf") if f in gesucht}
+    if mt.startswith("PA"):
+        erlaubt |= {"PA", "PAHT", "PA6", "PA12"} | {x + "-CF" for x in ("PA", "PAHT", "PA6", "PA12")}
+    kandidaten = [p for p in sw["profile"] if _sw_marke(p[0]) == mk and _sw_material(p[1]) in erlaubt
+                  and "support" not in p[2].lower()]
+    if not kandidaten:
+        return None
+
+    # Faserverstärkt (CF/GF) verhält sich anders – nur ein Profil mit derselben Faser passt
+    faser = {f for f in ("cf", "gf") if f in gesucht}
+    kandidaten = [p for p in kandidaten if {f for f in ("cf", "gf") if re.search(r"(^|[^a-z])" + f + r"([^a-z]|$)", (p[1] + " " + p[2]).lower())} == faser]
+    if not kandidaten:
+        return None
+
+    def wert(p):
+        n = p[2].lower()
+        treffer = sum(1 for g in gesucht if g and g in n) + (1 if mt.lower() in n.replace("-", "") else 0)
+        fremd = sum(1 for g in set(SW_MERKMALE.values()) if g in n and g not in ("pro", "basic")
+                    and not any(g in x for x in gesucht))
+        return (treffer - fremd, -len(n))
+    return max(kandidaten, key=wert)
+
+
+def _sw_datenbank(marke, material, merkmale):
+    """Temperaturen aus der SchichtLohn-Datenbank (Open Filament Database, SpoolmanDB, Händler)."""
+    pfad = fdb_pfad()
+    if not pfad:
+        return None
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        return None
+    mk, mt = _sw_marke(marke), _sw_material(material)
+    marken = {i for i, b in enumerate(d.get("b", [])) if _sw_marke(b) == mk}
+    linien = [l for l in d.get("l", []) if l[0] in marken and _sw_material(l[1]) == mt and l[4] and l[5]]
+    if not linien:
+        return None
+    gesucht = {str(x).lower() for x in merkmale or []}
+    linien.sort(key=lambda l: (-sum(1 for g in gesucht if g in str(l[2]).lower()), len(str(l[2]))))
+    l = linien[0]
+    return [l[4], l[5], l[6] or None, l[7] or None]
+
+
+def werte_ergaenzen(vorschau=False, neu_laden=False):
+    sw = slicerwerte(neu_laden)
+    stat = {"eintraege": 0, "geaendert": 0, "felder": 0, "profil": 0, "datenbank": 0, "standard": 0, "ohne": [], "beispiele": []}
+    for it in liste_lesen(ENT):
+        stat["eintraege"] += 1
+        try:
+            d = json.loads(it["description"] or "{}")
+        except ValueError:
+            continue
+        if not isinstance(d, dict):
+            continue
+        leer = [f for f in SW_FELDER if d.get(f) in (None, "", -1)]
+        if not leer:
+            continue
+        marke, material, merkmale = d.get("hersteller"), d.get("material"), d.get("besonderheiten") or []
+        neu, quelle, standard = {}, [], []
+        p = _sw_profil(sw, marke, material, merkmale)
+        if p:
+            for f, v in zip(SW_FELDER, p[3:]):
+                if f in leer and v is not None:
+                    neu[f] = v
+            quelle.append("Slicerprofil " + p[2])
+            stat["profil"] += 1
+        rest = [f for f in leer if f not in neu]
+        if any(f in rest for f in SW_FELDER[:4]):
+            t = _sw_datenbank(marke, material, merkmale)
+            if t:
+                for f, v in zip(SW_FELDER[:4], t):
+                    if f in rest and v is not None:
+                        neu[f] = v
+                quelle.append("SchichtLohn-Datenbank")
+                stat["datenbank"] += 1
+        rest = [f for f in leer if f not in neu and f != "k"]  # K hängt am Drucker – nie als Standardwert
+        basis = _sw_basis(_sw_material(material))
+        m = sw.get("material", {}).get(_sw_material(material)) or (sw.get("material", {}).get(basis) if basis else None)
+        if rest and m:
+            for f, v in zip(SW_FELDER, m):
+                if f in rest and v is not None:
+                    neu[f] = v
+                    standard.append(f)
+            if standard:
+                quelle.append("Standardwert " + (_sw_material(material) if sw["material"].get(_sw_material(material)) else basis))
+                stat["standard"] += 1
+        if not neu:
+            stat["ohne"].append(it["summary"])
+            continue
+        for f, v in neu.items():
+            d[f] = int(v) if f.startswith(("duese", "bett")) else v
+        if standard:
+            d["werte_standard"] = sorted(set(d.get("werte_standard") or []) | set(standard))
+        d["werte_quelle"] = " · ".join(quelle)
+        stat["geaendert"] += 1
+        stat["felder"] += len(neu)
+        if len(stat["beispiele"]) < 15:
+            stat["beispiele"].append({"spule": it["summary"], "neu": neu, "quelle": d["werte_quelle"]})
+        if not vorschau:
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(d, ensure_ascii=False)})
+    stat["ohne"] = stat["ohne"][:40]
+    stat["vorschau"] = vorschau
+    return stat
+
+
 def handy_meldung(titel, text, bild=""):
     melden({"typ": "meldung", "titel": titel, "text": text})
     h = einstellungen()["ha"]
@@ -1380,6 +1543,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, dict(fdb_info(), auto=AUTO))
         if teile == ["filamentdb", "aktualisieren"] and methode == "POST":
             return self._json(200, fdb_aktualisieren())
+        if teile == ["werte_ergaenzen"] and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            return self._json(200, werte_ergaenzen(bool(b.get("vorschau")), bool(b.get("neu_laden"))))
         if teile == ["sorten"] and methode == "GET":
             return self._json(200, {"sorten": sorten()})
         if teile == ["sicherung"] and methode == "GET":

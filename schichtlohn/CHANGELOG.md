@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.10 – 30.10.2026
+- Druckwerte ergänzt: Fehlen bei einer Spule Düse, Bett, Flow, K-Wert oder max. Volumenstrom, kommen sie jetzt aus den Filamentprofilen von OrcaSlicer und Bambu Studio (passend zu Marke, Material, Matt/Seide/CF …). Eigene Werte bleiben unverändert.
+- Gibt es kein Profil der Marke, steht der übliche Wert des Materials drin und ist als Standardwert gekennzeichnet. Der K-Wert wird nie geschätzt.
+
 ## 3.2.9 – 30.10.2026
 - Zwei Etikettendrucker: Hat die Waage mehrere Phomemo-Drucker in Home Assistant (z. B. M20 Pro und M110), wählst du im Etikett-Fenster, auf welchem gedruckt wird. Die Wahl wird gemerkt.
 
