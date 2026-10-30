@@ -5098,6 +5098,7 @@ document.addEventListener("click",async e=>{
   if(a==="lgEtHoch"){const o=etOpt();o.hochkant=!o.hochkant;etOptSave(o);b.classList.toggle("on",o.hochkant);etZeichnen();return}
   if(a==="lgEtTeilen"){etTeilen();return}
   if(a==="lgEtWaage"){etWaage(b);return}
+  if(a==="lgEtD"){const o=etOpt();o.drucker=b.dataset.d;etOptSave(o);document.querySelectorAll('[data-act="lgEtD"]').forEach(c=>c.classList.toggle("on",c===b));const k=document.getElementById("etDruckKnopf");if(k)k.textContent=etDruckText();return}
   if(a==="lgEinkauf"){if(!PL.d)preiseLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});if(srv())SRV.req("GET","/api/preise").then(d=>{G.preise=(d&&d.werte)||{};if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});einkaufModal();if(!G.fdb)fdbLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});return}
   if(a==="lgEkAus"){G.ekAus=[...new Set([...(G.ekAus||[]),b.dataset.uid])];try{localStorage.setItem("sl_ek_aus",JSON.stringify(G.ekAus))}catch(x){}einkaufModal();draw(0);return}
   if(a==="lgEkReset"){G.ekAus=[];try{localStorage.removeItem("sl_ek_aus")}catch(x){}closeModal();einkaufModal();draw(0);return}
@@ -5219,10 +5220,13 @@ async function etikettModal(uid){let e=entries().find(x=>x.uid===uid);if(!e)retu
   if(!slId(e)){e.raw=Object.assign({},e.raw,{sl_id:slNeu()});try{await write(e,{})}catch(err){toast("Etikett-Nummer konnte nicht gespeichert werden")}}
   const o=etOpt();G.et={uid,id:slId(e),e};
   const waage=!!(await slEin()).waage_url;G.et.waage=waage;
+  if(waage&&!G.drListe)try{const d=await SRV.req("GET","/api/waage/drucker");G.drListe=(d&&d.drucker)||[]}catch(err){G.drListe=[]}
+  const drl=G.drListe||[],drw=etDrucker();
   if(!o.format&&waage&&!G.waageFormat)try{const w=await SRV.req("GET","/api/waage/etikett");if(w&&w.format)G.waageFormat=w.format}catch(err){}
   const fmt=o.format||G.waageFormat||"classic";
   modal("Etikett",`<div class="lgform" id="lgEt">
     <div class="etvor"><canvas id="etCv" aria-label="Vorschau des Etiketts"></canvas></div><div class="lghint" id="etWeg"></div>
+    ${drl.length>1?`<div class="field"><span>Drucker</span><div class="lgtg">${drl.map(d=>`<button type="button" class="chip${d.id===drw?" on":""}" data-act="lgEtD" data-d="${esc(d.id)}">${esc(d.name)}${d.erreichbar===false?" <small>aus</small>":""}</button>`).join("")}</div></div>`:""}
     <div class="field"><span>Format</span><div class="lgtg">${Object.entries(Etikett.FORMATE).map(([k,f])=>`<button type="button" class="chip${k===fmt?" on":""}" data-act="lgEtF" data-f="${k}">${f.name} <small>${f.b}×${f.h}</small></button>`).join("")}<button type="button" class="chip${o.hochkant?" on":""}" data-act="lgEtHoch" title="Auf derselben Rolle um 90° gedreht">Hochkant</button></div></div>
     <div class="etzeilen">${o.slots.map((sl,i)=>{const s0=etSorte(e);const opt=([k,t])=>{const da=k==="eigene"||k==="rest"||k==="id"||Etikett.hatWert(s0,k,{leerStandard:250,id:G.et.id});
         return `<option value="${k}"${k===sl?" selected":""}>${esc(t)}${da?"":" – nicht hinterlegt"}</option>`};
@@ -5233,7 +5237,7 @@ async function etikettModal(uid){let e=entries().find(x=>x.uid===uid);if(!e)retu
       <label class="field" style="margin-top:6px"><span>Adresse im QR-Code</span><input type="text" id="etQr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="https://….ts.net" autocomplete="off" spellcheck="false"></label></div>`:""}
     <div class="lghint">Der QR-Code öffnet diese Rolle in SchichtLohn (${esc(G.et.id)}) – mit der Kamera vom Handy oder im Scanner im Lager.${waage?"":" Gedruckt wird über die Filamentwaage; ohne Waage das Bild teilen und ausdrucken."}</div>
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
-    `<button class="btn ghost" data-act="lgEtTeilen">Bild teilen</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>${waage?`<button class="btn pri" data-act="lgEtWaage">Auf der Waage drucken</button>`:""}`);
+    `<button class="btn ghost" data-act="lgEtTeilen">Bild teilen</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>${waage?`<button class="btn pri" data-act="lgEtWaage" id="etDruckKnopf">${etDruckText()}</button>`:""}`);
   etZeichnen()}
 let etLauf=0;
 async function etZeichnen(){const cv=document.getElementById("etCv");if(!cv||!G.et)return;const n=++etLauf;const o=etOpt();const e=G.et.e;
@@ -5250,8 +5254,11 @@ async function etTeilen(){const cv=document.getElementById("etCv");if(!cv||!G.et
   const name=`Etikett ${summary(G.et.e).replace(/[\\/:*?"<>|·]+/g," ").replace(/\s+/g," ").trim()}.png`;
   try{const file=new File([blob],name,{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(err){if(err&&err.name==="AbortError")return}
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast("Etikett als Bild gespeichert")}
+/* Etikettendrucker in Home Assistant (über die Waage): gewählter oder Standarddrucker */
+function etDrucker(){const l=G.drListe||[];if(!l.length)return "";const w=etOpt().drucker;return l.some(d=>d.id===w)?w:(l.find(d=>d.standard)||l[0]).id}
+function etDruckText(){const l=G.drListe||[];if(l.length<2)return "Auf der Waage drucken";const d=l.find(x=>x.id===etDrucker());return `Auf dem ${d?d.name:"Drucker"} drucken`}
 async function etWaage(b){if(!G.et)return;const cv=document.createElement("canvas");await Etikett.zeichnen(cv,etSorte(G.et.e),etZeichenOpt());const r=Etikett.raster(cv);const o=etOpt();
-  if(b)b.disabled=true;try{const d=await SRV.req("POST","/api/waage/drucken",Object.assign(r,{kopien:Math.max(1,Math.min(10,o.kopien||1))}));toast(d&&d.ok===false?(d.text||"Waage meldet einen Fehler"):"Etikett geht an die Waage")}
+  if(b)b.disabled=true;try{const dr=etDrucker();const d=await SRV.req("POST","/api/waage/drucken",Object.assign(r,{kopien:Math.max(1,Math.min(10,o.kopien||1)),titel:summary(G.et.e).slice(0,80)},dr?{drucker:dr}:{}));toast(d&&d.ok===false?(d.text||"Waage meldet einen Fehler"):"Etikett geht an die Waage")}
   catch(err){toast(err.message||String(err))}finally{if(b)b.disabled=false}}
 document.addEventListener("change",ev=>{const t=ev.target;if(!t||!G.et)return;
   if(t.classList&&t.classList.contains("etzeile")){const o=etOpt();const vorher=o.slots.includes("eigene");o.slots[Number(t.dataset.i)]=t.value;etOptSave(o);

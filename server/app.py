@@ -21,6 +21,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
+  GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
 
@@ -61,7 +62,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.8"
+VERSION = "3.2.9"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -773,13 +774,15 @@ def waage_weiter(was, methode, rumpf):
     basis = einstellungen().get("waage_url") or ""
     if not basis:
         raise Fehler(400, "Keine Waage eingetragen (Einstellungen → Funktionen → Spulen-Etiketten)")
+    if (was, methode) == ("drucker", "GET"):
+        return waage_drucker(basis)
     pfade = {("drucken", "POST"): "/api/etikett/drucken", ("etikett", "GET"): "/api/etikett/einstellungen",
              ("zustand", "GET"): "/api/zustand"}
     pfad = pfade.get((was, methode))
     if not pfad:
         raise Fehler(404, "Unbekannt")
     if rumpf is not None:
-        rumpf = {k: rumpf[k] for k in ("breite", "hoehe", "daten", "kopien") if k in rumpf}
+        rumpf = {k: rumpf[k] for k in ("breite", "hoehe", "daten", "kopien", "drucker", "titel") if k in rumpf}
     req = urllib.request.Request(basis + pfad, method=methode, headers={"Content-Type": "application/json"},
                                  data=json.dumps(rumpf).encode() if rumpf is not None else None)
     try:
@@ -789,6 +792,21 @@ def waage_weiter(was, methode, rumpf):
         grund = getattr(e, "reason", None) or e
         raise Fehler(502, f"Waage unter {basis} nicht erreichbar ({getattr(grund, 'strerror', None) or grund}). "
                           "Läuft sie, und steht in ihrer config.toml unter [server] adresse = \"0.0.0.0\"?")
+
+
+def waage_drucker(basis):
+    """Liste der Etikettendrucker: die Waage nennt ihre Adresse in Home Assistant, dort stehen die Drucker."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(basis + "/api/etikett/einstellungen", timeout=8) as r:
+            ha = (json.loads(r.read().decode("utf-8") or "{}").get("bruecke") or "").rstrip("/")
+        if not ha:
+            return {"ok": True, "drucker": []}
+        with urllib.request.urlopen(ha + "/drucker", timeout=8) as r:
+            d = json.loads(r.read().decode("utf-8") or "{}")
+        return {"ok": True, "drucker": d.get("drucker") or []}
+    except Exception:  # noqa: BLE001 – ältere Waage oder Integration: dann gibt es eben keine Auswahl
+        return {"ok": True, "drucker": []}
 
 
 def handy_meldung(titel, text, bild=""):

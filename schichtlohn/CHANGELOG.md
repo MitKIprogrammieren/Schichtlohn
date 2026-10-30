@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.9 – 30.10.2026
+- Zwei Etikettendrucker: Hat die Waage mehrere Phomemo-Drucker in Home Assistant (z. B. M20 Pro und M110), wählst du im Etikett-Fenster, auf welchem gedruckt wird. Die Wahl wird gemerkt.
+
 ## 3.2.8 – 30.10.2026
 - Neue Herstellerlogos: Filaxix und iFilament – damit haben alle Marken im Lager ein Logo.
 
