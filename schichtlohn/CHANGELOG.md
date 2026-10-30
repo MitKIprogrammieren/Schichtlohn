@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.7 – 30.10.2026
+- Neue Herstellerlogos: Sunlu, Eryone, QIDI und Nobufil.
+
 ## 3.2.6 – 29.10.2026
 - Preisliste aufgeräumt: Shops stehen als Zeilen in der Sorten-Kachel (Name, Preis, €/kg), die günstigste ist grün hinterlegt und markiert.
 - Kennzahlen als schmale Leiste statt großer Kacheln.
