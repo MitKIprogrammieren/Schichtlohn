@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.8 – 30.10.2026
+- Neue Herstellerlogos: Filaxix und iFilament – damit haben alle Marken im Lager ein Logo.
+
 ## 3.2.7 – 30.10.2026
 - Neue Herstellerlogos: Sunlu, Eryone, QIDI und Nobufil.
 
