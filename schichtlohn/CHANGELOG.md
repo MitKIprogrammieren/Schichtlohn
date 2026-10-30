@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.13 – 30.10.2026
+- Neu: Handy-Meldungen über Telegram – auch ohne Home Assistant. Bot bei @BotFather anlegen, Token unter Einstellungen → Server → Telegram eintragen, fertig.
+
 ## 3.2.12 – 30.10.2026
 - Etiketten für den M20 Pro werden direkt in seiner Auflösung (300 dpi) gezeichnet statt hochgerechnet – Schrift und QR-Code deutlich schärfer.
 - Lager startet nach Marke sortiert, Etiketten-Werte als ruhige Tabelle.

@@ -387,7 +387,7 @@ const SRV=window.SRV=(()=>{
   /* Einstellungen */
   /* Einstellungen */
   const SVG=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const IC={srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+  const IC={tg:SVG('<path d="M21 4 3 11l6 2.5L18 7l-6.5 7.5L17 20z"/><path d="m9 13.5.5 5.5 2.5-3"/>'),srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
     dr:SVG('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/>'),
     ha:SVG('<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>'),
     wg:SVG('<path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/>'),
@@ -413,6 +413,7 @@ const SRV=window.SRV=(()=>{
       <div class="srvgrid">
         ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
+        ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
         ${karte(IC.db,"Filament-Datenbank","",`<p id="srv_fdbinfo">wird geprüft …</p>`)}
         ${karte(IC.app,"App",`${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
@@ -447,7 +448,13 @@ const SRV=window.SRV=(()=>{
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
       <div id="srv_handys"></div>
       <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button><button class="btn sm ghost" data-act="srvHaTest" title="Speichert die Auswahl und schickt eine Testmeldung an jedes angekreuzte Gerät">Test senden</button></div>`;
-    handysLaden()}
+    handysLaden();telegramForm()}
+  /* Telegram: Meldungen aufs Handy auch ohne Home Assistant */
+  function telegramForm(){const box=document.getElementById("srv_tg");if(!box)return;const t=E.telegram||{};
+    box.innerHTML=t.token&&t.chat?`<p>Meldungen gehen an <b>${esc(t.chat_name||t.chat)}</b> – zusätzlich zu Home Assistant.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvTgTest">Test senden</button><button class="btn sm ghost" data-act="srvTgAus">Trennen</button></div>`
+    :`<p>Auch ohne Home Assistant: In Telegram <b>@BotFather</b> öffnen, <code>/newbot</code> schreiben und den Token hier eintragen. Dann deinem neuen Bot einmal <code>/start</code> schreiben und auf „Verbinden“ tippen.</p>
+      <div class="srvcopy"><input type="password" id="srv_tgtok" value="" placeholder="123456789:AA…" autocomplete="off"><button class="btn sm" data-act="srvTgVerb">Verbinden</button></div>`}
   /* alle Handys aus Home Assistant zum Ankreuzen */
   async function handysLaden(){const box=document.getElementById("srv_handys"),inp=document.getElementById("srv_hanot");if(!box||!inp)return;
     let d;try{d=await req("GET","/api/ha/notify")}catch(e){return}if(!d.dienste||!d.dienste.length)return;
@@ -505,6 +512,10 @@ const SRV=window.SRV=(()=>{
         const d=await req("POST","/api/ha/notify/test");const name=z=>esc(String(z).replace(/^notify\.mobile_app_/,"").replace(/_/g," "));
         msg((d.ok.length?`✓ Testmeldung gesendet an ${d.ok.map(name).join(", ")}.`:"")+(d.fehler.length?` <span style="color:var(--bad)">Nicht angekommen: ${d.fehler.map(f=>name(f.ziel)+" ("+esc(f.fehler)+")").join(", ")}</span>`:""))}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvTgVerb"){const tok=((document.getElementById("srv_tgtok")||{}).value||"").trim();if(!tok)return msg("Bitte zuerst den Token von @BotFather eintragen.");msg("Suche deinen Chat …");
+      try{const d=await req("POST","/api/telegram/chat",{token:tok});E=await req("GET","/api/einstellungen");telegramForm();await req("POST","/api/telegram/test");msg(`✓ Verbunden mit ${esc(d.name||d.chat)} – Testmeldung ist unterwegs.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvTgTest"){msg("Sende Testmeldung …");try{await req("POST","/api/telegram/test");msg("✓ Testmeldung an Telegram gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvTgAus"){try{E=await req("PUT","/api/einstellungen",{telegram:{token:"",chat:"",chat_name:""}});telegramForm();msg("Telegram getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
     if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
       try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}

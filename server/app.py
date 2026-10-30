@@ -20,6 +20,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
+  POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
@@ -63,7 +64,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.12"
+VERSION = "3.2.13"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -587,6 +588,7 @@ def einstellungen():
     w.setdefault("drucker", [])
     w.setdefault("cloud", {})
     w.setdefault("ha", {})
+    w.setdefault("telegram", {})
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
     w.setdefault("waage_url", "")
@@ -602,7 +604,7 @@ def einstellungen_maskiert():
     for d in e["drucker"]:
         if d.get("code"):
             d["code"] = MASKE
-    for k in ("cloud", "ha"):
+    for k in ("cloud", "ha", "telegram"):
         if e[k].get("token"):
             e[k]["token"] = MASKE
     e["cloud"].pop("uid", None)
@@ -629,7 +631,7 @@ def einstellungen_setzen(neu):
                     d["modell"] = drucker_mod.modell_aus_serie(d["serial"])
             liste.append(d)
         e["drucker"] = liste
-    for k in ("cloud", "ha"):
+    for k in ("cloud", "ha", "telegram"):
         if isinstance(neu.get(k), dict):
             x = dict(alt[k])
             for kk, v in neu[k].items():
@@ -650,7 +652,7 @@ def einstellungen_setzen(neu):
         e["preise"] = pr
     if "fertig_meldung" in neu:
         e["fertig_meldung"] = bool(neu["fertig_meldung"])
-    nur_extras = set(neu) <= {"fertig_meldung", "waage_url", "preise"}
+    nur_extras = set(neu) <= {"fertig_meldung", "waage_url", "preise", "telegram"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
@@ -976,8 +978,65 @@ def werte_ergaenzen(vorschau=False, neu_laden=False):
     return stat
 
 
+# ---------------------------------------------------------------- Telegram (Handy-Meldungen auch ohne Home Assistant)
+# Bot bei @BotFather anlegen, Token eintragen, dem Bot einmal „/start“ schreiben – SchichtLohn findet die Chat-ID selbst.
+def telegram_anfrage(methode, daten, token=None):
+    import urllib.request
+    import urllib.error
+    token = token or einstellungen()["telegram"].get("token") or ""
+    if not token:
+        raise Fehler(400, "Kein Telegram-Bot eingetragen")
+    req = urllib.request.Request("https://api.telegram.org/bot%s/%s" % (token, methode), method="POST",
+                                 data=json.dumps(daten).encode(), headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as ex:
+        try:
+            d = json.loads(ex.read().decode("utf-8") or "{}")
+        except ValueError:
+            d = {}
+        raise Fehler(502, "Telegram: " + str(d.get("description") or ex))
+    except Exception as ex:
+        raise Fehler(502, "Telegram nicht erreichbar (Internet?): " + str(ex))
+    if not d.get("ok"):
+        raise Fehler(502, "Telegram: " + str(d.get("description") or "unbekannter Fehler"))
+    return d.get("result")
+
+
+def telegram_chat_finden():
+    """Chat-ID aus der letzten Nachricht an den Bot (der Nutzer schreibt ihm einmal /start)."""
+    for u in reversed(telegram_anfrage("getUpdates", {"limit": 20}) or []):
+        m = u.get("message") or u.get("my_chat_member") or {}
+        chat = m.get("chat") or {}
+        if chat.get("id"):
+            name = chat.get("title") or " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x) or chat.get("username") or ""
+            return {"chat": str(chat["id"]), "name": name}
+    raise Fehler(404, "Noch keine Nachricht an den Bot – schreib ihm in Telegram einmal /start und versuch es dann nochmal")
+
+
+def telegram_senden(titel, text, bild=""):
+    t = einstellungen()["telegram"]
+    if not (t.get("token") and t.get("chat")) or t.get("aus"):
+        return False
+    nachricht = "<b>%s</b>\n%s" % (html_esc(titel), html_esc(text))
+    if bild and re.match(r"^https?://", bild):
+        try:
+            telegram_anfrage("sendPhoto", {"chat_id": t["chat"], "photo": bild, "caption": nachricht[:1000], "parse_mode": "HTML"})
+            return True
+        except Exception:
+            pass  # Bild nicht erreichbar (z. B. nur im Heimnetz) – dann nur Text
+    telegram_anfrage("sendMessage", {"chat_id": t["chat"], "text": nachricht, "parse_mode": "HTML"})
+    return True
+
+
+def html_esc(t):
+    return str(t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def handy_meldung(titel, text, bild=""):
     melden({"typ": "meldung", "titel": titel, "text": text})
+    im_hintergrund(telegram_senden, titel, text, bild)
     h = einstellungen()["ha"]
     roh = h.get("notify") or ""
     ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
@@ -1606,6 +1665,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "laeuft": True})
         if teile[0] == "waage" and len(teile) == 2:
             return self._json(200, waage_weiter(teile[1], methode, self._json_rumpf() if methode == "POST" else None))
+        if teile == ["telegram", "chat"] and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            if b.get("token") and b["token"] != MASKE:
+                einstellungen_setzen({"telegram": {"token": str(b["token"]).strip()}})
+            gefunden = telegram_chat_finden()
+            einstellungen_setzen({"telegram": {"chat": gefunden["chat"], "chat_name": gefunden["name"]}})
+            return self._json(200, gefunden)
+        if teile == ["telegram", "test"] and methode == "POST":
+            if not telegram_senden("SchichtLohn – Test", "Telegram-Meldungen funktionieren. Jede Schicht zählt."):
+                raise Fehler(400, "Telegram ist noch nicht vollständig eingerichtet (Token und Chat fehlen)")
+            return self._json(200, {"ok": True})
         if teile == ["ha", "notify", "test"] and methode == "POST":
             if not all(ha_cfg()):
                 raise Fehler(503, "Home Assistant ist im Server nicht verbunden")
