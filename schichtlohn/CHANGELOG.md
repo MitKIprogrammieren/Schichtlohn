@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.12 – 30.10.2026
+- Etiketten für den M20 Pro werden direkt in seiner Auflösung (300 dpi) gezeichnet statt hochgerechnet – Schrift und QR-Code deutlich schärfer.
+- Lager startet nach Marke sortiert, Etiketten-Werte als ruhige Tabelle.
+
 ## 3.2.11 – 30.10.2026
 - Standardwerte für Carbon- und Glasfaser-Filamente (z. B. ASA CF, PETG GF) kommen jetzt von den passenden CF-/GF-Profilen.
 

@@ -63,7 +63,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.11"
+VERSION = "3.2.12"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -783,7 +783,7 @@ def waage_weiter(was, methode, rumpf):
     if not pfad:
         raise Fehler(404, "Unbekannt")
     if rumpf is not None:
-        rumpf = {k: rumpf[k] for k in ("breite", "hoehe", "daten", "kopien", "drucker", "titel") if k in rumpf}
+        rumpf = {k: rumpf[k] for k in ("breite", "hoehe", "daten", "kopien", "drucker", "titel", "dpi") if k in rumpf}
     req = urllib.request.Request(basis + pfad, method=methode, headers={"Content-Type": "application/json"},
                                  data=json.dumps(rumpf).encode() if rumpf is not None else None)
     try:
