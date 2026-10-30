@@ -64,7 +64,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.14"
+VERSION = "3.2.15"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -980,7 +980,7 @@ def werte_ergaenzen(vorschau=False, neu_laden=False):
 
 # ---------------------------------------------------------------- Telegram (Handy-Meldungen auch ohne Home Assistant)
 # Bot bei @BotFather anlegen, Token eintragen, dem Bot einmal „/start“ schreiben – SchichtLohn findet die Chat-ID selbst.
-def telegram_anfrage(methode, daten, token=None):
+def telegram_anfrage(methode, daten, token=None, roh=None, typ=None):
     import urllib.request
     import urllib.error
     # Beim Kopieren aus Telegram rutschen leicht Leerzeichen oder Umbrüche in den Token
@@ -988,9 +988,10 @@ def telegram_anfrage(methode, daten, token=None):
     if not token:
         raise Fehler(400, "Kein Telegram-Bot eingetragen")
     req = urllib.request.Request("https://api.telegram.org/bot%s/%s" % (token, methode), method="POST",
-                                 data=json.dumps(daten).encode(), headers={"Content-Type": "application/json"})
+                                 data=roh if roh is not None else json.dumps(daten).encode(),
+                                 headers={"Content-Type": typ or "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=40) as r:
             d = json.loads(r.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as ex:
         try:
@@ -1019,11 +1020,29 @@ def telegram_chat_finden():
     raise Fehler(404, "Noch keine Nachricht an den Bot – schreib ihm in Telegram einmal /start und versuch es dann nochmal")
 
 
-def telegram_senden(titel, text, bild=""):
+def telegram_foto(chat, foto, beschriftung):
+    """Foto als Datei hochladen – für Bilder, die nur im Heimnetz liegen (Druckerkamera, Vorschaubild aus HA)."""
+    grenze = uuid.uuid4().hex
+    name, art = ("bild.png", "image/png") if foto[:4] == b"\x89PNG" else ("bild.jpg", "image/jpeg")
+    teile = [("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n" % (grenze, k, v)).encode("utf-8")
+             for k, v in (("chat_id", chat), ("caption", beschriftung[:1000]), ("parse_mode", "HTML"))]
+    teile.append(("--%s\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"%s\"\r\nContent-Type: %s\r\n\r\n"
+                  % (grenze, name, art)).encode() + foto + b"\r\n")
+    teile.append(("--%s--\r\n" % grenze).encode())
+    telegram_anfrage("sendPhoto", None, roh=b"".join(teile), typ="multipart/form-data; boundary=" + grenze)
+
+
+def telegram_senden(titel, text, bild="", foto=None):
     t = einstellungen()["telegram"]
     if not (t.get("token") and t.get("chat")) or t.get("aus"):
         return False
     nachricht = "<b>%s</b>\n%s" % (html_esc(titel), html_esc(text))
+    if foto:
+        try:
+            telegram_foto(t["chat"], foto, nachricht)
+            return True
+        except Exception as ex:
+            print("Telegram-Foto:", ex, flush=True)
     if bild and re.match(r"^https?://", bild):
         try:
             telegram_anfrage("sendPhoto", {"chat_id": t["chat"], "photo": bild, "caption": nachricht[:1000], "parse_mode": "HTML"})
@@ -1038,9 +1057,9 @@ def html_esc(t):
     return str(t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def handy_meldung(titel, text, bild=""):
+def handy_meldung(titel, text, bild="", foto=None):
     melden({"typ": "meldung", "titel": titel, "text": text})
-    im_hintergrund(telegram_senden, titel, text, bild)
+    im_hintergrund(telegram_senden, titel, text, bild, foto)
     h = einstellungen()["ha"]
     roh = h.get("notify") or ""
     ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
@@ -1184,13 +1203,101 @@ def _dauer(s):
     return f"{h} h {m} min" if h else f"{max(1, m)} min"
 
 
+def ha_bild(pfad):
+    """Bild aus Home Assistant (Kamera, Vorschaubild) – None, wenn kein HA da ist oder nichts kommt."""
+    url, token = ha_cfg()
+    if not (url and token):
+        return None
+    try:
+        b = ha_anfrage(pfad, timeout=15, roh=True)
+    except Exception:
+        return None
+    return b if b and len(b) > 500 and b[:1] in (b"\xff", b"\x89") else None
+
+
+def kamera_foto(pre):
+    return ha_bild(f"/api/camera_proxy/camera.{pre}_kamera")
+
+
+# Druckverlauf je Drucker → Telegram: Start (Vorschaubild), 25/50/75 % und Pause (Kamerabild), neue HMS-Fehler.
+# Ende und Abbruch meldet fertig_melden (mit Verbrauch).
+DRUCK_STAND = {}
+STUFEN = (25, 50, 75)
+
+
+def druck_beobachten(dr):
+    p = dr.p
+    st = str(p.get("gcode_state") or "").upper()
+    if not st:
+        return
+    pct = drucker_mod._int(p.get("mc_percent"), 0)
+    job = "%s|%s" % (p.get("task_id") or "", p.get("subtask_name") or "")
+    hms = {"%s_%s" % (h.get("attr"), h.get("code")) for h in (p.get("hms") or []) if isinstance(h, dict)}
+    alt = DRUCK_STAND.get(dr.serial)
+    if alt is None:  # erster Blick nach dem Serverstart: nur merken, nichts nachmelden
+        DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in STUFEN if pct >= x}, "hms": hms, "start": False}
+        return
+    meldungen = []
+    codes = sorted(hms - alt["hms"])
+    if st in drucker_mod.LAUFEND and job != alt["job"]:
+        alt.update(job=job, stufen=set(), start=True)
+    if st == "RUNNING" and alt["start"]:
+        alt["start"] = False
+        meldungen.append("start")
+    if st == "RUNNING":
+        neu = [x for x in STUFEN if pct >= x and x not in alt["stufen"]]
+        alt["stufen"].update(neu)
+        if neu and pct < 100:
+            meldungen.append("stand")
+    if st == "PAUSE" and alt["st"] == "RUNNING":
+        meldungen.append("pause")
+    if codes:
+        meldungen.append("fehler")
+    alt["hms"], alt["st"] = hms, st
+    t = einstellungen()["telegram"]
+    if not meldungen or not (t.get("token") and t.get("chat")) or t.get("aus") or t.get("druckverlauf") is False:
+        return
+    name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+    pre = drucker_mod.praefix(dr.d)
+    aufgabe = str(p.get("subtask_name") or "").strip() or "Druckauftrag"
+    rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
+    ende = time.strftime("%H:%M", time.localtime(time.time() + rest * 60)) if rest else ""
+    zeit = (" · noch %s" % _dauer(rest * 60) if rest else "") + (" · fertig ca. %s Uhr" % ende if ende else "")
+    task = str(p.get("task_id") or "")
+    for m in meldungen:
+        im_hintergrund(druck_telegram, m, name, pre, aufgabe, pct, zeit, codes, dr.serial, task)
+
+
+def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task):
+    if art == "start":
+        time.sleep(15)  # Vorschaubild ist in HA/Cloud erst kurz nach dem Start da
+        foto = ha_bild(f"/api/image_proxy/image.{pre}_titelbild")
+        bild = ""
+        c = einstellungen()["cloud"]
+        if not foto and c.get("token"):
+            try:
+                bild = str((drucker_mod.cloud_aufgabe(c["token"], c.get("region", "global"), serial, task, aufgabe) or {}).get("cover") or "")
+            except Exception:
+                bild = ""
+        telegram_senden(f"🟢 {name}: Druck gestartet", aufgabe + zeit, bild, foto)
+    elif art == "stand":
+        telegram_senden(f"{name}: {pct} % gedruckt", aufgabe + zeit, "", kamera_foto(pre))
+    elif art == "pause":
+        telegram_senden(f"⏸️ {name}: Druck pausiert", aufgabe + " – der Drucker wartet, vielleicht ist das Filament leer.",
+                        "", kamera_foto(pre))
+    elif art == "fehler":
+        telegram_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + " – HMS " + ", ".join(codes)
+                        + "\nDetails in der Bambu-App oder am Drucker.", "", kamera_foto(pre))
+
+
 def fertig_melden(druckername, erg, kurz):
     """Eine Handymeldung zum Druckende: Auftrag, Drucker, Dauer, Verbrauch – mit Vorschaubild, wenn die Cloud eins hat."""
     aufgabe = (erg.get("aufgabe") or "").strip() or "Druckauftrag"
     titel = f"{erg['anlass']}: {aufgabe}"
     kopf = " · ".join(x for x in (druckername, _dauer(erg.get("dauer")),
                                   ("%d %%" % round(erg.get("anteil", 1) * 100)) if erg.get("anteil", 1) < 1 else "") if x)
-    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "")
+    foto = kamera_foto(erg["praefix"]) if erg.get("praefix") else None
+    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "", foto)
 
 
 def druck_abbuchen(druckername, erg):
@@ -1334,9 +1441,14 @@ class _Wirt:
             trocknen_pruefen(z)
         except Exception as ex:
             print("Trocknen:", ex, flush=True)
+        try:
+            druck_beobachten(dr)
+        except Exception as ex:
+            print("Druckverlauf:", ex, flush=True)
 
     def druckende(self, dr, erg):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+        erg["praefix"] = drucker_mod.praefix(dr.d)
         druck_abbuchen(name, erg)
 
     def log(self, text):
