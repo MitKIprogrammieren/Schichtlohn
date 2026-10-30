@@ -4063,7 +4063,7 @@ ${matt?"":`<path d="M12.2 11.6c1.3-2.9 3.1-4.7 4.9-5.1" stroke="#fff" stroke-opa
 const SORTS=[["material","Material"],["hersteller","Marke"],["farbe","Farbe"],["besonderheit","Besonderheit"],["drucker","Drucker"],["bestand","Bestand"]];
 const TOL=19200;
 const G={items:[],meta:[],loaded:false,err:"",unsub:null,unsubM:null,q:"",sort:null,f:{},showLeer:null,showF:false,zu:[],openFach:false,openOffen:false,sub:false,form:null};
-const PREF="schichtlohn_lager_ui";try{Object.assign(G,JSON.parse(localStorage.getItem(PREF)||"{}"))}catch(e){}
+const PREF="schichtlohn_lager_ui";try{Object.assign(G,JSON.parse(localStorage.getItem(PREF)||"{}"))}catch(e){}G.sort=null; /* Start immer mit der Standard-Sortierung (Einstellungen, ab Werk nach Marke) */
 const savePref=()=>{try{localStorage.setItem(PREF,JSON.stringify({sort:G.sort,f:G.f,showLeer:G.showLeer,showF:G.showF,zu:G.zu}))}catch(e){}};
 
 /* --- Hilfen wie in der Karte --- */
@@ -4117,7 +4117,7 @@ async function namenAngleichen(){if(umbenannt||!G.loaded)return;umbenannt=true;
   for(const x of alt){try{await svc("update_item",{item:x.i.uid,rename:summary(x.e)})}catch(err){}}}
 const total=e=>{if(e.spulen<=0)return 0;const rs=(e.reste||[]).slice(0,e.spulen);return (e.spulen-rs.length)*e.gewicht+rs.reduce((a,x)=>a+x,0)};
 const kg=g0=>g0>=1000?(g0/1000).toLocaleString("de-DE",{maximumFractionDigits:1})+" kg":Math.round(g0).toLocaleString("de-DE")+" g";
-const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const w=(it&&desc(it).werte)||{};return Object.assign({gruppe:"material",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35},w)};
+const ein=()=>{const it=G.meta.find(i=>desc(i).typ==="einstellungen_plus");const w=(it&&desc(it).werte)||{};return Object.assign({gruppe:"hersteller",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35},w)};
 
 /* --- Home Assistant --- */
 const L=()=>window.LAGER;
@@ -4221,7 +4221,7 @@ function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 2
 function body0(){G._allZu=false;
   const E=ein();const all=entries();const sl=slots();const fu=feuchte();
   const imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
-  const sort=G.sort||E.gruppe||"material";const fl=G.f||{};const zeigLeer=G.showLeer??E.leer_zeigen;
+  const sort=G.sort||E.gruppe||"hersteller";const fl=G.f||{};const zeigLeer=G.showLeer??E.leer_zeigen;
   const q=G.q.trim().toLowerCase(),worte=q.split(/\s+/).filter(Boolean);
   const txt=e=>[e.hersteller,e.material,e.farbe,fam(e.hex),...e.besonderheiten,e.fcode,e.bambu_id,...e.codes,...(imFach[e.uid]||[]).map(s=>s.ort)].join(" ").toLowerCase();
   const passt=e=>{if(fl.material&&e.material!==fl.material)return false;if(fl.hersteller&&e.hersteller!==fl.hersteller)return false;if(fl.farbe&&fam(e.hex)!==fl.farbe)return false;
@@ -4933,7 +4933,7 @@ async function serieUebernehmen(codes){const {bekannt}=serieGruppen();const je={
   const n=Object.values(je).reduce((a,j)=>a+j.n,0);toast(plural(n,"Rolle","Rollen")+" ins Lager übernommen");setTimeout(()=>serieModal(),250)}
 
 /* --- Phase 2: Feuchte/Silica, Verbrauch, AMS-Import, gemeinsame Einstellungen (gleiche Daten wie die FilamentLager-Karte) --- */
-const EIN_STD={gruppe:"material",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35,silica_trocknung_h:24,silica_nachlauf_h:6};
+const EIN_STD={gruppe:"hersteller",leer_zeigen:false,knapp_g:0,feuchte_gruen:20,feuchte_warnung:35,silica_trocknung_h:24,silica_nachlauf_h:6};
 const EIN_ZAHLEN=[["feuchte_gruen","Feuchte grün unter","%",1,100,"Darunter ist ein AMS grün"],["feuchte_warnung","Feuchte-Warnung ab","%",1,100,"Ab hier wird ein AMS rot"],
   ["silica_trocknung_h","Trocknungszeit nach Silica-Tausch","h",1,168,"So lange wird nach einem Tausch noch der Tiefpunkt gesucht"],["silica_nachlauf_h","Abkühlzeit nach AMS-Trocknung","h",1,48,"Nach einer Filamenttrocknung im AMS Pro/HT, bis der Tiefpunkt feststeht"],
   ["knapp_g","Bestand knapp unter","g",0,100000,"Sorten darunter bekommen ein rotes „knapp“, 0 = aus"]];
