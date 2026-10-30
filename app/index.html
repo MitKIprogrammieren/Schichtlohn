@@ -3809,12 +3809,12 @@ window.Etikett=(()=>{
   const komma=v=>String(Math.round(v*1000)/1000);
   const n=v=>typeof v==="number"&&v>0;
   /* Alle wählbaren Angaben – Reihenfolge wie in der Auswahl. [Schlüssel, Name in der Auswahl] */
-  const FELDER=[["duese","Düsentemperatur"],["bett","Betttemperatur"],["kammer","Kammertemperatur"],
-    ["trocknen","Trocknen (Temperatur & Zeit)"],["trocknen_c","Trocknungstemperatur"],["trocknen_h","Trocknungszeit"],["getrocknet","Zuletzt getrocknet"],
-    ["flow","Flow-Ratio"],["flowinfo","Flow-Info (max. Volumenstrom & Flow)"],["mvs","Max. Volumenstrom"],["k","Pressure Advance / K-Wert"],
+  const FELDER=[["duese","Düse"],["bett","Bett"],["kammer","Kammer"],
+    ["trocknen","Trocknen (°C & h)"],["trocknen_c","Trocknen °C"],["trocknen_h","Trockenzeit"],["getrocknet","Zuletzt getrocknet"],
+    ["flow","Flow"],["flowinfo","Flow-Info (Vol. & Flow)"],["mvs","Max. Volumenstrom"],["k","K-Wert"],
     ["buegeln","Bügeln (Tempo & Flow)"],["buegeln_flow","Bügel-Flow"],["buegeln_tempo","Bügel-Tempo"],
-    ["schwund","Schwund"],["td","Transmission Distance (TD)"],["ams","AMS-tauglich"],["ams_modelle","AMS-Modelle"],
-    ["sku","Artikelnummer (SKU)"],["id","Filament-ID"],["netto","Nettogewicht"],["leer","Leergewicht"],["rest","Restgewicht"],["ort","Lagerort"],["eigene","Eigene Zeile"]];
+    ["schwund","Schwund"],["td","TD"],["ams","AMS-tauglich"],["ams_modelle","AMS-Modelle"],
+    ["sku","Artikelnummer"],["id","Filament-ID"],["netto","Nettogewicht"],["leer","Leergewicht"],["rest","Restgewicht"],["ort","Lagerort"],["eigene","Eigene Zeile"]];
   const STANDARD_SLOTS=["duese","bett","flow","flowinfo"];
   const STANDARD_FELDER=STANDARD_SLOTS; // ältere Aufrufer
   const TROCKNEN_RICHTWERTE=[[/TPU|TPE/,55,8],[/PETG|PET|PCTG/,65,8],[/ASA|ABS/,80,8],[/PC\b|PC-|POLYCARB/,80,8],[/PA|NYLON|PAHT|PPA/,80,12],[/PVA|BVOH/,50,8],[/PLA/,55,8]];
