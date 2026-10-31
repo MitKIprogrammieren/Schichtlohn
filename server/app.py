@@ -65,7 +65,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.18"
+VERSION = "3.2.19"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -650,6 +650,11 @@ def einstellungen_setzen(neu):
             for kk, v in (neu["preise"].get(k) or {}).items():
                 if kk in ("id", "secret", "key", "tracking") and v != MASKE:
                     pr.setdefault(k, {})[kk] = str(v or "").strip()
+                if kk == "versand":  # Versandpauschale, wenn der Händler keinen Versand nennt
+                    try:
+                        pr.setdefault(k, {})["versand"] = max(0.0, min(50.0, round(float(str(v).replace(",", ".")), 2))) if str(v).strip() else None
+                    except ValueError:
+                        pass
         e["preise"] = pr
     if "fertig_meldung" in neu:
         e["fertig_meldung"] = bool(neu["fertig_meldung"])

@@ -122,18 +122,18 @@ def ebay_angebot(cfg, e):
         p = t.get("price") or {}
         if p.get("currency") != "EUR":
             continue
-        versand = 0.0
+        versand = None  # None = eBay nennt keinen Versand nach DE (die App rechnet dann die Pauschale aus den Einstellungen dazu)
         for v in t.get("shippingOptions") or []:
             k = (v.get("shippingCost") or {})
             if k.get("currency") == "EUR":
                 versand = float(k.get("value") or 0)
                 break
-        summe = float(p.get("value") or 0) + versand
+        summe = float(p.get("value") or 0) + (versand or 0)
         if summe <= 0:
             continue
         pk, gew, n = _je_kg(summe, t.get("title"), e)
         if not beste or pk < beste["pk"]:
-            beste = {"preis": round(summe, 2), "versand": round(versand, 2), "pk": pk, "gew": gew, "stueck": n,
+            beste = {"preis": round(summe, 2), "versand": None if versand is None else round(versand, 2), "pk": pk, "gew": gew, "stueck": n,
                      "titel": t.get("title") or "", "url": t.get("itemWebUrl") or "", "per_ean": per_ean}
     return beste
 
