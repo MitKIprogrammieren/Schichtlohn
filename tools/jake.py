@@ -118,6 +118,8 @@ def main():
             continue
         r = nach_url.get(url)
         if r:  # bekannte Seite: nur Preise und Kennzahlen auffrischen, Serie und Farbe bleiben wie gepflegt
+            if (r.get("ean") and x["ean"] and r["ean"] != x["ean"]) or (x["gewicht_g"] and r.get("gewicht_g") and x["gewicht_g"] != r["gewicht_g"]):
+                continue  # Seite zeigt eine andere Ausführung (z. B. 1 kg statt 3 kg) – deren Preis nicht übernehmen
             r.update({k: x[k] for k in ("preis_eur", "normalpreis_eur") if x[k]})
             if x["ean"] and not r.get("ean"):
                 r["ean"] = x["ean"]
