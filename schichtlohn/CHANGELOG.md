@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.23 – 31.10.2026
+- Bestandsliste: Umschalter, Auswahl, Suche und Spalten-Knöpfe oben sind deutlich kleiner – mehr Platz für die Liste.
+
 ## 3.2.22 – 31.10.2026
 - Handy-Ansicht aufgeräumt: Die Kopfzeile bleibt beim Scrollen deckend, auch mit dem Design „Durchsichtig“ – die Liste scheint nicht mehr durch.
 - Lager: Einkaufsliste, Preisliste, Bestandsliste und Rückblick als gleich breite Knöpfe; Sortierung, Filter und Auf-/Zuklappen in einer Zeile, Scannen bis Filament in einer Reihe.
