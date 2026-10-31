@@ -6220,6 +6220,12 @@ body.rx-einfach #mbar{display:none!important}
 </style>
 <style>.lgbest .lgekbtn{margin-top:10px;display:inline-flex;align-items:center;gap:6px}.lgbest .lgekbtn svg{width:15px;height:15px}.lgbest .lgekbtn b{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;line-height:17px}
 .lgbest .lgmon{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}.lgbest .lgmon b{color:var(--accent)}
+/* Bestand: vier Werte in einer Reihe, der Monatsverbrauch als eigene Zeile darunter (lief sonst über den Kachelrand) */
+.lgtop .dcard.kompakt.lgbest .dvs{display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;gap:10px 16px}
+.lgtop .dcard.kompakt.lgbest .lgmon{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass)}
+.lgtop .dcard.kompakt.lgbest .lgmon span{font-size:12px}.lgtop .dcard.kompakt.lgbest .lgmon b{font-size:14px}
+.lgtop .dcard.kompakt.lgbest .lgmon::after{content:"›";margin-left:auto;color:var(--fg-3);font-size:16px;line-height:1}
+.lgtop .dcard.kompakt.lgbest .lgmon:hover{border-color:var(--line-2)}
 .lgekr{align-items:flex-start}.lgeka{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.lgeka a.btn{text-decoration:none}</style>
 </body>
 </html>
