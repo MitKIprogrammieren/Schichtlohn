@@ -5517,7 +5517,7 @@ function rolleAusAdresse(){if(G.rolleFertig||!G.loaded)return;G.rolleFertig=true
 const PL={d:null,laden:null,f:"alle",q:"",zv:{},wq:"",wu:null,wk:[]};
 const PL_DE_EN={schwarz:"black",weiss:"white","weiß":"white",grau:"gray","grün":"green",gruen:"green",rot:"red",blau:"blue",gelb:"yellow",orange:"orange",lila:"purple",violett:"purple",rosa:"pink",pink:"pink",braun:"brown",beige:"beige",silber:"silver",gold:"gold","türkis":"turquoise",natur:"natural",transparent:"transparent",dunkelgrau:"dark gray",hellgrau:"light gray",dunkelblau:"dark blue",hellblau:"light blue","dunkelgrün":"dark green","hellgrün":"light green",dunkelrot:"dark red",kupfer:"copper",bronze:"bronze",oliv:"olive",anthrazit:"anthracite",elfenbein:"ivory",himmelblau:"sky blue",marineblau:"navy blue",mint:"mint",petrol:"teal"};
 const PL_EN_DE=Object.fromEntries(Object.entries(PL_DE_EN).map(([k,v])=>[v,k]));
-const PL_KW={matte:["matt","matte"],silk:["silk","seide","seiden"],cf:["cf","carbon"],gf:["gf","glass","glasfaser","fibcr"],glow:["glow","leucht","luminous"],marble:["marble","marmor"],wood:["wood","holz"],sparkle:["sparkle","glitzer","galaxy","glitter"],metal:["metal","metallic"],translucent:["translucent","transluzent"],hf:["hf","high speed","hs","rapid","highspeed"],tough:["tough"],dual:["dual","tri","multicolor","rainbow"]};
+const PL_KW={matte:["matt","matte","frosted"],silk:["silk","seide","seiden"],cf:["cf","carbon"],gf:["gf","glass","glasfaser","fibcr"],glow:["glow","leucht","luminous"],marble:["marble","marmor"],wood:["wood","holz"],sparkle:["sparkle","glitzer","galaxy","glitter"],metal:["metal","metallic"],translucent:["translucent","transluzent"],hf:["hf","high speed","hs","rapid","highspeed"],tough:["tough"],dual:["dual","tri","multicolor","rainbow"]};
 const PL_BES={matt:"matte",matte:"matte",seide:"silk",silk:"silk",cf:"cf",gf:"gf",leuchtend:"glow",glow:"glow",marmor:"marble",holz:"wood",glitzer:"sparkle",galaxy:"sparkle",metallic:"metal",transparent:"translucent",translucent:"translucent",hf:"hf","high speed":"hf",tough:"tough","tough+":"tough",dual:"dual",tri:"dual",rainbow:"dual"};
 const PL_STOP=new Set(["filament","1","75","1kg","kg","mm","spule","spool","refill","panchroma","polyterra","polylite","pla","petg","abs","asa","pctg","plax","absx","petgx","asax","tpu","basic","the","and","with","3d","printer"]);
 const PL_ALLKW=new Set(Object.values(PL_KW).flat());
@@ -5553,8 +5553,10 @@ const plZeileFuer=(rows,gw)=>rows.find(r=>r.gew===gw)||rows.find(r=>r.gew===1000
 /* Vorschlag nur, wenn eindeutig: gleiches Material, mindestens eine Übereinstimmung, klar vor dem Zweiten */
 function plVorschlag(e){const k=plKandidaten(e);if(!k.length||k[0].sc<4)return null;if(k[1]&&k[1].sc===k[0].sc)return null;return k[0]}
 /* Was aus der Sorte wird: Material wie im Shop, Fasercodes und Ausführungen (FibCR20, Matt, CF …) als Besonderheiten, der Rest als Farbe */
-function plNeu(e,a){const r=a.best;const teile=String(r.farbeRaw||"").split(/\s+/).filter(Boolean);const bes=[],fa=[];
-  teile.forEach(w=>{(plKws(w).size||/^[a-z]+\d+$/i.test(w)||/^\d+%?$/.test(w)?bes:fa).push(w)});
+function plNeu(e,a){const r=a.best;const teile=String(r.farbeRaw||"").split(/\s+/).filter(Boolean);const fa=[];
+  /* vorhandene Besonderheiten der Sorte (Matt, GF …) bleiben; neue aus dem Shop nur, wenn sie nicht schon da sind („Frosted“ = Matt) */
+  const kwOf=w=>{const k=PL_BES[String(w).toLowerCase()];return k?new Set([k]):plKws(w)};const vorh=[...(e.besonderheiten||[])];const hat=new Set(vorh.flatMap(b=>[...kwOf(b)]));const bes=[...vorh];
+  teile.forEach(w=>{const k=kwOf(w);if(k.size||/^[a-z]+\d+$/i.test(w)||/^\d+%?$/.test(w)){if(k.size&&[...k].every(x=>hat.has(x)))return;if(!bes.some(b=>b.toLowerCase()===w.toLowerCase()))bes.push(w);k.forEach(x=>hat.add(x))}else fa.push(w)});
   const material=plMat(r.matRaw)===plMat(e.material)?e.material:(r.matRaw||e.material);
   const pk=Math.round(r.preis/(r.gew/1000)*100)/100;
   return {material,besonderheiten:bes,farbe:fa.join(" ")||e.farbe,preis:e.preis>0?e.preis:pk,neuPreis:!(e.preis>0),pk,r}}
