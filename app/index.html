@@ -4345,7 +4345,7 @@ async function start(){
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
   try{if(L()&&haDa()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(rolleAusAdresse,200);setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(rolleAusAdresse,200);setTimeout(epAusAdresse,250);setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
@@ -5534,10 +5534,14 @@ function plPasst(e,r){const codes=new Set([...(e.codes||[]),...(e.codes_refill||
   const ef=plKern(e.farbe,e.hersteller);if(!ef.length)return 0;if(!ef.every(w=>plDa(w,r.tw)))return 0;
   const ev=new Set();ef.forEach(w=>{plVar(w).forEach(x=>ev.add(x));if(PL_DE_EN[w])PL_DE_EN[w].split(" ").forEach(x=>ev.add(x))});
   if(r.rf.length&&!r.rf.every(w=>[...plVar(w)].some(x=>ev.has(x))))return 0;return st}
+/* eine Zeile aus preise.json (oder eigene Shoppreise, 12. Feld = Stand) für den Abgleich aufbereiten */
+function plRow(z,d){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e,stand]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));const sd=stand?new Date(stand):null;
+  return {shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),titel:titel+(sd&&!isNaN(sd)?" · übernommen am "+sd.toLocaleDateString("de-DE"):""),mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e}}
 function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return PL.laden;
-  PL.laden=fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).then(d=>{
-    const idx={},ean={};d.z.forEach(z=>{const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));
-      const r={shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),titel,mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e};
+  PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null)]).then(([d,ep])=>{
+    if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
+    if(ep&&ep.z.length){d.shops=Object.assign({},d.shops,ep.shops);d.z=d.z.concat(ep.z)}
+    const idx={},ean={};d.z.forEach(z=>{const r=plRow(z,d),e=r.ean;
       (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
 function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMarke(e.hersteller)]||[])];[...(e.codes||[]),...(e.codes_refill||[])].forEach(c=>(d.ean[String(c)]||[]).forEach(r=>kand.push(r)));
   const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const gw=e.gewicht||1000;const best={};
@@ -5557,7 +5561,7 @@ function plLager(e,a){if(!(e.preis>0))return "";const pr=e.preis*(e.gewicht||100
   if(b){const d=Math.round((e.preis-b.pk)*100)/100;v=Math.abs(d)<.01?`<em class="pllv">gleich wie ${esc(b.shop)}</em>`:d<0?`<em class="pllv gut">${eur(-d)}/kg unter ${esc(b.shop)}</em>`:`<em class="pllv teuer">${eur(d)}/kg über ${esc(b.shop)}</em>`}
   return `<div class="plo pllg" title="Preis aus deinem Lager"><span class="plon"><span class="pllt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/></svg>Lagerpreis</span>${v}</span><span class="plop"><b>${eur(pr)}</b><small>je Rolle · ${kg(e.gewicht||1000)}</small></span><span class="plok">${eur(e.preis)}/kg</span><span class="ploa"></span></div>`}
 function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div class="lgform" id="lgPl">`;
-  if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else{modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
+  if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else{modal("Preisliste",h,`<button class="btn ghost" data-act="epEin" title="Preise von einer geöffneten Shopseite übernehmen, z. B. aus dem Bambu-Store">Preise aus Shopseiten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
     preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(err=>{const b=document.querySelector("#modal #lgPl");if(b)b.innerHTML=`<div class="panel empty">${esc(err.message||String(err))}</div>`});return}
   const alle=entries().map(e=>({e,a:[...preiseFuer(e),...pvAngebote(e.uid,e.gewicht)].sort((x,y)=>x.pk-y.pk)})).sort((x,y)=>String(x.e.hersteller).localeCompare(String(y.e.hersteller),"de")||String(x.e.material).localeCompare(String(y.e.material))||String(x.e.farbe).localeCompare(String(y.e.farbe),"de"));
   const mit=alle.filter(x=>x.a.length).length;const shops={};alle.forEach(x=>x.a.forEach(a=>shops[a.shop]=(shops[a.shop]||0)+1));
@@ -5573,9 +5577,88 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
     h+=`<div class="plz"><div class="pls">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><b>${esc([e.material,...(e.besonderheiten||[])].join(" "))} · ${esc(e.farbe)}</b><small>${kg(e.gewicht)}${e.ausfuehrung==="refill"?" Refill":""} · Bestand ${kg(total(e))}</small></div></div>
       <div class="pla">${plLager(e,a)}${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt?" · "+pvVersandText(o):""}"><span class="plon">${esc(o.shop)}${i===0&&a.length>1?`<i>günstigste</i>`:""}${o.stueck>1||o.gew!==e.gewicht?`<small>${o.stueck>1?o.stueck+" × ":""}${kg(o.gew)}</small>`:""}</span><span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`).join(""):`<span class="plkein">kein Shop-Treffer</span>`}</div></div>`});
   h+=`</div></div>`;const b=document.querySelector("#modal #lgPl");if(b){b.outerHTML=h;return}
-  modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
+  modal("Preisliste",h,`<button class="btn ghost" data-act="epEin" title="Preise von einer geöffneten Shopseite übernehmen, z. B. aus dem Bambu-Store">Preise aus Shopseiten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgPl"))preislisteModal();if(document.querySelector("#modal #lgEk"))einkaufModal()});
 document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plq"){PL.q=ev.target.value;clearTimeout(preislisteModal.t);preislisteModal.t=setTimeout(()=>{const p=ev.target.selectionStart;preislisteModal();const n=document.getElementById("plq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250)}});
+const SL_SHOPKNOPF="(async () => {\nconst B = \"__BASE__\", KURZ = __KURZ__;\nconst num = (v) => {\nif (v == null || v === \"\") return 0;\nif (typeof v === \"number\") return v;\nlet s = String(v).replace(/[^\\d.,]/g, \"\");\nif (/,\\d{1,2}$/.test(s)) s = s.replace(/\\./g, \"\").replace(\",\", \".\");\nelse s = s.replace(/,(?=\\d{3}\\b)/g, \"\").replace(/,/g, \".\");\nreturn parseFloat(s) || 0;\n};\nconst meta = (k) => { const m = document.querySelector('meta[property=\"' + k + '\"],meta[name=\"' + k + '\"],meta[itemprop=\"' + k + '\"]'); return m ? m.getAttribute(\"content\") || \"\" : \"\"; };\nlet T = meta(\"og:title\") || document.title || \"\", C = \"\", V = [];\nconst seen = new Set();\nconst add = (n, p, np, sku, ean) => {\np = num(p); np = num(np);\nif (!(p > 0)) return;\nn = String(n || \"\").replace(/\\s+/g, \" \").trim();\nconst k = n + \"|\" + p;\nif (seen.has(k)) return;\nseen.add(k);\nV.push({ n, p: Math.round(p * 100) / 100, np: np > p ? Math.round(np * 100) / 100 : 0, s: sku ? String(sku) : \"\", e: ean ? String(ean) : \"\" });\n};\nconst walk = (o, f, d) => {\nif (!o || typeof o !== \"object\" || (d = d || 0) > 12) return;\nif (Array.isArray(o)) { o.forEach((x) => walk(x, f, d + 1)); return; }\nf(o);\nfor (const k in o) if (o[k] && typeof o[k] === \"object\") walk(o[k], f, d + 1);\n};\nif (/\\/products\\/[^/?#]+/.test(location.pathname) && (window.Shopify || window.ShopifyAnalytics || document.querySelector('script[src*=\"cdn.shopify.com\"],link[href*=\"cdn.shopify.com\"]'))) {\ntry {\nconst r = await fetch(location.pathname.match(/^.*\\/products\\/[^/?#]+/)[0] + \".js\", { credentials: \"include\" });\nif (r.ok) {\nconst p = await r.json();\nT = p.title || T;\nC = (window.Shopify && Shopify.currency && Shopify.currency.active) || \"\";\n(p.variants || []).forEach((v) => add(v.title === \"Default Title\" ? \"\" : v.title, v.price / 100, (v.compare_at_price || 0) / 100, v.sku, v.barcode));\n}\n} catch (e) {}\n}\nif (!V.length) {\ndocument.querySelectorAll('script[type=\"application/ld+json\"]').forEach((s) => {\nlet j;\ntry { j = JSON.parse(s.textContent); } catch (e) { return; }\nwalk(j, (o) => {\nconst t = [].concat(o[\"@type\"] || []);\nif (t.includes(\"ProductGroup\") && o.name) T = o.name;\nif (!t.includes(\"Product\")) return;\n[].concat(o.offers || []).forEach((x) => {\nif (!x) return;\nconst liste = x.offers ? [].concat(x.offers) : [x];\nliste.forEach((y) => {\nif (!y) return;\nif (y.priceCurrency) C = y.priceCurrency;\nconst ps = y.priceSpecification ? [].concat(y.priceSpecification) : [];\nconst preis = y.price != null ? y.price : (y.lowPrice != null && (y.highPrice == null || num(y.highPrice) === num(y.lowPrice)) ? y.lowPrice : (ps[0] && ps[0].price));\nconst normal = (ps.find((q) => /ListPrice|StrikethroughPrice/i.test(q.priceType || \"\")) || {}).price;\nadd(y.name || o.name, preis, normal, y.sku || o.sku, y.gtin13 || y.gtin || o.gtin13 || o.gtin || o.gtin12);\n});\n});\n});\n});\n}\nif (V.length < 2) {\nconst PK = /^(price|salePrice|sellingPrice|finalPrice|currentPrice|priceAmount|discountPrice)$/i, NK = [\"name\", \"title\", \"skuName\", \"variantName\", \"optionName\", \"displayName\", \"color\", \"colorName\"];\nlet best = null;\ndocument.querySelectorAll('script#__NEXT_DATA__,script[type=\"application/json\"]').forEach((s) => {\nlet j;\ntry { j = JSON.parse(s.textContent); } catch (e) { return; }\nwalk(j, (o) => {\nfor (const k in o) {\nconst a = o[k];\nif (!Array.isArray(a) || a.length < 2) continue;\nconst ok = a.filter((x) => x && typeof x === \"object\" && Object.keys(x).some((q) => PK.test(q)) && NK.some((q) => typeof x[q] === \"string\"));\nif (ok.length >= 2 && (!best || ok.length > best.length)) best = ok;\n}\n});\n});\nif (best) {\nconst roh = best.map((x) => num(x[Object.keys(x).find((q) => PK.test(q))] && typeof x[Object.keys(x).find((q) => PK.test(q))] === \"object\" ? (x[Object.keys(x).find((q) => PK.test(q))].amount || x[Object.keys(x).find((q) => PK.test(q))].value) : x[Object.keys(x).find((q) => PK.test(q))]));\nconst cent = roh.every((p) => p >= 500 && Number.isInteger(p));\nbest.forEach((x, i) => {\nconst n = NK.map((q) => x[q]).filter((q) => typeof q === \"string\").slice(0, 2).join(\" · \");\nconst ok = Object.keys(x).find((q) => /^(originalPrice|listPrice|regularPrice|compareAtPrice|marketPrice)$/i.test(q));\nadd(n, cent ? roh[i] / 100 : roh[i], ok ? (cent ? num(x[ok]) / 100 : x[ok]) : 0, x.sku || x.skuCode || x.id, x.ean || x.gtin || x.barcode);\n});\n}\n}\nif (!V.length) {\nC = meta(\"product:price:currency\") || meta(\"og:price:currency\") || meta(\"priceCurrency\") || C;\nadd(\"\", meta(\"product:price:amount\") || meta(\"og:price:amount\") || meta(\"price\"), 0, \"\", \"\");\n}\nconst F = [];\nif (V.length <= 1) {\nconst sel = '[class*=\"color\" i] [title],[class*=\"color\" i] [aria-label],[class*=\"colour\" i] [aria-label],[class*=\"swatch\" i] [aria-label],[class*=\"swatch\" i] [title],[class*=\"sku\" i] [aria-label],[data-color],[data-colour]';\ndocument.querySelectorAll(sel).forEach((el) => {\nconst n = String(el.getAttribute(\"data-color\") || el.getAttribute(\"data-colour\") || el.getAttribute(\"aria-label\") || el.getAttribute(\"title\") || \"\").replace(/\\s+/g, \" \").trim();\nif (n && n.length <= 40 && !/warenkorb|cart|close|schließen|menü|menu|search|suche|\\d+\\s*(kg|g)\\b|spule|spool|refill/i.test(n) && !F.includes(n)) F.push(n);\n});\n}\nif (!V.length) {\nconst m =\"SchichtLohn: Auf dieser Seite wurde kein Preis gefunden. Öffne die Produktseite einer Filamentsorte und versuche es dort.\";\nif (KURZ) completion(B + (B.indexOf(\"?\") >= 0 ? \"&\" : \"?\") + \"shop=leer\"); else alert(m);\nreturn;\n}\nconst daten = { u: location.href.split(\"#\")[0], h: location.hostname, t: String(T).replace(/\\s+/g, \" \").trim(), c: C || \"EUR\", v: V.slice(0, 120), f: F.slice(0, 40) };\nconst b64 = btoa(unescape(encodeURIComponent(JSON.stringify(daten)))).replace(/\\+/g, \"-\").replace(/\\//g, \"_\").replace(/=+$/, \"\");\nconst ziel = B + (B.indexOf(\"?\") >= 0 ? \"&\" : \"?\") + \"shop=\" + b64;\nif (KURZ) { completion(ziel); return; }\nconst w = window.open(ziel, \"_blank\");\nif (!w) location.href = ziel;\n})();";
+/* ---------- Eigene Shoppreise: „An SchichtLohn senden“ von einer selbst geöffneten Shopseite (Lesezeichen am Mac, Kurzbefehl am iPhone) ---------- */
+const EP={d:null,imp:null,refill:null};
+const EP_MAT=["PLA","PETG","PCTG","PET","ABS","ASA","TPU","TPE","PC","PCABS","PA","PA6","PA12","PAHT","PPA","PPS","PVA","HIPS","PVB","PP","PE","BVOH"];
+async function epLaden(){if(EP.d)return EP.d;let d=null;
+  if(srv())try{const r=await SRV.req("GET","/api/daten/shoppreise_eigen");d=r&&r.wert}catch(e){}
+  if(!d)d=LS.get("shoppreise_eigen");EP.d=d&&Array.isArray(d.z)?d:{shops:{},z:[]};return EP.d}
+async function epSpeichern(d){EP.d=d;LS.set("shoppreise_eigen",d);PL.d=null;PL.laden=null;
+  if(srv())await SRV.req("PUT","/api/daten/shoppreise_eigen",{wert:d,quelle:"shopknopf"})}
+function epShop(h,u){h=String(h||"").toLowerCase().replace(/^www\./,"");let b="";try{b=new URL(u).origin+"/"}catch(x){}
+  return /(^|\.)bambulab\./.test(h)?{k:"bambu",name:"Bambu Lab Store",marke:"Bambu Lab",basis:b}:{k:h.replace(/[^a-z0-9.-]/g,"")||"shop",name:h||"Shop",marke:"",basis:b}}
+const epTitel=t=>String(t||"").replace(/\s*[|–—]\s*.*$/,"").replace(/\s+-\s+(bambu ?lab|store|shop|online).*$/i,"").trim();
+function epMaterial(t){for(const w of String(t||"").toUpperCase().split(/\s+/)){const m=plMat(w);if(EP_MAT.includes(m)||EP_MAT.includes(w.replace(/[^A-Z0-9]/g,"")))return w.replace(/[^A-Z0-9+-]/g,"")}return ""}
+/* Variantenname zerlegen: „ABS-GF - Orange (12300) - Refill - 1 kg“ → Farbe Orange, Refill, 1000 g */
+function epVariante(t,n){n=String(n||"");if(t&&n.toLowerCase().startsWith(t.toLowerCase()))n=n.slice(t.length);
+  let refill=null,gew=0;const farbe=[];
+  n.split(/\s+[-–|·,]\s+|\s*\/\s*|\s*\|\s*/).map(s=>s.trim()).filter(Boolean).forEach(s=>{
+    if(/refill|ohne spule|without spool|nachf[üu]ll/i.test(s)){refill=true;return}
+    if(/spool|spule/i.test(s)){refill=false;return}
+    const g=/^(\d+(?:[.,]\d+)?)\s*(kg|g)$/i.exec(s);if(g){gew=parseFloat(g[1].replace(",","."))*(g[2].toLowerCase()==="kg"?1000:1);return}
+    if(/^[\d.,]+\s*mm$|^1[.,]75$|^2[.,]85$/i.test(s))return;
+    farbe.push(s.replace(/\s*\(\s*[A-Z]?\d{4,6}\s*\)\s*/g," ").replace(/#[0-9a-f]{6}\b/ig,"").trim())});
+  if(!gew){const g=/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i.exec(n);if(g)gew=parseFloat(g[1].replace(",","."))*(g[2].toLowerCase()==="kg"?1000:1)}
+  return {farbe:farbe.filter(Boolean).join(" "),refill,gew:gew>=100&&gew<=10000?gew:1000}}
+/* Daten aus der Adresse (?shop=…) in Zeilen wie in preise.json umrechnen */
+function epZeilen(p,refillWahl){const sh=epShop(p.h,p.u),t=epTitel(p.t),mat=epMaterial(t),heute=new Date().toISOString().slice(0,10);
+  let v=(p.v||[]).map(x=>Object.assign({p:x.p,np:x.np,e:x.e},epVariante(t,x.n)));
+  const gemeinsam=v.length===1&&!v[0].farbe&&(p.f||[]).length>1;
+  if(gemeinsam)v=p.f.map(f=>Object.assign({},v[0],{farbe:f}));
+  const offen=v.some(x=>x.refill===null);
+  const z=v.map(x=>{const rf=x.refill===null?!!refillWahl:x.refill;
+    return [sh.k,sh.marke,[t,x.farbe].filter(Boolean).join(" ")+(rf?" Refill":""),mat,x.farbe||t,x.gew,rf?1:0,x.p,x.np>x.p?x.np:x.p,p.u,x.e||"",heute]});
+  return {sh,t,mat,z,gemeinsam,offen}}
+/* passende Sorte im Lager zu einer Zeile (gleiche Regeln wie in der Preisliste) */
+function epSorte(z){const r=plRow(z,{shops:{}});return entries().find(e=>{const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);return r.refill===refill&&plPasst(e,r)>0})||null}
+function epAusAdresse(){if(EP.fertig)return;let s="";try{s=new URLSearchParams(location.search).get("shop")||""}catch(x){}
+  if(!s)try{s=new URLSearchParams(top.location.search).get("shop")||""}catch(x){}
+  if(!s)return;EP.fertig=true;try{const u=new URL(location.href);if(u.searchParams.has("shop")){u.searchParams.delete("shop");history.replaceState(null,"",u.pathname+u.search+u.hash)}}catch(x){}
+  if(s==="leer"){toast("Auf der Shopseite wurde kein Preis gefunden");return}
+  try{const j=decodeURIComponent(escape(atob(s.replace(/-/g,"+").replace(/_/g,"/"))));EP.imp=JSON.parse(j);EP.refill=null}catch(x){toast("Shopdaten ließen sich nicht lesen");return}
+  epImportModal()}
+function epImportModal(){const p=EP.imp;if(!p)return;const a=epZeilen(p,EP.refill);if(EP.refill===null)EP.refill=false;
+  const treffer=a.z.map(epSorte),n=treffer.filter(Boolean).length;
+  let h=`<div class="lgform" id="epImp"><div class="epkopf"><span class="epshop">${esc(a.sh.name)}</span><b>${esc(a.t||"Produkt")}</b>
+    <small>${a.z.length} ${a.z.length===1?"Preis":"Farben"}${a.gemeinsam?" · ein Preis für alle Farben auf der Seite":""} · ${n} davon im Lager</small></div>`;
+  if(a.offen)h+=`<div class="eprf"><span>Ausführung</span><div class="lgtg"><button type="button" class="chip${!EP.refill?" on":""}" data-act="epRf" data-v="0">Mit Spule</button><button type="button" class="chip${EP.refill?" on":""}" data-act="epRf" data-v="1">Refill</button></div></div>`;
+  h+=`<div class="eplist">${a.z.map((z,i)=>{const e=treffer[i],pk=z[7]/(z[5]/1000);
+    return `<label class="eprow${e?" hit":""}"><input type="checkbox" data-epi="${i}" checked><span class="epf"><b>${esc(z[4])}</b><small>${kg(z[5])}${z[6]?" · Refill":" · mit Spule"}</small></span>
+      <span class="eptr">${e?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>${esc([e.material,...(e.besonderheiten||[])].join(" ")+" · "+e.farbe)}`:"nicht im Lager"}</span>
+      <span class="plop">${z[8]>z[7]?`<s>${eur(z[8])}</s>`:""}<b>${eur(z[7])}</b><small>${eur(Math.round(pk*100)/100)}/kg</small></span></label>`}).join("")}</div>
+    <p class="hint epfuss">Ältere Preise derselben Sorte aus diesem Shop werden ersetzt. Die Preise erscheinen danach in der Preisliste neben den anderen Shops.</p></div>`;
+  const foot=`<button class="btn ghost" data-act="close">Abbrechen</button><span class="sp"></span><button class="btn pri" data-act="epOk">${a.z.length===1?"Preis":a.z.length+" Preise"} übernehmen</button>`;
+  const b=document.querySelector("#modal #epImp");if(b){b.outerHTML=h;const f=document.querySelector("#modal footer");if(f)f.innerHTML=foot;return}
+  modal("Preise übernehmen",h,foot)}
+async function epUebernehmen(){const p=EP.imp;if(!p)return;const a=epZeilen(p,EP.refill);
+  const aus=new Set([...document.querySelectorAll("#epImp [data-epi]")].filter(x=>!x.checked).map(x=>+x.dataset.epi));const neu=a.z.filter((z,i)=>!aus.has(i));
+  if(!neu.length){toast("Keine Farbe ausgewählt");return}
+  const d=JSON.parse(JSON.stringify(await epLaden()));const key=z=>[z[0],String(z[2]).toLowerCase(),z[5],z[6]].join("|");const ks=new Set(neu.map(key));
+  d.z=d.z.filter(z=>!ks.has(key(z))).concat(neu);d.shops[a.sh.k]=[a.sh.name,a.sh.basis];
+  try{await epSpeichern(d);closeModal();EP.imp=null;toast(neu.length===1?"Preis übernommen":neu.length+" Preise übernommen");if(S.tab!=="lager"){S.tab="lager";window.render&&window.render()}setTimeout(preislisteModal,350)}
+  catch(err){toast("Speichern fehlgeschlagen: "+(err.message||err))}}
+/* Einrichtung: Knopf für Mac (Lesezeichen) und iPhone (Kurzbefehl), gespeicherte Shoppreise */
+function epCode(kurz){return SL_SHOPKNOPF.replace("__BASE__",rolleBasis().replace(/["\\]/g,"")).replace("__KURZ__",kurz?"1":"0")}
+async function epEinrichtenModal(){const d=await epLaden();const st={};d.z.forEach(z=>{const s=st[z[0]]=st[z[0]]||{n:0,stand:""};s.n++;if((z[11]||"")>s.stand)s.stand=z[11]||""});
+  const ziel=rolleBasis(),lokal=/^http:\/\/(\d+\.|homeassistant|[a-z0-9-]+\.local)/i.test(ziel);
+  const datum=s=>{const x=new Date(s);return isNaN(x)?"":x.toLocaleDateString("de-DE",{day:"numeric",month:"short"})};
+  const h=`<div class="lgform" id="epEin"><p style="margin:0">Öffne im Browser die Produktseite einer Filamentsorte – zum Beispiel im Bambu-Store, gern auch angemeldet – und tippe dort den Knopf. SchichtLohn liest Farben und Preise von der Seite und zeigt sie dir zum Übernehmen. Im Hintergrund läuft nichts.</p>
+    <section class="epbox"><h3>Mac</h3><div class="epmac"><a class="btn pri epknopf" href="javascript:${esc(encodeURIComponent(epCode(false)))}" draggable="true" onclick="event.preventDefault();toast('In die Lesezeichenleiste ziehen')">→ SchichtLohn</a><span>Den Knopf in die Lesezeichenleiste ziehen. Auf der Shopseite dann einmal darauf klicken.</span></div></section>
+    <section class="epbox"><h3>iPhone</h3><ol class="epsteps"><li>App <b>Kurzbefehle</b> öffnen, neuen Kurzbefehl anlegen, Name „An SchichtLohn senden“.</li><li>In den Details <b>Im Share-Sheet anzeigen</b> einschalten, Eingabe: Safari-Webseiten.</li><li>Aktion <b>JavaScript auf Webseite ausführen</b> hinzufügen und den Code einfügen:</li></ol>
+      <button type="button" class="btn" data-act="epKopie">Code für den Kurzbefehl kopieren</button><ol class="epsteps" start="4"><li>Darunter die Aktion <b>URLs öffnen</b> hinzufügen. Fertig: In Safari auf der Shopseite Teilen → „An SchichtLohn senden“.</li></ol></section>
+    <p class="hint" style="margin:0">Der Knopf öffnet SchichtLohn unter <b>${esc(ziel)}</b>.${lokal?" Diese Adresse geht nur im Heimnetz – für unterwegs unter Einstellungen die Tailscale-Adresse als „Adresse im QR-Code“ eintragen und den Knopf neu anlegen.":""}</p>
+    ${Object.keys(st).length?`<section class="epbox"><h3>Übernommene Preise</h3>${Object.entries(st).map(([k,s])=>`<div class="epgesp"><span><b>${esc((d.shops[k]||[k])[0])}</b><small>${s.n} Preise${s.stand?" · Stand "+datum(s.stand):""}</small></span><button type="button" class="btn ghost" data-act="epDel" data-k="${esc(k)}">Löschen</button></div>`).join("")}</section>`:""}</div>`;
+  modal("Preise aus Shopseiten",h,`<span class="sp"></span><button class="btn ghost" data-act="lgPreise">Zur Preisliste</button>`)}
+document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+  if(a==="epRf"){EP.refill=b.dataset.v==="1";epImportModal();return}
+  if(a==="epOk"){epUebernehmen();return}
+  if(a==="epEin"){epEinrichtenModal();return}
+  if(a==="epKopie"){const c=epCode(true);(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast("Code kopiert")).catch(()=>{const t=document.createElement("textarea");t.value=c;document.body.appendChild(t);t.select();try{document.execCommand("copy");toast("Code kopiert")}catch(x){toast("Kopieren nicht möglich")}t.remove()});return}
+  if(a==="epDel"){const k=b.dataset.k;confirmBox("Alle übernommenen Preise dieses Shops löschen?","Löschen",async()=>{const d=JSON.parse(JSON.stringify(await epLaden()));d.z=d.z.filter(z=>z[0]!==k);delete d.shops[k];try{await epSpeichern(d);toast("Gelöscht");setTimeout(epEinrichtenModal,300)}catch(err){toast("Löschen fehlgeschlagen")}});return}});
 /* ---------- Bestandsliste: interaktiv ansehen, Inventur machen, drucken ---------- */
 function dunkelAktiv(){try{const c=getComputedStyle(document.body).backgroundColor;let m=c.match(/[\d.]+/g);
   if(!m||(m.length>3&&+m[3]===0)){const x=document.querySelector(".modal")||document.querySelector(".panel");m=x?getComputedStyle(x).backgroundColor.match(/[\d.]+/g):null}
@@ -5955,6 +6038,20 @@ body.rx-einfach #mbar{display:none!important}
 .pllt{display:inline-flex;align-items:center;gap:5px}.pllt svg{width:14px;height:14px;color:var(--fg-3)}
 .pllv{font-style:normal;font-size:11px;font-weight:600;color:var(--fg-3)}.pllv.gut{color:var(--good)}.pllv.teuer{color:var(--warn)}
 .plo.pllg+.plkein{border-top:1px solid var(--line)}
+.epkopf{display:flex;flex-direction:column;gap:2px}.epkopf b{font-size:17px}.epkopf small{color:var(--fg-3);font-size:12.5px}
+.epshop{font:700 11px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.eprf{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--fg-2)}.eprf .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.eplist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);overflow:hidden}
+.eprow{display:grid;grid-template-columns:20px minmax(0,1fr) auto;grid-template-areas:"c f p" "c t p";gap:2px 10px;align-items:center;padding:9px 12px;cursor:pointer}
+.eprow+.eprow{border-top:1px solid var(--line)}.eprow input{grid-area:c;margin:0;accent-color:var(--accent)}
+.epf{grid-area:f;min-width:0}.epf b{font-size:14px}.epf small{color:var(--fg-3);font-size:12px;margin-left:6px}
+.eptr{grid-area:t;display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--fg-3);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.eptr svg{width:13px;height:13px;flex:none}
+.eprow.hit .eptr{color:var(--good)}.eprow .plop{grid-area:p}
+.epfuss{margin:0}
+.epbox{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass)}.epbox h3{margin:0;font-size:14px}
+.epmac{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:13px;color:var(--fg-2)}.epmac span{flex:1;min-width:180px}.epknopf{cursor:grab;text-decoration:none!important}
+.epsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--fg-2)}.epbox>.btn{align-self:flex-start}
+.epgesp{display:flex;align-items:center;justify-content:space-between;gap:10px}.epgesp span{display:flex;flex-direction:column}.epgesp small{color:var(--fg-3);font-size:12px}
 @media (min-width:760px){.plz{display:grid;grid-template-columns:minmax(220px,1fr) 1.4fr;align-items:center}.pla{border-top:0;border-left:1px solid var(--line);margin:-10px -12px -10px 0;align-self:stretch;justify-content:center}}
 .dsstile{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
 .dss{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:transparent;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
