@@ -5646,20 +5646,24 @@ function epMarke(h,t,marke){const lager=[...new Set(entries().map(e=>e.herstelle
 const epTitel=t=>String(t||"").replace(/\s*[|–—]\s*.*$/,"").replace(/\s+-\s+(bambu ?lab|store|shop|online).*$/i,"").trim();
 function epMaterial(t){for(const w of String(t||"").toUpperCase().split(/\s+/)){const m=plMat(w);if(EP_MAT.includes(m)||EP_MAT.includes(w.replace(/[^A-Z0-9]/g,"")))return w.replace(/[^A-Z0-9+-]/g,"")}return ""}
 /* Variantenname zerlegen: „ABS-GF - Orange (12300) - Refill - 1 kg“ → Farbe Orange, Refill, 1000 g */
+/* Gewicht aus einem Text: „1 kg“, „1.000g“ (Tausenderpunkt), „5x 1.000g Bundle“ (= 5 kg), „L (1000g)“ → Gramm, sonst 0 */
+function epGew(s){const m=/(?:(\d+)\s*[x×]\s*)?(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\s*(kg|g)\b/i.exec(String(s||""));if(!m)return 0;
+  const kg=m[3].toLowerCase()==="kg";let z=m[2];z=!kg&&/^\d{1,3}([.,]\d{3})+$/.test(z)?z.replace(/[.,]/g,""):z.replace(",",".");
+  return Math.round(parseFloat(z)*(kg?1000:1)*(m[1]?+m[1]:1))}
 function epVariante(t,n){n=String(n||"");if(t&&n.toLowerCase().startsWith(t.toLowerCase()))n=n.slice(t.length);
   let refill=null,gew=0;const farbe=[];
   n.split(/\s+[-–|·]\s+|\s*,\s+|\s*\/\s*|\s*\|\s*/).map(s=>s.trim()).filter(Boolean).forEach(s=>{
     if(/refill|ohne spule|without spool|nachf[üu]ll/i.test(s)){refill=true;return}
-    if(/spool|spule/i.test(s)){refill=false;return}
-    const g=/^(\d+(?:[.,]\d+)?)\s*(kg|g)$/i.exec(s);if(g){gew=parseFloat(g[1].replace(",","."))*(g[2].toLowerCase()==="kg"?1000:1);return}
+    if(/spool|spule/i.test(s)&&!epGew(s)){refill=false;return}
     if(/^[\d.,]+\s*mm$|^1[.,]75$|^2[.,]85$/i.test(s))return;
     if(/filament|printer|drucker|1[.,]75\s*mm|2[.,]85\s*mm/i.test(s)){  /* „Galaxy PETG 3D Printer Filament 1.75mm“ ist keine Farbe, „PETG-Filament Schwarz“ enthält eine */
-      const tw=new Set(plN(t));const rest=s.replace(/filament|printer|drucker|1[.,]75\s*mm|2[.,]85\s*mm/gi," ").split(/[\s\-–,]+/).filter(w=>{const k=plN(w)[0];return k&&!tw.has(k)&&!PL_STOP.has(k)});
+      if(!gew)gew=epGew(s);
+      const tw=new Set(plN(t));const rest=s.replace(/filament|printer|drucker|1[.,]75\s*mm|2[.,]85\s*mm/gi," ").split(/[\s\-–,]+/).filter(w=>{const k=plN(w)[0];return k&&!tw.has(k)&&!PL_STOP.has(k)&&!/^\d/.test(w)});
       if(!rest.length)return;s=rest.join(" ")}
-    {const g2=/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i.exec(s);if(g2){if(!gew)gew=parseFloat(g2[1].replace(",","."))*(g2[2].toLowerCase()==="kg"?1000:1);return}}  /* „L (1000g)“ ist eine Spulengröße, keine Farbe */  /* Produktbeschreibung wie „Galaxy PETG 3D Printer Filament 1.75mm“ ist keine Farbe */
+    {const g=epGew(s);if(g){if(!gew)gew=g;return}}  /* „1.000g“, „5x 1.000g Bundle“, „L (1000g)“: Menge bzw. Spulengröße, keine Farbe */
     farbe.push(s.replace(/\s*\(\s*[A-Z]?\d{4,6}\s*\)\s*/g," ").replace(/#[0-9a-f]{6}\b/ig,"").trim())});
-  if(!gew){const g=/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i.exec(n);if(g)gew=parseFloat(g[1].replace(",","."))*(g[2].toLowerCase()==="kg"?1000:1)}
-  return {farbe:farbe.filter(Boolean).join(" "),refill,gew:gew>=100&&gew<=10000?gew:1000}}
+  if(!gew)gew=epGew(n);
+  return {farbe:farbe.filter(Boolean).join(" "),refill,gew:gew>=100&&gew<=25000?gew:1000}}
 /* Daten aus der Adresse (?shop=…) in Zeilen wie in preise.json umrechnen */
 function epZeilen(p,refillWahl){const sh=epShop(p.h,p.u,p.t,p.b),t=epTitel(p.t),mat=epMaterial(t),heute=new Date().toISOString().slice(0,10);
   let v=(p.v||[]).map(x=>Object.assign({p:x.p,np:x.np,e:x.e},epVariante(t,x.n)));
@@ -5689,15 +5693,17 @@ async function epLesen(s){const bytes=b=>{b=b.replace(/-/g,"+").replace(/_/g,"/"
   d.v=d.v.map(x=>Array.isArray(x)?{n:x[0]||"",p:+x[1]||0,np:+x[2]||0,e:x[3]||""}:x);return d}
 function epImportModal(){const p=EP.imp;if(!p)return;const a=epZeilen(p,EP.refill);if(EP.refill===null)EP.refill=false;
   const treffer=a.z.map(epSorte),n=treffer.filter(Boolean).length;
+  /* Großpackungen (5 × 1 kg, 5 kg …) vorab abwählen, wenn es dieselbe Farbe auch als 1-kg-Rolle gibt */
+  const mit1kg=new Set(a.z.filter(z=>z[5]===1000).map(z=>z[4]+"|"+z[6]));const vorAus=new Set(a.z.map((z,i)=>z[5]>1000&&mit1kg.has(z[4]+"|"+z[6])?i:-1).filter(i=>i>=0));
   let h=`<div class="lgform" id="epImp"><div class="epkopf"><span class="epshop">${esc(a.sh.name)}</span><b>${esc(a.t||"Produkt")}</b>
-    <small>${a.z.length} ${a.z.length===1?"Preis":"Farben"}${a.gemeinsam?" · ein Preis für alle Farben auf der Seite":""} · ${n} davon im Lager</small></div>`;
+    <small>${a.z.length} ${a.z.length===1?"Preis":"Preise"}${a.gemeinsam?" · ein Preis für alle Farben auf der Seite":""} · ${n} davon im Lager${vorAus.size?` · ${vorAus.size} Großpackungen abgewählt`:""}</small></div>`;
   if(a.offen)h+=`<div class="eprf"><span>Ausführung</span><div class="lgtg"><button type="button" class="chip${!EP.refill?" on":""}" data-act="epRf" data-v="0">Mit Spule</button><button type="button" class="chip${EP.refill?" on":""}" data-act="epRf" data-v="1">Refill</button></div></div>`;
   h+=`<div class="eplist">${a.z.map((z,i)=>{const e=treffer[i],pk=z[7]/(z[5]/1000);
-    return `<label class="eprow${e?" hit":""}"><input type="checkbox" data-epi="${i}" checked><span class="epf"><b>${esc(z[4])}</b><small>${kg(z[5])}${z[6]?" · Refill":" · mit Spule"}</small></span>
+    return `<label class="eprow${e?" hit":""}"><input type="checkbox" data-epi="${i}"${vorAus.has(i)?"":" checked"}><span class="epf"><b>${esc(z[4])}</b><small>${kg(z[5])}${z[6]?" · Refill":" · mit Spule"}</small></span>
       <span class="eptr">${e?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>${esc([e.material,...(e.besonderheiten||[])].join(" ")+" · "+e.farbe)}`:"nicht im Lager"}</span>
       <span class="plop">${z[8]>z[7]?`<s>${eur(z[8])}</s>`:""}<b>${eur(z[7])}</b><small>${eur(Math.round(pk*100)/100)}/kg</small></span></label>`}).join("")}</div>
     <p class="hint epfuss">Ältere Preise derselben Sorte aus diesem Shop werden ersetzt. Die Preise erscheinen danach in der Preisliste neben den anderen Shops.</p></div>`;
-  const foot=`<button class="btn ghost" data-act="close">Abbrechen</button><span class="sp"></span><button class="btn pri" data-act="epOk">${a.z.length===1?"Preis":a.z.length+" Preise"} übernehmen</button>`;
+  const foot=`<button class="btn ghost" data-act="close">Abbrechen</button><span class="sp"></span><button class="btn pri" data-act="epOk">${a.z.length-vorAus.size===1?"Preis":(a.z.length-vorAus.size)+" Preise"} übernehmen</button>`;
   const b=document.querySelector("#modal #epImp");if(b){b.outerHTML=h;const f=document.querySelector("#modal footer");if(f)f.innerHTML=foot;return}
   modal("Preise übernehmen",h,foot)}
 async function epUebernehmen(){const p=EP.imp;if(!p)return;const a=epZeilen(p,EP.refill);
