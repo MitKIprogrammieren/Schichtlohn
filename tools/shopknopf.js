@@ -161,7 +161,15 @@
     }
   } catch (e) { wert = ""; }
   if (!wert) wert = "1j" + b64u(roh);
-  const ziel = B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=" + wert;
+  let ziel = B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=" + wert;
+  /* bevorzugt: Daten direkt beim SchichtLohn-Server ablegen, die Adresse trägt dann nur „srv“ – iOS kürzt lange Adressen */
+  try {
+    const o = new URL(B, location.href);
+    if (o.protocol === "https:" || location.protocol === "http:") {
+      const r = await fetch(o.origin + "/api/daten/shopknopf", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wert: daten, quelle: "shopknopf" }) });
+      if (r.ok) ziel = B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=srv" + Date.now().toString(36);
+    }
+  } catch (e) {}
   if (KURZ) { completion(ziel); return; }
   const w = window.open(ziel, "_blank");
   if (!w) location.href = ziel;
