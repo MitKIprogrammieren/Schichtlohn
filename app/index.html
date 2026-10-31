@@ -5305,7 +5305,8 @@ document.addEventListener("click",async e=>{
   if(a==="lgBlOk"){const u=b.dataset.uid,i=BL.ist[u]||{};const cell=b.closest(".blic");if(i.ok||i.g!=null){delete BL.ist[u];const inp=cell&&cell.querySelector("input");if(inp)inp.value=""}else BL.ist[u]={ok:true};blSave();blZelle(cell,u);return}
   if(a==="lgBlReset"){confirmBox("Alle Inventur-Einträge (Häkchen und Ist-Mengen) verwerfen? Am Lager ändert sich nichts.","Verwerfen",()=>{BL.ist={};blSave();setTimeout(()=>bestandModal(),50)});return}
   if(a==="lgBlUebern"){blUebernehmen();return}
-  if(a==="lgBlDruck"){blDrucken();return}
+  if(a==="lgBlDruck"){if(blMobil())blPdfTeilen();else blDrucken();return}
+  if(a==="lgBlPdf"){blPdfTeilen();return}
   if(a==="lgPlF"){PL.f=b.dataset.f;preislisteModal();return}
   if(a==="lgRbJahr"){G.rbJahr=Number(b.dataset.j);rueckblickModal();return}
   if(a==="lgEtikett"){const uid=(G.form&&G.form.uid)||(G.hit&&G.hit.uid);if(uid)etikettModal(uid);return}
@@ -5646,10 +5647,102 @@ function bestandModal(){shopPreiseHolen();if(S.srv&&!PV.d)pvLaden();
   </div><div class="blctl"><div class="lgtg" role="group" aria-label="Spalten">${ch(BL.sp.werte,"lgBlSp","werte","Druckwerte")}${ch(BL.sp.ort,"lgBlSp","ort","Ort")}${ch(BL.sp.preis,"lgBlSp","preis","Preis")}${ch(BL.sp.code,"lgBlSp","code","Code")}${ch(BL.leer,"lgBlLeer","1","Aufgebrauchte")}</div><span class="sp"></span><div class="lgtg">${ch(BL.inv,"lgBlInv","1","✓ Inventur")}</div></div>
   ${BL.inv?`<div class="hint blhint">Ist-Menge in Gramm eintragen oder mit ✓ als richtig abhaken. Leer gelassen = nicht geprüft. Geänderte Mengen schreibt „Übernehmen“ ins Lager.</div>`:""}
   <div class="blprev"><div class="blp blpage">${blSeite(true)}</div></div></div>`;
-  const foot=`${BL.inv&&Object.keys(BL.ist).length?`<button class="btn ghost" data-act="lgBlReset">Inventur leeren</button>`:""}<span class="sp"></span>${BL.inv?`<button class="btn" data-act="lgBlUebern"${n?"":" disabled"}>Übernehmen${n?` (${n})`:""}</button>`:""}<button class="btn pri" data-act="lgBlDruck">Drucken</button>`;
+  const foot=`${BL.inv&&Object.keys(BL.ist).length?`<button class="btn ghost" data-act="lgBlReset">Inventur leeren</button>`:""}<span class="sp"></span>${BL.inv?`<button class="btn" data-act="lgBlUebern"${n?"":" disabled"}>Übernehmen${n?` (${n})`:""}</button>`:""}<button class="btn" data-act="lgBlPdf">PDF</button><button class="btn pri" data-act="lgBlDruck">Drucken</button>`;
   const alt=document.querySelector("#modal #lgBl");
   if(alt){const sc=alt.querySelector(".blprev");const top=sc?sc.scrollTop:0;alt.outerHTML=h;const f=document.querySelector("#modal footer");if(f)f.innerHTML=foot;const sc2=document.querySelector("#modal .blprev");if(sc2)sc2.scrollTop=top;return}
   modal("Bestandsliste",h,foot);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide","blwide")}
+/* Bestandsliste als echtes PDF (jsPDF, Vektor): fürs Handy und die Home-Assistant-App, wo Drucken aus der Seite nicht geht */
+function blPdf(){
+  if(!window.jspdf){toast("PDF-Modul nicht geladen. Prüfe die Internetverbindung.");return null}
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4"});
+  const {all,list,gruppen,imFach}=blDaten();const sp=BL.sp,check=BL.fmt==="check";
+  const W=210,H=297,L=10,R=200,UNT=284;const st=new Date();
+  const rgb=h=>{const c=fHex(h);return [1,3,5].map(i=>parseInt(c.slice(i,i+2),16))};
+  const grau=[107,114,128],hell=[154,161,171],linie=[236,238,241],dunkel=[29,31,35],gruen=[30,150,85];
+  const T=(t,x,y,o={})=>{doc.setFont("helvetica",o.b?"bold":"normal");doc.setFontSize(o.s||8);doc.setTextColor(...(o.c||dunkel));
+    let s=String(t??"").replace(/[−]/g,"-").replace(/[^\x20-\x7E -ÿ€–„“”‚‘’…•]/g,"");
+    if(o.w){while(s.length>1&&doc.getTextWidth(s)>o.w)s=s.slice(0,-2)+"…"}doc.text(s,x,y,o.a?{align:o.a}:undefined);return doc.getTextWidth(s)};
+  const kgT=g=>kg(g).replace(/ /g," ");
+  const spule=(x,y,s,hex)=>{const c=rgb(hex),k=s/9;const cx=x+3.6*k,cy=y+4.5*k,rx=2.4*k,ry=3.9*k,d=1.7*k;
+    doc.setLineWidth(.15);doc.setDrawColor(125,133,145);doc.setFillColor(43,47,53);doc.ellipse(cx+d,cy,rx,ry,"FD");
+    doc.setFillColor(...c);doc.rect(cx,cy-ry*.9,d,ry*1.8,"F");
+    doc.setDrawColor(163,171,182);doc.setFillColor(51,55,62);doc.ellipse(cx,cy,rx,ry,"FD");
+    doc.setFillColor(...c);doc.ellipse(cx,cy,rx*.88,ry*.9,"F");doc.setFillColor(75,80,88);doc.ellipse(cx,cy,rx*.55,ry*.55,"F");doc.setFillColor(29,32,36);doc.ellipse(cx,cy,rx*.27,ry*.27,"F")};
+  const haken=(x,y)=>{doc.setDrawColor(...gruen);doc.setLineWidth(.5);doc.line(x+1,y+2.4,x+1.9,y+3.3);doc.line(x+1.9,y+3.3,x+3.6,y+1.3)};
+  const kasten=(x,y)=>{doc.setDrawColor(...hell);doc.setLineWidth(.25);doc.roundedRect(x,y,4.4,4.4,.6,.6,"S")};
+  const chips=(x,y,e,max)=>{let cx=x;e.besonderheiten.forEach(b=>{doc.setFontSize(5.6);doc.setFont("helvetica","bold");const w=doc.getTextWidth(b)+2.2;if(cx+w>x+max)return;
+    const d=/^(cf|gf)$/i.test(b);doc.setLineWidth(.2);doc.setDrawColor(...(d?dunkel:[201,206,212]));doc.setFillColor(...(d?dunkel:[255,255,255]));doc.roundedRect(cx,y-2.5,w,3.1,.6,.6,"FD");
+    T(b,cx+1.1,y-.2,{s:5.6,b:1,c:d?[255,255,255]:[55,65,81]});cx+=w+1});return cx-x};
+  const istWerte=e=>{const i=BL.ist[e.uid]||{};const t=total(e);return {i,t,diff:i.g!=null&&Math.round(i.g)!==Math.round(t)?i.g-t:0}};
+  /* Spalten der Tabelle: Breiten in mm, Name bekommt den Rest */
+  const cols=[["sp",8],["nm",0],["spu",18,"r"],["bs",22],...(sp.werte?[["w",25]]:[]),...(sp.ort?[["ort",18]]:[]),...(sp.preis?[["pr",17,"r"]]:[]),...(sp.code?[["cd",24]]:[]),["ist",13,"c"]];
+  const rest=R-L-cols.reduce((a,c)=>a+c[1],0);cols.find(c=>c[0]==="nm")[1]=rest;
+  const X={};let xx=L;cols.forEach(c=>{X[c[0]]={x:xx,w:c[1],a:c[2]};xx+=c[1]});
+  let wL=0,wM=0;const voll=list.filter(e=>e.spulen>0);voll.forEach(e=>{const p=preisVon(e);if(p){const w=p.pk*total(e)/1000;if(p.q==="lager")wL+=w;else wM+=w}});
+  const sumSp=voll.reduce((a,e)=>a+e.spulen,0),sumRf=voll.reduce((a,e)=>a+Math.min(e.refills,e.spulen),0),sumG=voll.reduce((a,e)=>a+total(e),0);
+  const gepr=list.filter(e=>BL.ist[e.uid]&&(BL.ist[e.uid].ok||BL.ist[e.uid].g!=null)).length;
+  let y=0;
+  const kopfzeile=()=>{if(check){y+=2;return}doc.setDrawColor(201,206,212);doc.setLineWidth(.25);
+    const h=[["nm","Filament · Farbe"],["spu","Spulen"],["bs","Bestand"],["w","Druckwerte"],["ort","Ort"],["pr","€/kg"],["cd","Code"],["ist","Ist"]];
+    h.forEach(([k,t])=>{const c=X[k];if(!c)return;const tx=c.a==="r"?c.x+c.w-1:c.a==="c"?c.x+c.w/2:c.x+1;T(t.toUpperCase(),tx,y+3,{s:5.8,b:1,c:grau,a:c.a==="r"?"right":c.a==="c"?"center":undefined})});
+    doc.line(L,y+4.6,R,y+4.6);y+=5.6};
+  const neueSeite=()=>{doc.addPage();y=12;kopfzeile()};
+  /* Kopf */
+  doc.setFillColor(29,31,35);doc.roundedRect(L,10,10,10,2,2,"F");doc.setFillColor(25,211,107);for(let i=0;i<5;i++)doc.rect(L+2.2,12.3+i*1.15,5.6-(i%2)*.8,.65,"F");
+  T("SCHICHTLOHN · FILAMENTLAGER",L+13,13.4,{s:6.6,b:1,c:grau});T(check?"Inventurliste":"Filamentbestand",L+13,19.2,{s:15,b:1});
+  T(`Stand ${st.toLocaleDateString("de-DE")}, ${st.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr`,R,13.6,{s:7,c:grau,a:"right"});
+  T(`sortiert nach ${{hersteller:"Marke",material:"Material",farbe:"Farbe",bestand:"Bestand"}[BL.sort]}${BL.q.trim()?` · Suche „${BL.q.trim()}“`:""}`,R,17.4,{s:7,c:grau,a:"right"});
+  doc.setDrawColor(25,184,93);doc.setLineWidth(.6);doc.line(L,22.4,R,22.4);
+  const kz=[[String(list.length),"SORTEN"],[String(sumSp),"SPULEN"+(sumRf?` · ${sumRf} REFILL`:"")],[kgT(sumG),"BESTAND"],
+    (BL.inv||gepr)?[`${gepr}/${list.length}`,"GEPRÜFT"]:[String(voll.filter(e=>e.reste.length).length),"ANGEBROCHEN"],[wL+wM>0?Math.round(wL+wM).toLocaleString("de-DE")+" €":"–","LAGERWERT*"]];
+  const kw=(R-L-4*2.5)/5;kz.forEach(([v,t],i)=>{const x=L+i*(kw+2.5);doc.setDrawColor(227,230,234);doc.setLineWidth(.25);doc.roundedRect(x,25,kw,11.5,1.4,1.4,"S");T(v,x+2.5,30.6,{s:11.5,b:1});T(t,x+2.5,34.4,{s:5.6,c:grau})});
+  y=40;kopfzeile();
+  if(!list.length)T("Keine Sorten für diese Auswahl.",W/2,y+10,{c:grau,a:"center"});
+  gruppen.forEach(([k,arr])=>{
+    if(y+6+(check?7:9.5)>UNT)neueSeite();
+    doc.setFillColor(241,248,244);doc.rect(L,y,R-L,5.6,"F");doc.setDrawColor(207,233,219);doc.setLineWidth(.2);doc.line(L,y+5.6,R,y+5.6);
+    T(k,L+1.6,y+3.9,{s:8,b:1,w:90});T(`${plural(arr.length,"Sorte","Sorten")} · ${plural(arr.reduce((a,e)=>a+Math.max(0,e.spulen),0),"Spule","Spulen")} · ${kgT(arr.reduce((a,e)=>a+total(e),0))}`,R-1.6,y+3.9,{s:6.6,c:[75,85,99],a:"right"});y+=6.4;
+    arr.forEach(e=>{const rh=check?7:9.5;if(y+rh>UNT)neueSeite();const {i,t,diff}=istWerte(e);const leer=e.spulen<=0;
+      const mk=BL.sort!=="hersteller"&&e.hersteller?e.hersteller+" · ":"";
+      if(check){const m=y+rh/2;
+        if(i.g!=null){T(kgT(i.g),L+3.4,m+1.1,{s:6.2,b:1,a:"center"});}else{kasten(L+1,m-2.2);if(i.ok)haken(L+1,m-2.2)}
+        spule(L+8,m-3.2,6.4,e.hex);let nx=L+15;nx+=T(e.material||"Filament",nx,m+1.1,{s:8.4,b:1})+1.2;nx+=chips(nx,m+1.1,e,40)+.6;
+        T(mk+(e.farbe||""),nx,m+1.1,{s:6.8,c:grau,w:R-58-nx-(sp.ort?28:0)});
+        if(sp.ort&&imFach[e.uid])T(imFach[e.uid].map(s=>s.ort).join(", "),R-58,m+1.1,{s:6.4,c:grau,w:26,a:"right"});
+        T(`Soll ${kgT(t)} · ${Math.max(0,e.spulen)} Sp.`,R-28,m+1.1,{s:7,c:[75,85,99],a:"right"});
+        if(diff)T((diff>0?"+":"-")+kgT(Math.abs(diff)),R,m+1.1,{s:7,b:1,c:diff<0?[210,60,60]:gruen,a:"right"});else{doc.setDrawColor(...hell);doc.setLineWidth(.25);doc.line(R-24,m+1.6,R,m+1.6)}
+      }else{const m=y+rh/2;
+        spule(X.sp.x,m-4.3,8.6,e.hex);
+        let nx=X.nm.x+1;nx+=T(e.material||"Filament",nx,m-.6,{s:8.4,b:1,c:leer?hell:dunkel})+1.2;nx+=chips(nx,m-.6,e,X.nm.w-(nx-X.nm.x)-1)+1;
+        if(mk)T(mk.slice(0,-3),nx,m-.6,{s:6.6,c:grau,w:X.nm.x+X.nm.w-nx-1});
+        let sx=X.nm.x+1;sx+=T(e.farbe||"–",sx,m+2.9,{s:6.6,c:grau,w:X.nm.w*.55})+1.4;doc.setFillColor(...rgb(e.hex));doc.setDrawColor(0);doc.setLineWidth(.1);doc.circle(sx+.9,m+2.1,.9,"FD");
+        T(`${e.hex.toUpperCase()} · ${String(e.durchmesser).replace(".",",")} mm`,sx+2.4,m+2.9,{s:5.8,c:grau,w:X.nm.x+X.nm.w-sx-3});
+        const mit=Math.max(0,e.spulen-e.refills);T(String(Math.max(0,e.spulen)),X.spu.x+X.spu.w-1,m-.6,{s:8,b:1,a:"right"});
+        T(leer?"aufgebraucht":[mit>0?mit+"× Spule":"",e.refills>0?e.refills+"× Refill":""].filter(Boolean).join(" + "),X.spu.x+X.spu.w-1,m+2.9,{s:5.8,c:grau,a:"right",w:X.spu.w-1});
+        T(kgT(t),X.bs.x+1,m-.8,{s:8,b:1});const cap=Math.max(1,e.spulen)*e.gewicht,pc=leer?0:Math.max(3,Math.round(t/cap*100));
+        doc.setFillColor(231,233,236);doc.rect(X.bs.x+1,m+.4,X.bs.w-3,.9,"F");doc.setFillColor(...(pc>50?gruen:pc>20?[224,161,0]:[210,60,60]));doc.rect(X.bs.x+1,m+.4,(X.bs.w-3)*pc/100,.9,"F");
+        if(e.spulen>0&&e.reste.length)T("angebr. "+e.reste.slice(0,e.spulen).map(r=>r+" g").join(" + "),X.bs.x+1,m+3.5,{s:5.6,c:grau,w:X.bs.w-1});
+        if(X.w){const z=[["DÜSE",blSpan(e.duese_min,e.duese_max)],["BETT",blSpan(e.bett_min,e.bett_max)],["TROCKN.",e.trocknen_c!=null?`${e.trocknen_c} °C${e.trocknen_h!=null?" · "+e.trocknen_h+" h":""}`:""]].filter(q=>q[1]);
+          if(!z.length)T("–",X.w.x+1,m+1,{s:7,c:grau});z.slice(0,3).forEach((q,j)=>{const yy=m+1-(z.length-1)*1.6+j*3.2;T(q[0],X.w.x+1,yy,{s:5,c:hell});T(q[1],X.w.x+9,yy,{s:6.4,w:X.w.w-9})})}
+        if(X.ort)T((imFach[e.uid]||[]).map(s=>s.ort).join(", ")||"Lager",X.ort.x+1,m+1,{s:6.2,c:imFach[e.uid]?dunkel:grau,w:X.ort.w-1.5});
+        if(X.pr){const p=preisVon(e);if(p){T(eurT(p.pk),X.pr.x+X.pr.w-1,m-.3,{s:7.4,a:"right"});T(p.q==="markt"?"Ø SHOPS":"LAGER",X.pr.x+X.pr.w-1,m+2.8,{s:5,c:p.q==="markt"?[154,107,0]:grau,a:"right"})}else T("–",X.pr.x+X.pr.w-1,m+1,{s:7,c:grau,a:"right"})}
+        if(X.cd){if(e.codes[0])T(e.codes[0],X.cd.x+1,m-.3,{s:6,w:X.cd.w-1});if(e.bambu_id)T(e.bambu_id,X.cd.x+1,m+(e.codes[0]?2.8:1),{s:6,c:grau});if(!e.codes[0]&&!e.bambu_id)T("–",X.cd.x+1,m+1,{s:7,c:grau})}
+        const ix=X.ist.x+X.ist.w/2;if(i.g!=null){T(kgT(i.g),ix,m+(diff?-.3:1),{s:7,b:1,a:"center"});if(diff)T((diff>0?"+":"-")+kgT(Math.abs(diff)),ix,m+2.8,{s:5.8,b:1,c:diff<0?[210,60,60]:gruen,a:"center"})}
+        else{kasten(ix-2.2,m-2.2);if(i.ok)haken(ix-2.2,m-2.2)}
+      }
+      doc.setDrawColor(...linie);doc.setLineWidth(.2);doc.line(L,y+rh,R,y+rh);y+=rh})});
+  /* Fußzeile auf jeder Seite */
+  const n=doc.getNumberOfPages(),ohneP=voll.filter(e=>!preisVon(e)).length;
+  for(let s=1;s<=n;s++){doc.setPage(s);
+    if(s===n)T(`* Lagerwert: ${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen${wM>0?` + ${Math.round(wM).toLocaleString("de-DE")} € aus Ø Shop-Preisen`:""}${ohneP?` · ${plural(ohneP,"Sorte","Sorten")} ohne Preis`:""}${!BL.leer?` · ${all.filter(e=>e.spulen<=0).length} aufgebrauchte Sorten nicht gelistet`:""}`,L,290,{s:6,c:hell,w:150});
+    T(`SchichtLohn · Seite ${s} / ${n}`,R,290,{s:6,c:hell,a:"right"})}
+  return doc}
+const eurT=v=>v.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+async function blPdfTeilen(){const doc=blPdf();if(!doc)return;const name=`Filamentbestand ${new Date().toISOString().slice(0,10)}.pdf`;const blob=doc.output("blob");
+  try{const file=new File([blob],name,{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(err){if(err&&err.name==="AbortError")return}
+  await deliverFile(name,blob);toast("PDF gespeichert")}
+/* Am Handy und in der HA-App öffnet „Drucken“ das PDF im Teilen-Menü (dort gibt es „Drucken“); am PC der normale Druckdialog */
+const blMobil=()=>{try{return matchMedia("(pointer:coarse)").matches||/iPhone|iPad|iPod|Android|Home ?Assistant/i.test(navigator.userAgent)}catch(e){return false}};
 function blDrucken(){
   const doc=`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Filamentbestand ${new Date().toLocaleDateString("de-DE")}</title><style>@page{size:A4 portrait;margin:11mm 10mm 12mm}html,body{margin:0;background:#fff}${BL_CSS}</style></head><body><div class="blp">${blSeite(false)}</div></body></html>`;
   const alt=document.getElementById("blDruckRahmen");if(alt)alt.remove();
