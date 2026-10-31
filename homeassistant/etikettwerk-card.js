@@ -221,6 +221,8 @@ const S={printer:"m110",w:40,h:30,media:10,rot:false,els:[],sel:0};
 const $=id=>document.getElementById(id);
 let uid=1;
 const imgCache=new Map();
+// Beispiel-QR für die Filament-Vorlage: Rolle in SchichtLohn (eingetragene Adresse, sonst Platzhalter)
+function slBeispielQr(){let b="";try{b=slBase();}catch(e){}return (b||"https://schichtlohn.local")+"/app/?rolle=42";}
 function tpl(name){
   const W=S.w,H=S.h;
   // Kopfzeile (kopf:true) ist der Platz fürs Herstellerlogo: Logo antippen ersetzt sie
@@ -231,7 +233,7 @@ function tpl(name){
     {t:"text",x:2,y:17,w:W-4,size:2.7,bold:false,align:"left",text:"1,75 mm · 220 °C · 1 kg"},
     {t:"line",x:2,y:20.7,w:W-4,h:0,stroke:0.25},
     {t:"barcode",x:2,y:H-8.2,w:W-14,h:6.4,data:"4006381333931",text:false},
-    {t:"qr",x:W-9.6,y:H-9.1,w:7.6,data:"https://bambuddy.local/spool/42"}];
+    {t:"qr",x:W-9.6,y:H-9.1,w:7.6,data:slBeispielQr()}];
   if(name==="box")return[
     {t:"box",x:1,y:1,w:W-2,h:H-2,stroke:0.5},
     {t:"text",x:3,y:3,w:W-6,size:3,bold:false,align:"left",text:"Regal B · Fach 3"},
