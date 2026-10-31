@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.17 – 31.10.2026
+- eBay- und AliExpress-Preise stehen jetzt überall: als eigene Zeilen in der Preisliste (mit €/kg, günstigstes Angebot markiert), in der Einkaufsliste und bei der Filamentwahl im Rechner („AliExpress ab …“).
+- Der Preis je kg stimmt auch bei Mehrfachpacks und 3-kg-Rollen: SchichtLohn liest Rollengewicht und Stückzahl aus dem Angebot.
+
 ## 3.2.16 – 30.10.2026
 - Druckmeldungen über Telegram klappen jetzt auch ohne Anmeldung bei der Bambu-Cloud: SchichtLohn liest Start, Stand, Pause, Fehler und Ende dann aus Home Assistant.
 - „Fertig ca.“ zeigt die richtige Uhrzeit, und die Telegram-Testmeldung kommt mit einem Bild aus der Druckerkamera.
