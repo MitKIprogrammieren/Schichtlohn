@@ -5528,7 +5528,7 @@ function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMark
     if(!a||g[0]>a.g[0]||(g[0]===a.g[0]&&(g[1]>a.g[1]||(g[1]===a.g[1]&&g[2]>a.g[2]))))best[r.shop]={g,r,pk,ean:s===3}}
   return Object.values(best).map(x=>({shop:x.r.name,preis:x.r.preis,normal:x.r.normal,gew:x.r.gew,pk:Math.round(x.pk*100)/100,url:x.r.url,ean:x.ean,titel:x.r.titel})).sort((a,b)=>a.pk-b.pk)}
 function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div class="lgform" id="lgPl">`;
-  if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
+  if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else{modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
     preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(err=>{const b=document.querySelector("#modal #lgPl");if(b)b.innerHTML=`<div class="panel empty">${esc(err.message||String(err))}</div>`});return}
   const alle=entries().map(e=>({e,a:[...preiseFuer(e),...pvAngebote(e.uid,e.gewicht)].sort((x,y)=>x.pk-y.pk)})).sort((x,y)=>String(x.e.hersteller).localeCompare(String(y.e.hersteller),"de")||String(x.e.material).localeCompare(String(y.e.material))||String(x.e.farbe).localeCompare(String(y.e.farbe),"de"));
   const mit=alle.filter(x=>x.a.length).length;const shops={};alle.forEach(x=>x.a.forEach(a=>shops[a.shop]=(shops[a.shop]||0)+1));
@@ -5544,7 +5544,7 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
     h+=`<div class="plz"><div class="pls">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><b>${esc([e.material,...(e.besonderheiten||[])].join(" "))} · ${esc(e.farbe)}</b><small>${kg(e.gewicht)}${e.ausfuehrung==="refill"?" Refill":""} · Bestand ${kg(total(e))}${e.preis?` · dein Preis ${eur(e.preis)}/kg`:""}</small></div></div>
       <div class="pla">${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt?" · "+pvVersandText(o):""}"><span class="plon">${esc(o.shop)}${i===0&&a.length>1?`<i>günstigste</i>`:""}${o.stueck>1||o.gew!==e.gewicht?`<small>${o.stueck>1?o.stueck+" × ":""}${kg(o.gew)}</small>`:""}</span><span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`).join(""):`<span class="plkein">kein Shop-Treffer</span>`}</div></div>`});
   h+=`</div></div>`;const b=document.querySelector("#modal #lgPl");if(b){b.outerHTML=h;return}
-  modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
+  modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgPl"))preislisteModal();if(document.querySelector("#modal #lgEk"))einkaufModal()});
 document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plq"){PL.q=ev.target.value;clearTimeout(preislisteModal.t);preislisteModal.t=setTimeout(()=>{const p=ev.target.selectionStart;preislisteModal();const n=document.getElementById("plq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250)}});
 /* ---------- Jahresrückblick aus der Verbrauchsliste ---------- */
@@ -5652,6 +5652,8 @@ body.rx-einfach #mbar{display:none!important}
 <style>.rx-tt small{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rx-sw{display:inline-flex;gap:3px}.rx-sw i{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}</style>
 <style>/* Reicht die Rolle? · Etiketten · Jahresrückblick · Funktionen */
 [data-skin] nav.tabs button[aria-current="page"],[data-skin] .seg button[aria-pressed="true"],.rx-seg button[aria-pressed="true"]{color:var(--accent-ink)!important}
+/* Preisliste: breites, hohes Fenster (nicht Vollbild), Liste scrollt darin */
+.modal.plwide{width:min(1040px,94vw);height:min(88vh,1100px);display:flex;flex-direction:column}.modal.plwide .mb{flex:1;min-height:0;overflow:auto}
 .plkpis{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass-2,var(--glass));overflow:hidden}
 .plkpis>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;padding:9px 4px}
 .plkpis>div+div{border-left:1px solid var(--line)}
