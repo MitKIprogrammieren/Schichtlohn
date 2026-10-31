@@ -5526,7 +5526,7 @@ function plKws(t){t=" "+plN(t).join(" ")+" ";const o=new Set();for(const [k,ws] 
 const plKern=(t,m)=>{const mw=new Set(plN(m));return plN(t).filter(x=>!PL_STOP.has(x)&&!PL_ALLKW.has(x)&&!mw.has(x)&&!/^\d+(g|kg|mm)?$/.test(x)&&!/^(fibcr|cf|gf)\d+$/.test(x))};
 function plVar(w){const v=new Set([w]);if(PL_DE_EN[w]&&!PL_DE_EN[w].includes(" "))v.add(PL_DE_EN[w]);if(PL_EN_DE[w])v.add(PL_EN_DE[w]);return v}
 const plDa=(w,m)=>[...plVar(w)].some(x=>m.has(x))||(PL_DE_EN[w]&&PL_DE_EN[w].includes(" ")&&PL_DE_EN[w].split(" ").every(x=>m.has(x)));
-const plMat=m=>{let x=String(m||"").toUpperCase().split("-")[0].split(" ")[0].replace(/[^A-Z+]/g,"");return x.endsWith("X")&&x.length>3?x.slice(0,-1):x};
+const plMat=m=>{let x=String(m||"").toUpperCase().replace(/^PC[\s-]?ABS\b/,"PCABS").split("-")[0].split(" ")[0].replace(/[^A-Z+]/g,"");return x.endsWith("X")&&x.length>3?x.slice(0,-1):x};
 const plMarke=m=>{const x=String(m||"").toLowerCase().replace(/[^a-z0-9]/g,"");return ({esun3d:"esun"})[x]||x};
 const plGleich=(a,b)=>a.size===b.size&&[...a].every(x=>b.has(x));
 const plOhne=(s,w)=>new Set([...s].filter(x=>!w.includes(x)));

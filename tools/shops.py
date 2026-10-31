@@ -35,6 +35,8 @@ def gewicht(*texte):
 
 def material(t):
     u = " " + re.sub(r"[^A-Z0-9+]+", " ", str(t).upper()) + " "
+    if re.search(r" PC ?ABS ", u):  # PC-ABS ist ein eigenes Material, weder PC noch ABS
+        return "PCABS"
     for m in MATERIALIEN:
         if f" {m} " in u or f" {m}-" in u or re.search(rf"\b{re.escape(m)}(?=[- ]?(CF|GF|HF|ECO|X|PRO|MATTE?|SILK))", u):
             return "PA" if m == "NYLON" else m
