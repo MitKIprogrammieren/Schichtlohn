@@ -223,12 +223,15 @@ let uid=1;
 const imgCache=new Map();
 function tpl(name){
   const W=S.w,H=S.h;
+  // Kopfzeile (kopf:true) ist der Platz fürs Herstellerlogo: Logo antippen ersetzt sie
   if(name==="filament")return[
-    {t:"text",x:2,y:2,w:W-4,size:5.5,bold:true,align:"left",text:"PLA Basic"},
-    {t:"text",x:2,y:9,w:W-4,size:3.2,bold:false,align:"left",text:"Bambu Lab · Schwarz"},
-    {t:"text",x:2,y:13.5,w:W-4,size:3,bold:false,align:"left",text:"1,75 mm · 220 °C · 1 kg"},
-    {t:"barcode",x:2,y:H-11,w:W-16,h:9,data:"4006381333931",text:false},
-    {t:"qr",x:W-12,y:H-12,w:10,data:"https://bambuddy.local/spool/42"}];
+    {t:"text",x:2,y:1.8,w:W-4,size:3.4,bold:true,align:"left",text:"Bambu Lab",kopf:true},
+    {t:"text",x:2,y:7,w:W-4,size:5.2,bold:true,align:"left",text:"PLA Basic"},
+    {t:"text",x:2,y:13,w:W-4,size:3.5,bold:false,align:"left",text:"Schwarz"},
+    {t:"text",x:2,y:17,w:W-4,size:2.7,bold:false,align:"left",text:"1,75 mm · 220 °C · 1 kg"},
+    {t:"line",x:2,y:20.7,w:W-4,h:0,stroke:0.25},
+    {t:"barcode",x:2,y:H-8.2,w:W-14,h:6.4,data:"4006381333931",text:false},
+    {t:"qr",x:W-9.6,y:H-9.1,w:7.6,data:"https://bambuddy.local/spool/42"}];
   if(name==="box")return[
     {t:"box",x:1,y:1,w:W-2,h:H-2,stroke:0.5},
     {t:"text",x:3,y:3,w:W-6,size:3,bold:false,align:"left",text:"Regal B · Fach 3"},
@@ -442,13 +445,23 @@ function trimLogo(src){if(trimCache.has(src))return Promise.resolve(trimCache.ge
 async function placeLogo(L){
   const t=await trimLogo(L.src),ratio=t.ratio||L.ratio||1;
   // Logos passen in ein einheitliches Feld (max. 18 × 4 mm), damit lange und kurze Logos gleich wirken
-  const fit=x=>{const mw=Math.max(4,Math.min(18,S.w-x-2)),mh=Math.max(2,Math.min(4,S.h-4));let w=mw,h=w*ratio;if(h>mh){h=mh;w=h/ratio;}return {w:+w.toFixed(1),h:+h.toFixed(1)};};
+  const fit=(x,mh0=4,mw0=18)=>{const mw=Math.max(4,Math.min(mw0,S.w-x-2)),mh=Math.max(2,Math.min(mh0,S.h-4));let w=mw,h=w*ratio;if(h>mh){h=mh;w=h/ratio;}return {w:+w.toFixed(1),h:+h.toFixed(1)};};
   const sel=S.els.find(x=>x.id===S.sel&&x.t==="image");
   if(sel){Object.assign(sel,{src:t.src,name:L.name,invert:false},fit(sel.x));
     renderEls();render();renderProps();persist();say(`Logo gegen ${L.name} getauscht`,"ok");return;}
+  // Vorlage mit Kopfzeile: das Logo tritt an die Stelle des Herstellernamens
+  const kopf=S.els.find(x=>x.t==="text"&&x.kopf);
+  if(kopf){const g=fit(kopf.x,Math.min(3.6,kopf.size),Math.min(kopf.w,24));
+    const e={t:"image",x:kopf.x,y:kopf.y,src:t.src,name:L.name,invert:false,id:uid++,...g};
+    S.els=S.els.filter(x=>x!==kopf);S.els.unshift(e);S.sel=e.id;renderEls();render();persist();say(`${L.name} ersetzt den Herstellernamen`,"ok");return;}
   const txt=S.els.filter(x=>x.t==="text"&&x.align!=="right");
   const links=txt.length?Math.min(...txt.map(x=>x.align==="center"?2:x.x)):2;
-  const e={t:"image",x:links,y:2,src:t.src,name:L.name,invert:false,id:uid++,...fit(links)};
+  const g=fit(links),e={t:"image",x:links,y:2,src:t.src,name:L.name,invert:false,id:uid++,...g};
+  // Sonst Platz schaffen: was oben im Weg ist, rückt nach unten – wenn es noch aufs Etikett passt
+  const unten=e.y+e.h+0.8,imWeg=S.els.filter(x=>bounds(x).y<unten);
+  if(imWeg.length){const oben=Math.min(...imWeg.map(x=>bounds(x).y)),d=unten-oben,tief=Math.max(...S.els.map(x=>{const b=bounds(x);return b.y+b.h;}));
+    if(tief+d<=S.h-0.5)S.els.forEach(x=>{x.y=+(x.y+d).toFixed(1);});
+    else say("Das Logo liegt über anderen Elementen – Elemente verschieben oder kleiner machen","warn");}
   S.els.push(e);S.sel=e.id;renderEls();render();persist();
 }
 document.addEventListener("change",async ev=>{
