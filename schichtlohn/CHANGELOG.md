@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.25 – 31.10.2026
+- Bestandsliste: „Nach Marke“ und die Suche gehen wieder über die ganze Breite, sind aber nur so hoch wie die Umschalter darüber.
+
 ## 3.2.24 – 31.10.2026
 - Bestandsliste: Die Umschalter haben wieder ihre gewohnte Größe; nur „Nach Marke“ und die Suche sind kleiner und schmaler.
 
