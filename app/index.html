@@ -4426,7 +4426,7 @@ function body0(){G._allZu=false;
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
   let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -5295,6 +5295,15 @@ document.addEventListener("click",async e=>{
   if(a==="lgStat"){statModal();return}
   if(a==="lgRueck"){rueckblickModal();return}
   if(a==="lgPreise"){preislisteModal();return}
+  if(a==="lgBestand"){bestandModal();return}
+  if(a==="lgBlFmt"){BL.fmt=b.dataset.v;blSave();bestandModal();return}
+  if(a==="lgBlSp"){BL.sp[b.dataset.v]=!BL.sp[b.dataset.v];blSave();bestandModal();return}
+  if(a==="lgBlLeer"){BL.leer=!BL.leer;blSave();bestandModal();return}
+  if(a==="lgBlInv"){BL.inv=!BL.inv;blSave();bestandModal();return}
+  if(a==="lgBlOk"){const u=b.dataset.uid,i=BL.ist[u]||{};const cell=b.closest(".blic");if(i.ok||i.g!=null){delete BL.ist[u];const inp=cell&&cell.querySelector("input");if(inp)inp.value=""}else BL.ist[u]={ok:true};blSave();blZelle(cell,u);return}
+  if(a==="lgBlReset"){confirmBox("Alle Inventur-Einträge (Häkchen und Ist-Mengen) verwerfen? Am Lager ändert sich nichts.","Verwerfen",()=>{BL.ist={};blSave();setTimeout(()=>bestandModal(),50)});return}
+  if(a==="lgBlUebern"){blUebernehmen();return}
+  if(a==="lgBlDruck"){blDrucken();return}
   if(a==="lgPlF"){PL.f=b.dataset.f;preislisteModal();return}
   if(a==="lgRbJahr"){G.rbJahr=Number(b.dataset.j);rueckblickModal();return}
   if(a==="lgEtikett"){const uid=(G.form&&G.form.uid)||(G.hit&&G.hit.uid);if(uid)etikettModal(uid);return}
@@ -5547,6 +5556,142 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
   modal("Preisliste",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgPl"))preislisteModal();if(document.querySelector("#modal #lgEk"))einkaufModal()});
 document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plq"){PL.q=ev.target.value;clearTimeout(preislisteModal.t);preislisteModal.t=setTimeout(()=>{const p=ev.target.selectionStart;preislisteModal();const n=document.getElementById("plq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250)}});
+/* ---------- Bestandsliste: interaktiv ansehen, Inventur machen, drucken ---------- */
+const BLK="schichtlohn_bestandsliste";
+const BL=Object.assign({fmt:"tabelle",sort:"hersteller",sp:{werte:true,preis:true,code:true,ort:true},leer:false,inv:false,ist:{}},(()=>{try{return JSON.parse(localStorage.getItem(BLK)||"{}")}catch(e){return {}}})());
+BL.q="";BL.sp=Object.assign({werte:true,preis:true,code:true,ort:true},BL.sp||{});BL.ist=BL.ist&&typeof BL.ist==="object"?BL.ist:{};
+const blSave=()=>{try{const {q,...r}=BL;localStorage.setItem(BLK,JSON.stringify(r))}catch(e){}};
+const blEur=x=>x.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+const blSpan=(a,b)=>a==null&&b==null?"":[...new Set([a,b].filter(x=>x!=null))].join("–")+" °C";
+const BL_LOGO='<svg class="bllogo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="blG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19d36b"/><stop offset="1" stop-color="#00a845"/></linearGradient><clipPath id="blT"><path d="M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z"/></clipPath><mask id="blH"><rect width="48" height="48" fill="#fff"/><circle cx="33.5" cy="15.5" r="4.4" fill="#000"/></mask></defs><rect width="48" height="48" rx="10.5" fill="#1d1f23"/><g transform="translate(24 24) scale(.82) translate(-24 -24.5)"><g clip-path="url(#blT)" mask="url(#blH)" fill="url(#blG)">'+[8,11.4,14.8,18.2,21.6,25,28.4,31.8,35.2,38.6].map(y=>`<rect x="0" y="${y}" width="48" height="2.4"/>`).join("")+'</g><circle cx="33.5" cy="15.5" r="2.6" fill="none" stroke="#19d36b" stroke-width="1.5"/><path d="M33.5 12.9V3" stroke="#19d36b" stroke-width="1.5" stroke-linecap="round" fill="none"/></g></svg>';
+/* Ist-Menge einer Sorte in Spulen und Reste umrechnen (Gesamtgramm → volle Rollen + eine angebrochene) */
+function blAusIst(e,g){g=Math.max(0,Math.round(g));const gw=e.gewicht;if(g<=0)return {spulen:0,reste:[],refills:0};
+  if(g===total(e))return {spulen:e.spulen,reste:e.reste,refills:e.refills};
+  const voll=Math.floor(g/gw),rest=g-voll*gw;const spulen=voll+(rest>0?1:0);return {spulen,reste:rest>0?[rest]:[],refills:Math.min(e.refills,spulen)}}
+function blDaten(){
+  const E=ein(),all=entries(),sl=slots(),imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
+  const q=BL.q.trim().toLowerCase(),worte=q.split(/\s+/).filter(Boolean);
+  const txt=e=>[e.hersteller,e.material,e.farbe,fam(e.hex),...e.besonderheiten,e.bambu_id,...e.codes].join(" ").toLowerCase();
+  const list=all.filter(e=>(BL.leer||e.spulen>0)&&worte.every(w=>txt(e).includes(w)));
+  const s=BL.sort,gk=e=>s==="hersteller"?(e.hersteller||"Ohne Marke"):s==="farbe"?fam(e.hex):s==="bestand"?"Alle Sorten":(e.material||"Ohne Material");
+  const gr={};list.forEach(e=>{(gr[gk(e)]=gr[gk(e)]||[]).push(e)});
+  const ord=k=>s==="farbe"?String(FAM.indexOf(k)).padStart(2,"0"):(/^Ohne /.test(k)?"zzz":k);
+  const sk=e=>s==="hersteller"?e.material+" "+e.farbe:s==="material"?e.hersteller+" "+e.farbe:name(e);
+  const gruppen=Object.keys(gr).sort((a,b)=>ord(a).localeCompare(ord(b),"de")).map(k=>[k,gr[k].sort((a,b)=>s==="bestand"?total(b)-total(a)||sk(a).localeCompare(sk(b),"de"):sk(a).localeCompare(sk(b),"de"))]);
+  return {E,all,list,gruppen,imFach}}
+function blSeite(live){
+  const {E,all,list,gruppen,imFach}=blDaten();const sp=BL.sp,inv=BL.inv,fmt=BL.fmt;
+  const voll=list.filter(e=>e.spulen>0),sumG=voll.reduce((a,e)=>a+total(e),0),sumSp=voll.reduce((a,e)=>a+e.spulen,0),sumRf=voll.reduce((a,e)=>a+Math.min(e.refills,e.spulen),0);
+  const wert=voll.filter(e=>e.preis>0).reduce((a,e)=>a+e.preis*total(e)/1000,0),angebr=voll.filter(e=>e.reste.length).length;
+  const geprueft=list.filter(e=>BL.ist[e.uid]&&(BL.ist[e.uid].ok||BL.ist[e.uid].g!=null)).length;
+  const st=new Date();const sortName={hersteller:"Marke",material:"Material",farbe:"Farbe",bestand:"Bestand"}[BL.sort];
+  const istZelle=e=>{const i=BL.ist[e.uid]||{};const t=total(e);const diff=i.g!=null&&i.g!==t?i.g-t:0;
+    if(live&&inv)return `<span class="blinv"><input type="number" inputmode="numeric" min="0" step="1" data-blist="${esc(e.uid)}" placeholder="${Math.round(t)}" value="${i.g!=null?i.g:""}" aria-label="Ist-Menge in Gramm"><button type="button" class="blok${i.ok||i.g!=null?" on":""}" data-act="lgBlOk" data-uid="${esc(e.uid)}" aria-label="Geprüft">✓</button></span>${diff?`<span class="bldf ${diff<0?"m":"p"}">${diff>0?"+":"−"}${kg(Math.abs(diff))}</span>`:""}`;
+    if(i.g!=null)return `<b class="blistw">${kg(i.g)}</b>${diff?`<span class="bldf ${diff<0?"m":"p"}">${diff>0?"+":"−"}${kg(Math.abs(diff))}</span>`:""}`;
+    return i.ok?`<span class="blbox ok">✓</span>`:`<span class="blbox"></span>`};
+  const chips=e=>e.besonderheiten.map(b=>`<span class="blch${/^(cf|gf)$/i.test(b)?" d":""}">${esc(b)}</span>`).join("");
+  const orte=e=>(imFach[e.uid]||[]).map(s=>s.ort).join(", ");
+  const bar=e=>{const t=total(e),cap=Math.max(1,e.spulen)*e.gewicht,p=e.spulen<=0?0:Math.max(3,Math.round(t/cap*100));return `<span class="blbar"><i style="width:${p}%;background:${p>50?"#1e9655":p>20?"#e0a100":"#d23c3c"}"></i></span>`};
+  const spulText=e=>{const mit=Math.max(0,e.spulen-e.refills);return e.spulen<=0?"aufgebraucht":[mit>0?`${mit}× Spule`:"",e.refills>0?`${e.refills}× Refill`:""].filter(Boolean).join(" + ")+` à ${kg(e.gewicht)}`};
+  const werte=e=>{const d=blSpan(e.duese_min,e.duese_max),b=blSpan(e.bett_min,e.bett_max),t=e.trocknen_c!=null?`${e.trocknen_c} °C${e.trocknen_h!=null?" · "+e.trocknen_h+" h":""}`:"";
+    return d||b||t?[d?`<div><i>Düse</i>${d}</div>`:"",b?`<div><i>Bett</i>${b}</div>`:"",t?`<div><i>Trockn.</i>${t}</div>`:""].join(""):`<span class="blm">–</span>`};
+  const sub=e=>`${esc(e.farbe||"–")} <span class="blhx"><i style="background:${e.hex}"></i>${e.hex.toUpperCase()}</span> · ${String(e.durchmesser).replace(".",",")} mm`;
+  const code=e=>e.codes[0]||e.bambu_id?`${e.codes[0]?`<div>${esc(e.codes[0])}</div>`:""}${e.bambu_id?`<div class="blm">${esc(e.bambu_id)}</div>`:""}`:`<span class="blm">–</span>`;
+  const leerKl=e=>e.spulen<=0?" blleer":"";
+  const kopfZ=(k,arr)=>`<b>${esc(k)}</b><span>${plural(arr.length,"Sorte","Sorten")} · ${plural(arr.reduce((a,e)=>a+Math.max(0,e.spulen),0),"Spule","Spulen")} · ${kg(arr.reduce((a,e)=>a+total(e),0))}</span>`;
+  let h=`<div class="blkopf">${BL_LOGO}<div><div class="blbra">SchichtLohn · FilamentLager</div><h1>${fmt==="check"?"Inventurliste":"Filamentbestand"}</h1></div><div class="blst">Stand ${st.toLocaleDateString("de-DE")}, ${st.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr<br>sortiert nach ${sortName}${BL.q.trim()?` · Suche „${esc(BL.q.trim())}“`:""}</div></div>
+<div class="blkz"><div><b>${list.length}</b><span>Sorten</span></div><div><b>${sumSp}</b><span>Spulen${sumRf?` · ${sumRf} Refill`:""}</span></div><div><b>${kg(sumG)}</b><span>Bestand</span></div>${inv||geprueft?`<div><b data-blgep="${list.length}">${geprueft}/${list.length}</b><span>geprüft</span></div>`:`<div><b>${angebr}</b><span>angebrochen</span></div>`}<div><b>${wert>0?blEur(Math.round(wert)).replace(",00",""):"–"}</b><span>Lagerwert*</span></div></div>`;
+  if(!list.length)return h+`<div class="blnix">Keine Sorten für diese Auswahl.</div>`;
+  if(fmt==="tabelle"){
+    const cols=1+1+1+1+(sp.werte?1:0)+(sp.preis?1:0)+(sp.code?1:0)+(sp.ort?1:0)+1;
+    h+=`<table class="bltab"><thead><tr><th></th><th>Filament · Farbe</th><th class="r">Spulen</th><th>Bestand</th>${sp.werte?'<th class="blw">Druckwerte</th>':""}${sp.ort?'<th class="blort">Ort</th>':""}${sp.preis?'<th class="r blpr">€/kg</th>':""}${sp.code?'<th class="blcd">Code</th>':""}<th class="blic">Ist</th></tr></thead>`;
+    gruppen.forEach(([k,arr])=>{h+=`<tbody><tr class="blgh"><td colspan="${cols}">${kopfZ(k,arr)}</td></tr>${arr.map(e=>`<tr class="blz${leerKl(e)}"><td class="blsp">${spool(e.hex,"blsw",e.besonderheiten)}</td>
+<td><div class="blnm">${esc(e.material||"Filament")}${chips(e)}${BL.sort!=="hersteller"&&e.hersteller?` <span class="blmk">${esc(e.hersteller)}</span>`:""}</div><div class="blsub">${sub(e)}</div></td>
+<td class="r"><b>${Math.max(0,e.spulen)}</b><div class="blsub">${spulText(e)}</div></td>
+<td class="blbs"><b>${kg(total(e))}</b>${bar(e)}${e.spulen>0&&e.reste.length?`<div class="blsub">angebr. ${e.reste.slice(0,e.spulen).map(r=>r+" g").join(" + ")}</div>`:""}</td>
+${sp.werte?`<td class="blw">${werte(e)}</td>`:""}${sp.ort?`<td class="blort">${esc(orte(e))||'<span class="blm">Lager</span>'}</td>`:""}${sp.preis?`<td class="r blpr">${e.preis>0?blEur(e.preis):'<span class="blm">–</span>'}</td>`:""}${sp.code?`<td class="blcd">${code(e)}</td>`:""}
+<td class="blic">${istZelle(e)}</td></tr>`).join("")}</tbody>`});
+    h+=`</table>`}
+  else if(fmt==="karten"){
+    gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blkarten">${arr.map(e=>`<div class="blk${leerKl(e)}"><div class="blkt">${spool(e.hex,"blsw blbig",e.besonderheiten)}<div class="blkb"><b>${kg(total(e))}</b>${bar(e)}<span class="blsub">${Math.max(0,e.spulen)} ${e.spulen===1?"Spule":"Spulen"}${e.reste.length&&e.spulen>0?" · angebr.":""}</span></div></div>
+<div class="blnm">${esc(e.material||"Filament")}${chips(e)}</div><div class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${sub(e)}</div>
+${sp.werte&&(e.duese_min!=null||e.bett_min!=null)?`<div class="blkw">${blSpan(e.duese_min,e.duese_max)?`<span><i>Düse</i>${blSpan(e.duese_min,e.duese_max)}</span>`:""}${blSpan(e.bett_min,e.bett_max)?`<span><i>Bett</i>${blSpan(e.bett_min,e.bett_max)}</span>`:""}</div>`:""}
+<div class="blkf">${sp.ort&&orte(e)?`<span>${esc(orte(e))}</span>`:""}${sp.preis&&e.preis>0?`<span>${blEur(e.preis)}/kg</span>`:""}${sp.code&&e.codes[0]?`<span class="blcd">${esc(e.codes[0])}</span>`:""}<span class="blic">${istZelle(e)}</span></div></div>`).join("")}</div>`});}
+  else{
+    gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blcheck">${arr.map(e=>`<div class="blc${leerKl(e)}"><span class="blic">${istZelle(e)}</span>${spool(e.hex,"blsw blsmall",e.besonderheiten)}<span class="blcn"><b>${esc(e.material||"Filament")}</b>${chips(e)} <span class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${esc(e.farbe||"")}</span></span>${sp.ort&&orte(e)?`<span class="blsub blcort">${esc(orte(e))}</span>`:""}<span class="blcs">Soll <b>${kg(total(e))}</b> · ${Math.max(0,e.spulen)} Sp.</span>${live&&inv?"":`<span class="bllinie"></span>`}</div>`).join("")}</div>`})}
+  h+=`<div class="blfuss"><span>* nur Sorten mit hinterlegtem Preis${!BL.leer?` · ${all.filter(e=>e.spulen<=0).length} aufgebrauchte Sorten nicht gelistet`:""}</span><span>SchichtLohn</span></div>`;
+  return h}
+function blAenderungen(){const all=entries();return all.filter(e=>{const i=BL.ist[e.uid];return i&&i.g!=null&&Math.round(i.g)!==Math.round(total(e))})}
+function bestandModal(){
+  const ch=(akt,k,v,t)=>`<button type="button" class="chip${akt?" on":""}" data-act="${k}" data-v="${v}">${t}</button>`;
+  const n=BL.inv?blAenderungen().length:0;
+  const h=`<div class="lgform" id="lgBl"><div class="blctl">
+  <div class="lgtg" role="group" aria-label="Format">${ch(BL.fmt==="tabelle","lgBlFmt","tabelle","Tabelle")}${ch(BL.fmt==="karten","lgBlFmt","karten","Karten")}${ch(BL.fmt==="check","lgBlFmt","check","Checkliste")}</div>
+  <select data-blsort aria-label="Sortieren">${[["hersteller","Marke"],["material","Material"],["farbe","Farbe"],["bestand","Bestand"]].map(([k,t])=>`<option value="${k}"${BL.sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
+  <input type="search" id="blq" placeholder="Suchen …" value="${esc(BL.q)}" autocomplete="off">
+  </div><div class="blctl"><div class="lgtg" role="group" aria-label="Spalten">${ch(BL.sp.werte,"lgBlSp","werte","Druckwerte")}${ch(BL.sp.ort,"lgBlSp","ort","Ort")}${ch(BL.sp.preis,"lgBlSp","preis","Preis")}${ch(BL.sp.code,"lgBlSp","code","Code")}${ch(BL.leer,"lgBlLeer","1","Aufgebrauchte")}</div><span class="sp"></span><div class="lgtg">${ch(BL.inv,"lgBlInv","1","✓ Inventur")}</div></div>
+  ${BL.inv?`<div class="hint blhint">Ist-Menge in Gramm eintragen oder mit ✓ als richtig abhaken. Leer gelassen = nicht geprüft. Geänderte Mengen schreibt „Übernehmen“ ins Lager.</div>`:""}
+  <div class="blprev"><div class="blp blpage">${blSeite(true)}</div></div></div>`;
+  const foot=`${BL.inv&&Object.keys(BL.ist).length?`<button class="btn ghost" data-act="lgBlReset">Inventur leeren</button>`:""}<span class="sp"></span>${BL.inv?`<button class="btn" data-act="lgBlUebern"${n?"":" disabled"}>Übernehmen${n?` (${n})`:""}</button>`:""}<button class="btn pri" data-act="lgBlDruck">Drucken</button>`;
+  const alt=document.querySelector("#modal #lgBl");
+  if(alt){const sc=alt.querySelector(".blprev");const top=sc?sc.scrollTop:0;alt.outerHTML=h;const f=document.querySelector("#modal footer");if(f)f.innerHTML=foot;const sc2=document.querySelector("#modal .blprev");if(sc2)sc2.scrollTop=top;return}
+  modal("Bestandsliste",h,foot);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide","blwide")}
+function blDrucken(){
+  const doc=`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Filamentbestand ${new Date().toLocaleDateString("de-DE")}</title><style>@page{size:A4 portrait;margin:11mm 10mm 12mm}html,body{margin:0;background:#fff}${BL_CSS}</style></head><body><div class="blp">${blSeite(false)}</div></body></html>`;
+  const alt=document.getElementById("blDruckRahmen");if(alt)alt.remove();
+  const fr=document.createElement("iframe");fr.id="blDruckRahmen";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0";
+  document.body.appendChild(fr);const w=fr.contentWindow;w.document.open();w.document.write(doc);w.document.close();
+  const los=()=>{try{w.focus();w.print()}catch(err){toast("Drucken nicht möglich – lade die Liste als Datei");deliverFile("Filamentbestand.html",new Blob([doc],{type:"text/html"}))}};
+  setTimeout(los,350);setTimeout(()=>{const f=document.getElementById("blDruckRahmen");if(f)f.remove()},120000)}
+async function blUebernehmen(){const ae=blAenderungen();if(!ae.length)return;
+  confirmBox(`${plural(ae.length,"Sorte","Sorten")} mit der gezählten Ist-Menge ins Lager übernehmen? Volle Rollen und eine angebrochene werden daraus neu berechnet.`,"Übernehmen",async()=>{
+    let ok=0;for(const e of ae){try{await write(e,blAusIst(e,BL.ist[e.uid].g));delete BL.ist[e.uid];ok++}catch(err){}}
+    blSave();toast(ok===ae.length?`${plural(ok,"Sorte","Sorten")} aktualisiert`:`${ok} von ${ae.length} gespeichert`);setTimeout(()=>bestandModal(),600)})}
+const BL_CSS=`.blp{font:8.4pt/1.3 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;color:#1d1f23;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.blp *{box-sizing:border-box}.blp h1{margin:0;font-size:17pt;letter-spacing:-.01em;color:#1d1f23}
+.blkopf{display:flex;align-items:center;gap:10px;padding-bottom:7px;border-bottom:2px solid #19b85d}.bllogo{width:34px;height:34px;flex:none}
+.blbra{font-size:8pt;color:#6b7280;font-weight:600;letter-spacing:.06em;text-transform:uppercase}.blst{margin-left:auto;text-align:right;color:#6b7280;font-size:8pt}
+.blkz{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0 10px}.blkz>div{border:1px solid #e3e6ea;border-radius:6px;padding:5px 8px}
+.blkz b{display:block;font-size:12.5pt}.blkz span{color:#6b7280;font-size:7.2pt;text-transform:uppercase;letter-spacing:.05em}
+.bltab{width:100%;border-collapse:collapse}.bltab thead{display:table-header-group}.bltab th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;text-align:left;padding:3px 4px;border-bottom:1px solid #c9ced4;font-weight:600}
+.bltab tr{break-inside:avoid}.bltab td{padding:3px 4px;border-bottom:1px solid #eceef1;vertical-align:middle}.bltab .r{text-align:right;white-space:nowrap}
+.blgh td,.blgh2{background:#f1f8f4;border-bottom:1px solid #cfe9db;padding:4px 6px;font-size:9pt}.blgh span,.blgh2 span{float:right;color:#4b5563;font-size:7.4pt;padding-top:1px}
+.blgh2{margin-top:8px;border-radius:5px;break-after:avoid}
+.blsp{width:9.5mm;padding:1px 2px!important}.blp .blsw{display:block;width:9mm;height:9mm;flex:none}.blp .blsw svg{width:100%;height:100%;display:block}.blp span.blsw:not(.lgspool){border-radius:3px;border:1px solid #0002}
+.blp .blsw.blbig{width:15mm;height:15mm}.blp .blsw.blsmall{width:6.5mm;height:6.5mm}
+.blnm{font-weight:700;font-size:8.8pt}.blsub,.blm{color:#6b7280;font-size:7.2pt}.blmk{font-weight:500;color:#6b7280;font-size:7.4pt}
+.blch{display:inline-block;font-size:6.4pt;font-weight:600;padding:0 4px;border-radius:3px;border:1px solid #c9ced4;color:#374151;vertical-align:1px;margin-left:3px}.blch.d{background:#1d1f23;color:#fff;border-color:#1d1f23}
+.blhx{font-family:ui-monospace,Menlo,monospace;font-size:6.6pt}.blhx i{display:inline-block;width:6px;height:6px;border-radius:50%;margin:0 2px 0 3px;border:1px solid #0003}
+.blbs{width:23mm;white-space:nowrap}.blbar{display:block;height:3px;background:#e7e9ec;border-radius:2px;margin:2px 0 1px;overflow:hidden}.blbar i{display:block;height:100%}
+.blw{font-size:7.2pt;white-space:nowrap}.blw i,.blkw i{display:inline-block;width:10.5mm;color:#9aa1ab;font-size:6.4pt;text-transform:uppercase;font-style:normal}
+.blort{font-size:7.2pt;max-width:24mm}.blcd{font-family:ui-monospace,Menlo,monospace;font-size:6.8pt}
+.blic{width:12mm;text-align:center;white-space:nowrap}.blbox{display:inline-block;width:4.5mm;height:4.5mm;border:1px solid #9aa1ab;border-radius:2px;vertical-align:middle;line-height:4.2mm;font-size:8pt;font-weight:700;color:#1e9655}
+.blistw{font-size:8pt}.bldf{display:block;font-size:6.8pt;font-weight:700}.bldf.m{color:#d23c3c}.bldf.p{color:#1e9655}
+.blleer{opacity:.5}
+.blkarten{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:5px}.blk{border:1px solid #e3e6ea;border-radius:7px;padding:6px 7px;break-inside:avoid;display:flex;flex-direction:column;gap:2px}
+.blkt{display:flex;gap:7px;align-items:center;margin-bottom:2px}.blkb{flex:1;min-width:0}.blkb b{font-size:11pt}.blkw{font-size:7pt;display:flex;gap:8px}.blkw i{width:auto;margin-right:3px}
+.blkf{margin-top:auto;padding-top:3px;display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;font-size:7pt;color:#4b5563;border-top:1px dashed #e3e6ea}.blkf .blic{margin-left:auto;width:auto}
+.blcheck{margin-top:3px}.blc{display:flex;align-items:center;gap:7px;padding:3px 4px;border-bottom:1px solid #eceef1;break-inside:avoid}.blc .blic{width:auto}
+.blcn{min-width:0;flex:1}.blcn b{font-size:8.6pt}.blcort{max-width:30mm}.blcs{white-space:nowrap;color:#4b5563;font-size:7.6pt}.bllinie{width:24mm;border-bottom:1px solid #9aa1ab;height:4mm;flex:none}
+.blfuss{margin-top:8px;color:#9aa1ab;font-size:7pt;display:flex;justify-content:space-between}.blnix{padding:30px;text-align:center;color:#6b7280}
+.blinv{display:inline-flex;gap:3px;align-items:center}.blinv input{width:17mm;height:24px;padding:0 4px;font:inherit;font-size:8pt;text-align:right;border:1px solid #c9ced4;border-radius:5px;background:#fff;color:#1d1f23}
+.blok{width:24px;height:24px;border-radius:6px;border:1px solid #c9ced4;background:#fff;color:#9aa1ab;font-weight:700;cursor:pointer;padding:0}.blok.on{background:#1e9655;border-color:#1e9655;color:#fff}`;
+(()=>{const st=document.createElement("style");st.textContent=BL_CSS+`
+.modal.blwide{width:min(1100px,96vw)}.blctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}.blctl select,.blctl input[type=search]{width:auto;flex:0 1 200px}
+.blhint{margin:0 0 8px}.blprev{background:color-mix(in srgb,var(--fg) 8%,transparent);border-radius:var(--r-s);padding:12px;overflow:auto}
+.blpage{max-width:200mm;margin:0 auto;padding:10mm 9mm;border-radius:3px;box-shadow:0 2px 14px #0004;min-width:640px}
+@media (max-width:700px){.blpage{padding:4mm 3mm;min-width:0}.blprev{padding:6px}.blpage .bltab .blw,.blpage .bltab .blort,.blpage .bltab .blpr,.blpage .bltab .blcd,.blpage .blst{display:none}.blpage .blkz{grid-template-columns:repeat(3,1fr)}.blpage .blkz>div:nth-child(n+4){display:none}.blpage .blkarten{grid-template-columns:repeat(2,1fr)}.blpage .blcs{font-size:7pt}.blpage .blcort{display:none}.blpage .bltab td.r .blsub,.blpage .blhx,.blpage .blbs .blsub{display:none}.blpage .bltab td{padding:3px 2px}.blpage .blbs{width:auto}.blpage .blinv input{width:14mm}.blpage .blic{width:auto}}`;document.head.appendChild(st)})();
+document.addEventListener("input",ev=>{const t=ev.target;if(!t)return;
+  if(t.id==="blq"){BL.q=t.value;clearTimeout(bestandModal.t);bestandModal.t=setTimeout(()=>{const p=t.selectionStart;bestandModal();const n=document.getElementById("blq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250);return}
+  if(t.dataset&&t.dataset.blist){const u=t.dataset.blist,v=t.value.trim();const i=BL.ist[u]||{};if(v===""){delete i.g}else{const n=Number(v.replace(",","."));if(Number.isFinite(n)&&n>=0)i.g=Math.round(n)}
+    if(i.g==null&&!i.ok)delete BL.ist[u];else BL.ist[u]=i;blSave();blZelle(t.closest(".blic"),u)}});
+/* nur die eine Zelle und den Knopf unten auffrischen, damit Fokus und Tastatur beim Durchtippen bleiben */
+function blZelle(cell,u){const e=entries().find(x=>x.uid===u);if(!cell||!e)return;const i=BL.ist[u]||{};const t=total(e);const diff=i.g!=null&&Math.round(i.g)!==Math.round(t)?i.g-t:0;
+  const ok=cell.querySelector(".blok");if(ok)ok.classList.toggle("on",!!(i.ok||i.g!=null));let d=cell.querySelector(".bldf");
+  if(diff){if(!d){d=document.createElement("span");cell.appendChild(d)}d.className="bldf "+(diff<0?"m":"p");d.textContent=(diff>0?"+":"−")+kg(Math.abs(diff))}else if(d)d.remove();
+  const gp=document.querySelector("#modal [data-blgep]");if(gp){const ids=new Set([...document.querySelectorAll("#modal [data-blist]")].map(x=>x.dataset.blist));gp.textContent=[...ids].filter(x=>BL.ist[x]&&(BL.ist[x].ok||BL.ist[x].g!=null)).length+"/"+gp.dataset.blgep}
+  const n=blAenderungen().length,b=document.querySelector('#modal footer [data-act="lgBlUebern"]');if(b){b.disabled=!n;b.textContent="Übernehmen"+(n?` (${n})`:"")}}
+document.addEventListener("change",ev=>{const t=ev.target;if(t&&t.dataset&&t.dataset.blsort!=null){BL.sort=t.value;blSave();bestandModal()}});
 /* ---------- Jahresrückblick aus der Verbrauchsliste ---------- */
 function rueckblickModal(){
   const alle=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit)));
