@@ -122,6 +122,44 @@
     }
   }
 
+  /* 3b. Preis im Seiteninhalt (PrestaShop, Microdata, übliche Preis-Felder) – auch Übersichtsseiten mit mehreren Produkten */
+  if (!V.length) {
+    const txt = (el) => (el ? String(el.getAttribute("content") || el.textContent || "").replace(/\s+/g, " ").trim() : "");
+    const preisIn = (el) => { if (!el) return 0; for (const q of ['[itemprop="price"]', ".current-price-value", ".current-price [content]", ".current-price", ".product-price", ".price", "[data-price]"]) { const x = el.querySelector(q); const v = x && num(x.getAttribute("content") || x.getAttribute("data-price") || x.textContent); if (v > 0) return v; } return 0; };
+    const altIn = (el) => { const x = el && el.querySelector(".regular-price, .old-price, del .price, s .price, [itemprop=\"highPrice\"]"); return x ? num(x.textContent) : 0; };
+    /* PrestaShop-Produktseite: Daten der gewählten Variante im Attribut data-product */
+    const dp = document.querySelector("[data-product]");
+    if (dp) {
+      try {
+        const j = JSON.parse(dp.getAttribute("data-product"));
+        const at = j.attributes ? Object.values(j.attributes).map((a) => a && a.name).filter(Boolean).join(" / ") : "";
+        if (j.name) T = j.name;
+        add(at, j.price_amount || j.price, j.regular_price_amount, j.reference, j.ean13);
+      } catch (e) { DG.dpe = 1; }
+    }
+    /* mehrere Produkte auf der Seite (Übersicht): Microdata-Produkte oder Produktkacheln */
+    if (!V.length) {
+      const kacheln = [...document.querySelectorAll('[itemtype*="schema.org/Product"], .product-miniature, .js-product-miniature, .product-item, li.product, .product-card')];
+      const gesehen = new Set();
+      kacheln.forEach((k) => {
+        if ([...gesehen].some((g) => g.contains(k))) return;
+        gesehen.add(k);
+        const n = txt(k.querySelector('[itemprop="name"], .product-title, .product-name, .product-item-name, h2, h3'));
+        const p = preisIn(k);
+        if (n && p) add(n, p, altIn(k), "", "");
+      });
+      if (V.length === 1 && kacheln.length === 1) { T = V[0].n || T; V[0].n = ""; }
+    }
+    /* einzelne Produktseite ohne strukturierte Daten: Überschrift + erster Preis im Produktbereich */
+    if (!V.length) {
+      const h1 = document.querySelector("h1");
+      const bereich = document.querySelector('#product, .product-detail, .product-info, .product-main, main') || document.body;
+      const p = preisIn(bereich);
+      if (h1 && p) { T = txt(h1); add("", p, altIn(bereich), "", ""); }
+    }
+    DG.dp = !!dp; DG.ip = document.querySelectorAll('[itemprop="price"]').length; DG.pm = document.querySelectorAll(".product-miniature, .js-product-miniature").length;
+  }
+
   /* 4. Letzter Versuch: Preis-Angaben im Seitenkopf (ein Preis, die gerade gewählte Variante) */
   if (!V.length) {
     C = meta("product:price:currency") || meta("og:price:currency") || meta("priceCurrency") || C;
