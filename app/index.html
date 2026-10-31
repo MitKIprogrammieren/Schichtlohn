@@ -1290,7 +1290,38 @@ const PV={d:null,laden:null};
 function pvLaden(){if(!S.srv)return Promise.resolve(null);if(PV.laden)return PV.laden;
   PV.laden=SRV.req("GET","/api/preise").then(d=>{PV.d=d||{};const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand();try{window.dispatchEvent(new Event("sl-pv"))}catch(x){}return PV.d}).catch(()=>PV.d).finally(()=>{PV.laden=null});return PV.laden}
 const pvBrauche=()=>{if(S.srv&&!PV.d&&!PV.laden)setTimeout(pvLaden,0)};
-window.addEventListener("sl-preise",()=>pvLaden());
+window.addEventListener("sl-preise",()=>{pvLaden();pvLogLaden(true)});
+/* Abruf-Protokoll: wann, warum, wie lange, was eBay und AliExpress je Sorte geliefert haben */
+const PVL={l:null,laden:null,alle:false,f:"alle"};
+function pvLogLaden(neu){if(!S.srv)return Promise.resolve(null);if(PVL.laden)return PVL.laden;if(PVL.l&&!neu)return Promise.resolve(PVL.l);
+  PVL.laden=SRV.req("GET","/api/preise/protokoll").then(d=>{PVL.l=(d&&d.laeufe)||[];const el=document.getElementById("pv_log");if(el)el.outerHTML=pvLogHTML();if(document.querySelector("#modal #pvLauf"))pvLaufModal(PVL.i);return PVL.l}).catch(()=>PVL.l).finally(()=>{PVL.laden=null});return PVL.laden}
+const pvZeit=z=>{const d=new Date(String(z||"").replace(" ","T"));return isNaN(d)?esc(z||""):d.toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})};
+const pvDauer=s=>{s=Math.round(Number(s)||0);return s<60?s+" s":Math.floor(s/60)+" min "+String(s%60).padStart(2,"0")+" s"};
+const pvAmpel=l=>l.fehler?((l.ebay||0)+(l.ali||0)?"teil":"bad"):"ok";
+function pvLogHTML(){const l=PVL.l;if(!l)return `<div class="pvlog" id="pv_log"><div class="hint">Protokoll wird geladen …</div></div>`;
+  if(!l.length)return `<div class="pvlog" id="pv_log"><div class="hint">Noch kein Abruf protokolliert. Nach dem ersten Abruf steht hier, wann und mit welchem Ergebnis die Preise geholt wurden.</div></div>`;
+  const zeig=PVL.alle?l:l.slice(0,5);
+  return `<div class="pvlog" id="pv_log"><div class="pvlh">Abruf-Protokoll</div>${zeig.map((x,i)=>`<button type="button" class="pvlz" data-act="pvLauf" data-i="${i}"><i class="pva ${pvAmpel(x)}"></i>
+    <span class="pvlm"><b>${pvZeit(x.zeit)}</b><small>${esc(x.anlass||"automatisch")} · ${pvDauer(x.dauer)}</small></span>
+    <span class="pvlr"><b>${x.ebay||0} eBay · ${x.ali||0} AliExpress</b><small>von ${x.sorten||0} Sorten</small></span><span class="pvlp">›</span>
+    ${x.fehler?`<span class="pvlf">${esc(x.fehler)}</span>`:""}</button>`).join("")}
+    ${l.length>5?`<button type="button" class="btn ghost sm" data-act="pvLogAlle">${PVL.alle?"Weniger zeigen":`Alle ${l.length} Abrufe zeigen`}</button>`:""}</div>`}
+function pvZelle(z,n){if(!z)return `<span class="pvc aus">–</span>`;
+  if(z.s==="ok")return `<span class="pvc ok" title="${esc(z.titel||"")}"><b>${eur(z.preis)}</b>${z.pk?`<small>${eur(z.pk)}/kg</small>`:""}<small>${z.ean?"per EAN":"per Suche"}${z.treffer?` · ${z.treffer} Angebot${z.treffer===1?"":"e"}`:""}</small></span>`;
+  if(z.s==="keiner")return `<span class="pvc kein"><b>kein Treffer</b><small>${z.treffer?`${z.treffer} gefunden, keins passend`:"nichts gefunden"}</small></span>`;
+  if(z.s==="fehler")return `<span class="pvc bad"><b>Fehler</b><small>${esc(z.text||"")}</small></span>`;
+  if(z.s==="uebersprungen")return `<span class="pvc aus"><b>übersprungen</b><small>nach Fehler</small></span>`;
+  return `<span class="pvc aus"><b>aus</b><small>kein Schlüssel</small></span>`}
+function pvLaufModal(i){PVL.i=i;const x=(PVL.l||[])[i];if(!x)return;const Z=x.zeilen||[];
+  const art=z=>[z.ebay,z.ali].some(c=>c&&c.s==="fehler")?"fehler":[z.ebay,z.ali].some(c=>c&&c.s==="ok")?"mit":"ohne";
+  const n={alle:Z.length,mit:0,ohne:0,fehler:0};Z.forEach(z=>n[art(z)]++);const L=Z.filter(z=>PVL.f==="alle"||art(z)===PVL.f);
+  const h=`<div class="lgform" id="pvLauf"><div class="plkpis"><div><b>${x.sorten||0}</b><span>Sorten</span></div><div><b>${x.ebay||0}</b><span>eBay-Preise</span></div><div><b>${x.ali||0}</b><span>AliExpress-Preise</span></div><div><b>${pvDauer(x.dauer)}</b><span>Dauer</span></div></div>
+    <div class="lghint">${pvZeit(x.zeit)} · Anlass: ${esc(x.anlass||"automatisch")}${x.fehler?` · <span style="color:var(--bad)">${esc(x.fehler)}</span>`:""}</div>
+    ${Z.length?`<div class="lgtg">${[["alle","Alle"],["mit","Mit Preis"],["ohne","Ohne Treffer"],["fehler","Fehler"]].filter(([k])=>k==="alle"||n[k]).map(([k,t])=>`<button type="button" class="chip${PVL.f===k?" on":""}" data-act="pvLaufF" data-f="${k}">${t} ${n[k]}</button>`).join("")}</div>
+    <div class="pvt"><div class="pvth"><span>Sorte</span><span>eBay</span><span>AliExpress</span></div>${L.map(z=>`<div class="pvtr"><span class="pvts">${esc(z.sorte||"")}</span>${pvZelle(z.ebay)}${pvZelle(z.ali)}</div>`).join("")||`<div class="panel empty">Keine Sorten in dieser Auswahl.</div>`}</div>`
+      :`<div class="panel empty">Für ältere Abrufe werden nur die Summen aufgehoben, Einzelheiten je Sorte gibt es für die letzten 5.</div>`}</div>`;
+  const b=document.querySelector("#modal #pvLauf");if(b){b.outerHTML=h;return}
+  modal("Preisabruf",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 /* eBay/AliExpress-Angebot einer Sorte im Format der Preisliste (Preis inkl. Versand, €/kg nach Gewicht im Angebotstitel) */
 function pvAngebote(uid,gew){const z=PV.d&&PV.d.werte&&PV.d.werte[uid];if(!z)return [];
   return [["ebay","eBay"],["ali","AliExpress"]].filter(([k])=>z[k]&&z[k].preis>0).map(([k,n])=>{const o=z[k],g=o.gew||gew||1000,st=o.stueck||1;
@@ -1309,7 +1340,8 @@ function preisHTML(){const sec=(inh)=>`<section class="panel pad stack"><div cla
     <div class="cols2">${f("pv_eid","Client-ID (App ID)",eb.id,"MeinName-SchichtL-PRD-…")}${f("pv_esec","Client-Secret (Cert ID)",eb.secret,"PRD-…",true)}</div>
     <div class="pvk"><b>AliExpress</b><small>Kostenlos: auf <a href="https://portals.aliexpress.com/" target="_blank" rel="noopener">portals.aliexpress.com</a> Partner werden, unter „API“ eine App anlegen.</small></div>
     <div class="cols3">${f("pv_ak","App-Key",al.key,"12345678")}${f("pv_asec","App-Secret",al.secret,"",true)}${f("pv_atr","Tracking-ID",al.tracking,"default")}</div>
-    <div class="row"><button class="btn pri sm" data-act="pvSave">Speichern</button><button class="btn ghost sm" data-act="pvJetzt">Jetzt abrufen</button><span class="hint" id="pv_stand">${pvStand()}</span></div>`)}
+    <div class="row"><button class="btn pri sm" data-act="pvSave">Speichern</button><button class="btn ghost sm" data-act="pvJetzt">Jetzt abrufen</button><span class="hint" id="pv_stand">${pvStand()}</span></div>
+    ${(PVL.l||setTimeout(()=>pvLogLaden(),0),pvLogHTML())}`)}
 document.addEventListener("change",ev=>{const t=ev.target;if(!t)return;
   if(t.id==="fn_qr"){S.cfg.etQrBasis=t.value.trim();saveCfgSoon();toast(t.value.trim()?"QR-Adresse gespeichert":"QR-Adresse wieder automatisch")}
   if(t.id==="fn_waage"&&window.SRV)SRV.req("PUT","/api/einstellungen",{waage_url:t.value.trim()}).then(e=>{SLF.e=e;t.value=e.waage_url||"";toast(e.waage_url?"Waage eingetragen":"Waage entfernt")}).catch(x=>toast(x.message||String(x)))});
@@ -1573,6 +1605,9 @@ document.addEventListener("click",async e=>{
   if(a==="pvSave"){const v=id=>{const el=document.getElementById(id);return el?el.value.trim():""};
     SRV.req("PUT","/api/einstellungen",{preise:{ebay:{id:v("pv_eid"),secret:v("pv_esec")},ali:{key:v("pv_ak"),secret:v("pv_asec"),tracking:v("pv_atr")}}})
       .then(e=>{SLF.e=e;toast("Gespeichert – Preise werden abgerufen");PV.d=Object.assign({},PV.d,{laeuft:true});render()}).catch(x=>toast(x.message||String(x)));return}
+  if(a==="pvLauf"){PVL.f="alle";pvLaufModal(+b.dataset.i);return}
+  if(a==="pvLaufF"){PVL.f=b.dataset.f;pvLaufModal(PVL.i);return}
+  if(a==="pvLogAlle"){PVL.alle=!PVL.alle;const el=document.getElementById("pv_log");if(el)el.outerHTML=pvLogHTML();return}
   if(a==="pvJetzt"){SRV.req("POST","/api/preise/abrufen").then(()=>{PV.d=Object.assign({},PV.d,{laeuft:true});const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand();toast("Preise werden abgerufen")}).catch(x=>toast(x.message||String(x)));return}
   if(a==="fnToggle"){const k=b.dataset.k;
     if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;render();toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>toast(x.message||String(x)));return}
@@ -5522,6 +5557,14 @@ body.rx-einfach #mbar{display:none!important}
 .dsfe2{display:inline-flex;align-items:center;gap:8px;font-size:13px;margin-top:6px}
 .dsfe2 input{width:44px;height:30px;border:0;padding:0;background:none}
 .pvk{display:flex;flex-direction:column;gap:2px;margin-top:4px}.pvk small{color:var(--fg-3);font-size:12.5px}
+.pvlog{display:flex;flex-direction:column;gap:6px;margin-top:6px}.pvlh{font-size:12px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.06em}
+.pvlz{display:grid;grid-template-columns:10px 1fr auto 12px;align-items:center;gap:4px 10px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--glass-2);color:inherit;font:inherit;cursor:pointer}
+.pvlz:hover{border-color:var(--fg-3)}.pvlm,.pvlr{display:flex;flex-direction:column;min-width:0;line-height:1.25}.pvlr{align-items:flex-end;text-align:right}.pvlm b,.pvlr b{font-size:13.5px;font-weight:600;white-space:nowrap}
+.pvlm small,.pvlr small{font-size:11.5px;color:var(--fg-3)}.pvlp{color:var(--fg-3)}.pvlf{grid-column:2/-1;font-size:11.5px;color:var(--bad);overflow:hidden;text-overflow:ellipsis}
+.pva{width:9px;height:9px;border-radius:50%;background:var(--accent)}.pva.teil{background:var(--warn)}.pva.bad{background:var(--bad)}
+.pvt{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}.pvth,.pvtr{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:8px;padding:8px 10px;align-items:start}
+.pvth{font-size:11px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.05em;background:var(--glass-2)}.pvtr{border-top:1px solid var(--line);font-size:13px}.pvts{font-weight:600;overflow-wrap:anywhere}
+.pvc{display:flex;flex-direction:column;line-height:1.25;min-width:0}.pvc b{font-size:13px}.pvc small{font-size:11px;color:var(--fg-3);overflow-wrap:anywhere}.pvc.ok b{color:var(--accent)}.pvc.bad b{color:var(--bad)}.pvc.kein b,.pvc.aus b{color:var(--fg-3);font-weight:500}
 .reicht{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .rc{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:var(--r-s,8px);border:1px solid var(--line);font-size:13.5px;line-height:1.35}
 .rc>i{width:14px;height:14px;border-radius:50%;margin-top:2px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}

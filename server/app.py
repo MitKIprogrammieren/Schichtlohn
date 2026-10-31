@@ -25,6 +25,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
+  GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
 
 Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
@@ -64,7 +65,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.17"
+VERSION = "3.2.18"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -660,7 +661,7 @@ def einstellungen_setzen(neu):
         e["waage_url"] = u
     daten_schreiben(EINST_KEY, e)
     if isinstance(neu.get("preise"), dict):
-        im_hintergrund(preise_abrufen)
+        im_hintergrund(preise_abrufen, "Schlüssel gespeichert")
     if not nur_extras:
         BAMBU.neu_starten()
     return einstellungen_maskiert()
@@ -727,17 +728,28 @@ def im_hintergrund(f, *a):
 
 
 PREISE_KEY = "_preisvergleich"
+PROTOKOLL_KEY = "_preisprotokoll"  # die letzten Abrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
+PROTOKOLL_MAX, PROTOKOLL_DETAILS = 30, 5
 _preise_lock = threading.Lock()
 PREISE_STAND = {"laeuft": False}
 
 
-def preise_abrufen():
+def protokoll_schreiben(lauf):
+    alt, _ = daten_lesen(PROTOKOLL_KEY)
+    liste = [lauf] + [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
+    for x in liste[PROTOKOLL_DETAILS:]:  # Einzelheiten nur für die letzten Abrufe aufheben
+        x.pop("zeilen", None)
+    daten_schreiben(PROTOKOLL_KEY, liste[:PROTOKOLL_MAX])
+
+
+def preise_abrufen(anlass="automatisch"):
     """Aktuelle eBay- und AliExpress-Angebote für alle Sorten im Lager holen (täglich und nach dem Eintragen der Schlüssel)."""
     cfg = einstellungen().get("preise") or {}
     if not any(all((cfg.get(k) or {}).get(x) for x in f) for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret")))):
         return None
     if not _preise_lock.acquire(blocking=False):
         return None
+    start = time.time()
     PREISE_STAND["laeuft"] = True
     melden({"typ": "preise", "laeuft": True})
     try:
@@ -748,10 +760,19 @@ def preise_abrufen():
             d = _desc(it)
             if not d.get("typ") and it.get("status") != "completed":
                 sorten.append((it["uid"], d))
-        werte, stat = preise_mod.abrufen(cfg, sorten, alt.get("werte"))
+        try:
+            werte, stat = preise_mod.abrufen(cfg, sorten, alt.get("werte"))
+        except Exception as e:
+            protokoll_schreiben({"zeit": time.strftime("%Y-%m-%d %H:%M:%S"), "anlass": anlass, "dauer": round(time.time() - start),
+                                 "sorten": len(sorten), "ebay": 0, "ali": 0, "fehler": str(e)[:300]})
+            raise
         neu = {"stand": time.strftime("%Y-%m-%d %H:%M"), "werte": werte, "ebay": stat["ebay"], "ali": stat["ali"],
                "sorten": len(sorten), "fehler": "; ".join(dict.fromkeys(stat["fehler"])) or None}
         daten_schreiben(PREISE_KEY, neu)
+        protokoll_schreiben({"zeit": time.strftime("%Y-%m-%d %H:%M:%S"), "anlass": anlass, "dauer": round(time.time() - start),
+                             "sorten": len(sorten), "ebay": stat["ebay"], "ali": stat["ali"], "fehler": neu["fehler"],
+                             "dienste": [k for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret"))) if all((cfg.get(k) or {}).get(x) for x in f)],
+                             "zeilen": stat["zeilen"]})
         print(f"Preisvergleich: {stat['ebay']} eBay, {stat['ali']} AliExpress bei {len(sorten)} Sorten"
               + (f" – {neu['fehler']}" if neu["fehler"] else ""), flush=True)
         return neu
@@ -1858,8 +1879,11 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise"] and methode == "GET":
             w, _ = daten_lesen(PREISE_KEY)
             return self._json(200, dict(w if isinstance(w, dict) else {}, laeuft=PREISE_STAND["laeuft"]))
+        if teile == ["preise", "protokoll"] and methode == "GET":
+            w, _ = daten_lesen(PROTOKOLL_KEY)
+            return self._json(200, {"laeufe": w if isinstance(w, list) else []})
         if teile == ["preise", "abrufen"] and methode == "POST":
-            im_hintergrund(preise_abrufen)
+            im_hintergrund(preise_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
         if teile[0] == "waage" and len(teile) == 2:
             return self._json(200, waage_weiter(teile[1], methode, self._json_rumpf() if methode == "POST" else None))

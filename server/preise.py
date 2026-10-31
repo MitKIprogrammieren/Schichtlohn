@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 
 UA = "SchichtLohn-Server"
+_letzte = {"treffer": 0}  # passende Angebote der letzten Suche – fürs Protokoll
 _ebay_token = {"wert": "", "bis": 0, "fuer": ""}
 
 FARBE_DE_EN = {"schwarz": "black", "weiß": "white", "weiss": "white", "grau": "grey", "rot": "red", "blau": "blue", "grün": "green",
@@ -116,6 +117,7 @@ def ebay_angebot(cfg, e):
     if not treffer:
         treffer = [t for t in _ebay_suche(token, {"q": suchtext(e)}) if _passt(t.get("title"), e)]
     beste = None
+    _letzte["treffer"] = len(treffer)
     for t in treffer:
         p = t.get("price") or {}
         if p.get("currency") != "EUR":
@@ -157,6 +159,7 @@ def ali_angebot(cfg, e):
     res = ((d.get("aliexpress_affiliate_product_query_response") or {}).get("resp_result") or {})
     prods = ((res.get("result") or {}).get("products") or {}).get("product") or []
     beste = None
+    _letzte["treffer"] = sum(1 for p in prods if _passt(p.get("product_title"), e))
     for p in prods:
         if not _passt(p.get("product_title"), e):
             continue
@@ -175,7 +178,7 @@ def ali_angebot(cfg, e):
 def abrufen(cfg, sorten, alt=None, melde=print):
     """sorten: [(uid, beschreibung)] → {uid: {"ebay": …, "ali": …, "zeit": …}}, dazu Statistik."""
     alt = alt or {}
-    out, stat = {}, {"ebay": 0, "ali": 0, "fehler": []}
+    out, stat = {}, {"ebay": 0, "ali": 0, "fehler": [], "zeilen": []}
     eb = (cfg or {}).get("ebay") or {}
     al = (cfg or {}).get("ali") or {}
     eb_an = bool(eb.get("id") and eb.get("secret"))
@@ -184,24 +187,34 @@ def abrufen(cfg, sorten, alt=None, melde=print):
         if not (e.get("hersteller") and e.get("material")):
             continue
         z = dict(alt.get(uid) or {})
+        zeile = {"uid": uid, "sorte": " ".join(str(x) for x in [e.get("hersteller"), e.get("material"), *(e.get("besonderheiten") or []), "·", e.get("farbe")] if x)}
         for name, an, f in (("ebay", eb_an, lambda: ebay_angebot(eb, e)), ("ali", al_an, lambda: ali_angebot(al, e))):
+            schluessel_da = bool((eb if name == "ebay" else al).get("secret"))
             if not an:
                 z.pop(name, None)
+                zeile[name] = {"s": "uebersprungen" if schluessel_da else "aus"}
                 continue
+            _letzte["treffer"] = 0
             try:
                 a = f()
                 if a:
                     z[name] = a
                     stat[name] += 1
+                    zeile[name] = {"s": "ok", "preis": a["preis"], "pk": a.get("pk"), "treffer": _letzte["treffer"], "ean": bool(a.get("per_ean")),
+                                   "titel": a.get("titel", "")[:120]}
                 else:
                     z.pop(name, None)
+                    zeile[name] = {"s": "keiner", "treffer": _letzte["treffer"]}
             except Exception as ex:  # Zugang falsch o. Ä.: einmal melden und diesen Händler für diesen Lauf aufgeben
-                stat["fehler"].append(str(getattr(ex, "reason", None) or ex)[:200])
+                msg = str(getattr(ex, "reason", None) or ex)[:200]
+                stat["fehler"].append(msg)
+                zeile[name] = {"s": "fehler", "text": msg}
                 if name == "ebay":
                     eb_an = False
                 else:
                     al_an = False
             time.sleep(0.3)
+        stat["zeilen"].append(zeile)
         z["zeit"] = time.strftime("%Y-%m-%d %H:%M")
         out[uid] = z
     return out, stat

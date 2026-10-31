@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.18 – 31.10.2026
+- Neu: Abruf-Protokoll unter Einstellungen → Preisvergleich. Für jeden Preisabruf siehst du Zeit, Anlass (automatisch, von Hand, nach dem Speichern der Schlüssel), Dauer, Anzahl der Preise und Fehler.
+- Ein Tipp auf einen Abruf zeigt für jede Sorte, was eBay und AliExpress geliefert haben: Preis, €/kg, ob per EAN oder Suche gefunden – oder warum nichts gefunden wurde.
+
 ## 3.2.17 – 31.10.2026
 - eBay- und AliExpress-Preise stehen jetzt überall: als eigene Zeilen in der Preisliste (mit €/kg, günstigstes Angebot markiert), in der Einkaufsliste und bei der Filamentwahl im Rechner („AliExpress ab …“).
 - Der Preis je kg stimmt auch bei Mehrfachpacks und 3-kg-Rollen: SchichtLohn liest Rollengewicht und Stückzahl aus dem Angebot.
