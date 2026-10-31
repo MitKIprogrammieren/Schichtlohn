@@ -372,6 +372,56 @@ def zuordnen(filamente, faecher_liste):
     return out
 
 
+# ---------------------------------------------------------------- Heimnetz zusätzlich zur Cloud (nur für die Druckdatei)
+
+def lan_pruefen(ip, code, timeout=6):
+    """Kommt der Server per FTPS (Port 990) mit dem Zugangscode an den Speicher des Druckers? → (ok, text)"""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ftp = _FTPS(context=ctx, timeout=timeout)
+    try:
+        ftp.connect(ip, 990)
+        ftp.login("bblp", code)
+        ftp.prot_p()
+        ftp.nlst("/")
+        return True, f"Druckerspeicher unter {ip} erreichbar"
+    except ftplib.error_perm as e:
+        return False, "Zugangscode passt nicht" if "530" in str(e) else f"Drucker lehnt ab: {e}"
+    except ConnectionRefusedError:
+        return False, f"{ip} lässt keinen Dateizugriff zu – stimmt die IP? Manche Drucker brauchen dafür den LAN-Modus"
+    except ftplib.all_errors as e:
+        return False, f"{ip} nicht erreichbar ({fehlertext(e)})"
+    finally:
+        try:
+            ftp.close()
+        except Exception:
+            pass
+
+
+def lan_suchen(code, netze, zeit=0.5):
+    """Drucker im Heimnetz finden: Port 990 in den Netzen (z. B. „192.168.1“) abklopfen, dann mit dem Zugangscode anmelden.
+    → (ip oder "", text)"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def offen(ip):
+        try:
+            with socket.create_connection((ip, 990), timeout=zeit):
+                return ip
+        except OSError:
+            return None
+    kandidaten = [f"{n}.{i}" for n in netze for i in range(1, 255)]
+    with ThreadPoolExecutor(max_workers=96) as ex:
+        treffer = [ip for ip in ex.map(offen, kandidaten) if ip]
+    if not treffer:
+        return "", f"Kein Bambu-Drucker gefunden (gesucht in {', '.join(n + '.x' for n in netze)})"
+    for ip in treffer:
+        ok, _ = lan_pruefen(ip, code)
+        if ok:
+            return ip, f"Gefunden unter {ip}"
+    return "", f"{len(treffer)} Drucker gefunden, aber keiner nimmt diesen Zugangscode an"
+
+
 def farbabstand(a, b):
     a, b = _farbe(a), _farbe(b)
     if not a or not b:
@@ -574,7 +624,7 @@ class Drucker:
                 self.auftrag = {"name": self.p.get("subtask_name") or "", "task": str(self.p.get("task_id") or ""),
                                 "start": time.time(), "rest": {f["global"]: (f["rest"], f["gewicht"]) for f in faecher(self.p)},
                                 "max": 0, "schicht": 0, "skip": {}, "datei": None, "gcode": None, "objekte": None}
-                if self.d.get("modus") != "cloud" and self.d.get("ip") and self.d.get("code"):
+                if self.d.get("ip") and self.d.get("code"):  # auch bei Cloud-Druckern, wenn die IP eingetragen ist
                     threading.Thread(target=self._datei_vorab, daemon=True).start()
             self.auftrag["max"] = max(self.auftrag["max"], _int(self.p.get("mc_percent"), 0))
             self.auftrag["schicht"] = max(self.auftrag.get("schicht", 0), _int(self.p.get("layer_num"), 0) or 0)
@@ -658,7 +708,7 @@ class Drucker:
         fl = faecher(p)
         # 1) Druckdatei
         datei = a.get("datei")
-        if datei is None and self.d.get("modus") != "cloud" and self.d.get("ip"):
+        if datei is None and self.d.get("ip") and self.d.get("code"):
             try:
                 daten, _ = druckdatei_laden(self.d["ip"], self.d["code"], p)
                 if daten:

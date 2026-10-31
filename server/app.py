@@ -65,7 +65,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.20"
+VERSION = "3.2.21"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -721,6 +721,50 @@ def ha_anfrage(pfad, daten=None, timeout=10, roh=False):
     with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
         b = r.read()
     return b if roh else json.loads(b.decode() or "null")
+
+
+def lan_netze(hinweis_ip="", besucher=""):
+    """Welche Heimnetze (erste drei Zahlen der IP) nach Druckern durchsucht werden – höchstens vier."""
+    import ipaddress
+    import socket
+    netze = []
+
+    def dazu(ip):
+        try:
+            a = ipaddress.ip_address(str(ip).split(",")[0].strip())
+        except ValueError:
+            return
+        if a.version != 4 or not a.is_private or str(a).startswith(("172.17.", "172.30.", "172.31.", "127.")):
+            return  # Docker-/Supervisor-Netze ausnehmen
+        n = ".".join(str(a).split(".")[:3])
+        if n not in netze:
+            netze.append(n)
+
+    def host(u):
+        m = re.match(r"^\w+://([^/:]+)", u or "")
+        if m:
+            try:
+                dazu(socket.gethostbyname(m.group(1)))
+            except OSError:
+                pass
+    if hinweis_ip:
+        teile = [t for t in hinweis_ip.strip().split(".") if t][:3]
+        if len(teile) == 3:
+            dazu(".".join(teile) + ".1")
+    for d in einstellungen()["drucker"]:
+        if d.get("ip"):
+            dazu(d["ip"])
+    dazu(besucher)
+    host(einstellungen().get("waage_url"))
+    host(ha_cfg()[0])
+    try:
+        host((ha_anfrage("/api/config", timeout=5) or {}).get("internal_url"))
+    except Exception:
+        pass
+    for n in ("192.168.178", "192.168.1", "192.168.0"):  # übliche FritzBox- und Router-Netze
+        if n not in netze:
+            netze.append(n)
+    return netze[:4]
 
 
 def im_hintergrund(f, *a):
@@ -1959,6 +2003,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"dienste": [], "verbunden": False, "fehler": str(ex)})
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
+        if teile == ["drucker", "lan"] and methode == "POST":
+            # Heimnetz zusätzlich zur Cloud: Druckerspeicher prüfen oder die IP suchen (für die genaue Abbuchung aus der Druckdatei)
+            b = self._json_rumpf()
+            serial = str(b.get("serial") or "").strip().upper()
+            alt = next((d for d in einstellungen()["drucker"] if str(d.get("serial") or "").upper() == serial), {}) if serial else {}
+            code = str(b.get("code") or "").strip()
+            if not code or code == MASKE:
+                code = alt.get("code") or ""
+            if not code:
+                raise Fehler(400, "Zugangscode fehlt – am Drucker unter Netzwerk ablesen")
+            ip = str(b.get("ip") or "").strip()
+            if ip and not b.get("suchen"):
+                ok, text = drucker_mod.lan_pruefen(ip, code)
+                return self._json(200, {"ok": ok, "ip": ip if ok else "", "text": text})
+            ip, text = drucker_mod.lan_suchen(code, lan_netze(ip, self.headers.get("X-Forwarded-For") or self.client_address[0]))
+            return self._json(200, {"ok": bool(ip), "ip": ip, "text": text})
         if teile == ["drucker", "neu_starten"] and methode == "POST":
             BAMBU.neu_starten()
             return self._json(200, {"ok": True})

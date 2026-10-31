@@ -438,7 +438,7 @@ const SRV=window.SRV=(()=>{
   async function drLaden(){const el=document.getElementById("srv_drliste");if(!el)return;
     try{E=await req("GET","/api/einstellungen");const l=await req("GET","/api/drucker");DR=l.drucker||[]}catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+").";return}
     const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};const st=d.aktiv===false?"aus":live.online?"ok":live.fehler?"err":"warte";
-      return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.modus==="cloud"?"Bambu-Cloud":"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
+      return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.modus==="cloud"?(d.ip?"Bambu-Cloud + Heimnetz "+esc(d.ip):"Bambu-Cloud"):"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
     const bc=!!bambuKonto();const ab=document.getElementById("srv_abb");if(ab)ab.checked=E.abbuchung!==false;
     el.innerHTML=`${zeilen||`<p>Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern und bucht nach jedem Druck das Filament im Lager ab.</p>`}
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${bc&&!zeilen?" pri":""}" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button><button class="btn sm ghost" data-act="srvDrNeu">${ICON.plus||"+"} Von Hand</button></div>
@@ -470,13 +470,18 @@ const SRV=window.SRV=(()=>{
       <label class="field"><span>Name</span><input type="text" id="dr_name" value="${esc(d.name||"")}" placeholder="z. B. H2C"></label>
       <label class="field"><span>Seriennummer</span><input type="text" id="dr_serial" value="${esc(d.serial||"")}" placeholder="am Drucker unter Einstellungen → Gerät" autocapitalize="characters" spellcheck="false"></label>
       <label class="field"><span>Verbindung</span><select id="dr_modus"><option value="lokal"${d.modus!=="cloud"?" selected":""}>Heimnetz (IP + Zugangscode)</option><option value="cloud"${d.modus==="cloud"?" selected":""}>Bambu-Cloud</option></select></label>
-      <div class="g2" id="dr_lokal"${d.modus==="cloud"?" hidden":""}><label class="field"><span>IP-Adresse</span><input type="text" id="dr_ip" value="${esc(d.ip||"")}" placeholder="192.168.1.50" inputmode="decimal"></label>
+      <div class="drlan${d.modus==="cloud"?" zusatz":""}" id="dr_lokal">
+        <div class="drlan-t" id="dr_lan_t">${d.modus==="cloud"?drLanText:""}</div>
+        <div class="g2"><label class="field"><span>IP-Adresse</span><input type="text" id="dr_ip" value="${esc(d.ip||"")}" placeholder="${d.modus==="cloud"?"leer = nur Cloud":"192.168.1.50"}" inputmode="decimal"></label>
         <label class="field"><span>Zugangscode</span><input type="text" id="dr_code" value="${esc(d.code||"")}" placeholder="am Drucker: Netzwerk → Zugangscode" autocomplete="off" spellcheck="false"></label></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-act="srvDrLanSuchen" type="button">IP suchen</button><button class="btn sm ghost" data-act="srvDrLanPruefen" type="button">Verbindung prüfen</button><span class="hint" id="dr_lan_msg" role="status"></span></div></div>
       <label class="field"><span>Modell</span><select id="dr_modell">${MOD.map(([k,n])=>`<option value="${k}"${(d.modell||"")===k?" selected":""}>${n}</option>`).join("")}</select></label>
       <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="dr_aktiv"${d.aktiv!==false?" checked":""}> <span>Verbindung an</span></label>
-      <div class="hint">Heimnetz: Am Drucker unter Netzwerk den <b>LAN-Modus</b> und für neuere Firmware den <b>Entwicklermodus</b> einschalten; zum Mitlesen reicht meist der LAN-Zugangscode. Für die Gramm je Filament in Bambu Studio „Gesendete Dateien auf externem Speicher speichern“ aktivieren (sonst kommt der Verbrauch aus der Cloud oder der AMS-Restanzeige).<br>Bambu-Cloud: nutzt deine Bambu-Anmeldung aus SchichtLohn (Einstellungen → Bambu-Cloud), am Drucker muss nichts umgestellt werden.</div></div>`,
+      <div class="hint">Heimnetz: Am Drucker unter Netzwerk den <b>LAN-Modus</b> und für neuere Firmware den <b>Entwicklermodus</b> einschalten; zum Mitlesen reicht meist der LAN-Zugangscode. Für die Gramm je Filament in Bambu Studio „Gesendete Dateien auf externem Speicher speichern“ aktivieren (sonst kommt der Verbrauch aus der Cloud oder der AMS-Restanzeige).<br>Bambu-Cloud: nutzt deine Bambu-Anmeldung aus SchichtLohn (Einstellungen → Bambu-Cloud), am Drucker muss nichts umgestellt werden. Mit IP-Adresse dazu holt der Server zusätzlich die Druckdatei übers Heimnetz – am besten dem Drucker in der FritzBox immer dieselbe IP geben.</div></div>`,
       `${i!=null?`<button class="btn ghost" data-act="srvDrWeg" data-i="${i}" style="color:var(--bad)">Entfernen</button>`:""}<span class="sp" style="flex:1"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="srvDrOk" data-i="${i!=null?i:""}">Speichern</button>`);
-    const m=document.getElementById("dr_modus");if(m)m.addEventListener("change",()=>{document.getElementById("dr_lokal").hidden=m.value==="cloud"})}
+    const m=document.getElementById("dr_modus");if(m)m.addEventListener("change",()=>{const c=m.value==="cloud",box=document.getElementById("dr_lokal");box.classList.toggle("zusatz",c);
+      document.getElementById("dr_lan_t").innerHTML=c?drLanText:"";document.getElementById("dr_ip").placeholder=c?"leer = nur Cloud":"192.168.1.50"})}
+  const drLanText=`<b>Zusätzlich übers Heimnetz</b> <span class="chip">optional</span><div class="hint">Der Drucker bleibt über die Cloud verbunden. Mit der IP holt der Server außerdem die Druckdatei vom Drucker – dann werden übersprungene Teile und Abbrüche genau abgebucht.</div>`;
   function bambuKonto(){try{const v=JSON.parse(localStorage.getItem("schichtlohn_bambu")||"null");return v&&v.token?v:null}catch(e){return null}}
   const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t};
   const feld=()=>({u:norm((document.getElementById("srv_url")||{}).value),t:((document.getElementById("srv_tok")||{}).value||"").trim()});
@@ -486,6 +491,12 @@ const SRV=window.SRV=(()=>{
     if(a==="srvApp"){msg("Lade die neueste App und ihre Bibliotheken auf die Synology …");b.disabled=true;
       try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}.${window.__SL_SRV?" Seite neu laden, um sie zu nutzen.":""}`);appInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
+    if(a==="srvDrLanSuchen"||a==="srvDrLanPruefen"){const v=id=>((document.getElementById(id)||{}).value||"").trim();const m2=document.getElementById("dr_lan_msg");
+      const such=a==="srvDrLanSuchen";const ip=v("dr_ip");if(!such&&!ip){m2.textContent="Erst eine IP-Adresse eintragen oder „IP suchen“ antippen.";return}
+      m2.textContent=such?"Suche im Heimnetz … (bis zu einer halben Minute)":"Prüfe …";b.disabled=true;
+      try{const r=await req("POST","/api/drucker/lan",{serial:v("dr_serial").toUpperCase(),ip,code:v("dr_code"),suchen:such});
+        if(r.ok&&r.ip){document.getElementById("dr_ip").value=r.ip}m2.innerHTML=`<span style="color:var(--${r.ok?"good":"bad"})">${r.ok?"✓ ":""}${esc(r.text)}</span>${r.ok&&such?" – jetzt speichern.":""}`}
+      catch(x){m2.innerHTML=`<span style="color:var(--bad)">${esc(x.message)}</span>`}b.disabled=false;return}
     if(a==="srvDrNeu"){drModal(null);return}
     if(a==="srvDrEdit"){drModal(+b.dataset.i);return}
     if(a==="srvDrWeg"){const l=(E.drucker||[]).filter((_,i)=>i!==+b.dataset.i);closeModal();einstSpeichern({drucker:l},"Drucker entfernt.");return}
@@ -2233,6 +2244,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .jbar .info b{font-size:15px}
 .chip.cl{color:var(--accent)}
 .chip.bad{color:var(--bad)}
+.drlan{display:flex;flex-direction:column;gap:8px}.drlan.zusatz{border:1px dashed var(--line-2);border-radius:var(--r-s);padding:10px 12px}.drlan-t:empty{display:none}.drlan-t .hint{margin-top:3px}
 .chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
 .job .thumb.zoom{cursor:zoom-in;transition:transform .15s}.job .thumb.zoom:hover{transform:scale(1.04)}
 .jlb{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px));cursor:zoom-out;animation:jlbIn .15s ease-out}

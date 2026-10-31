@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.21 – 31.10.2026
+- Cloud und Heimnetz gleichzeitig: Bei Druckern über die Bambu-Cloud kannst du zusätzlich die IP-Adresse eintragen. Der Drucker bleibt über die Cloud verbunden, der Server holt aber die Druckdatei übers Heimnetz – so werden übersprungene Teile und Abbrüche auch bei Cloud-Druckern genau abgebucht.
+- „IP suchen“ findet den Drucker im Heimnetz von selbst (der Zugangscode kommt aus der Bambu-Cloud), „Verbindung prüfen“ zeigt, ob der Zugriff klappt.
+
 ## 3.2.20 – 31.10.2026
 - Übersprungene Teile werden nicht mehr mit abgebucht: Lässt du am Drucker Teile weg, zieht SchichtLohn nur ab, was wirklich gedruckt wurde – ausgerechnet aus der Druckdatei, Schicht für Schicht. Das klappt bei Druckern im Heimnetz; über die Bambu-Cloud gibt es nur eine Schätzung oder einen Hinweis.
 - Neu in Druckaufträge: „Verbrauch anpassen“. Einen Druck auswählen, echte Gramm eintragen (oder „Alles auf … %“), SchichtLohn bucht den Unterschied im Lager nach oder zurück.
