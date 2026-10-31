@@ -118,9 +118,21 @@
     if (KURZ) completion(B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=leer"); else alert(m);
     return;
   }
-  const daten = { u: location.href.split("#")[0], h: location.hostname, t: String(T).replace(/\s+/g, " ").trim(), c: C || "EUR", v: V.slice(0, 120), f: F.slice(0, 40) };
-  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(daten)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const ziel = B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=" + b64;
+  /* kompakt verpacken: Varianten als [Name ohne Produkttitel, Preis, Normalpreis, EAN], dann komprimiert (iOS kürzt sehr lange Adressen) */
+  const tt = String(T).replace(/\s+/g, " ").trim(), tl = tt.toLowerCase();
+  const vv = V.slice(0, 60).map((x) => { let n = x.n; if (tl && n.toLowerCase().indexOf(tl) === 0) n = n.slice(tt.length).replace(/^[\s\-–|·,/]+/, ""); const r = [n, x.p]; if (x.np || x.e) r.push(x.np || 0); if (x.e) r.push(x.e); return r; });
+  const daten = { u: location.href.split("#")[0].slice(0, 300), t: tt.slice(0, 120), c: C || "EUR", v: vv, f: F.slice(0, 30) };
+  const b64u = (bytes) => { let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  const roh = new TextEncoder().encode(JSON.stringify(daten));
+  let wert = "";
+  try {
+    if (window.CompressionStream) {
+      const st = new Blob([roh]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+      wert = "1z" + b64u(new Uint8Array(await new Response(st).arrayBuffer()));
+    }
+  } catch (e) { wert = ""; }
+  if (!wert) wert = "1j" + b64u(roh);
+  const ziel = B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=" + wert;
   if (KURZ) { completion(ziel); return; }
   const w = window.open(ziel, "_blank");
   if (!w) location.href = ziel;
