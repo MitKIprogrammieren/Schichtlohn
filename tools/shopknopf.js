@@ -33,14 +33,15 @@
   };
 
   /* 1. Shopify: Produktdaten derselben Seite (genaueste Quelle, mit allen Varianten) */
-  if (/\/products\/[^/?#]+/.test(location.pathname) && (window.Shopify || window.ShopifyAnalytics || document.querySelector('script[src*="cdn.shopify.com"],link[href*="cdn.shopify.com"]'))) {
+  /* bei /products/… immer versuchen: der iPhone-Kurzbefehl sieht window.Shopify nicht, und neuere Shops laden nicht mehr von cdn.shopify.com */
+  if (/\/products\/[^/?#]+/.test(location.pathname)) {
     try {
       const r = await fetch(location.pathname.match(/^.*\/products\/[^/?#]+/)[0] + ".js", { credentials: "include" });
-      if (r.ok) {
+      if (r.ok && /json|javascript/.test(r.headers.get("content-type") || "")) {
         const p = await r.json();
         T = p.title || T;
         M = p.vendor || M;
-        C = (window.Shopify && Shopify.currency && Shopify.currency.active) || "";
+        C = (window.Shopify && Shopify.currency && Shopify.currency.active) || meta("og:price:currency") || meta("product:price:currency") || "";
         (p.variants || []).forEach((v) => add(v.title === "Default Title" ? "" : v.title, v.price / 100, (v.compare_at_price || 0) / 100, v.sku, v.barcode));
       }
     } catch (e) {}
