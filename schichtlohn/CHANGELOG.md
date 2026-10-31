@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.24 – 31.10.2026
+- Bestandsliste: Die Umschalter haben wieder ihre gewohnte Größe; nur „Nach Marke“ und die Suche sind kleiner und schmaler.
+
 ## 3.2.23 – 31.10.2026
 - Bestandsliste: Umschalter, Auswahl, Suche und Spalten-Knöpfe oben sind deutlich kleiner – mehr Platz für die Liste.
 
