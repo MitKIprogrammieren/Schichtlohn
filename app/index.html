@@ -5313,6 +5313,9 @@ document.addEventListener("click",async e=>{
   if(a==="lgBlDruck"){if(blMobil())blPdfTeilen();else blDrucken();return}
   if(a==="lgBlPdf"){blPdfTeilen();return}
   if(a==="lgPlF"){PL.f=b.dataset.f;preislisteModal();return}
+  if(a==="plZu"){b.disabled=true;await plZuweisen(b.dataset.uid,PL.zv[b.dataset.uid]);return}
+  if(a==="plZuWahl"){PL.wq="";plWahlModal(b.dataset.uid);return}
+  if(a==="plZuW"){b.disabled=true;await plZuweisen(PL.wu,PL.wk[Number(b.dataset.i)]);return}
   if(a==="lgRbJahr"){G.rbJahr=Number(b.dataset.j);rueckblickModal();return}
   if(a==="lgEtikett"){const uid=(G.form&&G.form.uid)||(G.hit&&G.hit.uid);if(uid)etikettModal(uid);return}
   if(a==="lgEtF"){const o=etOpt();o.format=b.dataset.f;etOptSave(o);document.querySelectorAll('[data-act="lgEtF"]').forEach(c=>c.classList.toggle("on",c===b));etZeichnen();return}
@@ -5511,16 +5514,16 @@ function rolleAusAdresse(){if(G.rolleFertig||!G.loaded)return;G.rolleFertig=true
   setTimeout(()=>{if(e)hitModal(id,e);else toast("Rolle "+id+" ist nicht (mehr) im Lager")},300)}
 
 /* ---------- Preisliste: Shoppreise (täglich von GitHub, preise.json) den Sorten im Lager zuordnen ---------- */
-const PL={d:null,laden:null,f:"alle",q:""};
+const PL={d:null,laden:null,f:"alle",q:"",zv:{},wq:"",wu:null,wk:[]};
 const PL_DE_EN={schwarz:"black",weiss:"white","weiß":"white",grau:"gray","grün":"green",gruen:"green",rot:"red",blau:"blue",gelb:"yellow",orange:"orange",lila:"purple",violett:"purple",rosa:"pink",pink:"pink",braun:"brown",beige:"beige",silber:"silver",gold:"gold","türkis":"turquoise",natur:"natural",transparent:"transparent",dunkelgrau:"dark gray",hellgrau:"light gray",dunkelblau:"dark blue",hellblau:"light blue","dunkelgrün":"dark green","hellgrün":"light green",dunkelrot:"dark red",kupfer:"copper",bronze:"bronze",oliv:"olive",anthrazit:"anthracite",elfenbein:"ivory",himmelblau:"sky blue",marineblau:"navy blue",mint:"mint",petrol:"teal"};
 const PL_EN_DE=Object.fromEntries(Object.entries(PL_DE_EN).map(([k,v])=>[v,k]));
-const PL_KW={matte:["matt","matte"],silk:["silk","seide","seiden"],cf:["cf","carbon"],gf:["gf","glass"],glow:["glow","leucht","luminous"],marble:["marble","marmor"],wood:["wood","holz"],sparkle:["sparkle","glitzer","galaxy","glitter"],metal:["metal","metallic"],translucent:["translucent","transluzent"],hf:["hf","high speed","hs","rapid","highspeed"],tough:["tough"],dual:["dual","tri","multicolor","rainbow"]};
+const PL_KW={matte:["matt","matte"],silk:["silk","seide","seiden"],cf:["cf","carbon"],gf:["gf","glass","glasfaser","fibcr"],glow:["glow","leucht","luminous"],marble:["marble","marmor"],wood:["wood","holz"],sparkle:["sparkle","glitzer","galaxy","glitter"],metal:["metal","metallic"],translucent:["translucent","transluzent"],hf:["hf","high speed","hs","rapid","highspeed"],tough:["tough"],dual:["dual","tri","multicolor","rainbow"]};
 const PL_BES={matt:"matte",matte:"matte",seide:"silk",silk:"silk",cf:"cf",gf:"gf",leuchtend:"glow",glow:"glow",marmor:"marble",holz:"wood",glitzer:"sparkle",galaxy:"sparkle",metallic:"metal",transparent:"translucent",translucent:"translucent",hf:"hf","high speed":"hf",tough:"tough","tough+":"tough",dual:"dual",tri:"dual",rainbow:"dual"};
 const PL_STOP=new Set(["filament","1","75","1kg","kg","mm","spule","spool","refill","panchroma","polyterra","polylite","pla","petg","abs","asa","pctg","plax","absx","petgx","asax","tpu","basic","the","and","with","3d","printer"]);
 const PL_ALLKW=new Set(Object.values(PL_KW).flat());
 const plN=s=>String(s||"").toLowerCase().replace(/grey/g,"gray").replace(/colour/g,"color").replace(/[^a-z0-9äöüß+ ]+/g," ").split(/\s+/).filter(Boolean);
 function plKws(t){t=" "+plN(t).join(" ")+" ";const o=new Set();for(const [k,ws] of Object.entries(PL_KW))if(ws.some(w=>t.includes(" "+w+" ")||(w.length>4&&t.includes(w))))o.add(k);return o}
-const plKern=(t,m)=>{const mw=new Set(plN(m));return plN(t).filter(x=>!PL_STOP.has(x)&&!PL_ALLKW.has(x)&&!mw.has(x)&&!/^\d+(g|kg|mm)?$/.test(x))};
+const plKern=(t,m)=>{const mw=new Set(plN(m));return plN(t).filter(x=>!PL_STOP.has(x)&&!PL_ALLKW.has(x)&&!mw.has(x)&&!/^\d+(g|kg|mm)?$/.test(x)&&!/^(fibcr|cf|gf)\d+$/.test(x))};
 function plVar(w){const v=new Set([w]);if(PL_DE_EN[w]&&!PL_DE_EN[w].includes(" "))v.add(PL_DE_EN[w]);if(PL_EN_DE[w])v.add(PL_EN_DE[w]);return v}
 const plDa=(w,m)=>[...plVar(w)].some(x=>m.has(x))||(PL_DE_EN[w]&&PL_DE_EN[w].includes(" ")&&PL_DE_EN[w].split(" ").every(x=>m.has(x)));
 const plMat=m=>{let x=String(m||"").toUpperCase().split("-")[0].split(" ")[0].replace(/[^A-Z+]/g,"");return x.endsWith("X")&&x.length>3?x.slice(0,-1):x};
@@ -5529,14 +5532,57 @@ const plGleich=(a,b)=>a.size===b.size&&[...a].every(x=>b.has(x));
 const plOhne=(s,w)=>new Set([...s].filter(x=>!w.includes(x)));
 function plPasst(e,r){const codes=new Set([...(e.codes||[]),...(e.codes_refill||[])].map(String));if(r.ean&&codes.has(r.ean))return 3;
   if(plMarke(e.hersteller)!==r.m)return 0;const mat=plMat(e.material);if(!mat||mat!==r.mat)return 0;
-  const ek=new Set([...(e.besonderheiten||[]).map(b=>PL_BES[String(b).toLowerCase()]).filter(Boolean),...plKws(e.material),...plKws(e.farbe)]);
+  const ek=new Set([...(e.besonderheiten||[]).flatMap(b=>{const k=PL_BES[String(b).toLowerCase()];return k?[k]:[...plKws(b)]}),...plKws(e.material),...plKws(e.farbe)]);
   const ign=ek.has("hf")?[]:["hf"];let st=0;if(plGleich(plOhne(ek,ign),plOhne(r.kw,ign)))st=2;else if(plGleich(plOhne(ek,[...ign,"matte"]),plOhne(r.kw,[...ign,"matte"])))st=1;else return 0;
   const ef=plKern(e.farbe,e.hersteller);if(!ef.length)return 0;if(!ef.every(w=>plDa(w,r.tw)))return 0;
   const ev=new Set();ef.forEach(w=>{plVar(w).forEach(x=>ev.add(x));if(PL_DE_EN[w])PL_DE_EN[w].split(" ").forEach(x=>ev.add(x))});
   if(r.rf.length&&!r.rf.every(w=>[...plVar(w)].some(x=>ev.has(x))))return 0;return st}
+/* Schlüssel eines Shop-Artikels: Titel ohne Gewicht und Übernahme-Datum (alle Gewichte einer Sorte = ein Artikel) */
+const plKey=t=>String(t||"").replace(/\s*·\s*übernommen.*$/,"").replace(/\s*[–-]?\s*Gewicht:\s*[\d.,]+\s*k?g\b/i,"").replace(/\b\d+(?:[.,]\d+)?\s*(kg|g)\b/gi,"").replace(/\s+/g," ").replace(/[\s–-]+$/,"").trim().toLowerCase();
+/* Shop-Artikel (alle Gewichte zusammengefasst) einer Marke, passend zu Spule/Refill der Sorte, nach Ähnlichkeit sortiert */
+function plKandidaten(e){const d=PL.d;if(!d)return [];const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const mat=plMat(e.material);
+  const ek=new Set([...(e.besonderheiten||[]).flatMap(b=>{const k=PL_BES[String(b).toLowerCase()];return k?[k]:[...plKws(b)]}),...plKws(e.material),...plKws(e.farbe)]);ek.delete("hf");
+  const ef=plKern(e.farbe,e.hersteller);const g={};
+  for(const r of d.idx[plMarke(e.hersteller)]||[]){if(r.refill!==refill||!r.preis)continue;const k=r.shop+"|"+r.key;(g[k]=g[k]||{shop:r.name,m:r.m,key:r.key,rows:[]}).rows.push(r)}
+  return Object.values(g).map(a=>{const r=a.rows[0];const kw=new Set(r.kw);kw.delete("hf");let sc=r.mat===mat?3:0;
+    kw.forEach(k=>sc+=ek.has(k)?2:-1);ek.forEach(k=>{if(!kw.has(k)&&k!=="matte")sc-=1});ef.forEach(w=>{if(plDa(w,r.tw))sc+=1});
+    const t=plKey(r.titel)===r.key?r.titel.replace(/\s*·\s*übernommen.*$/,"").replace(/\s*[–-]?\s*Gewicht:.*$/i,"").trim():r.key;
+    return Object.assign(a,{sc,titel:t,best:plZeileFuer(a.rows,e.gewicht||1000)})}).sort((x,y)=>y.sc-x.sc||x.titel.localeCompare(y.titel,"de"))}
+/* passendes Gewicht wählen: gleiches Gewicht wie im Lager, sonst 1 kg, sonst günstigster €/kg */
+const plZeileFuer=(rows,gw)=>rows.find(r=>r.gew===gw)||rows.find(r=>r.gew===1000)||[...rows].sort((a,b)=>a.preis/a.gew-b.preis/b.gew)[0];
+/* Vorschlag nur, wenn eindeutig: gleiches Material, mindestens eine Übereinstimmung, klar vor dem Zweiten */
+function plVorschlag(e){const k=plKandidaten(e);if(!k.length||k[0].sc<4)return null;if(k[1]&&k[1].sc===k[0].sc)return null;return k[0]}
+/* Was aus der Sorte wird: Material wie im Shop, Fasercodes und Ausführungen (FibCR20, Matt, CF …) als Besonderheiten, der Rest als Farbe */
+function plNeu(e,a){const r=a.best;const teile=String(r.farbeRaw||"").split(/\s+/).filter(Boolean);const bes=[],fa=[];
+  teile.forEach(w=>{(plKws(w).size||/^[a-z]+\d+$/i.test(w)||/^\d+%?$/.test(w)?bes:fa).push(w)});
+  const material=plMat(r.matRaw)===plMat(e.material)?e.material:(r.matRaw||e.material);
+  const pk=Math.round(r.preis/(r.gew/1000)*100)/100;
+  return {material,besonderheiten:bes,farbe:fa.join(" ")||e.farbe,preis:e.preis>0?e.preis:pk,neuPreis:!(e.preis>0),pk,r}}
+const plNeuName=n=>[n.material,...n.besonderheiten].join(" ")+" · "+n.farbe;
+async function plZuweisen(uid,a){const e=entries().find(x=>x.uid===uid);if(!e||!a)return;const n=plNeu(e,a);
+  const x=Object.assign({},e,{raw:Object.assign({},e.raw||{},{shop_zu:{m:a.m,t:a.key}})});
+  try{await write(x,{material:n.material,besonderheiten:n.besonderheiten,farbe:n.farbe,preis:n.preis});
+    toast(`Jetzt „${plNeuName(n)}“${n.neuPreis?" · "+eur(n.pk)+"/kg":""}`);
+    const t0=Date.now();const warte=()=>{const y=entries().find(z=>z.uid===uid);if((y&&y.raw&&y.raw.shop_zu)||Date.now()-t0>4000)preislisteModal();else setTimeout(warte,250)};warte()}
+  catch(err){toast("Speichern fehlgeschlagen: "+(err.message||err))}}
+/* Zeile in der Preisliste, wenn nichts automatisch passt: Vorschlag mit „Übernehmen“ oder Artikel selbst wählen */
+function plKeinTreffer(e){const v=plVorschlag(e);const hat=PL.d&&(PL.d.idx[plMarke(e.hersteller)]||[]).length;
+  if(!v)return `<div class="plkein"><span>kein Shop-Treffer</span>${hat?`<button type="button" class="plzl" data-act="plZuWahl" data-uid="${esc(e.uid)}">Shop-Artikel zuordnen ›</button>`:""}</div>`;
+  const n=plNeu(e,v);PL.zv[e.uid]=v;
+  return `<div class="plvs"><span class="plvst">Vorschlag aus ${esc(v.shop)}</span><div class="plvsr"><div class="plvsn"><b>${esc(v.titel)}</b><small>${eur(n.r.preis)} · ${kg(n.r.gew)} · ${eur(n.pk)}/kg</small></div><button type="button" class="btn sm pri" data-act="plZu" data-uid="${esc(e.uid)}">Übernehmen</button></div>
+    <small class="plvsh">Wird zu „${esc(plNeuName(n))}“${n.neuPreis?`, Lagerpreis ${eur(n.pk)}/kg`:" – dein Lagerpreis bleibt"}</small><button type="button" class="plzl" data-act="plZuWahl" data-uid="${esc(e.uid)}">Anderen Artikel wählen ›</button></div>`}
+/* Auswahlfenster: alle Artikel der Marke, ähnlichste oben */
+function plWahlModal(uid){const e=entries().find(x=>x.uid===uid);if(!e)return;PL.wu=uid;const k=plKandidaten(e);PL.wk=k;const q=(PL.wq||"").toLowerCase().trim();
+  const liste=k.map((a,i)=>({a,i})).filter(({a})=>!q||(a.titel+" "+a.shop).toLowerCase().includes(q));
+  const zeilen=liste.length?liste.map(({a,i})=>{const n=plNeu(e,a);return `<button type="button" class="plw${a.sc>=4&&i===0?" top":""}" data-act="plZuW" data-i="${i}"><span class="plwn"><b>${esc(a.titel)}</b><small>${esc(a.shop)} · wird zu „${esc(plNeuName(n))}“</small></span><span class="plop"><b>${eur(n.r.preis)}</b><small>${kg(n.r.gew)} · ${eur(n.pk)}/kg</small></span></button>`}).join(""):`<div class="panel empty">Nichts gefunden</div>`;
+  const h=`<div class="lgform" id="lgPlw"><div class="epkopf"><span class="epshop">Shop-Artikel zuordnen</span><b>${esc([e.material,...(e.besonderheiten||[])].join(" "))} · ${esc(e.farbe)}</b><small>${esc(e.hersteller)} · ${kg(e.gewicht)}${e.preis>0?" · dein Lagerpreis bleibt":" · der Preis wird als Lagerpreis eingetragen"}</small></div>
+    <input type="search" id="plzq" placeholder="Artikel suchen …" value="${esc(PL.wq||"")}"><div class="plwl">${zeilen}</div></div>`;
+  const b=document.querySelector("#modal #lgPlw");if(b){b.outerHTML=h;return}
+  modal("Preisliste",h,`<button class="btn ghost" data-act="lgPreise">Zurück</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
+document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plzq"){PL.wq=ev.target.value;clearTimeout(plWahlModal.t);plWahlModal.t=setTimeout(()=>{plWahlModal(PL.wu);const n=document.getElementById("plzq");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},180)}});
 /* eine Zeile aus preise.json (oder eigene Shoppreise, 12. Feld = Stand) für den Abgleich aufbereiten */
 function plRow(z,d){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e,stand]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));const sd=stand?new Date(stand):null;
-  return {shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),titel:titel+(sd&&!isNaN(sd)?" · übernommen am "+sd.toLocaleDateString("de-DE"):""),mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e}}
+  return {shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),matRaw:material,farbeRaw:farbe,key:plKey(titel),titel:titel+(sd&&!isNaN(sd)?" · übernommen am "+sd.toLocaleDateString("de-DE"):""),mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e}}
 function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return PL.laden;
   PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null)]).then(([d,ep])=>{
     if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
@@ -5545,7 +5591,7 @@ function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return P
       (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
 function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMarke(e.hersteller)]||[])];[...(e.codes||[]),...(e.codes_refill||[])].forEach(c=>(d.ean[String(c)]||[]).forEach(r=>kand.push(r)));
   const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const gw=e.gewicht||1000;const best={};
-  for(const r of kand){if(r.refill!==refill)continue;const s=plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
+  const zu=e.raw&&e.raw.shop_zu;for(const r of kand){if(r.refill!==refill)continue;const s=zu&&zu.m===r.m&&zu.t===r.key?2:plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
     if(!a||g[0]>a.g[0]||(g[0]===a.g[0]&&(g[1]>a.g[1]||(g[1]===a.g[1]&&g[2]>a.g[2]))))best[r.shop]={g,r,pk,ean:s===3}}
   return Object.values(best).map(x=>({shop:x.r.name,preis:x.r.preis,normal:x.r.normal,gew:x.r.gew,pk:Math.round(x.pk*100)/100,url:x.r.url,ean:x.ean,titel:x.r.titel})).sort((a,b)=>a.pk-b.pk)}
 /* Durchschnitt aller Shop-Angebote (€/kg) – Ersatz, wenn im Lager kein eigener Preis steht */
@@ -5575,7 +5621,7 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
   const logo=m=>{const u=window.LAGER&&LAGER.logoUrls?LAGER.logoUrls(m).find(x=>x.own&&/^data:/.test(x.u)):null;return u?`<img class="plmkl" src="${u.u}" alt="" style="filter:${LAGER.darkUI&&LAGER.darkUI()?"none":"invert(1) brightness(.3)"}">`:""};
   let mk="";liste.forEach(({e,a})=>{if(e.hersteller!==mk){mk=e.hersteller;{const lg=logo(mk);h+=`<div class="plmk"${lg?` title="${esc(mk)}"`:""}>${lg||`<span>${esc(mk||"Ohne Marke")}</span>`}</div>`}}
     h+=`<div class="plz"><div class="pls">${spool(e.hex,undefined,e.besonderheiten)}<div style="min-width:0"><b>${esc([e.material,...(e.besonderheiten||[])].join(" "))} · ${esc(e.farbe)}</b><small>${kg(e.gewicht)}${e.ausfuehrung==="refill"?" Refill":""} · Bestand ${kg(total(e))}</small></div></div>
-      <div class="pla">${plLager(e,a)}${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt?" · "+pvVersandText(o):""}"><span class="plon">${esc(o.shop)}${i===0&&a.length>1?`<i>günstigste</i>`:""}${o.stueck>1||o.gew!==e.gewicht?`<small>${o.stueck>1?o.stueck+" × ":""}${kg(o.gew)}</small>`:""}</span><span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`).join(""):`<span class="plkein">kein Shop-Treffer</span>`}</div></div>`});
+      <div class="pla">${plLager(e,a)}${a.length?a.map((o,i)=>`<a class="plo${i===0&&a.length>1?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt?" · "+pvVersandText(o):""}"><span class="plon">${esc(o.shop)}${i===0&&a.length>1?`<i>günstigste</i>`:""}${o.stueck>1||o.gew!==e.gewicht?`<small>${o.stueck>1?o.stueck+" × ":""}${kg(o.gew)}</small>`:""}</span><span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`).join(""):plKeinTreffer(e)}</div></div>`});
   h+=`</div></div>`;const b=document.querySelector("#modal #lgPl");if(b){b.outerHTML=h;return}
   modal("Preisliste",h,`<button class="btn ghost" data-act="epEin" title="Preise von einer geöffneten Shopseite übernehmen, z. B. aus dem Bambu-Store">Preise aus Shopseiten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgPl"))preislisteModal();if(document.querySelector("#modal #lgEk"))einkaufModal()});
@@ -6036,11 +6082,20 @@ body.rx-einfach #mbar{display:none!important}
 .plok{text-align:right;font-size:12px;color:var(--fg-2);font-variant-numeric:tabular-nums}
 .ploa{color:var(--fg-3);font-size:18px;line-height:1}
 .plo.best{background:var(--accent-soft)}.plo.best .plop b{color:var(--accent)}
-.plkein{font-size:12px;color:var(--fg-3);padding:8px 12px}
+.plkein{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--fg-3);padding:8px 12px}
+.plzl{background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer;align-self:flex-start}
+.plvs{display:flex;flex-direction:column;gap:6px;padding:9px 12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.plvst{font:700 10.5px/1 var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.plvsr{display:flex;align-items:center;justify-content:space-between;gap:10px}.plvsn{min-width:0}.plvsn b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.plvsn small{display:block;font-size:12px;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.plvsh{font-size:11.5px;color:var(--fg-3)}
+.plwl{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);overflow:hidden}
+.plw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;background:none;border:0;text-align:left;color:var(--fg);font:inherit;cursor:pointer}
+.plw+.plw{border-top:1px solid var(--line)}.plw.top{background:var(--accent-soft)}.plw.top .plop b{color:var(--accent)}
+.plw .plop small{white-space:nowrap}.plwn{min-width:0;display:flex;flex-direction:column;gap:2px}.plwn b{font-size:14px}.plwn small{font-size:11.5px;color:var(--fg-3)}
 .plo.pllg{background:color-mix(in srgb,var(--fg) 5%,transparent);box-shadow:inset 3px 0 0 var(--fg-3)}
 .pllt{display:inline-flex;align-items:center;gap:5px}.pllt svg{width:14px;height:14px;color:var(--fg-3)}
 .pllv{font-style:normal;font-size:11px;font-weight:600;color:var(--fg-3)}.pllv.gut{color:var(--good)}.pllv.teuer{color:var(--warn)}
-.plo.pllg+.plkein{border-top:1px solid var(--line)}
+.plo.pllg+.plkein,.plo.pllg+.plvs{border-top:1px solid var(--line)}
 .epkopf{display:flex;flex-direction:column;gap:2px}.epkopf b{font-size:17px}.epkopf small{color:var(--fg-3);font-size:12.5px}
 .epshop{font:700 11px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
 .eprf{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--fg-2)}.eprf .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
