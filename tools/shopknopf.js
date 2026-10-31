@@ -37,7 +37,10 @@
   /* bei /products/… immer versuchen: der iPhone-Kurzbefehl sieht window.Shopify nicht, und neuere Shops laden nicht mehr von cdn.shopify.com */
   if (/\/products\/[^/?#]+/.test(location.pathname)) {
     try {
-      const r = await fetch(location.pathname.match(/^.*\/products\/[^/?#]+/)[0] + ".js", { credentials: "include" });
+      let pfad = location.pathname.match(/^.*\/products\/[^/?#]+/)[0];
+      /* Bambu-Store: Farbnamen in der Hauptsprache (Englisch) holen – so heißen die Sorten auch im Lager */
+      if (/(^|\.)bambulab\./.test(location.hostname)) pfad = pfad.replace(/^\/[a-z]{2}(-[a-z]{2})?(?=\/products\/)/i, "");
+      const r = await fetch(pfad + ".js", { credentials: "include" });
       DG.sf = r.status + " " + (r.headers.get("content-type") || "").slice(0, 30);
       if (r.ok && /json|javascript/.test(r.headers.get("content-type") || "")) {
         const p = await r.json();
