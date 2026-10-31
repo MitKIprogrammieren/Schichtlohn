@@ -711,7 +711,7 @@ function mpKinds(){const out=[],seen=new Set();
   if(S.lager){const gr={};S.lager.forEach(x=>{if(!x.type)return;const bes=(x.bes||[]).filter(b=>!/^(basic)$/i.test(b)).slice().sort();const brand=x.brand?cb(x.brand):MP_ALLG;
       const key=mpKey(brand,x.type,bes);(gr[key]=gr[key]||{key,brand,label:[x.type,...bes].join(" "),type:x.type,items:[]}).items.push(x)});
     Object.values(gr).forEach(g=>{const td=tdOf(g.type);const pr=avgPrice(g.items);const m=S.cfg.materials.find(y=>y.kindKey===g.key);const k=kat[g.key]||sdb[g.key];
-      out.push({key:g.key,brand:g.brand,label:k?k.label:g.label,type:g.type,price:m?num(m.price):(pr??(k&&k.price?k.price:td.p)),density:den(g.key,g.type),hex:g.items[0].hex,n:g.items.length,matId:m?m.id:"",lager:true,uids:g.items.map(i=>i.uid)});seen.add(g.key)})}
+      out.push({key:g.key,brand:g.brand,label:k?k.label:g.label,type:g.type,price:m?num(m.price):(pr??(k&&k.price?k.price:td.p)),est:!m&&g.items.some(i=>i.preisMarkt)&&!g.items.some(i=>i.price>0&&!i.preisMarkt),density:den(g.key,g.type),hex:g.items[0].hex,n:g.items.length,matId:m?m.id:"",lager:true,uids:g.items.map(i=>i.uid)});seen.add(g.key)})}
   Object.entries(kat).forEach(([key,k])=>{if(seen.has(key))return;const m=S.cfg.materials.find(y=>y.kindKey===key);
     out.push({key,brand:k.brand,label:k.label,type:k.type,price:m?num(m.price):k.price,density:den(key,k.type),hex:"#888888",matId:m?m.id:"",katalog:true});seen.add(key)});
   /* SpoolmanDB: Sorten ohne Katalogpreis → Preis aus eigenem Material, sonst üblicher Preis je Materialart (geschätzt) */
@@ -754,7 +754,9 @@ document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.datase
   if(t.dataset.mp==="brand"){S._mpBrand[tg]=t.value;if(t.value===""){delete S._mpBrand[tg];mpSet(tg,"");return}
     const first=kinds.filter(k=>k.brand===t.value).sort((a,b)=>(a.katalog?1:0)-(b.katalog?1:0)||a.label.localeCompare(b.label,"de"))[0];if(first){delete S._mpBrand[tg];mpSet(tg,mpResolve(first))}else renderCalc($("#main"));return}
   const k=kinds.find(x=>x.key===t.value);if(k){delete S._mpBrand[tg];mpSet(tg,mpResolve(k))}},true);
-async function mpEnsureLager(){if(S.lager){matsZusammenfassen();return}if(S._mpLaden)return;S._mpLaden=true;try{S.lager=await loadLager();matsZusammenfassen();if(S.tab==="rechner")renderCalc($("#main"));else if(S.tab==="einstellungen")renderSettings($("#main"))}catch(e){}finally{S._mpLaden=false}}
+async function mpEnsureLager(){if(window.slPreiseLaden)window.slPreiseLaden();if(S.lager){matsZusammenfassen();return}if(S._mpLaden)return;S._mpLaden=true;try{S.lager=await loadLager();matsZusammenfassen();if(S.tab==="rechner")renderCalc($("#main"));else if(S.tab==="einstellungen")renderSettings($("#main"))}catch(e){}finally{S._mpLaden=false}}
+/* Shop-/Marktpreise kamen später an → Lagerliste für den Rechner neu laden, damit der Ø-Preis drin ist */
+["sl-shoppreise","sl-pv"].forEach(n=>window.addEventListener(n,()=>{if(S.lager&&!S._mpLaden){S.lager=null;mpEnsureLager()}}));
 /* ---------- Rechner: Einfach-Modus (ohne Kunde, Kanal, Gebühren, Marge – nur Kosten und Verkaufspreis) ---------- */
 const RX_STUFEN=[["freund","Freundschaft",20],["normal","Normal",60],["gut","Gut verdienen",120]];
 /* schöner Betrag passend zur Preishöhe: unter 5 € auf 10 Cent, bis 20 € auf 50 Cent, darüber auf ganze Euro – nie unter die Kosten */
@@ -1495,7 +1497,7 @@ async function importFiles(files,target="quote"){
 /* ---------- FilamentLager (Home Assistant) ---------- */
 async function loadLager(){
   const r=S.srv?{items:await SRV.liste("todo.filament")}:S.backend==="ha"?await hass().callWS({type:"todo/item/list",entity_id:"todo.filament"}):{items:((S.cfg.lagerLokal||{})["todo.filament"]||[]).filter(i=>{try{return !JSON.parse(i.description||"{}").typ}catch(e){return true}})};
-  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,price:d.preis!=null&&num(d.preis)>0?num(d.preis):null,spulen:d.spulen,farbe:d.farbe||"",reste:Array.isArray(d.reste)?d.reste.map(num).filter(x=>x>0):(num(d.rest)>0?[num(d.rest)]:[])}});
+  return (r.items||[]).filter(i=>i.status!=="completed").map(i=>{let d={};try{d=JSON.parse(i.description||"{}")}catch(e){}return {uid:i.uid,name:i.summary,type:d.material||"",hex:d.hex||"#888888",brand:d.hersteller||"",bes:Array.isArray(d.besonderheiten)?d.besonderheiten:[],bambu_id:d.bambu_id||"",weight:num(d.gewicht)||1000,...(()=>{if(d.preis!=null&&num(d.preis)>0)return {price:num(d.preis),preisMarkt:false};const m=window.slMarktPk?window.slMarktPk(i.uid,num(d.gewicht)||1000):null;return {price:m,preisMarkt:!!m}})(),spulen:d.spulen,farbe:d.farbe||"",reste:Array.isArray(d.reste)?d.reste.map(num).filter(x=>x>0):(num(d.rest)>0?[num(d.rest)]:[])}});
 }
 async function lagerModal(){
   modal("Aus FilamentLager übernehmen",`<div class="hint">Wähle Filamente aus deinem FilamentLager. Ist dort kein Preis hinterlegt, wird der übliche Preis je Typ vorgeschlagen. Du kannst ihn danach ändern.</div><input type="search" id="lagerSearch" placeholder="Hersteller, Typ oder Farbe"><div class="pick" id="lagerList"><div class="empty">Lädt…</div></div>`,`<button class="btn ghost" data-act="close">Fertig</button>`);
@@ -3805,8 +3807,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:12px 36px}
 @media (max-width:620px){.lgtop .dcard.kompakt .dvs{justify-content:space-between;gap:12px}}
 .lgtop .dcard.kompakt a.btn{position:absolute;top:10px;right:10px}
-.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest{flex-wrap:nowrap}
-.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;width:auto;gap:40px;justify-content:center}
+
 @media (max-width:620px){.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest{flex-wrap:wrap}.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{position:static;transform:none;margin-left:0;width:100%;justify-content:space-between}}
 .lghead .lgact{flex-wrap:nowrap}
 .lghead h1{margin:0}
@@ -4420,13 +4421,14 @@ function body0(){G._allZu=false;
       if(fl.ort==="knapp"&&!(e.spulen>0&&total(e)<(E.knapp_g||0)))return false;if(fl.ort==="leer"&&e.spulen>0)return false}return true};
   const sicht=(q||zeigLeer||fl.ort==="leer")?all:all.filter(e=>e.spulen>0);
   const list=sicht.filter(e=>passt(e)&&worte.every(w=>txt(e).includes(w)));
+  shopPreiseHolen();let wL=0,wM=0;all.forEach(e=>{const p=preisVon(e);if(p&&e.spulen>0){const w=p.pk*total(e)/1000;if(p.q==="lager")wL+=w;else wM+=w}});
   const sum=all.reduce((a,e)=>a+total(e),0),spulen=all.reduce((a,e)=>a+Math.max(0,e.spulen),0),refills=all.reduce((a,e)=>a+Math.max(0,Math.min(e.refills,e.spulen)),0);
   const leerN=all.filter(e=>e.spulen<=0).length;const nF=Object.values(fl).filter(Boolean).length;
   const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y,"de"));
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
   let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${wL+wM>0?`<div class="dv" title="${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen, ${Math.round(wM).toLocaleString("de-DE")} € aus dem Ø der Shop-Preise"><span>Wert</span><b>${Math.round(wL+wM).toLocaleString("de-DE")} €</b></div>`:""}${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -5530,12 +5532,20 @@ function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return P
   PL.laden=fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).then(d=>{
     const idx={},ean={};d.z.forEach(z=>{const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));
       const r={shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),titel,mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e};
-      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
+      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
 function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMarke(e.hersteller)]||[])];[...(e.codes||[]),...(e.codes_refill||[])].forEach(c=>(d.ean[String(c)]||[]).forEach(r=>kand.push(r)));
   const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const gw=e.gewicht||1000;const best={};
   for(const r of kand){if(r.refill!==refill)continue;const s=plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
     if(!a||g[0]>a.g[0]||(g[0]===a.g[0]&&(g[1]>a.g[1]||(g[1]===a.g[1]&&g[2]>a.g[2]))))best[r.shop]={g,r,pk,ean:s===3}}
   return Object.values(best).map(x=>({shop:x.r.name,preis:x.r.preis,normal:x.r.normal,gew:x.r.gew,pk:Math.round(x.pk*100)/100,url:x.r.url,ean:x.ean,titel:x.r.titel})).sort((a,b)=>a.pk-b.pk)}
+/* Durchschnitt aller Shop-Angebote (€/kg) – Ersatz, wenn im Lager kein eigener Preis steht */
+const marktPk=e=>{const a=[...preiseFuer(e),...pvAngebote(e.uid,e.gewicht)].map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
+const preisVon=e=>e.preis>0?{pk:e.preis,q:"lager"}:(()=>{const m=marktPk(e);return m?{pk:m,q:"markt"}:null})();
+let shopPreiseAngestossen=false;const shopPreiseHolen=()=>{if(shopPreiseAngestossen||PL.d)return;shopPreiseAngestossen=true;preiseLaden().catch(()=>{shopPreiseAngestossen=false})};
+window.slPreiseLaden=shopPreiseHolen;
+window.slMarktPk=(uid,gew)=>{const e=G.loaded?entries().find(x=>x.uid===uid):null;if(e)return marktPk(e);const a=pvAngebote(uid,gew).map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
+window.addEventListener("sl-shoppreise",()=>{draw();if(document.querySelector("#modal #lgBl"))bestandModal()});
+window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgBl"))bestandModal()});
 /* Preis aus dem Lager als eigene Zeile über den Shop-Angeboten, mit Vergleich zum günstigsten Shop */
 function plLager(e,a){if(!(e.preis>0))return "";const pr=e.preis*(e.gewicht||1000)/1000,b=a[0];let v="";
   if(b){const d=Math.round((e.preis-b.pk)*100)/100;v=Math.abs(d)<.01?`<em class="pllv">gleich wie ${esc(b.shop)}</em>`:d<0?`<em class="pllv gut">${eur(-d)}/kg unter ${esc(b.shop)}</em>`:`<em class="pllv teuer">${eur(d)}/kg über ${esc(b.shop)}</em>`}
@@ -5586,7 +5596,7 @@ function blDaten(){
 function blSeite(live){
   const {E,all,list,gruppen,imFach}=blDaten();const sp=BL.sp,inv=BL.inv,fmt=BL.fmt;
   const voll=list.filter(e=>e.spulen>0),sumG=voll.reduce((a,e)=>a+total(e),0),sumSp=voll.reduce((a,e)=>a+e.spulen,0),sumRf=voll.reduce((a,e)=>a+Math.min(e.refills,e.spulen),0);
-  const wert=voll.filter(e=>e.preis>0).reduce((a,e)=>a+e.preis*total(e)/1000,0),angebr=voll.filter(e=>e.reste.length).length;
+  let wL=0,wM=0,ohneP=0;voll.forEach(e=>{const p=preisVon(e);if(!p){ohneP++;return}const w=p.pk*total(e)/1000;if(p.q==="lager")wL+=w;else wM+=w});const wert=wL+wM,angebr=voll.filter(e=>e.reste.length).length;
   const geprueft=list.filter(e=>BL.ist[e.uid]&&(BL.ist[e.uid].ok||BL.ist[e.uid].g!=null)).length;
   const st=new Date();const sortName={hersteller:"Marke",material:"Material",farbe:"Farbe",bestand:"Bestand"}[BL.sort];
   const istZelle=e=>{const i=BL.ist[e.uid]||{};const t=total(e);const diff=i.g!=null&&i.g!==t?i.g-t:0;
@@ -5613,20 +5623,20 @@ function blSeite(live){
 <td><div class="blnm">${esc(e.material||"Filament")}${chips(e)}${BL.sort!=="hersteller"&&e.hersteller?` <span class="blmk">${esc(e.hersteller)}</span>`:""}</div><div class="blsub">${sub(e)}</div></td>
 <td class="r"><b>${Math.max(0,e.spulen)}</b><div class="blsub">${spulText(e)}</div></td>
 <td class="blbs"><b>${kg(total(e))}</b>${bar(e)}${e.spulen>0&&e.reste.length?`<div class="blsub">angebr. ${e.reste.slice(0,e.spulen).map(r=>r+" g").join(" + ")}</div>`:""}</td>
-${sp.werte?`<td class="blw">${werte(e)}</td>`:""}${sp.ort?`<td class="blort">${esc(orte(e))||'<span class="blm">Lager</span>'}</td>`:""}${sp.preis?`<td class="r blpr">${e.preis>0?blEur(e.preis):'<span class="blm">–</span>'}</td>`:""}${sp.code?`<td class="blcd">${code(e)}</td>`:""}
+${sp.werte?`<td class="blw">${werte(e)}</td>`:""}${sp.ort?`<td class="blort">${esc(orte(e))||'<span class="blm">Lager</span>'}</td>`:""}${sp.preis?`<td class="r blpr">${(p=>p?`${blEur(p.pk)}<div class="blpq${p.q==="markt"?" m":""}">${p.q==="markt"?"Ø Shops":"Lager"}</div>`:'<span class="blm">–</span>')(preisVon(e))}</td>`:""}${sp.code?`<td class="blcd">${code(e)}</td>`:""}
 <td class="blic">${istZelle(e)}</td></tr>`).join("")}</tbody>`});
     h+=`</table>`}
   else if(fmt==="karten"){
     gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blkarten">${arr.map(e=>`<div class="blk${leerKl(e)}"><div class="blkt">${spool(e.hex,"blsw blbig",e.besonderheiten)}<div class="blkb"><b>${kg(total(e))}</b>${bar(e)}<span class="blsub">${Math.max(0,e.spulen)} ${e.spulen===1?"Spule":"Spulen"}${e.reste.length&&e.spulen>0?" · angebr.":""}</span></div></div>
 <div class="blnm">${esc(e.material||"Filament")}${chips(e)}</div><div class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${sub(e)}</div>
 ${sp.werte&&(e.duese_min!=null||e.bett_min!=null)?`<div class="blkw">${blSpan(e.duese_min,e.duese_max)?`<span><i>Düse</i>${blSpan(e.duese_min,e.duese_max)}</span>`:""}${blSpan(e.bett_min,e.bett_max)?`<span><i>Bett</i>${blSpan(e.bett_min,e.bett_max)}</span>`:""}</div>`:""}
-<div class="blkf">${sp.ort&&orte(e)?`<span>${esc(orte(e))}</span>`:""}${sp.preis&&e.preis>0?`<span>${blEur(e.preis)}/kg</span>`:""}${sp.code&&e.codes[0]?`<span class="blcd">${esc(e.codes[0])}</span>`:""}<span class="blic">${istZelle(e)}</span></div></div>`).join("")}</div>`});}
+<div class="blkf">${sp.ort&&orte(e)?`<span>${esc(orte(e))}</span>`:""}${sp.preis&&preisVon(e)?`<span>${blEur(preisVon(e).pk)}/kg${preisVon(e).q==="markt"?" (Ø Shops)":""}</span>`:""}${sp.code&&e.codes[0]?`<span class="blcd">${esc(e.codes[0])}</span>`:""}<span class="blic">${istZelle(e)}</span></div></div>`).join("")}</div>`});}
   else{
     gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blcheck">${arr.map(e=>`<div class="blc${leerKl(e)}"><span class="blic">${istZelle(e)}</span>${spool(e.hex,"blsw blsmall",e.besonderheiten)}<span class="blcn"><b>${esc(e.material||"Filament")}</b>${chips(e)} <span class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${esc(e.farbe||"")}</span></span>${sp.ort&&orte(e)?`<span class="blsub blcort">${esc(orte(e))}</span>`:""}<span class="blcs">Soll <b>${kg(total(e))}</b> · ${Math.max(0,e.spulen)} Sp.</span>${live&&inv?"":`<span class="bllinie"></span>`}</div>`).join("")}</div>`})}
-  h+=`<div class="blfuss"><span>* nur Sorten mit hinterlegtem Preis${!BL.leer?` · ${all.filter(e=>e.spulen<=0).length} aufgebrauchte Sorten nicht gelistet`:""}</span><span>SchichtLohn</span></div>`;
+  h+=`<div class="blfuss"><span>* Lagerwert: ${blEur(Math.round(wL)).replace(",00","")} aus Lagerpreisen${wM>0?` + ${blEur(Math.round(wM)).replace(",00","")} aus Ø Shop-Preisen`:""}${ohneP?` · ${plural(ohneP,"Sorte","Sorten")} ohne Preis`:""}${!BL.leer?` · ${all.filter(e=>e.spulen<=0).length} aufgebrauchte Sorten nicht gelistet`:""}</span><span>SchichtLohn</span></div>`;
   return h}
 function blAenderungen(){const all=entries();return all.filter(e=>{const i=BL.ist[e.uid];return i&&i.g!=null&&Math.round(i.g)!==Math.round(total(e))})}
-function bestandModal(){
+function bestandModal(){shopPreiseHolen();if(S.srv&&!PV.d)pvLaden();
   const ch=(akt,k,v,t)=>`<button type="button" class="chip${akt?" on":""}" data-act="${k}" data-v="${v}">${t}</button>`;
   const n=BL.inv?blAenderungen().length:0;
   const h=`<div class="lgform" id="lgBl"><div class="blctl">
@@ -5670,7 +5680,7 @@ const BL_CSS=`.blp{font:8.4pt/1.3 "Inter","Segoe UI",system-ui,-apple-system,san
 .blw{font-size:7.2pt;white-space:nowrap}.blw i,.blkw i{display:inline-block;width:10.5mm;color:#9aa1ab;font-size:6.4pt;text-transform:uppercase;font-style:normal}
 .blort{font-size:7.2pt;max-width:24mm}.blcd{font-family:ui-monospace,Menlo,monospace;font-size:6.8pt}
 .blic{width:12mm;text-align:center;white-space:nowrap}.blbox{display:inline-block;width:4.5mm;height:4.5mm;border:1px solid #9aa1ab;border-radius:2px;vertical-align:middle;line-height:4.2mm;font-size:8pt;font-weight:700;color:#1e9655}
-.blistw{font-size:8pt}.bldf{display:block;font-size:6.8pt;font-weight:700}.bldf.m{color:#d23c3c}.bldf.p{color:#1e9655}
+.blpq{font-size:6.2pt;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}.blpq.m{color:#9a6b00}.blistw{font-size:8pt}.bldf{display:block;font-size:6.8pt;font-weight:700}.bldf.m{color:#d23c3c}.bldf.p{color:#1e9655}
 .blleer{opacity:.5}
 .blkarten{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:5px}.blk{border:1px solid #e3e6ea;border-radius:7px;padding:6px 7px;break-inside:avoid;display:flex;flex-direction:column;gap:2px}
 .blkt{display:flex;gap:7px;align-items:center;margin-bottom:2px}.blkb{flex:1;min-width:0}.blkb b{font-size:11pt}.blkw{font-size:7pt;display:flex;gap:8px}.blkw i{width:auto;margin-right:3px}
