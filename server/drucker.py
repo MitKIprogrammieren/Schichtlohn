@@ -170,16 +170,9 @@ def slice_info(daten, platte=None):
     with zipfile.ZipFile(io.BytesIO(daten)) as z:
         xml = z.read("Metadata/slice_info.config")
     root = ET.fromstring(xml)
-    platten = root.findall("plate")
-    if not platten:
+    wahl = _platte_wahl(root, platte)
+    if wahl is None:
         return []
-    wahl = platten[0]
-    if platte is not None:
-        for pl in platten:
-            idx = next((m.get("value") for m in pl.findall("metadata") if m.get("key") == "index"), None)
-            if _int(idx) == platte:
-                wahl = pl
-                break
     out = []
     for f in wahl.findall("filament"):
         g = float(f.get("used_g") or 0)
@@ -187,6 +180,106 @@ def slice_info(daten, platte=None):
             out.append({"id": _int(f.get("id"), 0), "fid": f.get("tray_info_idx") or "", "typ": f.get("type") or "",
                         "farbe": _farbe(f.get("color")), "gramm": g})
     return out
+
+
+def _platte_wahl(root, platte):
+    platten = root.findall("plate")
+    if not platten:
+        return None
+    if platte is not None:
+        for pl in platten:
+            idx = next((m.get("value") for m in pl.findall("metadata") if m.get("key") == "index"), None)
+            if _int(idx) == platte:
+                return pl
+    return platten[0]
+
+
+def objekte(daten, platte=None):
+    """3MF-Inhalt → {identify_id: name} der Objekte auf der gewählten Platte (diese IDs meldet der Drucker in s_obj)."""
+    with zipfile.ZipFile(io.BytesIO(daten)) as z:
+        root = ET.fromstring(z.read("Metadata/slice_info.config"))
+    wahl = _platte_wahl(root, platte)
+    out = {}
+    for o in (wahl.findall("object") if wahl is not None else []):
+        i = _int(o.get("identify_id"))
+        if i is not None:
+            out[i] = o.get("name") or ""
+    return out
+
+
+_RE_LAYER = re.compile(r";\s*layer num/total_layer_count:\s*(\d+)")
+_RE_START = re.compile(r";\s*(?:start printing object, unique label id:\s*(\d+)|printing object .*?\bid:\s*(\d+))")
+_RE_STOP = re.compile(r";\s*stop printing object")
+_RE_E = re.compile(r"\bE(-?\d*\.?\d+)")
+_RE_T = re.compile(r"^T(\d+)\b")
+
+
+def gcode_auswerten(daten, platte=None):
+    """Filament je (Schicht, Objekt, Werkzeug) aus dem G-Code in der 3MF.
+    → {"e": {(schicht, objekt|None, werkzeug): mm}, "schichten": n} oder None, wenn kein G-Code drin ist.
+    So lässt sich ausrechnen, wie viel von übersprungenen Teilen nicht mehr gedruckt wurde."""
+    with zipfile.ZipFile(io.BytesIO(daten)) as z:
+        namen = [n for n in z.namelist() if re.fullmatch(r"Metadata/plate_\d+\.gcode", n)]
+        if not namen:
+            return None
+        name = f"Metadata/plate_{platte}.gcode" if f"Metadata/plate_{platte}.gcode" in namen else namen[0]
+        e, schicht, zaehler, nummer_da, obj, werkzeug, absolut, letztes_e = {}, 0, 0, False, None, 0, False, 0.0
+        with z.open(name) as roh:
+            for zeile in io.TextIOWrapper(roh, encoding="utf-8", errors="replace"):
+                if zeile.startswith(";"):
+                    m = _RE_LAYER.match(zeile)
+                    if m:
+                        schicht, nummer_da = int(m.group(1)), True
+                        continue
+                    if zeile.startswith("; CHANGE_LAYER"):
+                        zaehler += 1
+                        if not nummer_da:
+                            schicht = zaehler
+                        continue
+                    m = _RE_START.match(zeile)
+                    if m:
+                        obj = int(m.group(1) or m.group(2))
+                        continue
+                    if _RE_STOP.match(zeile):
+                        obj = None
+                    continue
+                c = zeile[:3]
+                if c in ("G1 ", "G0 ", "G2 ", "G3 "):
+                    m = _RE_E.search(zeile.split(";", 1)[0])
+                    if not m:
+                        continue
+                    wert = float(m.group(1))
+                    if absolut:
+                        wert, letztes_e = wert - letztes_e, wert
+                    k = (schicht, obj, werkzeug)
+                    e[k] = e.get(k, 0.0) + wert
+                elif zeile.startswith("T"):
+                    m = _RE_T.match(zeile)
+                    if m and int(m.group(1)) < 64:
+                        werkzeug = int(m.group(1))
+                elif zeile.startswith("M82"):
+                    absolut = True
+                elif zeile.startswith("M83"):
+                    absolut = False
+                elif zeile.startswith("G92") and absolut:
+                    m = _RE_E.search(zeile)
+                    if m:
+                        letztes_e = float(m.group(1))
+    return {"e": e, "schichten": max(schicht, zaehler)}
+
+
+def gedruckter_anteil(g, uebersprungen, bis_schicht=None):
+    """Anteil je Werkzeug, der wirklich gedruckt wurde.
+    uebersprungen = {objekt: schicht beim Überspringen}; bis_schicht = letzte gedruckte Schicht bei Abbruch (None = fertig)."""
+    gesamt, gedruckt = {}, {}
+    for (s, o, w), mm in g["e"].items():
+        gesamt[w] = gesamt.get(w, 0.0) + mm
+        if bis_schicht is not None and s > bis_schicht:
+            continue
+        if o is not None and o in uebersprungen and s > uebersprungen[o]:
+            continue
+        gedruckt[w] = gedruckt.get(w, 0.0) + mm
+    return {w: (min(1.0, max(0.0, gedruckt.get(w, 0.0) / t)) if t > 0 else 1.0) for w, t in gesamt.items()}
 
 
 class _FTPS(ftplib.FTP_TLS):
@@ -480,19 +573,45 @@ class Drucker:
             if not self.auftrag or self.auftrag.get("name") != self.p.get("subtask_name"):
                 self.auftrag = {"name": self.p.get("subtask_name") or "", "task": str(self.p.get("task_id") or ""),
                                 "start": time.time(), "rest": {f["global"]: (f["rest"], f["gewicht"]) for f in faecher(self.p)},
-                                "max": 0, "datei": None}
+                                "max": 0, "schicht": 0, "skip": {}, "datei": None, "gcode": None, "objekte": None}
                 if self.d.get("modus") != "cloud" and self.d.get("ip") and self.d.get("code"):
                     threading.Thread(target=self._datei_vorab, daemon=True).start()
             self.auftrag["max"] = max(self.auftrag["max"], _int(self.p.get("mc_percent"), 0))
+            self.auftrag["schicht"] = max(self.auftrag.get("schicht", 0), _int(self.p.get("layer_num"), 0) or 0)
+            self._skip_merken(self.auftrag)
         if self.vorher in LAUFEND and st in ("FINISH", "FAILED"):
             a = self.auftrag or {"name": self.p.get("subtask_name") or "", "task": str(self.p.get("task_id") or ""),
-                                 "rest": {}, "max": _int(self.p.get("mc_percent"), 0), "datei": None}
+                                 "rest": {}, "max": _int(self.p.get("mc_percent"), 0), "schicht": _int(self.p.get("layer_num"), 0) or 0,
+                                 "skip": {}, "datei": None, "gcode": None, "objekte": None}
+            self._skip_merken(a)
             self.auftrag = None
             anteil = 1.0 if st == "FINISH" else min(1.0, max(a.get("max", 0), _int(self.p.get("mc_percent"), 0)) / 100)
             threading.Thread(target=self._abschluss, args=(a, st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
         if st:
             self.vorher = st
         self.wirt.zustaende(self, zustaende(self.d, self.p, True))
+
+    def _skip_merken(self, a):
+        """Am Drucker übersprungene Teile (s_obj) mit Schicht und Fortschritt zum Zeitpunkt des Überspringens merken."""
+        liste = self.p.get("s_obj")
+        if not isinstance(liste, list):
+            return
+        for i in liste:
+            i = _int(i)
+            if i is not None and i not in a["skip"]:
+                a["skip"][i] = {"schicht": _int(self.p.get("layer_num"), 0) or 0, "prozent": _int(self.p.get("mc_percent"), 0) or 0}
+                self.wirt.log(f"Drucker {self.serial}: Teil {i} übersprungen (Schicht {a['skip'][i]['schicht']}, {a['skip'][i]['prozent']} %)")
+
+    def _datei_auswerten(self, a, daten, platte):
+        a["datei"] = slice_info(daten, platte)
+        try:
+            a["objekte"] = objekte(daten, platte)
+        except Exception as e:
+            self.wirt.log(f"Drucker {self.serial}: Objekte nicht lesbar: {e}")
+        try:
+            a["gcode"] = gcode_auswerten(daten, platte)
+        except Exception as e:
+            self.wirt.log(f"Drucker {self.serial}: G-Code nicht lesbar: {e}")
 
     def _datei_vorab(self):
         """Gramm schon beim Druckstart aus der Datei lesen (am Ende ist sie evtl. schon überschrieben)."""
@@ -501,29 +620,63 @@ class Drucker:
         try:
             daten, pfad = druckdatei_laden(self.d["ip"], self.d["code"], self.p)
             if daten and a is not None:
-                a["datei"] = slice_info(daten, platte_aus(self.p))
-                self.wirt.log(f"Drucker {self.serial}: Druckdatei {pfad} gelesen ({len(a['datei'])} Filamente)")
+                self._datei_auswerten(a, daten, platte_aus(self.p))
+                self.wirt.log(f"Drucker {self.serial}: Druckdatei {pfad} gelesen ({len(a['datei'])} Filamente, "
+                              f"{len(a.get('objekte') or {})} Teile{', mit G-Code' if a.get('gcode') else ''})")
         except Exception as e:
             self.wirt.log(f"Drucker {self.serial}: Druckdatei nicht lesbar: {e}")
 
-    def posten(self, a, anteil, p):
-        """→ (posten, quelle) mit posten = [{gramm, ort, fid, col, name, material}]"""
+    def _ueberspringen(self, a, st, anteil, datei):
+        """Anteil je Filament (Datei-ID), der wirklich gedruckt wurde, wenn Teile übersprungen wurden.
+        → (anteile {fid_id: faktor} oder None, genau: bool)"""
+        skip = a.get("skip") or {}
+        bis = None if st == "FINISH" else (a.get("schicht") or None)
+        g = a.get("gcode")
+        if g and g["e"] and (skip or bis):
+            ids = [fi["id"] for fi in datei]
+            if len(ids) == 1:  # ein Filament: alle Werkzeuge zusammenfassen
+                zus = {}
+                for (s, o, w), mm in g["e"].items():
+                    zus[(s, o, 0)] = zus.get((s, o, 0), 0.0) + mm
+                g = {"e": zus}
+            je_wz = gedruckter_anteil(g, {o: s["schicht"] for o, s in skip.items()}, bis)
+            extra = anteil if (st != "FINISH" and bis is None) else 1.0  # Abbruch ohne Schichtangabe: Fortschritt dazu
+            if len(ids) == 1:
+                return {ids[0]: je_wz.get(0, anteil) * extra}, True
+            return {i: je_wz.get(i - 1, anteil) * extra for i in ids}, True
+        if not skip:
+            return None, True
+        # ohne G-Code: jedes Teil gleich schwer annehmen, ab dem Überspringen fehlt sein Rest
+        n = len(a.get("objekte") or {})
+        if n < 2:
+            return None, False
+        weg = sum((1 - min(100, s["prozent"]) / 100) / n for s in skip.values())
+        return {fi["id"]: max(0.0, anteil - weg) for fi in datei}, False
+
+    def posten(self, a, anteil, p, st="FINISH"):
+        """→ (posten, quelle) mit posten = [{gramm, gramm_voll, ort, fid, col, name, material}]"""
         fl = faecher(p)
         # 1) Druckdatei
         datei = a.get("datei")
         if datei is None and self.d.get("modus") != "cloud" and self.d.get("ip"):
             try:
                 daten, _ = druckdatei_laden(self.d["ip"], self.d["code"], p)
-                datei = slice_info(daten, platte_aus(p)) if daten else None
+                if daten:
+                    self._datei_auswerten(a, daten, platte_aus(p))
+                    datei = a["datei"]
             except Exception as e:
                 self.wirt.log(f"Drucker {self.serial}: Druckdatei nicht lesbar: {e}")
         if datei:
+            faktoren, genau = self._ueberspringen(a, st, anteil, datei)
+            a["skip_genau"] = genau
             out = []
             for fi, f in zuordnen(datei, fl):
-                out.append({"gramm": round(fi["gramm"] * anteil, 2), "ort": f["ort"] if f else "Druckdatei",
+                fk = faktoren.get(fi["id"], anteil) if faktoren else anteil
+                out.append({"gramm": round(fi["gramm"] * fk, 2), "gramm_voll": round(fi["gramm"] * anteil, 2), "ort": f["ort"] if f else "Druckdatei",
                             "fid": (f["fid"] if f and f["fid"] else fi["fid"]), "col": (f["farbe"] if f and f["farbe"] else fi["farbe"]),
                             "name": f["name"] if f else "", "material": (f["typ"] if f else fi["typ"])})
             return out, "Druckdatei"
+        a["skip_genau"] = not a.get("skip")
         # 2) Cloud-Aufgabe
         c = self.wirt.cloud()
         if c.get("token"):
@@ -555,11 +708,13 @@ class Drucker:
             g = (alt[0] - f["rest"]) / 100 * gw
             if g > 0.5:
                 out.append({"gramm": round(g, 1), "ort": f["ort"], "fid": f["fid"], "col": f["farbe"], "name": f["name"], "material": f["typ"]})
+        if out:
+            a["skip_genau"] = True  # gemessen: übersprungene Teile sind schon drin
         return out, "AMS-Restanzeige"
 
     def _abschluss(self, a, st, anteil, p):
         try:
-            posten, quelle = self.posten(a, anteil, p)
+            posten, quelle = self.posten(a, anteil, p, st)
         except Exception as e:
             posten, quelle = [], "Fehler: " + str(e)
         anlass = "Druck fertig" if st == "FINISH" else "Druck abgebrochen"
@@ -573,7 +728,8 @@ class Drucker:
             except Exception as e:
                 self.wirt.log(f"Drucker {self.serial}: Vorschaubild nicht abrufbar: {e}")
         self.wirt.druckende(self, {"anlass": anlass, "anteil": anteil, "posten": posten, "quelle": quelle,
-                                   "aufgabe": a.get("name") or "", "task": a.get("task") or "", "dauer": dauer, "bild": bild})
+                                   "aufgabe": a.get("name") or "", "task": a.get("task") or "", "dauer": dauer, "bild": bild,
+                                   "uebersprungen": len(a.get("skip") or {}), "skip_genau": bool(a.get("skip_genau", True))})
 
 
 class Bambu:

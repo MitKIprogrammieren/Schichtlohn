@@ -2233,6 +2233,27 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .jbar .info b{font-size:15px}
 .chip.cl{color:var(--accent)}
 .chip.bad{color:var(--bad)}
+.chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.job .thumb.zoom{cursor:zoom-in;transition:transform .15s}.job .thumb.zoom:hover{transform:scale(1.04)}
+.jlb{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px));cursor:zoom-out;animation:jlbIn .15s ease-out}
+@keyframes jlbIn{from{opacity:0}to{opacity:1}}
+.jlb-in{position:relative;width:min(640px,100%);max-height:100%;display:flex;flex-direction:column}
+.jlb-in img{display:block;width:100%;max-height:calc(100vh - 170px);object-fit:contain;border-radius:var(--r);background:var(--solid);border:1px solid var(--line-2);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.jlb-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);color:#fff}
+.jlb-cap{display:flex;gap:12px;align-items:flex-start;margin-top:14px;cursor:auto;color:#eef4f0}
+.jlb-cap h3{margin:0;font-size:17px;overflow-wrap:anywhere}
+.jlb-cap .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px;color:rgba(238,244,240,.72);margin-top:3px;align-items:center}
+.jlb-cap .sw{display:inline-flex;gap:3px}.jlb-cap .sw i{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
+.jlb-cap .right{margin-left:auto;text-align:right;font-size:13px;color:rgba(238,244,240,.72);white-space:nowrap}.jlb-cap .right b{display:block;font-size:17px;color:#fff}
+.knote{font-size:13px;border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);background:color-mix(in srgb,var(--warn) 9%,transparent);border-radius:var(--r-s);padding:9px 12px}
+.krow{display:grid;grid-template-columns:14px minmax(0,1fr) 112px;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s)}
+.krow>i{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
+.krow b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.krow small{display:block;color:var(--fg-3);font-size:12px}
+.kin{display:flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:var(--r-s);background:var(--sunken);padding:0 10px}
+.kin input{border:0!important;background:none!important;padding:8px 0!important;width:100%;min-width:0;font-weight:600;outline:none;box-shadow:none!important}
+.kin span{color:var(--fg-2);font-size:13px}.kin:focus-within{border-color:var(--accent)}
+.kpct{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--fg-2)}.kpct .kin{width:90px}
+.ksum{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px solid var(--line)}
 @media (max-width:620px){.job{grid-template-columns:24px 76px minmax(0,1fr)}.job .thumb{width:76px;height:76px;grid-row:span 2}.job input[type=checkbox]{grid-row:span 2}.job .right{grid-column:3;text-align:left}.job .right b{display:inline;margin-right:8px}.jbar{bottom:8px}}
 </style>
 <script>
@@ -2360,11 +2381,37 @@ function all(){
     const c=J.cloud.find(c=>!used.has(c.id)&&c.serial&&c.serial.toUpperCase()===h.serial&&c.end&&Math.abs(new Date(c.end).getTime()-t)<15*60000);
     if(c){used.add(c.id);h.cloud=c;h.cover=c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
     out.push(h)}
-  J.cloud.forEach(c=>{if(!used.has(c.id))out.push(c)});
-  if(window.CRE)CRE.jobs().forEach(c=>out.push(c));
+  J.cloud.forEach(c=>{if(!used.has(c.id))out.push(Object.assign({},c))});
+  if(window.CRE)CRE.jobs().forEach(c=>out.push(Object.assign({},c)));
   const tv=j=>{const t=new Date(j.end||j.start||0).getTime();return isNaN(t)?0:t};
+  const bi=buchIndex();out.forEach(j=>anpassen(j,bi));
   return out.sort((a,b)=>tv(b)-tv(a));
 }
+
+/* --- Abbuchungen im Lager zu einem Druck finden (Verbrauchsliste), Korrekturen anwenden --- */
+const rgb=h=>{h=String(h||"").replace("#","");return h.length>=6?[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)):null};
+const farbAbst=(a,b)=>{const x=rgb(a),y=rgb(b);return x&&y?x.reduce((s,v,i)=>s+(v-y[i])**2,0):1e9};
+function buchIndex(){const B=window.LGN&&LGN._book;if(!B)return null;
+  if(!B.ready()){if(!buchIndex.gestartet){buchIndex.gestartet=true;B.start();setTimeout(redraw,1500)}return null}
+  const alle=B.verbrauch();const korr={},basis=[];
+  alle.forEach(d=>{if(d.korrektur_von)korr[d.korrektur_von]=(korr[d.korrektur_von]||0)+(Number(d.gramm)||0);else basis.push(d)});
+  basis.forEach(d=>{d.eff=Math.round(((Number(d.gramm)||0)+(korr[d._uid]||0))*10)/10;d.t=Date.parse(d.zeit)});
+  return basis}
+function buchungen(j,bi){if(!bi)return [];const ids=[j.src==="cloud"?j.id:"",j.cloud?j.cloud.id:""].filter(Boolean).map(String);
+  const te=Date.parse(j.end);
+  let l=bi.filter(d=>d.task&&ids.includes(String(d.task)));
+  if(!l.length&&!isNaN(te))l=bi.filter(d=>d.drucker&&d.drucker===j.printer&&Math.abs(d.t-te)<20*60000);
+  return l}
+/* Jede Filamentzeile des Drucks bekommt die passende Abbuchung (nächste Farbe) */
+function paare(j,l){const frei=[...l];return j.mats0.map(m=>{if(!frei.length)return null;let bi=0,bd=1e12;
+  frei.forEach((d,i)=>{const x=farbAbst(m.color,d.hex)+(String(d.material||"").toUpperCase()===String(m.type||"").toUpperCase()?0:5000);if(x<bd){bd=x;bi=i}});
+  return frei.splice(bi,1)[0]})}
+function anpassen(j,bi){j.mats0=j.mats.map(m=>Object.assign({},m));j.grams0=j.grams;
+  const l=buchungen(j,bi);j.buch=l.length?paare(j,l):[];j.skip=Math.max(0,...l.map(d=>Number(d.uebersprungen)||0));
+  const k=((S.cfg||{}).jobKorr||{})[j.key]||(j.cloud&&((S.cfg||{}).jobKorr||{})[j.cloud.key]);
+  if(k&&Array.isArray(k.g))j.mats=j.mats0.map((m,i)=>Object.assign({},m,{g:k.g[i]!=null?Number(k.g[i]):m.g}));
+  else if(j.buch.some(Boolean)&&(j.skip||l.some(d=>d.eff!==Math.round((Number(d.gramm)||0)*10)/10)))j.mats=j.mats0.map((m,i)=>j.buch[i]?Object.assign({},m,{g:j.buch[i].eff}):m);
+  j.korr=!!k;j.grams=r2(j.mats.reduce((a,m)=>a+m.g,0))||(j.mats.length?0:j.grams0)}
 const keysOf=j=>[j.key].concat(j.cloud?[j.cloud.key]:[]);
 function visible(list,used){
   const q=J.q.trim().toLowerCase();
@@ -2406,11 +2453,12 @@ function render(m){
       const u=keysOf(j).map(k=>used[k]).find(Boolean);const sel=J.sel.has(j.key);
       html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
         <input type="checkbox" ${sel?"checked":""} aria-label="${esc(j.title)} auswählen" tabindex="-1">
-        <div class="thumb" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}">${j.cover?"":ICON.cube}</div>
+        <div class="thumb${j.cover?" zoom":""}" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}"${j.cover?` data-act="jobBild" data-key="${esc(j.key)}" role="button" title="Groß anzeigen"`:""}>${j.cover?"":ICON.cube}</div>
         <div style="min-width:0"><h3 title="${esc(j.title)}">${esc(j.title)}</h3>
           <div class="meta"><span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
             <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
             ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
+            ${j.skip?`<span class="chip warn">${j.skip} Teil${j.skip>1?"e":""} übersprungen</span>`:""}${j.korr?`<span class="chip">angepasst</span>`:""}
             ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
@@ -2419,6 +2467,7 @@ function render(m){
   const selJ=list.filter(j=>J.sel.has(j.key));
   const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
     <button class="btn ghost sm" data-act="jobClear">Auswahl aufheben</button>
+    ${selJ.length===1?`<button class="btn sm" data-act="jobKorr" title="Gramm korrigieren, z. B. wenn Teile übersprungen wurden">Verbrauch anpassen</button>`:""}
     ${window.CRE&&selJ.some(j=>j.src==="creality")?`<button class="btn sm" data-act="jobBuchen" title="Verbrauch dieser Creality-Drucke im Lager abziehen">Im Lager abbuchen</button>`:""}
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
     <button class="btn pri sm" data-act="jobToOrder">${ICON.save} Auftrag …</button></div>`:"";
@@ -2480,6 +2529,62 @@ function orderPick(){
 function ordPickHTML(f){f=f.toLowerCase();const l=S.orders.filter(o=>o.status!=="storniert"&&(!f||(o.no+" "+o.name+" "+o.customer).toLowerCase().includes(f))).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,60);
   return l.length?l.map(o=>`<button data-act="jobOrdPick" data-id="${o.id}"><span style="flex:1;min-width:0"><b>${esc(o.no)} · ${esc(o.name||"Ohne Bezeichnung")}</b><span class="hint" style="display:block">${esc(o.customer||"–")} · ${dDE(o.date)} · ${esc(statusName(o.status))} · ${o.parts.length} Teil${o.parts.length===1?"":"e"}</span></span>${ICON.plus}</button>`).join(""):`<div class="empty">Kein Treffer.</div>`}
 
+/* --- Vorschaubild groß --- */
+function jobMeta(j){return `<span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
+  <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}"></i>`).join("")}</span>
+  ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
+  ${j.skip?`<span class="chip warn">${j.skip} Teil${j.skip>1?"e":""} übersprungen</span>`:""}${j.korr?`<span class="chip">angepasst</span>`:""}`}
+function bildZeigen(j){bildZu();const el=document.createElement("div");el.id="jlb";el.className="jlb";el.setAttribute("role","dialog");el.setAttribute("aria-modal","true");el.setAttribute("aria-label",j.title);el.dataset.act="jobBildZu";
+  el.innerHTML=`<div class="jlb-in"><img src="${esc(j.cover)}" alt="${esc(j.title)}"><button class="btn icon jlb-x" data-act="jobBildZu" aria-label="Schließen">${ICON.x}</button>
+    <div class="jlb-cap" data-act="jobBildRuhe"><div style="min-width:0"><h3>${esc(j.title)}</h3><div class="meta">${jobMeta(j)}</div></div><div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):""}</div></div></div>`;
+  document.body.appendChild(el);el.querySelector(".jlb-x").focus()}
+function bildZu(){const el=document.getElementById("jlb");if(el)el.remove()}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("jlb")){e.preventDefault();bildZu()}});
+
+/* --- Verbrauch anpassen --- */
+let KJ=null;
+const zahl1=x=>String(Math.round(x*10)/10).replace(".",",");
+const leseG=v=>{const n=parseFloat(String(v||"").replace(",","."));return isNaN(n)||n<0?null:n};
+function korrModal(j){KJ=j;const buchOk=j.buch.some(Boolean);
+  const voll=(m,i)=>{const b=j.buch[i];return b&&b.gramm_voll!=null?Number(b.gramm_voll):m.g};
+  const rows=j.mats0.map((m,i)=>{const b=j.buch[i];
+    return `<div class="krow"><i style="background:${esc(m.color||"#888")}"></i><div style="min-width:0"><b>${esc(b?b.sorte:(m.name||m.type||"Filament"))}</b>
+      <small>${j.src==="ha"?"laut Protokoll":j.src==="creality"?"laut Creality":"laut Datei"} ${zahl1(voll(m,i))} g${b?` · abgebucht ${zahl1(b.eff)} g${b.ort?" · "+esc(b.ort):""}`:""}</small></div>
+      <label class="kin"><input type="text" inputmode="decimal" id="kr_${i}" data-voll="${voll(m,i)}" value="${zahl1(j.mats[i]?j.mats[i].g:m.g)}" aria-label="Gramm ${esc(m.name||m.type||"")}"><span>g</span></label></div>`}).join("");
+  const n=j.skip,gespart=j.buch.reduce((s,b)=>s+(b&&b.gramm_voll!=null?Number(b.gramm_voll)-Number(b.gramm):0),0),genau=j.buch.every(b=>!b||b.skip_genau!==false);
+  const note=n?`<div class="knote">Am Drucker ${n>1?`wurden ${n} Teile`:"wurde 1 Teil"} übersprungen. ${gespart>0.05?`SchichtLohn hat dafür schon ${zahl1(gespart)} g weniger abgebucht${genau?" (aus der Druckdatei berechnet)":" – das ist nur geschätzt, prüfe die Werte"}.`:"Wie viel dadurch weniger verbraucht wurde, war nicht bekannt – trag die Gramm unten ein."}</div>`:"";
+  const hinweis=buchOk?"":`<div class="hint">${window.LGN&&LGN._book&&LGN._book.ready()?"Zu diesem Druck wurde im Lager nichts abgebucht.":"Das Lager ist noch nicht geladen."} Die Gramm gelten dann nur für Kalkulation und Aufträge.</div>`;
+  modal("Verbrauch anpassen",`<div class="hint"><b style="color:var(--fg)">${esc(j.title)}</b> · ${esc(j.printer||"")} · ${esc(dayLabel(j.end||j.start))} ${hm(j.end)}</div>${note}
+    <div class="stack" style="gap:8px">${rows||`<div class="hint">Für diesen Druck gibt es keine Gramm-Angaben.</div>`}</div>
+    ${rows?`<div class="kpct">Alles auf <label class="kin"><input type="text" inputmode="decimal" id="kr_pct" placeholder="100"><span>%</span></label> setzen <span class="hint">z. B. bei Abbruch</span></div>`:""}
+    ${buchOk?`<div class="ksum"><span class="hint">Änderung im Lager</span><b id="kr_sum">±0 g</b></div>`:""}${hinweis}
+    ${j.korr?`<button class="btn ghost sm" data-act="jobKorrOk" data-reset="1" style="align-self:flex-start">Auf Originalwerte zurücksetzen</button>`:""}`,
+    `<button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="jobKorrOk"${rows?"":" disabled"}>Übernehmen</button>`);
+  korrSumme()}
+function korrWerte(){return KJ.mats0.map((m,i)=>{const el=document.getElementById("kr_"+i);return el?leseG(el.value):null})}
+function korrSumme(){const el=document.getElementById("kr_sum");if(!el||!KJ)return;let d=0;
+  korrWerte().forEach((v,i)=>{const b=KJ.buch[i];if(b&&v!=null)d+=v-b.eff});d=Math.round(d*10)/10;
+  el.textContent=Math.abs(d)<0.1?"±0 g":(d>0?"+":"−")+zahl1(Math.abs(d))+" g "+(d>0?"mehr abbuchen":"zurückbuchen")}
+document.addEventListener("input",e=>{const t=e.target;if(!t||!KJ)return;
+  if(t.id==="kr_pct"){const p=leseG(t.value);if(p==null)return;KJ.mats0.forEach((m,i)=>{const el=document.getElementById("kr_"+i);if(el)el.value=zahl1(Number(el.dataset.voll)*Math.min(p,100)/100)});korrSumme()}
+  else if(/^kr_\d+$/.test(t.id))korrSumme()});
+async function korrSpeichern(btn){const j=KJ;if(!j)return;const reset=btn.dataset.reset==="1";
+  const werte=reset?j.mats0.map((m,i)=>{const b=j.buch[i];return b?Number(b.gramm):m.g}):korrWerte();
+  if(werte.some(v=>v==null)){toast("Bitte überall eine Zahl eintragen");return}
+  document.querySelectorAll('#modal [data-act="jobKorrOk"]').forEach(x=>x.disabled=true);
+  let gebucht=0,fehler="";
+  for(let i=0;i<werte.length;i++){const b=j.buch[i];if(!b)continue;const diff=Math.round((werte[i]-b.eff)*10)/10;if(Math.abs(diff)<0.1)continue;
+    try{await LGN._book.korrigieren(b,diff);gebucht+=diff}catch(err){fehler=err.message||String(err)}}
+  S.cfg.jobKorr=S.cfg.jobKorr||{};
+  if(reset)keysOf(j).forEach(k=>delete S.cfg.jobKorr[k]);
+  else S.cfg.jobKorr[j.key]={g:werte.map(v=>Math.round(v*10)/10),zeit:new Date().toISOString()};
+  /* Einträge älter als gut ein Jahr aufräumen */
+  const grenze=Date.now()-400*864e5;Object.keys(S.cfg.jobKorr).forEach(k=>{if(Date.parse(S.cfg.jobKorr[k].zeit)<grenze)delete S.cfg.jobKorr[k]});
+  saveCfgSoon();closeModal();KJ=null;
+  if(fehler)toast("Lager nicht ganz korrigiert: "+fehler);
+  else toast(Math.abs(gebucht)>=0.1?`Gespeichert · im Lager ${gebucht>0?zahl1(gebucht)+" g mehr abgebucht":zahl1(-gebucht)+" g zurückgebucht"}`:"Gespeichert");
+  setTimeout(redraw,800);redraw()}
+
 /* --- Einstellungen --- */
 function settingsHTML(){
   const a=acct();
@@ -2494,7 +2599,11 @@ function settingsHTML(){
 let render0=()=>window.render?window.render():null;
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
-  if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
+  if(a==="jobBild"){e.stopPropagation();const j=J_list.find(x=>x.key===b.dataset.key);if(j)bildZeigen(j)}
+  else if(a==="jobBildZu"){bildZu()}
+  else if(a==="jobKorr"){const j=J_list.find(x=>J.sel.has(x.key));if(j)korrModal(j)}
+  else if(a==="jobKorrOk"){korrSpeichern(b)}
+  else if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
   else if(a==="jobAll"){visible(J_list,usedMap()).slice(0,400).forEach(j=>J.sel.add(j.key));redraw()}
   else if(a==="jobClear"){J.sel.clear();redraw()}
   else if(a==="jobReload"){loadHa(true);loadCloud(true);if(window.CRE&&CRE.connected())CRE.load(true)}
@@ -4240,6 +4349,11 @@ async function write(e,patch){
 function abbuchen(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen),g0=gramm;let rl=[...(e.reste||[])].sort((a,b)=>a-b).slice(0,sp);
   for(let i=0;i<25&&g0>0&&sp>0;i++){if(!rl.length)rl=[gw];else if(rl[0]-g0>=1){rl[0]-=g0;g0=0}else{g0=Math.max(0,g0-rl[0]);rl.shift();sp-=1}}
   rl=rl.map(Math.round).filter(x=>x>0&&x<gw);return {spulen:sp,reste:rl,refills:Math.min(e.refills,sp)}}
+/* Umkehr von abbuchen: Gramm zurück auf die angebrochene Rolle; läuft sie über, war vorher eine Rolle mehr da */
+function gutschrift(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen);let rl=[...(e.reste||[])].sort((a,b)=>a-b).slice(0,sp);let g0=gramm;
+  if(g0>0&&rl.length){const n=rl[0]+g0;if(n<gw){rl[0]=n;g0=0}else{rl.shift();g0=n-gw}}
+  for(let i=0;i<25&&g0>=1;i++){sp+=1;if(g0<gw){rl.push(g0);g0=0}else g0-=gw}
+  rl=rl.map(Math.round).filter(x=>x>0&&x<gw);return {spulen:sp,reste:rl,refills:Math.min(e.refills,sp)}}
 async function logVerbrauch(e,o,g0){if(!metaDa())return;const preis=Number(e.preis)||0;
   const d={typ:"verbrauch",v:1,zeit:o.zeit||new Date().toISOString(),drucker:o.drucker,ort:o.ort,sorte:summary(e),uid:e.uid,hersteller:e.hersteller,material:e.material,hex:e.hex,gramm:Math.round(g0*10)/10,
     preis:preis>0?preis:null,kosten:preis>0?Math.round(g0/1000*preis*100)/100:null,anlass:(o.anlass||"Druck")+(o.auto?"":" (von Hand zugeordnet)"),quelle:o.quelle||undefined};
@@ -5273,6 +5387,17 @@ const BOOK={ready:()=>!!G.loaded&&(lokal()||srv()||!!window.__hass),start:()=>{s
   finde(type,hex){const t=normMat(type);if(!t)return null;const l=entries().filter(e=>e.spulen>0&&normMat(e.material)===t);if(!l.length)return null;
     if(!hexOk(hex||""))return l.length===1?l[0]:null;let best=null,bd=1e15;l.forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)));if(d<bd){bd=d;best=e}});return bd<=TOL?best:null},
   abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
+  /* Abbuchungen aus der Verbrauchsliste (für „Verbrauch anpassen“ in Druckaufträge) */
+  verbrauch:()=>(G.meta||[]).map(i=>{const d=desc(i);return d.typ==="verbrauch"?Object.assign({},d,{_uid:i.uid}):null}).filter(Boolean),
+  metaOk:()=>!!G.metaOk,
+  /* Nachträglich korrigieren: diff > 0 bucht mehr ab, diff < 0 bucht zurück. Eigener Eintrag „Korrektur“ in der Verbrauchsliste, gleiche Zeit wie die Abbuchung. */
+  async korrigieren(b,diff){const e=entries().find(x=>x.uid===b.uid);if(!e)throw new Error(`Sorte „${b.sorte||"?"}“ gibt es im Lager nicht mehr`);
+    const patch=diff>0?abbuchen(e,diff):gutschrift(e,-diff);await write(e,patch);
+    if(!metaDa())return;const preis=Number(e.preis)||0;const g1=Math.round(diff*10)/10;
+    const d={typ:"verbrauch",v:1,zeit:b.zeit,drucker:b.drucker,ort:b.ort,sorte:summary(e),uid:e.uid,hersteller:e.hersteller,material:e.material,hex:e.hex,gramm:g1,
+      preis:preis>0?preis:null,kosten:preis>0?Math.round(g1/1000*preis*100)/100:null,anlass:"Korrektur (Druckaufträge)",korrektur_von:b._uid,task:b.task||undefined};
+    const t=new Date(d.zeit);const dt=isNaN(t)?"":t.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");
+    await svc("add_item",{item:`${dt} · ${b.drucker} · ${g1>0?"+":""}${String(g1).replace(".",",")} g · ${d.sorte} · Korrektur`,description:JSON.stringify(d)},META)},
   offen:o=>{const gs=String(Math.round(o.gramm*10)/10).replace(".",",");return svc("add_item",{item:`⚠ Nicht zugeordnet: ${gs} g · ${o.drucker} · ${o.ort}`,
     description:JSON.stringify({typ:"offen",v:1,gramm:Math.round(o.gramm*10)/10,drucker:o.drucker,ort:o.ort,fid:"",farbe:o.farbe||"",name:o.name||"",material:o.material||"",grund:o.grund||"",anlass:o.anlass||"",zeit:o.zeit||new Date().toISOString(),quelle:o.quelle||""})})}};
 /* ---------- Spulen-Etiketten (gleich wie auf der Filamentwaage) ---------- */

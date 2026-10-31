@@ -65,7 +65,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.19"
+VERSION = "3.2.20"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1439,7 +1439,12 @@ def druck_abbuchen(druckername, erg):
             log = {"typ": "verbrauch", "v": 1, "zeit": zeit, "drucker": druckername, "ort": po.get("ort") or "", "sorte": it["summary"],
                    "uid": it["uid"], "hersteller": d.get("hersteller") or "", "material": d.get("material") or "", "hex": d.get("hex") or "",
                    "gramm": round(g, 1), "preis": preis or None, "kosten": round(g / 1000 * preis, 2) if preis else None,
-                   "anlass": erg["anlass"], "quelle": "SchichtLohn-Server · " + erg.get("quelle", "")}
+                   "anlass": erg["anlass"], "quelle": "SchichtLohn-Server · " + erg.get("quelle", ""),
+                   "task": erg.get("task") or "", "aufgabe": erg.get("aufgabe") or ""}
+            if erg.get("uebersprungen"):
+                log["uebersprungen"] = erg["uebersprungen"]
+                log["skip_genau"] = bool(erg.get("skip_genau"))
+                log["gramm_voll"] = round(float(po.get("gramm_voll") or g), 1)
             liste_aendern(META, "add_item", {"item": f"{dt} · {druckername} · {_gram(g)} g · {it['summary']}",
                                              "description": json.dumps(log, ensure_ascii=False)})
             bericht.append(f"{it['summary']}: −{_gram(g)} g ({po.get('ort')}), Bestand {int(round(bestand))} g")
@@ -1459,6 +1464,18 @@ def druck_abbuchen(druckername, erg):
         teile.append("Nicht abgebucht (in SchichtLohn zuordnen): " + "; ".join(offen))
     if not erg["posten"]:
         teile.append("Keine Verbrauchsangaben gefunden (" + erg.get("quelle", "") + ")")
+    n_skip = erg.get("uebersprungen") or 0
+    if n_skip:
+        gespart = sum(float(po.get("gramm_voll") or 0) - float(po.get("gramm") or 0) for po in erg["posten"])
+        teil = f"{n_skip} Teil{'e' if n_skip > 1 else ''} übersprungen"
+        if erg.get("skip_genau") and gespart > 0.05:
+            hinweis = f"{teil}, dafür {_gram(gespart)} g weniger abgebucht"
+        elif gespart > 0.05:
+            hinweis = f"{teil}, geschätzt {_gram(gespart)} g weniger abgebucht – in SchichtLohn unter Druckaufträge → Verbrauch anpassen prüfen"
+        else:
+            hinweis = f"{teil} – Verbrauch nicht genau bekannt, in SchichtLohn unter Druckaufträge → Verbrauch anpassen korrigieren"
+        teile.append(hinweis)
+        kurz.append(hinweis.split(" – ")[0])
     anteil = erg.get("anteil", 1)
     text = f"{druckername}, {erg['anlass']}{' (%d %%)' % round(anteil * 100) if anteil < 1 else ''}. " + ". ".join(teile)
     print(text, flush=True)

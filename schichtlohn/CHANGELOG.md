@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.20 – 31.10.2026
+- Übersprungene Teile werden nicht mehr mit abgebucht: Lässt du am Drucker Teile weg, zieht SchichtLohn nur ab, was wirklich gedruckt wurde – ausgerechnet aus der Druckdatei, Schicht für Schicht. Das klappt bei Druckern im Heimnetz; über die Bambu-Cloud gibt es nur eine Schätzung oder einen Hinweis.
+- Neu in Druckaufträge: „Verbrauch anpassen“. Einen Druck auswählen, echte Gramm eintragen (oder „Alles auf … %“), SchichtLohn bucht den Unterschied im Lager nach oder zurück.
+- Ein Tipp auf das Vorschaubild zeigt es groß, mit Name, Drucker, Zeit und Gewicht.
+
 ## 3.2.19 – 31.10.2026
 - Versand wird mitgerechnet: Nennt eBay den Versand nach Deutschland, steckt er im Preis („inkl. 4,90 € Versand“ oder „versandkostenfrei“). Fehlt die Angabe – bei AliExpress immer –, rechnet SchichtLohn deine Versandpauschale dazu.
 - Die Pauschalen trägst du unter Einstellungen → Preisvergleich ein (eBay und AliExpress getrennt). Ohne Pauschale steht „zzgl. Versand“ dabei.
