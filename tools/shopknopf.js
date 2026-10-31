@@ -14,7 +14,7 @@
     return parseFloat(s) || 0;
   };
   const meta = (k) => { const m = document.querySelector('meta[property="' + k + '"],meta[name="' + k + '"],meta[itemprop="' + k + '"]'); return m ? m.getAttribute("content") || "" : ""; };
-  let T = meta("og:title") || document.title || "", C = "", V = [];
+  let T = meta("og:title") || document.title || "", C = "", V = [], M = "";
   const seen = new Set();
   const add = (n, p, np, sku, ean) => {
     p = num(p); np = num(np);
@@ -39,6 +39,7 @@
       if (r.ok) {
         const p = await r.json();
         T = p.title || T;
+        M = p.vendor || M;
         C = (window.Shopify && Shopify.currency && Shopify.currency.active) || "";
         (p.variants || []).forEach((v) => add(v.title === "Default Title" ? "" : v.title, v.price / 100, (v.compare_at_price || 0) / 100, v.sku, v.barcode));
       }
@@ -54,6 +55,7 @@
         const t = [].concat(o["@type"] || []);
         if (t.includes("ProductGroup") && o.name) T = o.name;
         if (!t.includes("Product")) return;
+        if (o.brand && !M) M = typeof o.brand === "string" ? o.brand : (o.brand.name || "");
         [].concat(o.offers || []).forEach((x) => {
           if (!x) return;
           const liste = x.offers ? [].concat(x.offers) : [x];
@@ -121,7 +123,7 @@
   /* kompakt verpacken: Varianten als [Name ohne Produkttitel, Preis, Normalpreis, EAN], dann komprimiert (iOS kürzt sehr lange Adressen) */
   const tt = String(T).replace(/\s+/g, " ").trim(), tl = tt.toLowerCase();
   const vv = V.slice(0, 60).map((x) => { let n = x.n; if (tl && n.toLowerCase().indexOf(tl) === 0) n = n.slice(tt.length).replace(/^[\s\-–|·,/]+/, ""); const r = [n, x.p]; if (x.np || x.e) r.push(x.np || 0); if (x.e) r.push(x.e); return r; });
-  const daten = { u: location.href.split("#")[0].slice(0, 300), t: tt.slice(0, 120), c: C || "EUR", v: vv, f: F.slice(0, 30) };
+  const daten = { u: location.href.split("#")[0].slice(0, 300), t: tt.slice(0, 120), c: C || "EUR", b: String(M || "").slice(0, 60), v: vv, f: F.slice(0, 30) };
   const b64u = (bytes) => { let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
   const roh = new TextEncoder().encode(JSON.stringify(daten));
   let wert = "";
