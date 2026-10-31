@@ -50,6 +50,25 @@
     } catch (e) { DG.se = String(e && e.message || e).slice(0, 80); }
   }
 
+  /* 1b. Shopify-Sammelseite (/collections/…): alle Produkte auf einmal – manche Shops führen jede Farbe als eigenes Produkt */
+  if (!V.length && /\/collections\/[^/?#]+\/?$/.test(location.pathname)) {
+    try {
+      const r = await fetch(location.pathname.replace(/\/$/, "") + "/products.json?limit=250", { credentials: "include" });
+      DG.sc = r.status;
+      if (r.ok && /json/.test(r.headers.get("content-type") || "")) {
+        const j = await r.json();
+        const h1 = document.querySelector("h1");
+        T = (h1 && h1.textContent.trim()) || T;
+        C = meta("og:price:currency") || meta("product:price:currency") || C;
+        (j.products || []).forEach((pr) => {
+          if (!M && pr.vendor) M = pr.vendor;
+          (pr.variants || []).forEach((v) => add(pr.title + (v.title && v.title !== "Default Title" ? " / " + v.title : ""), v.price, v.compare_at_price, v.sku, v.barcode));
+        });
+        DG.cv = (j.products || []).length;
+      }
+    } catch (e) { DG.ce = String(e && e.message || e).slice(0, 80); }
+  }
+
   /* 2. Strukturierte Produktdaten (JSON-LD), wie sie Suchmaschinen lesen */
   if (!V.length) {
     document.querySelectorAll('script[type="application/ld+json"]').forEach((s) => {
