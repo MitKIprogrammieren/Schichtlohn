@@ -1232,7 +1232,8 @@ function designCss(d){let c=stilCss(d);const K=":is(.panel,.dcard,.rx-k,.job,.gr
     /* Schrift passend zum Hintergrund: auf dunkler Farbe hell, auf heller Farbe dunkel (nur wenn die Kacheln durchscheinen) */
     const g=hexRgb(d.hgfarbe),hell=(0.299*g[0]+0.587*g[1]+0.114*g[2])/255>0.55;
     if(+d.deckkraft<70)v+=hell?"--fg:#1d2326;--fg-2:#3f474b;--fg-3:#5b6468;":"--fg:#f3f5f7;--fg-2:#d3d8de;--fg-3:#b3bac3;"}
-  if(d.hintergrund==="durchsichtig")v+=`--bg:transparent;--body-bg:transparent;--header-bg:transparent;`;
+  /* Durchsichtig: Seite ohne Hintergrund, Kopfzeile und Leisten aber halb deckend mit Weichzeichner – sonst scheint beim Scrollen der Inhalt durch */
+  if(d.hintergrund==="durchsichtig")v+=`--bg:transparent;--body-bg:transparent;--header-bg:color-mix(in srgb,var(--solid) 95%,transparent);`;
   if(v)c+=`:root:root:root:root{${v}}`;
   if(d.ecken!=null){const e=+d.ecken;c+=`${K}{border-radius:var(--r)!important}.job,.kpi{border-radius:var(--r-s)!important}`;
     if(e<=4)c+=`.btn,.chip,.seg,.seg button,nav.tabs button,input,select,textarea,.rx-seg,.rx-seg button,.rx-pills button{border-radius:${e}px!important}`}
@@ -1241,7 +1242,7 @@ function designCss(d){let c=stilCss(d);const K=":is(.panel,.dcard,.rx-k,.job,.gr
   const p=Math.max(0,Math.min(100,+d.deckkraft||0));
   if(p<100)c+=`${K}:not(.modal){background:color-mix(in srgb,var(--glass) ${p}%,transparent)!important;backdrop-filter:blur(14px) saturate(1.15);-webkit-backdrop-filter:blur(14px) saturate(1.15)}`;
   if(d.hintergrund==="verlauf")c+=`body{background:radial-gradient(1100px 620px at 88% -12%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 62%),radial-gradient(900px 520px at -12% 108%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),var(--bg)!important;background-attachment:fixed!important}`;
-  if(d.hintergrund==="durchsichtig")c+=`html,body{background:transparent!important}body::before{background:transparent!important}header.top{backdrop-filter:blur(14px)}`;
+  if(d.hintergrund==="durchsichtig")c+=`html,body{background:transparent!important}body::before{background:transparent!important}header.top,.mbar,.jbar{backdrop-filter:blur(18px) saturate(1.2)!important;-webkit-backdrop-filter:blur(18px) saturate(1.2)!important}`;
   if(d.dichte==="kompakt")c+=`.pad{padding:11px}.dcard,.rx-k{padding:10px 12px}.stack{gap:10px}`;
   if(d.dichte==="luftig")c+=`.pad{padding:22px}.dcard,.rx-k{padding:18px 20px}.stack{gap:22px}`;
   return c}
@@ -3787,7 +3788,11 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 #lgHead:empty{display:none}
 .lgbar select.lgsort{width:auto;flex:0 0 auto;max-width:200px;height:36px;border-radius:999px;padding:0 32px 0 14px;font-size:13px;background-color:var(--sunken,rgba(127,127,127,.08))}
 [data-skin="bambu"] .lgbar select.lgsort{border-radius:8px}
-@media (max-width:620px){.lgsearch{flex:1 1 100%}.lgbar .lgtb{flex:1 1 0;justify-content:center}.lgbar .lgact2{margin-left:0;width:100%}.lgbar select.lgsort{flex:1 1 100%;max-width:none}}
+@media (max-width:620px){.lgsearch{flex:1 1 100%}.lgbar .lgtb{flex:1 1 0;justify-content:center}.lgbar .lgact2{margin-left:0;width:100%}.lgbar select.lgsort{flex:1 1 40%;max-width:none}
+  .lgbar>.lgtb{flex:0 1 auto;padding:0 12px}.lgbar .lgzu{width:36px;padding:0!important}.lgbar .lgzu .lgtx{display:none}
+  .lgbar select.lgsort{flex:1 1 0;min-width:0}
+  .lgbar .lgact2{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(56px,1fr));gap:6px}.lgbar .lgact2 .lgtb{height:54px;flex-direction:column;gap:3px;padding:4px 2px;font-size:11.5px;line-height:1.1;white-space:nowrap}
+  .lgbar .lgact2 .lgtb svg{width:19px;height:19px}}
 .lgbar select{width:auto;flex:0 1 auto;max-width:190px}
 .lgbar select.on{border-color:var(--accent);color:var(--accent)}
 .lgbar .lgfb.on{border-color:var(--accent);color:var(--accent)}
@@ -4409,7 +4414,7 @@ function rowHTML(e,orte,fu,E){
   return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten)}
     <div style="min-width:0"><div class="lgn">${esc(name(e))}${deF(e.farbe)}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
-function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>Alle aufklappen`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5-5 5 5"/></svg>Alle einklappen`)}
+function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg><span class="lgtx">Alle aufklappen</span>`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5-5 5 5"/></svg><span class="lgtx">Alle einklappen</span>`)}
 function body0(){G._allZu=false;
   const E=ein();const all=entries();const sl=slots();const fu=feuchte();
   const imFach={};sl.forEach(s=>{const e=treffer(s,all);if(e)(imFach[e.uid]=imFach[e.uid]||[]).push(s)});
@@ -4428,11 +4433,11 @@ function body0(){G._allZu=false;
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
   let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${wL+wM>0?`<div class="dv" title="${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen, ${Math.round(wM).toLocaleString("de-DE")} € aus dem Ø der Shop-Preise"><span>Wert</span><b>${Math.round(wL+wM).toLocaleString("de-DE")} €</b></div>`:""}${monatKurz()}</div><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${wL+wM>0?`<div class="dv" title="${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen, ${Math.round(wM).toLocaleString("de-DE")} € aus dem Ø der Shop-Preise"><span>Wert</span><b>${Math.round(wL+wM).toLocaleString("de-DE")} €</b></div>`:""}${monatKurz()}</div><div class="lgknopf"><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
-      <button class="btn sm lgtb" data-act="lgAllZu">__ALLZU__</button>
+      <button class="btn sm lgtb lgzu" data-act="lgAllZu" title="${G._allZu?"Alle aufklappen":"Alle einklappen"}" aria-label="${G._allZu?"Alle aufklappen":"Alle einklappen"}">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
       <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn sm lgtb" data-act="lgFoto" title="Spule fotografieren oder Fotos hochladen: Etikett, Barcode und Farbe werden erkannt">${CAMI} Foto</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
@@ -5572,6 +5577,9 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgPl"))preislisteModal();if(document.querySelector("#modal #lgEk"))einkaufModal()});
 document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plq"){PL.q=ev.target.value;clearTimeout(preislisteModal.t);preislisteModal.t=setTimeout(()=>{const p=ev.target.selectionStart;preislisteModal();const n=document.getElementById("plq");if(n){n.focus();try{n.setSelectionRange(p,p)}catch(x){}}},250)}});
 /* ---------- Bestandsliste: interaktiv ansehen, Inventur machen, drucken ---------- */
+function dunkelAktiv(){try{const c=getComputedStyle(document.body).backgroundColor;let m=c.match(/[\d.]+/g);
+  if(!m||(m.length>3&&+m[3]===0)){const x=document.querySelector(".modal")||document.querySelector(".panel");m=x?getComputedStyle(x).backgroundColor.match(/[\d.]+/g):null}
+  if(!m)return matchMedia("(prefers-color-scheme: dark)").matches;return (0.299*m[0]+0.587*m[1]+0.114*m[2])<110}catch(e){return false}}
 const BLK="schichtlohn_bestandsliste";
 const BL=Object.assign({fmt:"tabelle",sort:"hersteller",sp:{werte:true,preis:true,code:true,ort:true},leer:false,inv:false,ist:{}},(()=>{try{return JSON.parse(localStorage.getItem(BLK)||"{}")}catch(e){return {}}})());
 BL.q="";BL.sp=Object.assign({werte:true,preis:true,code:true,ort:true},BL.sp||{});BL.ist=BL.ist&&typeof BL.ist==="object"?BL.ist:{};
@@ -5646,7 +5654,7 @@ function bestandModal(){shopPreiseHolen();if(S.srv&&!PV.d)pvLaden();
   <input type="search" id="blq" placeholder="Suchen …" value="${esc(BL.q)}" autocomplete="off">
   </div><div class="blctl"><div class="lgtg" role="group" aria-label="Spalten">${ch(BL.sp.werte,"lgBlSp","werte","Druckwerte")}${ch(BL.sp.ort,"lgBlSp","ort","Ort")}${ch(BL.sp.preis,"lgBlSp","preis","Preis")}${ch(BL.sp.code,"lgBlSp","code","Code")}${ch(BL.leer,"lgBlLeer","1","Aufgebrauchte")}</div><span class="sp"></span><div class="lgtg">${ch(BL.inv,"lgBlInv","1","✓ Inventur")}</div></div>
   ${BL.inv?`<div class="hint blhint">Ist-Menge in Gramm eintragen oder mit ✓ als richtig abhaken. Leer gelassen = nicht geprüft. Geänderte Mengen schreibt „Übernehmen“ ins Lager.</div>`:""}
-  <div class="blprev"><div class="blp blpage">${blSeite(true)}</div></div></div>`;
+  <div class="blprev${dunkelAktiv()?" dunkel":""}"><div class="blp blpage">${blSeite(true)}</div></div></div>`;
   const foot=`${BL.inv&&Object.keys(BL.ist).length?`<button class="btn ghost" data-act="lgBlReset">Inventur leeren</button>`:""}<span class="sp"></span>${BL.inv?`<button class="btn" data-act="lgBlUebern"${n?"":" disabled"}>Übernehmen${n?` (${n})`:""}</button>`:""}<button class="btn" data-act="lgBlPdf">PDF</button><button class="btn pri" data-act="lgBlDruck">Drucken</button>`;
   const alt=document.querySelector("#modal #lgBl");
   if(alt){const sc=alt.querySelector(".blprev");const top=sc?sc.scrollTop:0;alt.outerHTML=h;const f=document.querySelector("#modal footer");if(f)f.innerHTML=foot;const sc2=document.querySelector("#modal .blprev");if(sc2)sc2.scrollTop=top;return}
@@ -5784,7 +5792,19 @@ const BL_CSS=`.blp{font:8.4pt/1.3 "Inter","Segoe UI",system-ui,-apple-system,san
 .blinv{display:inline-flex;gap:3px;align-items:center}.blinv input{width:17mm;height:24px;padding:0 4px;font:inherit;font-size:8pt;text-align:right;border:1px solid #c9ced4;border-radius:5px;background:#fff;color:#1d1f23}
 .blok{width:24px;height:24px;border-radius:6px;border:1px solid #c9ced4;background:#fff;color:#9aa1ab;font-weight:700;cursor:pointer;padding:0}.blok.on{background:#1e9655;border-color:#1e9655;color:#fff}`;
 (()=>{const st=document.createElement("style");st.textContent=BL_CSS+`
-.modal.blwide{width:min(1100px,96vw)}.blctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}.blctl select,.blctl input[type=search]{width:auto;flex:0 1 200px}
+.modal.blwide{width:min(1100px,96vw)}.blctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}.blctl select,.blctl input[type=search]{width:auto;flex:0 1 200px;height:36px;font-size:14px;padding-top:0;padding-bottom:0}
+@media (max-width:620px){.blctl .lgtg{flex:1 1 100%}.blctl select,.blctl input[type=search]{flex:1 1 0;min-width:0}}
+/* Vorschau im dunklen Design: dunkles Papier statt grellem Weiß (gedruckt wird weiter auf Weiß) */
+.blprev.dunkel{background:rgba(0,0,0,.25)}
+.blprev.dunkel .blp{background:var(--solid,#1e2127);color:var(--fg,#e8e8ea);box-shadow:0 0 0 1px var(--line-2,#444)}
+.blprev.dunkel .blp h1,.blprev.dunkel .blinv input{color:var(--fg,#e8e8ea)}
+.blprev.dunkel .blbra,.blprev.dunkel .blst,.blprev.dunkel .blkz span,.blprev.dunkel .bltab th,.blprev.dunkel .blsub,.blprev.dunkel .blm,.blprev.dunkel .blmk,.blprev.dunkel .blpq,.blprev.dunkel .blfuss,.blprev.dunkel .blkf,.blprev.dunkel .blcs{color:var(--fg-2,#a7a7ae)}
+.blprev.dunkel .blkz>div,.blprev.dunkel .blk{border-color:var(--line-2,#4c4c53)}
+.blprev.dunkel .bltab th{border-color:var(--line-2,#4c4c53)}.blprev.dunkel .bltab td,.blprev.dunkel .blc{border-color:var(--line,#3c3c42)}
+.blprev.dunkel .blgh td,.blprev.dunkel .blgh2{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}.blprev.dunkel .blgh span,.blprev.dunkel .blgh2 span{color:var(--fg-2,#a7a7ae)}
+.blprev.dunkel .blch{border-color:var(--line-2,#4c4c53);color:var(--fg-2,#c9c9cf)}.blprev.dunkel .blch.d{background:var(--fg,#e8e8ea);color:var(--solid,#1e2127);border-color:var(--fg,#e8e8ea)}
+.blprev.dunkel .blbar{background:var(--line,#3c3c42)}.blprev.dunkel .blbox,.blprev.dunkel .blok,.blprev.dunkel .blinv input{background:transparent;border-color:var(--line-2,#4c4c53)}
+.blprev.dunkel .blok.on{background:#1e9655;border-color:#1e9655;color:#fff}.blprev.dunkel .bllinie,.blprev.dunkel .blkf{border-color:var(--line-2,#4c4c53)}
 .blhint{margin:0 0 8px}.blprev{background:color-mix(in srgb,var(--fg) 8%,transparent);border-radius:var(--r-s);padding:12px;overflow:auto}
 .blpage{max-width:200mm;margin:0 auto;padding:10mm 9mm;border-radius:3px;box-shadow:0 2px 14px #0004;min-width:640px}
 @media (max-width:700px){.blpage{padding:4mm 3mm;min-width:0}.blprev{padding:6px}.blpage .bltab .blw,.blpage .bltab .blort,.blpage .bltab .blpr,.blpage .bltab .blcd,.blpage .blst{display:none}.blpage .blkz{grid-template-columns:repeat(3,1fr)}.blpage .blkz>div:nth-child(n+4){display:none}.blpage .blkarten{grid-template-columns:repeat(2,1fr)}.blpage .blcs{font-size:7pt}.blpage .blcort{display:none}.blpage .bltab td.r .blsub,.blpage .blhx,.blpage .blbs .blsub{display:none}.blpage .bltab td{padding:3px 2px}.blpage .blbs{width:auto}.blpage .blinv input{width:14mm}.blpage .blic{width:auto}}`;document.head.appendChild(st)})();
@@ -5977,7 +5997,8 @@ body.rx-einfach #mbar{display:none!important}
 .chip.etleer{opacity:.55}
 .etzeilen{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}@media (max-width:520px){.etzeilen{grid-template-columns:1fr}}
 .chip small{opacity:.7;font-size:11px;margin-left:2px}
-.lgbest .lgekbtn.lgrbbtn{margin-left:8px}
+.lgbest .lgknopf{display:flex;flex-wrap:wrap;gap:8px;width:100%;margin-top:10px}.lgbest .lgknopf .lgekbtn{margin:0!important}
+@media (max-width:620px){.lgbest .lgknopf{display:grid;grid-template-columns:1fr 1fr}.lgbest .lgknopf .lgekbtn{justify-content:center;height:38px;padding:0 10px;font-size:14px}}
 .fnliste{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--fg-3)}
 .fnliste b{color:var(--fg);margin-right:4px}
 .rb{gap:14px}

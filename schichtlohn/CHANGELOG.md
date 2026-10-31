@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.22 – 31.10.2026
+- Handy-Ansicht aufgeräumt: Die Kopfzeile bleibt beim Scrollen deckend, auch mit dem Design „Durchsichtig“ – die Liste scheint nicht mehr durch.
+- Lager: Einkaufsliste, Preisliste, Bestandsliste und Rückblick als gleich breite Knöpfe; Sortierung, Filter und Auf-/Zuklappen in einer Zeile, Scannen bis Filament in einer Reihe.
+- Bestandsliste: Auswahl und Suche kleiner und nebeneinander, die Vorschau ist im dunklen Design dunkel (gedruckt und als PDF bleibt sie weiß).
+
 ## 3.2.21 – 31.10.2026
 - Cloud und Heimnetz gleichzeitig: Bei Druckern über die Bambu-Cloud kannst du zusätzlich die IP-Adresse eintragen. Der Drucker bleibt über die Cloud verbunden, der Server holt aber die Druckdatei übers Heimnetz – so werden übersprungene Teile und Abbrüche auch bei Cloud-Druckern genau abgebucht.
 - „IP suchen“ findet den Drucker im Heimnetz von selbst (der Zugangscode kommt aus der Bambu-Cloud), „Verbindung prüfen“ zeigt, ob der Zugriff klappt.
