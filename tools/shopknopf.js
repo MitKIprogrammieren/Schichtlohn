@@ -5,6 +5,7 @@
    Diese Datei ist die lesbare Quelle; die App baut daraus den Knopf (SL_SHOPKNOPF in app/index.html, per tools/shopknopf.py). */
 (async () => {
   const B = "__BASE__", KURZ = __KURZ__;
+  const DG = { v: 4, h: location.hostname, p: location.pathname.slice(0, 80) };  /* was der Knopf gesehen hat – geht nur mit, wenn nichts gefunden wurde */
   const num = (v) => {
     if (v == null || v === "") return 0;
     if (typeof v === "number") return v;
@@ -37,14 +38,16 @@
   if (/\/products\/[^/?#]+/.test(location.pathname)) {
     try {
       const r = await fetch(location.pathname.match(/^.*\/products\/[^/?#]+/)[0] + ".js", { credentials: "include" });
+      DG.sf = r.status + " " + (r.headers.get("content-type") || "").slice(0, 30);
       if (r.ok && /json|javascript/.test(r.headers.get("content-type") || "")) {
         const p = await r.json();
         T = p.title || T;
         M = p.vendor || M;
         C = (window.Shopify && Shopify.currency && Shopify.currency.active) || meta("og:price:currency") || meta("product:price:currency") || "";
         (p.variants || []).forEach((v) => add(v.title === "Default Title" ? "" : v.title, v.price / 100, (v.compare_at_price || 0) / 100, v.sku, v.barcode));
+        DG.sv = (p.variants || []).length;
       }
-    } catch (e) {}
+    } catch (e) { DG.se = String(e && e.message || e).slice(0, 80); }
   }
 
   /* 2. Strukturierte Produktdaten (JSON-LD), wie sie Suchmaschinen lesen */
@@ -118,7 +121,11 @@
 
   if (!V.length) {
     const m ="SchichtLohn: Auf dieser Seite wurde kein Preis gefunden. Öffne die Produktseite einer Filamentsorte und versuche es dort.";
-    if (KURZ) completion(B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=leer"); else alert(m);
+    DG.ld = document.querySelectorAll('script[type="application/ld+json"]').length;
+    DG.nx = !!document.querySelector("script#__NEXT_DATA__");
+    DG.mp = meta("product:price:amount") || meta("og:price:amount") || "";
+    const dg = encodeURIComponent(JSON.stringify(DG));
+    if (KURZ) completion(B + (B.indexOf("?") >= 0 ? "&" : "?") + "shop=leer&d=" + dg); else alert(m + "\n\n" + JSON.stringify(DG));
     return;
   }
   /* kompakt verpacken: Varianten als [Name ohne Produkttitel, Preis, Normalpreis, EAN], dann komprimiert (iOS kürzt sehr lange Adressen) */
