@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.2.31 – 01.11.2026
+- Lagerwert springt nicht mehr: Für Rollen ohne eigenen Preis schreibt SchichtLohn den geschätzten Shop-Preis einmal am Tag fest. Vorher hing der Wert davon ab, welche Preise beim Öffnen schon geladen waren (eBay und AliExpress fehlten in der Lager-Ansicht oft).
+- Der Schätzpreis ist jetzt der Median der Shop-Angebote statt des Durchschnitts – eine einzelne teure oder spottbillige Rolle verzieht ihn nicht mehr. Fällt ein Shop aus, bleibt der letzte Preis stehen.
+- Eigene Lagerpreise haben weiter immer Vorrang.
+- Home-Assistant-Karte: Reste eines alten Zusammenführens entfernt, die die Karte unbrauchbar machen konnten.
+
 ## 3.2.30 – 01.11.2026
 - Preisliste: Selbst übernommene Shoppreise (z. B. 3dk.berlin, Bambu Lab Store) verschwinden nicht mehr, wenn der Server kurz weg war (etwa beim Update). SchichtLohn holt sie automatisch nach, sobald der Server wieder da ist.
 

@@ -5665,12 +5665,28 @@ function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMark
   const zu=e.raw&&e.raw.shop_zu;for(const r of kand){if(r.refill!==refill)continue;const s=zu&&zu.m===r.m&&zu.t===r.key?2:plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
     if(!a||g[0]>a.g[0]||(g[0]===a.g[0]&&(g[1]>a.g[1]||(g[1]===a.g[1]&&g[2]>a.g[2]))))best[r.shop]={g,r,pk,ean:s===3}}
   return Object.values(best).map(x=>({shop:x.r.name,preis:x.r.preis,normal:x.r.normal,gew:x.r.gew,pk:Math.round(x.pk*100)/100,url:x.r.url,ean:x.ean,titel:x.r.titel})).sort((a,b)=>a.pk-b.pk)}
-/* Durchschnitt aller Shop-Angebote (€/kg) – Ersatz, wenn im Lager kein eigener Preis steht */
-const marktPk=e=>{const a=[...preiseFuer(e),...pvAngebote(e.uid,e.gewicht)].map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
+/* Median aller Shop-Angebote (€/kg) – Ersatz, wenn im Lager kein eigener Preis steht. Median statt Durchschnitt,
+   damit einzelne Ausreißer (teure Einzelrolle, Billig-Restposten) den Wert nicht verziehen; Unsinnswerte fallen ganz raus. */
+const plMedian=a=>{const s=[...a].sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):null};
+const marktPkLive=e=>{const m=plMedian([...preiseFuer(e),...pvAngebote(e.uid,e.gewicht)].map(o=>o.pk).filter(x=>x>=4&&x<=250));return m?Math.round(m*100)/100:null};
+/* Tagesstand: die Schätzpreise werden einmal am Tag festgeschrieben (Server-Schlüssel „marktpreise“, sonst im Browser).
+   So springt der Lagerwert nicht mehr, je nachdem welche Preisquellen beim Öffnen schon geladen sind. Fällt ein Shop aus,
+   bleibt der letzte gültige Preis stehen. */
+const MP={d:LS.get("marktpreise"),geladen:false,laeuft:false};
+const mpHeute=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+function mpLaden(){if(MP.laeuft||MP.geladen)return;if(!srv()){MP.geladen=true;mpPruefen();return}MP.laeuft=true;
+  SRV.req("GET","/api/daten/marktpreise").then(r=>{const w=r&&r.wert;if(w&&w.werte&&(!MP.d||!MP.d.stand||w.stand>=MP.d.stand)){MP.d=w;LS.set("marktpreise",w);draw()}})
+    .catch(()=>{}).finally(()=>{MP.laeuft=false;MP.geladen=true;mpPruefen()})}
+function mpPruefen(){if(!MP.geladen||!G.loaded||(MP.d&&MP.d.stand===mpHeute()))return;
+  if(!PL.d||!PL.zeit)return;if(srv()&&!PV.d)return;/* erst festschreiben, wenn alle Preisquellen vollständig da sind */
+  const werte=Object.assign({},(MP.d&&MP.d.werte)||{});let neu=0;entries().forEach(e=>{const m=marktPkLive(e);if(m){werte[e.uid]=m;neu++}});
+  if(!neu)return;MP.d={stand:mpHeute(),werte};LS.set("marktpreise",MP.d);if(srv())SRV.req("PUT","/api/daten/marktpreise",{wert:MP.d,quelle:"lagerwert"}).catch(()=>{});draw()}
+const marktPk=e=>{const f=MP.d&&MP.d.werte&&MP.d.werte[e.uid];return f>0?f:marktPkLive(e)};
 const preisVon=e=>e.preis>0?{pk:e.preis,q:"lager"}:(()=>{const m=marktPk(e);return m?{pk:m,q:"markt"}:null})();
-let shopPreiseAngestossen=false;const shopPreiseHolen=()=>{if(shopPreiseAngestossen||PL.d)return;shopPreiseAngestossen=true;preiseLaden().catch(()=>{shopPreiseAngestossen=false})};
+let shopPreiseAngestossen=false;const shopPreiseHolen=()=>{mpLaden();pvBrauche();if(shopPreiseAngestossen||PL.d)return;shopPreiseAngestossen=true;preiseLaden().catch(()=>{shopPreiseAngestossen=false})};
+window.addEventListener("sl-shoppreise",()=>mpPruefen());window.addEventListener("sl-pv",()=>mpPruefen());
 window.slPreiseLaden=shopPreiseHolen;
-window.slMarktPk=(uid,gew)=>{const e=G.loaded?entries().find(x=>x.uid===uid):null;if(e)return marktPk(e);const a=pvAngebote(uid,gew).map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
+window.slMarktPk=(uid,gew)=>{const e=G.loaded?entries().find(x=>x.uid===uid):null;if(e)return marktPk(e);const m=plMedian(pvAngebote(uid,gew).map(o=>o.pk).filter(x=>x>=4&&x<=250));return m?Math.round(m*100)/100:null};
 const plNeuLaden=()=>{EP.d=null;PL.d=null;PL.laden=null;preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(()=>{})};
 window.addEventListener("sl-ep-neu",plNeuLaden);
 /* Server (wieder) verbunden: schon geladene Preise ohne Server-Stand neu holen */
