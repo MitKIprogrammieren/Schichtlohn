@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.27 – 01.11.2026
+- Rechner: Die Schätzung aus ungeslicten 3MF-Dateien und STL ist deutlich genauer. Feine Oberflächen (z. B. Zapfen, Rinde, Muster) zählen nicht mehr als riesige Wandfläche, und bei 3MF werden Füllung und Wandlinien aus der Datei übernommen.
+
 ## 3.2.26 – 01.11.2026
 - Rechner: Ungeslicte 3MF-Dateien werden jetzt in der richtigen Größe geschätzt. Wurde ein Modell in Bambu Studio vergrößert oder gedreht, rechnet SchichtLohn das mit ein – vorher kamen solche Teile viel zu leicht und zu schnell heraus.
 

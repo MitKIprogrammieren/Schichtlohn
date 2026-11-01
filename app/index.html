@@ -1414,23 +1414,30 @@ function matsFromFile(list){
 async function blobToThumb(blob,max=240){
   return new Promise(res=>{const url=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const x=c.getContext("2d");x.fillStyle="#0b100d";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",.78))};img.onerror=()=>{URL.revokeObjectURL(url);res("")};img.src=url});
 }
-function meshStats(tris){ // tris: Float32Array, 9 Werte je Dreieck
+function shellVol(t,g){ // Volumen der Außenhaut: Voxel der Kantenlänge g, die die Oberfläche berühren
+  const set=new Set(),h=g*0.5,O=5e4,K=1e5;
+  for(let i=0;i<t.length;i+=9){const ax=t[i],ay=t[i+1],az=t[i+2],ux=t[i+3]-ax,uy=t[i+4]-ay,uz=t[i+5]-az,vx=t[i+6]-ax,vy=t[i+7]-ay,vz=t[i+8]-az;
+    const L=Math.max(Math.hypot(ux,uy,uz),Math.hypot(vx,vy,vz),Math.hypot(ux-vx,uy-vy,uz-vz));const k=Math.max(1,Math.ceil(L/h));
+    for(let a=0;a<=k;a++)for(let b=0;a+b<=k;b++){const u=a/k,w=b/k;set.add(((Math.floor((ax+ux*u+vx*w)/g)+O)*K+Math.floor((ay+uy*u+vy*w)/g)+O)*K+Math.floor((az+uz*u+vz*w)/g)+O)}}
+  return set.size*g*g*g;
+}
+function meshStats(tris,g){ // tris: Float32Array, 9 Werte je Dreieck; g: Wanddicke in mm für die Hautschätzung
   let vol=0,area=0;
   for(let i=0;i<tris.length;i+=9){const ax=tris[i],ay=tris[i+1],az=tris[i+2],bx=tris[i+3],by=tris[i+4],bz=tris[i+5],cx=tris[i+6],cy=tris[i+7],cz=tris[i+8];
     vol+=(ax*(by*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-by*cx))/6;
     const ux=bx-ax,uy=by-ay,uz=bz-az,vx=cx-ax,vy=cy-ay,vz=cz-az;area+=Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)/2}
-  return {vol:Math.abs(vol),area};
+  return {vol:Math.abs(vol),area,shell:g>0?shellVol(tris,g):undefined};
 }
 function parseStl(buf){
   const dv=new DataView(buf);
-  if(buf.byteLength>84){const n=dv.getUint32(80,true);if(84+n*50===buf.byteLength){const t=new Float32Array(n*9);for(let i=0;i<n;i++){const o=84+i*50+12;for(let j=0;j<9;j++)t[i*9+j]=dv.getFloat32(o+j*4,true)}return meshStats(t)}}
+  if(buf.byteLength>84){const n=dv.getUint32(80,true);if(84+n*50===buf.byteLength){const t=new Float32Array(n*9);for(let i=0;i<n;i++){const o=84+i*50+12;for(let j=0;j<9;j++)t[i*9+j]=dv.getFloat32(o+j*4,true)}return meshStats(t,num(S.cfg.estWall))}}
   const txt=new TextDecoder().decode(buf);const v=[...txt.matchAll(/vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g)].map(m=>[+m[1],+m[2],+m[3]]);
-  const t=new Float32Array(Math.floor(v.length/3)*9);for(let i=0;i+2<v.length;i+=3){t.set([...v[i],...v[i+1],...v[i+2]],(i/3)*9)}return meshStats(t);
+  const t=new Float32Array(Math.floor(v.length/3)*9);for(let i=0;i+2<v.length;i+=3){t.set([...v[i],...v[i+1],...v[i+2]],(i/3)*9)}return meshStats(t,num(S.cfg.estWall));
 }
-function estimate(stats,matId){
-  const c=S.cfg;const mt=byId(c.materials,matId||S.quote.matId)||c.materials[0]||{density:1.24};const pr=byId(c.printers,S.quote.printerId)||c.printers[0]||{gph:25};
-  const vcm=stats.vol/1000;const shell=Math.min(vcm,stats.area*num(c.estWall)/1000);
-  const grams=(shell+(vcm-shell)*num(c.estInfill)/100)*num(mt.density||1.24);
+function estimate(stats,matId,opt={}){
+  const c=S.cfg;const inf=opt.infill!=null?opt.infill:num(c.estInfill);const mt=byId(c.materials,matId||S.quote.matId)||c.materials[0]||{density:1.24};const pr=byId(c.printers,S.quote.printerId)||c.printers[0]||{gph:25};
+  const vcm=stats.vol/1000;const shell=Math.min(vcm,stats.shell!=null?stats.shell/1000:stats.area*num(c.estWall)/1000);
+  const grams=(shell+(vcm-shell)*inf/100)*num(mt.density||1.24);
   const minutes=grams/Math.max(1,num(pr.gph))*60+8;
   return {grams:r2(grams),minutes:Math.round(minutes)};
 }
@@ -1465,7 +1472,11 @@ async function parse3mf(file){
     for(const n of gf){const t=await zip.file(n).async("string");const r=parseGcodeText(t.slice(0,300000)+"\n"+t.slice(-300000));if(r.minutes||r.grams.length){const idx=n.match(/plate_(\d+)/)[1];const tf=zip.file(`Metadata/plate_${idx}.png`);parts.push({name:base+(gf.length>1?` · Platte ${idx}`:""),minutes:r.minutes,mats:gcodeToMats(r),thumb:tf?await blobToThumb(await tf.async("blob")):"",src:"G-Code"})}}
   }
   if(!parts.length){
-    // ungeslict: Volumen aus dem Netz
+    // ungeslict: Volumen aus dem Netz; Füllung und Wanddicke aus den Druckeinstellungen der Datei, sonst aus den Einstellungen
+    let ps={};try{const f=zip.file("Metadata/project_settings.config");if(f)ps=JSON.parse(await f.async("string"))}catch(e){}
+    const pv=k=>{const v=Array.isArray(ps[k])?ps[k][0]:ps[k];const n=parseFloat(v);return Number.isFinite(n)?n:null};
+    const wl=pv("wall_loops"),lw=pv("inner_wall_line_width")||pv("line_width");
+    const G=wl&&lw?Math.max(.4,wl*lw):Math.max(.4,num(S.cfg.estWall)||1.2);const opt={};if(pv("sparse_infill_density")!=null)opt.infill=pv("sparse_infill_density");
     const files=Object.keys(zip.files).filter(n=>/\.model$/i.test(n));const objects={};let build=[];
     for(const n of files){
       const d=new DOMParser().parseFromString(await zip.file(n).async("string"),"text/xml");
@@ -1477,10 +1488,10 @@ async function parse3mf(file){
     }
     // Transformationen (Skalierung/Drehung aus Build-Item und Komponenten) auf das Netz anwenden – Bambu speichert Netze oft verkleinert
     const statOf=(k,m,depth=0)=>{const o=objects[k]||objects[k.replace(/^\/+/,"/")];if(!o||depth>8)return {vol:0,area:0};
-      if(o.tris){if(isId3(m))return o.stats||(o.stats=meshStats(o.tris));const t=o.tris,u=new Float32Array(t.length);for(let i=0;i<t.length;i+=3){const x=t[i],y=t[i+1],z=t[i+2];u[i]=x*m[0]+y*m[3]+z*m[6];u[i+1]=x*m[1]+y*m[4]+z*m[7];u[i+2]=x*m[2]+y*m[5]+z*m[8]}return meshStats(u)}
-      return o.comps.reduce((a,c)=>{const s=statOf(c.k,mul3(c.m,m),depth+1);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0})};
-    const tot=build.reduce((a,b)=>{const s=statOf(b.k,b.m);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0});
-    if(tot.vol>0){const e=estimate(tot);const tf=zip.file("Metadata/thumbnail.png")||zip.file("Metadata/plate_1.png");parts.push({name:base,minutes:e.minutes,mats:[{g:e.grams,type:"",color:""}],thumb:tf?await blobToThumb(await tf.async("blob")):"",src:"Schätzung aus Modell"})}
+      if(o.tris){if(isId3(m))return o.stats||(o.stats=meshStats(o.tris,G));const t=o.tris,u=new Float32Array(t.length);for(let i=0;i<t.length;i+=3){const x=t[i],y=t[i+1],z=t[i+2];u[i]=x*m[0]+y*m[3]+z*m[6];u[i+1]=x*m[1]+y*m[4]+z*m[7];u[i+2]=x*m[2]+y*m[5]+z*m[8]}return meshStats(u,G)}
+      return o.comps.reduce((a,c)=>{const s=statOf(c.k,mul3(c.m,m),depth+1);return {vol:a.vol+s.vol,area:a.area+s.area,shell:a.shell+(s.shell||0)}},{vol:0,area:0,shell:0})};
+    const tot=build.reduce((a,b)=>{const s=statOf(b.k,b.m);return {vol:a.vol+s.vol,area:a.area+s.area,shell:a.shell+(s.shell||0)}},{vol:0,area:0,shell:0});
+    if(tot.vol>0){const e=estimate(tot,null,opt);const tf=zip.file("Metadata/thumbnail.png")||zip.file("Metadata/plate_1.png");parts.push({name:base,minutes:e.minutes,mats:[{g:e.grams,type:"",color:""}],thumb:tf?await blobToThumb(await tf.async("blob")):"",src:"Schätzung aus Modell"})}
   }
   return parts;
 }
