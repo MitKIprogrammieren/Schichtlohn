@@ -51,6 +51,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import drucker as drucker_mod
 import preise as preise_mod
+import produktbilder
 import web
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
@@ -65,7 +66,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.34"
+VERSION = "3.2.35"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1625,6 +1626,8 @@ class _Wirt:
 
 
 BAMBU = drucker_mod.Bambu(_Wirt())
+BILDER = produktbilder.Bilder(os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "produktbilder"),
+                              lambda: (einstellungen().get("preise") or {}).get("ali") or {})
 
 
 # ---------------------------------------------------------------- Waage: Antworten wie Home Assistant
@@ -1870,6 +1873,22 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(b.get("items"), list):
                     raise Fehler(400, "items fehlt")
                 return self._json(200, liste_ersetzen(name, b["items"]))
+        if teile[0] == "produktbild" and len(teile) == 1:
+            # Vorschaubild für eine Rechnungsposition (Amazon/AliExpress über die Artikel-ID, Bambu über den Namen)
+            g = lambda x: (q.get(x) or [""])[0][:300]
+            if methode == "GET":
+                bild = BILDER.holen(g("quelle"), g("id"), g("n"), g("v"))
+                if not bild:
+                    return self._senden(404, b"", "image/jpeg", "private, max-age=3600")
+                return self._senden(200, bild, "image/jpeg", "private, max-age=2592000")
+            if methode == "PUT":
+                b = self._json_rumpf()
+                try:
+                    bild = BILDER.eigenes(str(b.get("quelle") or ""), str(b.get("id") or ""), str(b.get("n") or ""),
+                                          str(b.get("v") or ""), b.get("url"))
+                except ValueError as e:
+                    raise Fehler(400, str(e))
+                return self._json(200, {"ok": True, "bild": bool(bild)})
         if teile[0] == "daten" and len(teile) == 2:
             k = teile[1]
             if k.startswith("_"):

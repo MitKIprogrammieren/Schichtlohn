@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.35 – 01.11.2026
+- Rechnungen: Zu jeder Position gibt es jetzt ein kleines Produktbild. Der Server sucht es selbst – Amazon und AliExpress über die Artikelnummer, Bambu Lab im Bambu-Store (bei Filament in der gekauften Farbe) – und hebt es auf, damit die Karte schnell bleibt.
+- Kein Bild gefunden oder ein falsches? Bild antippen und die Bildadresse aus dem Shop einfügen.
+
 ## 3.2.34 – 01.11.2026
 - Lager: Die Spulen gibt es jetzt in drei Ansichten – stehend, frontal oder flach liegend. Auswahl unter Einstellungen → „Ansicht der Spulen“.
 - Die Größe richtet sich nach dem Spulengewicht: 250- und 500-g-Rollen sind kleiner, 2, 3, 5 und 10 kg werden breiter und etwas größer.
