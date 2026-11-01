@@ -4525,7 +4525,7 @@ async function start(){
   if(G.sub&&G.modus&&G.modus!==mod){try{G.unsub&&G.unsub()}catch(e){}try{G.unsubM&&G.unsubM()}catch(e){}G.unsub=G.unsubM=null;G.sub=false;G.items=[];G.meta=[];G.loaded=false;G.metaOk=false}
   if(G.sub)return;G.sub=true;G.modus=mod;G.err="";
   try{if(L()&&haDa()){L().shims();await L().initStates()}
-    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(rolleAusAdresse,200);setTimeout(epAusAdresse,250);setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
+    G.unsub=await subscribe(ENT,items=>{G.items=items;G.loaded=true;draw();setTimeout(rolleAusAdresse,200);setTimeout(epAusAdresse,250);setTimeout(fachAusAdresse,300);setTimeout(fdbAuto,4000);setTimeout(namenAngleichen,1500);if(window.CRE&&CRE.connected())setTimeout(()=>CRE.buchen(),500)});
     try{if(metaDa())G.unsubM=await subscribe(META,items=>{G.meta=items;G.metaOk=true;draw();if(S.tab==="einstellungen"&&!G.einGezeigt){G.einGezeigt=true;window.render&&window.render()}})}catch(e){}
     if(haDa()&&window.HAP&&HAP.ensure)HAP.ensure().then(()=>draw()).catch(()=>{});
     if(L()&&haDa())L().link().then(()=>{if(S.tab==="lager")L().status()});
@@ -5696,6 +5696,20 @@ function rolleAusAdresse(){if(G.rolleFertig||!G.loaded)return;G.rolleFertig=true
   const e=codeSorte(id);
   if(S.tab!=="lager"){S.tab="lager";window.render&&window.render()}
   setTimeout(()=>{if(e)hitModal(id,e);else toast("Rolle "+id+" ist nicht (mehr) im Lager")},300)}
+
+/* Knopf aus der Handymeldung „Fach nicht zugeordnet“ (SchichtLohn-Server): ?sl_fach=<Fach>&sl_sorte=<Sorte> */
+function fachAdresseWeg(w){try{const u=new URL(w.location.href);if(!u.searchParams.has("sl_fach"))return;u.searchParams.delete("sl_fach");u.searchParams.delete("sl_sorte");w.history.replaceState(w.history.state,"",u.pathname+u.search+u.hash)}catch(x){}}
+function fachAusAdresse(n){if(G.fachFertig||!G.loaded)return;n=n||0;let p=null;
+  for(const w of [window,top]){try{const q=new URLSearchParams(w.location.search);if(q.get("sl_fach")){p={fach:q.get("sl_fach"),sorte:q.get("sl_sorte")||"",w};break}}catch(x){}}
+  if(!p){G.fachFertig=true;return}
+  const s=slots().find(x=>x.id===p.fach);
+  if(!s){if(n<10){setTimeout(()=>fachAusAdresse(n+1),1000);return}G.fachFertig=true;fachAdresseWeg(p.w);toast("Fach nicht gefunden – ist der Drucker an?");return}
+  G.fachFertig=true;fachAdresseWeg(p.w);
+  if(S.tab!=="lager"){S.tab="lager";window.render&&window.render()}
+  const x=p.sorte?entries().find(y=>y.uid===p.sorte):null;
+  setTimeout(()=>{if(!x){fzuModal(s.id);return}G.fzu=s;
+    const go=async()=>{try{await write(x,{bambu_id:s.fid,ams_farben:[...new Set([...x.ams_farben,s.hex])]});toast(`${s.ort} ist jetzt ${name(x)}`)}catch(err){toast("Speichern fehlgeschlagen: "+(err.message||err))}};
+    if(x.bambu_id&&x.bambu_id!==s.fid)confirmBox(`„${summary(x)}“ hat schon die Bambu-ID ${x.bambu_id}. Durch ${s.fid} aus dem Fach ersetzen?`,"Ersetzen",go);else go()},300)}
 
 /* ---------- Preisliste: Shoppreise (täglich von GitHub, preise.json) den Sorten im Lager zuordnen ---------- */
 const PL={d:null,laden:null,f:"alle",q:"",zv:{},wq:"",wu:null,wk:[]};

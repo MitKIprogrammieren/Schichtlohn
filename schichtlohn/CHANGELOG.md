@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.46 – 01.11.2026
+- Neu: „Fach nicht zugeordnet“ kommt jetzt vom SchichtLohn-Server und prüft gegen dein SchichtLohn-Lager. Legst du ein Filament ins AMS (oder änderst Profil oder Farbe) und keine Sorte mit Bestand passt, bekommst du eine Handymeldung mit bis zu drei Vorschlägen.
+- Ein Vorschlag in der Meldung öffnet SchichtLohn und ordnet das Fach gleich zu – „In SchichtLohn öffnen“ zeigt die Auswahl aller Sorten.
+- Ist das Fach danach zugeordnet, verschwindet die Meldung vom Handy von selbst.
+
 ## 3.2.45 – 01.11.2026
 - Lager: Die Auswahlmenüs (Material, Marke, Farbe, Ort, Sortierung) klappen nicht mehr von selbst zu, wenn Waage oder Drucker neue Werte melden – vor allem in Home Assistant hingen sie dadurch.
 

@@ -27,6 +27,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
+  GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
 
 Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
   POST /api/services/todo/get_items|update_item|add_item|remove_item
@@ -66,7 +67,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.45"
+VERSION = "3.2.46"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -593,6 +594,8 @@ def einstellungen():
     w.setdefault("telegram", {})
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
+    w.setdefault("fach_meldung", True)
+    w.setdefault("fach_link", "/schichtlohn-app")
     w.setdefault("waage_url", "")
     w.setdefault("preise", {})
     w["preise"].setdefault("ebay", {})
@@ -659,7 +662,11 @@ def einstellungen_setzen(neu):
         e["preise"] = pr
     if "fertig_meldung" in neu:
         e["fertig_meldung"] = bool(neu["fertig_meldung"])
-    nur_extras = set(neu) <= {"fertig_meldung", "waage_url", "preise", "telegram"}
+    if "fach_meldung" in neu:
+        e["fach_meldung"] = bool(neu["fach_meldung"])
+    if "fach_link" in neu:
+        e["fach_link"] = str(neu["fach_link"] or "").strip()[:200] or "/schichtlohn-app"
+    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
@@ -1128,7 +1135,9 @@ def html_esc(t):
     return str(t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def handy_meldung(titel, text, bild="", foto=None):
+def handy_meldung(titel, text, bild="", foto=None, aktionen=None, tag="", hinweis_id="filament_abbuchung"):
+    """aktionen: Knöpfe der Handy-App, z. B. [{"action": "URI", "title": "…", "uri": "/schichtlohn-app?…"}].
+    tag: gleiche Kennung ersetzt eine ältere Meldung auf dem Handy statt eine weitere anzuhängen."""
     melden({"typ": "meldung", "titel": titel, "text": text})
     im_hintergrund(telegram_senden, titel, text, bild, foto)
     h = einstellungen()["ha"]
@@ -1140,12 +1149,19 @@ def handy_meldung(titel, text, bild="", foto=None):
     if ziele:
         for ziel in ziele:  # mehrere Handys: an jedes einzeln
             nachricht = {"title": titel, "message": text}
+            daten = {}
             if bild:  # iOS und Android zeigen das Bild in der Meldung
-                nachricht["data"] = {"image": bild, "attachment": {"url": bild, "content-type": "png"}}
+                daten.update({"image": bild, "attachment": {"url": bild, "content-type": "png"}})
+            if aktionen:
+                daten["actions"] = aktionen
+            if tag:
+                daten.update({"tag": tag, "group": "filament"})
+            if daten:
+                nachricht["data"] = daten
             im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], nachricht)
     else:
         im_hintergrund(ha_anfrage, "/api/services/persistent_notification/create",
-                       {"title": titel, "message": text, "notification_id": "filament_abbuchung"})
+                       {"title": titel, "message": text, "notification_id": tag or hinweis_id})
 
 
 # ---------------------------------------------------------------- Abbuchung nach Druckende (wie script.filament_abbuchen in HA)
@@ -1630,6 +1646,187 @@ BILDER = produktbilder.Bilder(os.path.join(os.path.dirname(os.path.abspath(DB_PF
                               lambda: (einstellungen().get("preise") or {}).get("ali") or {})
 
 
+# ---------------------------------------------------------------- Fach prüfen (ersetzt script.filament_fach_pruefen in HA)
+# Ändert sich in einem AMS-Fach oder an einer externen Spule Profil (filament_id) oder Farbe und bleibt 20 Sekunden so,
+# prüft der Server gegen sein Lager, ob eine Sorte mit Bestand dazu passt (gleiche Bambu-ID, Farbe nah an Lagerfarbe
+# oder gelernter AMS-Farbe). Wenn nicht, kommt eine Handymeldung mit bis zu drei Vorschlägen als Knöpfe.
+# Ein Knopf öffnet SchichtLohn in Home Assistant und ordnet das Fach dort zu (Adresse mit ?sl_fach=…&sl_sorte=…).
+
+FACH_RE = re.compile(r"_(?:ams_(\d+)_slot_(\d+)(?:_\d+)?|externalspool(\d*)_externe_spule)$")
+FACH_RUHE = 20          # Sekunden, die ein neuer Fachinhalt gleich bleiben muss
+FACH_TAKT = 10          # Sekunden zwischen zwei Durchläufen
+FACH_TOL = 19200        # gleiche Farbtoleranz wie Karte und Abbuchung
+FACH_STAND = {}         # entity_id -> {"sig": bestätigter Inhalt, "neu": wartender Inhalt, "seit": Zeit}
+FACH_GEMELDET = {}      # entity_id -> Inhalt, zu dem eine Meldung offen ist
+HA_FAECHER_VORLAGE = (
+    "{% set ns = namespace(o=[]) %}{% for s in states.sensor if (s.entity_id is search('_ams_\\d+_slot_\\d+(_\\d+)?$') "
+    "or s.entity_id is search('_externalspool\\d*_externe_spule$')) and s.attributes.get('quelle') != 'schichtlohn' %}"
+    "{% set pre = s.entity_id[7:] | regex_replace('_(ams_\\d+_slot_\\d+(_\\d+)?|externalspool\\d*_externe_spule)$', '') %}"
+    "{% set d = device_id('sensor.' ~ pre ~ '_druckstatus') %}{% set ns.o = ns.o + [[s.entity_id, s.state, "
+    "s.attributes.get('filament_id') or '', (s.attributes.get('color') or '')[:7], s.attributes.get('name') or '', "
+    "s.attributes.get('type') or '', s.attributes.get('empty') == true, (device_attr(d, 'name_by_user') if d else '') or '']] %}"
+    "{% endfor %}{{ ns.o | tojson }}")
+
+
+KURZNAMEN = {"h2c": "H2C", "h2d": "H2D", "h2s": "H2S", "p1s": "P1S", "p1p": "P1P", "p2s": "P2S", "x1c": "X1C", "x1e": "X1E",
+             "a1": "A1", "a1mini": "A1 mini"}
+
+
+def _kurzname(pre):
+    m = pre.split("_")[0]
+    return KURZNAMEN.get(m, m.upper())
+
+
+def _generic(fid):
+    return bool(re.match(r"^GF.99$", fid or "", re.I))
+
+
+def fach_ort(eid):
+    m = FACH_RE.search(eid)
+    if not m:
+        return ""
+    if m.group(1):
+        a = int(m.group(1))
+        return f"AMS HT {a - 127}" if a >= 128 else f"AMS {a} Fach {m.group(2)}"
+    return "Externe Spule 2" if m.group(3) == "2" else "Externe Spule"
+
+
+def faecher_sammeln():
+    """Alle Fächer: eigene Drucker (MQTT) zuerst, dazu die Drucker, die nur Home Assistant kennt."""
+    out = {}
+    namen = {drucker_mod.praefix(d): d.get("name") for d in einstellungen().get("drucker") or []}
+    for z in zustaende_liste():
+        e, a = z["entity_id"], z["attributes"]
+        if not (e.startswith("sensor.") and FACH_RE.search(e)):
+            continue
+        pre = e[7:].split("_ams_")[0].split("_externalspool")[0]
+        out[e] = {"state": z["state"], "fid": str(a.get("filament_id") or ""), "col": str(a.get("color") or "")[:7].lower(),
+                  "name": a.get("name") or z["state"], "typ": a.get("type") or "", "leer": a.get("empty") is True,
+                  "drucker": namen.get(pre) or _kurzname(pre)}
+    url, token = ha_cfg()
+    if url and token:
+        try:
+            zeilen = json.loads(ha_anfrage("/api/template", {"template": HA_FAECHER_VORLAGE}, timeout=15, roh=True).decode() or "[]")
+        except Exception as ex:
+            print("Fächer aus HA:", ex, flush=True)
+            zeilen = []
+        for e, st, fid, col, name, typ, leer, dname in zeilen:
+            if e in out:
+                continue
+            pre = e[7:].split("_ams_")[0].split("_externalspool")[0]
+            out[e] = {"state": st, "fid": str(fid or ""), "col": str(col or "").lower(), "name": name or st, "typ": typ or "",
+                      "leer": bool(leer), "drucker": dname or namen.get(pre) or _kurzname(pre)}
+    return out
+
+
+def fach_pruefen(eid, f, melden_=True):
+    """Wie script.filament_fach_pruefen: {"status": "leer"|"zugeordnet"|"offen", …}"""
+    fid, col = f["fid"], f["col"]
+    if not fid or f["leer"] or str(f["state"]) in ("unavailable", "unknown", "Empty", "Leer", ""):
+        return {"status": "leer"}
+    generic = _generic(fid)
+    mat = str(f["typ"]).split("-")[0].upper()
+    treffer, tdist, mitid, kand = None, 10 ** 9, False, []
+    for it in liste_lesen(ENT):
+        if it["status"] == "completed":
+            continue
+        d = _desc(it)
+        if d.get("typ") is not None or int(_zahl(d.get("spulen"))) <= 0:  # Merkzeilen und aufgebrauchte Sorten nicht
+            continue
+        farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
+        dist = min(drucker_mod.farbabstand(h, col) if col else 0 for h in farben)
+        gleich = str(d.get("bambu_id") or "") == fid and not generic
+        if gleich:
+            mitid = True
+            if dist < tdist:
+                treffer, tdist = it["summary"], dist
+        score = dist + (0 if gleich else 10 ** 6) + (0 if str(d.get("material") or "").upper().startswith(mat) else 10 ** 7)
+        kand.append((score, it["uid"], it["summary"]))
+    if treffer is not None and tdist <= FACH_TOL:
+        return {"status": "zugeordnet", "sorte": treffer}
+    kand.sort()
+    if generic:
+        grund = f"Generic-Profil ({fid}) – in Bambu Studio erst das eigene Profil der Sorte wählen"
+    elif mitid:
+        grund = f"Profil {fid} bekannt, aber diese Farbe noch keiner Sorte zugeordnet"
+    else:
+        grund = f"Profil {fid} noch keiner Sorte im Lager zugeordnet"
+    ort = fach_ort(eid)
+    text = f"{f['drucker']} {ort} – {f['name']}, Farbe {col or '?'}. {grund}." + ("" if generic else " Welche Sorte steckt darin?")
+    from urllib.parse import quote
+    link = einstellungen().get("fach_link") or "/schichtlohn-app"
+    trenn = "&" if "?" in link else "?"
+    knoepfe = [] if generic else [{"action": "URI", "title": n[:45], "uri": f"{link}{trenn}sl_fach={quote(eid)}&sl_sorte={quote(u)}"}
+                                   for _, u, n in kand[:3]]
+    knoepfe.append({"action": "URI", "title": "In SchichtLohn öffnen", "uri": f"{link}{trenn}sl_fach={quote(eid)}"})
+    erg = {"status": "offen", "meldung": text, "knoepfe": knoepfe}
+    if melden_:
+        handy_meldung("Filament: Fach nicht zugeordnet", text, aktionen=knoepfe, tag="filament_" + eid[7:])
+        FACH_GEMELDET[eid] = (fid, col)
+    return erg
+
+
+def _meldung_weg(eid):
+    """Offene Fach-Meldung auf dem Handy entfernen (Fach inzwischen zugeordnet oder geleert)."""
+    FACH_GEMELDET.pop(eid, None)
+    h = einstellungen()["ha"]
+    roh = h.get("notify") or ""
+    ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
+    url, token = ha_cfg()
+    if not (url and token):
+        return
+    for ziel in ziele:
+        im_hintergrund(ha_anfrage, "/api/services/notify/" + ziel[7:], {"message": "clear_notification", "data": {"tag": "filament_" + eid[7:]}})
+    if not ziele:
+        im_hintergrund(ha_anfrage, "/api/services/persistent_notification/dismiss", {"notification_id": "filament_" + eid[7:]})
+
+
+def faecher_durchlauf(jetzt=None):
+    jetzt = time.time() if jetzt is None else jetzt
+    an = einstellungen().get("fach_meldung", True)
+    faecher = faecher_sammeln()
+    for eid, f in faecher.items():
+        nutzbar = f["fid"] and not f["leer"] and str(f["state"]) not in ("unavailable", "unknown", "")
+        if str(f["state"]) in ("unavailable", "unknown"):
+            continue  # Drucker aus/an: Stand behalten, nichts melden
+        sig = (f["fid"], f["col"]) if nutzbar else None
+        st = FACH_STAND.get(eid)
+        if st is None:  # erster Blick nach dem Start: nur merken
+            FACH_STAND[eid] = {"sig": sig, "neu": None, "seit": jetzt}
+            continue
+        if sig == st["sig"]:
+            st["neu"] = None
+            continue
+        if st["neu"] != sig:
+            st["neu"], st["seit"] = sig, jetzt
+            continue
+        if jetzt - st["seit"] < FACH_RUHE:
+            continue
+        st["sig"], st["neu"] = sig, None
+        if eid in FACH_GEMELDET:
+            _meldung_weg(eid)
+        if sig and an:
+            try:
+                fach_pruefen(eid, f)
+            except Exception as ex:
+                print("Fach prüfen:", eid, ex, flush=True)
+    # offene Meldungen aufräumen, sobald das Fach im Lager zugeordnet ist (z. B. über den Knopf)
+    for eid in list(FACH_GEMELDET):
+        f = faecher.get(eid)
+        if not f or fach_pruefen(eid, f, melden_=False)["status"] != "offen":
+            _meldung_weg(eid)
+
+
+def faecher_schleife():
+    time.sleep(40)
+    while True:
+        try:
+            faecher_durchlauf()
+        except Exception as ex:
+            print("Fächer:", ex, flush=True)
+        time.sleep(FACH_TAKT)
+
+
 # ---------------------------------------------------------------- Waage: Antworten wie Home Assistant
 
 AMS_RE = re.compile(r"_(ams_\d+_slot_\d+|externalspool\d*_externe_spule)$")
@@ -2020,6 +2217,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"dienste": sorted(dienste, key=lambda x: x["name"]), "verbunden": True})
             except Exception as ex:
                 return self._json(200, {"dienste": [], "verbunden": False, "fehler": str(ex)})
+        if teile == ["faecher"] and methode == "GET":
+            # alle AMS-Fächer mit Prüfergebnis gegen das Lager (ohne Meldung)
+            out = []
+            for eid, f in sorted(faecher_sammeln().items()):
+                erg = fach_pruefen(eid, f, melden_=False)
+                out.append({"entity_id": eid, "drucker": f["drucker"], "ort": fach_ort(eid), "name": f["name"],
+                            "filament_id": f["fid"], "farbe": f["col"], **erg})
+            return self._json(200, {"faecher": out, "meldung_an": einstellungen().get("fach_meldung", True)})
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
         if teile == ["drucker", "lan"] and methode == "POST":
@@ -2150,4 +2355,5 @@ if __name__ == "__main__":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
     threading.Thread(target=preise_auto, daemon=True).start()
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
+    threading.Thread(target=faecher_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
