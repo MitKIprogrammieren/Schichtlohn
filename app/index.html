@@ -1167,7 +1167,7 @@ function renderSettings(m){
 </div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe">${[["spule","Spule mit Füllstand"],["rolle","Filamentrolle (klassisch)"],["quadrat","Farbquadrat"]].map(([v,t])=>`<option value="${v}"${(S.cfg.lagerFarbe||"spule")===v?" selected":""}>${t}</option>`).join("")}</select></label>
-      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Spulen von Bambu Lab</span><select id="spuleBambu">${[["klar","Klarsicht"],["dunkel","Dunkel mit Fenstern"],["pappe","Pappe"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleBambu||"klar")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen anderer Hersteller</span><select id="spuleFremd">${[["dunkel","Dunkel mit Fenstern"],["klar","Klarsicht"],["pappe","Pappe"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>`:""}
+      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen von Bambu Lab</span><select id="spuleBambu">${[["klar","Klarsicht"],["dunkel","Dunkel mit Fenstern"],["pappe","Pappe"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleBambu||"klar")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen anderer Hersteller</span><select id="spuleFremd">${[["dunkel","Dunkel mit Fenstern"],["klar","Klarsicht"],["pappe","Pappe"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>`:""}
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
         return `<details class="field lgx"><summary>Logos der Marken (${m.length})</summary><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl],ud=lg[sl+"-dunkel"];
           return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
@@ -1621,7 +1621,7 @@ document.addEventListener("change",e=>{
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
   if(t.id==="lagerModus"){try{localStorage.setItem("schichtlohn_lagermodus",t.value)}catch(e){}toast("Gespeichert");return}
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");if(typeof render==="function")render();return}
-  if(t.id==="spuleBambu"||t.id==="spuleFremd"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
+  if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
   if(t.dataset.act==="ordStatus"){const o=S.orders.find(x=>x.id===t.dataset.id);if(o){o.status=t.value;t.className="st-"+t.value;Store.saveItem("o",o);if(S.quote.id===o.id)S.quote.status=o.status;toast(`Status: ${statusName(o.status)}`)}return}
@@ -4290,6 +4290,7 @@ const FXDEFS=`<linearGradient id="lgFxSilk" x1="0" y1="0" x2="1" y2="1"><stop of
 <pattern id="lgFxGlit" width="3.2" height="3.2" patternUnits="userSpaceOnUse"><circle cx=".7" cy=".8" r=".32" fill="#fff" fill-opacity=".95"/><circle cx="2.3" cy="2.2" r=".22" fill="#fff" fill-opacity=".75"/><circle cx="2.6" cy=".5" r=".16" fill="#ffe9a8" fill-opacity=".85"/></pattern>
 `;
 const NEUDEFS=`<linearGradient id="lgNSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".65" stop-color="#000" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
+<linearGradient id="lgNShV" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset=".3" stop-color="#fff" stop-opacity=".25"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
 <linearGradient id="lgNFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
 <linearGradient id="lgNFl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3f47"/><stop offset=".55" stop-color="#2a2e34"/><stop offset="1" stop-color="#1c1f23"/></linearGradient>`;
 /* Neue Spule: Füllstand über die Wicklung, Spulenart je Hersteller/Refill, dreht sich bei laufendem Druck */
@@ -4298,38 +4299,52 @@ function spoolAktiv(){const now=Date.now();if(now-_spA.t<3000)return _spA.s;cons
   try{const st=states();const sl=slots().filter(x=>x.aktiv);if(sl.length){const all=entries();sl.forEach(x=>{const pre=x.id.slice(7).replace(/_(ams_\d+_slot_\d+(?:_\d+)?|externalspool\d*_externe_spule)$/,"");
     const ps=st["sensor."+pre+"_druckstatus"]||st["sensor."+pre+"_print_status"];if(!ps||!/^(running|printing|druckt|drucken|prepare)$/i.test(String(ps.state)))return;const e=treffer(x,all);if(e)set.add(e.uid)})}}catch(err){}
   return set}
-function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",aktiv:false};const cfg=S.cfg||{};
+function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewicht:1000,aktiv:false};const cfg=S.cfg||{};
   const gw=e.gewicht>0?e.gewicht:1000,sp=Number(e.spulen)||0;const r=Array.isArray(e.reste)?e.reste.filter(x=>x>0):[];
   const pct=sp<=0?0:r.length?Math.max(.05,Math.min(1,Math.min(...r)/gw)):1;
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":/bambu/i.test(e.hersteller||"")?(cfg.spuleBambu||"klar"):(cfg.spuleFremd||"dunkel");
-  return {pct,art,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-function spoolNeu(c,cls,f,inf){const K=.54,CY=22,R=17.4,HUB=6.2,{pct,art,aktiv}=inf;
+  return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
+function spMasse(g){g=Math.min(g>0?g:1000,20000);return {d:g<=1000?.45+.55*Math.sqrt(g/1000):1+.15*Math.log10(g/1000),w:g<1000?.75+.25*Math.sqrt(g/1000):1+Math.pow(g/1000-1,.6)*.35}}
+function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMasse(inf.gewicht),cfg=S.cfg||{};
+  const ans=["frontal","liegend"].includes(cfg.spuleAnsicht)?cfg.spuleAnsicht:"stehend",o=ans==="liegend"?"y":"x";
+  const n2=v=>(+v).toFixed(2);
   const col=sh=>(f.trans?sh.replace("FILL","url(#lgFxChk)"):"")+sh.replace("FILL",c).replace("/>",f.trans?' fill-opacity=".58"/>':"/>");
   const fx=sh=>[f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")")).join("");
-  const hl=f.matt?"":`<path d="M11.4 13.5c1.2-3.6 3.2-6.2 5.4-7" stroke="#fff" stroke-opacity="${f.seide||f.metal||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal?1.2:.8}" fill="none" stroke-linecap="round"/>`;
-  const wrap=b=>`<span class="${cls} lgspool lgneu${aktiv?" lgakt":""}" role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs><g transform="rotate(-16 22 22)" stroke-linejoin="round">${b}</g></svg></span>`;
-  const winds=(x0,x1,F)=>{let d="";for(let x=x0+1.1;x<x1-.2;x+=1.05)d+=`M${x.toFixed(2)} ${(CY-F).toFixed(2)}A${(F*K).toFixed(2)} ${F.toFixed(2)} 0 0 1 ${x.toFixed(2)} ${(CY+F).toFixed(2)}`;return d?`<path d="${d}" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".35"/>`:""};
-  const rings=(F,min)=>{let h="";for(let r=F-1.15;r>min+.4;r-=1.15)h+=`<circle r="${r.toFixed(2)}" fill="none" stroke="#000" stroke-opacity=".13" stroke-width=".45"/>`;return h};
-  const band=(x0,x1,F)=>{const b=`M${x0} ${(CY-F).toFixed(2)}H${x1}A${(F*K).toFixed(2)} ${F.toFixed(2)} 0 0 1 ${x1} ${(CY+F).toFixed(2)}H${x0}Z`;
-    return col(`<path d="${b}" fill="FILL"/>`)+`<path d="${b}" fill="url(#lgNSh)"${f.matt?' fill-opacity=".6"':""}/>`+fx(`<path d="${b}" fill="FILL"/>`)+winds(x0,x1,F)
-      +`<path d="M${x0} ${(CY-F).toFixed(2)}H${x1}" stroke="#fff" stroke-opacity="${f.matt?".15":".35"}" stroke-width=".5"/><path d="${b.slice(0,-1)}" fill="none" stroke="#000" stroke-opacity=".4" stroke-width=".6"/>`};
-  const face=(F,min)=>col(`<circle r="${F.toFixed(2)}" fill="FILL"/>`)+`<circle r="${F.toFixed(2)}" fill="url(#lgNFace)"${f.matt?' fill-opacity=".6"':""}/>`+fx(`<circle r="${F.toFixed(2)}" fill="FILL"/>`)+rings(F,min)+`<circle r="${F.toFixed(2)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".6"/>`;
-  if(art==="refill"){const H=7,F=pct>0?H+.8+(16-H-.8)*pct:H;
-    return wrap(`${pct>0?band(15,28,F):""}<g transform="translate(15 22) scale(${K} 1)">${pct>0?face(F,H):""}<g class="lgrot"><circle r="${H}" fill="#c99a62" stroke="#7a5428" stroke-width=".7"/><circle r="${H-1.3}" fill="#3a2a17"/><circle cy="${-(H-.65)}" r=".45" fill="#7a5428"/></g></g>${pct>0&&!f.matt?`<path d="M11 ${(CY-F+2.5).toFixed(2)}h2.6" stroke="#fff" stroke-opacity=".6" stroke-width=".7" stroke-linecap="round"/>`:""}`)}
-  const F=pct>0?HUB+(15.3-HUB)*pct:0,kar=art==="pappe",klar=art==="klar";
-  let win="";for(let i=0;i<4;i++){const m=(45+i*90)*Math.PI/180,w=31*Math.PI/180,pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Math.sin(t)).toFixed(2)}`;
-    win+=`M${pt(15.1,m-w)}A15.1 15.1 0 0 1 ${pt(15.1,m+w)}L${pt(7.6,m+w)}A7.6 7.6 0 0 0 ${pt(7.6,m-w)}Z`}
-  const disc=`M${R} 0A${R} ${R} 0 1 0 ${-R} 0A${R} ${R} 0 1 0 ${R} 0Z`;
-  const back=klar?`fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"`:kar?`fill="#9c7244" stroke="#d4b283"`:`fill="#202328" stroke="#6f7782"`;
-  let flansch;
-  if(klar)flansch=`<circle r="${R}" fill="#cfe3ff" fill-opacity=".14" stroke="#a8b4c4" stroke-width=".9"/><circle r="${R-1.2}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`;
-  else flansch=`<path d="${disc}${win}" fill-rule="evenodd" fill="${kar?"#b98a55":"url(#lgNFl)"}"/>${kar?`<circle r="15.9" fill="none" stroke="#5a3d1c" stroke-opacity=".22" stroke-width=".4"/><circle r="16.7" fill="none" stroke="#5a3d1c" stroke-opacity=".18" stroke-width=".4"/>`:`<circle r="${R-1.1}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${R}" fill="none" stroke="${kar?"#e0c193":"#aab2bd"}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${kar?"#4a3216":"#000"}" stroke-opacity=".6" stroke-width=".7"/>`;
-  const nabe=`<circle r="5.6" fill="${kar?"#8a6236":"#3d424a"}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="4.1" fill="none" stroke="${kar?"#d9b98a":"#8b939e"}" stroke-width=".5"/><circle r="2.3" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="-4.85" r=".5" fill="${kar?"#d9b98a":"#a3abb6"}"/>`;
-  const faden=aktiv&&F?`<path d="M26.5 ${(CY-F+.4).toFixed(2)}c3.5-1.2 6.5.3 8.2 3s2.4 6.6 5.6 7.4" fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round"/><path d="M26.5 ${(CY-F+.4).toFixed(2)}c3.5-1.2 6.5.3 8.2 3s2.4 6.6 5.6 7.4" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".4" stroke-linecap="round"/>`:"";
-  return wrap(`<ellipse cx="27" cy="22" rx="${(R*K).toFixed(2)}" ry="${R}" ${back} stroke-width=".9"/>
-<path d="M18 ${CY-HUB}H27A${(HUB*K).toFixed(2)} ${HUB} 0 0 1 27 ${CY+HUB}H18Z" fill="${kar?"#8a6236":"#454a52"}"/>${F?band(18,27,F):""}
-<g transform="translate(18 22) scale(${K} 1)">${klar?"":`<circle r="${R-.5}" fill="${kar?"#2a1d10":"#101215"}"/>`}${F?face(F,HUB):""}<g class="lgrot">${flansch}${nabe}</g></g>${hl}${faden}`)}
+  const glanz=f.matt?"":`stroke="#fff" stroke-opacity="${f.seide||f.metal||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal?1.2:.8}" fill="none" stroke-linecap="round"`;
+  const wrap=b=>`<span class="${cls} lgspool lgneu${aktiv?" lgakt":""}" role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg></span>`;
+  /* Bausteine entlang der Achse (o="x": stehend, o="y": liegend) */
+  const bandD=(x0,x1,F)=>o==="x"?`M${n2(x0)} ${n2(-F)}H${n2(x1)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x1)} ${n2(F)}H${n2(x0)}Z`:`M${n2(-F)} ${n2(x0)}V${n2(x1)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x1)}V${n2(x0)}Z`;
+  const winds=(x0,x1,F)=>{let p="";for(let x=x0+1.1;x<x1-.2;x+=1.05)p+=o==="x"?`M${n2(x)} ${n2(-F)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x)} ${n2(F)}`:`M${n2(-F)} ${n2(x)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x)}`;return p?`<path d="${p}" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".35"/>`:""};
+  const band=(x0,x1,F)=>{const b=bandD(x0,x1,F),kante=o==="x"?`M${n2(x0)} ${n2(-F)}H${n2(x1)}`:`M${n2(-F)} ${n2(x0)}V${n2(x1)}`;
+    return col(`<path d="${b}" fill="FILL"/>`)+`<path d="${b}" fill="url(#${o==="x"?"lgNSh":"lgNShV"})"${f.matt?' fill-opacity=".6"':""}/>`+fx(`<path d="${b}" fill="FILL"/>`)+winds(x0,x1,F)
+      +`<path d="${kante}" stroke="#fff" stroke-opacity="${f.matt?".15":".35"}" stroke-width=".5"/><path d="${b.slice(0,-1)}" fill="none" stroke="#000" stroke-opacity=".4" stroke-width=".6"/>`};
+  const ell=(pos,r,attr)=>o==="x"?`<ellipse cx="${n2(pos)}" cy="0" rx="${n2(r*K)}" ry="${n2(r)}" ${attr}/>`:`<ellipse cx="0" cy="${n2(pos)}" rx="${n2(r)}" ry="${n2(r*k)}" ${attr}/>`;
+  const rings=(F,min)=>{let h="";for(let r=F-1.15;r>min+.4;r-=1.15)h+=`<circle r="${n2(r)}" fill="none" stroke="#000" stroke-opacity=".13" stroke-width=".45"/>`;return h};
+  const face=(F,min)=>{const r=n2(F);return col(`<circle r="${r}" fill="FILL"/>`)+`<circle r="${r}" fill="url(#lgNFace)"${f.matt?' fill-opacity=".6"':""}/>`+fx(`<circle r="${r}" fill="FILL"/>`)+rings(F,min)+`<circle r="${r}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".6"/>`};
+  const glanzKreis=R=>glanz?`<path d="M${n2(-R*.83)} ${n2(-R*.37)}A${n2(R*.91)} ${n2(R*.91)} 0 0 1 ${n2(-R*.37)} ${n2(-R*.83)}" ${glanz}/>`:"";
+  /* Inhalte der Stirnseite (in Kreis-Koordinaten) und Tiefe */
+  let R,HUB,F,D,vorne,hinten="",barrel="",rueck="";
+  if(art==="refill"){const Hc=7*d;R=16*d;F=pct>0?Hc+.8*d+(16*d-Hc-.8*d)*pct:Hc;D=13*w;HUB=Hc;
+    vorne=`${pct>0?face(F,Hc):""}<g class="lgrot"><circle r="${n2(Hc)}" fill="#c99a62" stroke="#7a5428" stroke-width=".7"/><circle r="${n2(Hc-1.3*d)}" fill="#3a2a17"/><circle cy="${n2(-(Hc-.65*d))}" r=".45" fill="#7a5428"/></g>${pct>0?glanzKreis(F):""}`;
+    rueck=pct>0?band(0,D,F):`${ell(D,Hc,'fill="#a77a45"')}`;R=pct>0?F:Hc}
+  else{const kar=art==="pappe",klar=art==="klar";R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
+    let win="";for(let i=0;i<4;i++){const m=(45+i*90)*Math.PI/180,ww=31*Math.PI/180,pt=(r,t)=>`${n2(r*Math.cos(t))} ${n2(r*Math.sin(t))}`,ro=15.1*d,ri=7.6*d;
+      win+=`M${pt(ro,m-ww)}A${n2(ro)} ${n2(ro)} 0 0 1 ${pt(ro,m+ww)}L${pt(ri,m+ww)}A${n2(ri)} ${n2(ri)} 0 0 0 ${pt(ri,m-ww)}Z`}
+    const disc=`M${n2(R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(-R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(R)} 0Z`;
+    const flansch=klar?`<circle r="${n2(R)}" fill="#cfe3ff" fill-opacity=".14" stroke="#a8b4c4" stroke-width=".9"/><circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
+      :`<path d="${disc}${win}" fill-rule="evenodd" fill="${kar?"#b98a55":"url(#lgNFl)"}"/>${kar?`<circle r="${n2(15.9*d)}" fill="none" stroke="#5a3d1c" stroke-opacity=".22" stroke-width=".4"/><circle r="${n2(16.7*d)}" fill="none" stroke="#5a3d1c" stroke-opacity=".18" stroke-width=".4"/>`:`<circle r="${n2(R-1.1)}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${n2(R)}" fill="none" stroke="${kar?"#e0c193":"#aab2bd"}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${kar?"#4a3216":"#000"}" stroke-opacity=".6" stroke-width=".7"/>`;
+    const nabe=`<circle r="${n2(5.6*d)}" fill="${kar?"#8a6236":"#3d424a"}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${kar?"#d9b98a":"#8b939e"}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${kar?"#d9b98a":"#a3abb6"}"/>`;
+    vorne=`${klar?"":`<circle r="${n2(R-.5)}" fill="${kar?"#2a1d10":"#101215"}"/>`}${F?face(F,HUB):""}<g class="lgrot">${flansch}${nabe}</g>${ans!=="stehend"?glanzKreis(R):""}`;
+    hinten=ell(D,R,(klar?'fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"':kar?'fill="#9c7244" stroke="#d4b283"':'fill="#202328" stroke="#6f7782"')+' stroke-width=".9"');
+    barrel=`<path d="${bandD(0,D,HUB)}" fill="${kar?"#8a6236":"#454a52"}"/>`;rueck=F?band(0,D,F):""}
+  if(ans==="frontal"){const s=Math.min(1,21.5/R);return wrap(`<g transform="translate(22 22) scale(${n2(s)})">${vorne}</g>`)}
+  if(ans==="liegend"){const s=Math.min(1,42/(2*R),40/(2*R*k+D));
+    return wrap(`<g transform="translate(22 ${n2(41-s*(D+R*k))}) scale(${n2(s)})" stroke-linejoin="round">${hinten}${barrel}${rueck}<g transform="scale(1 ${k})">${vorne}</g></g>`)}
+  const W=D+2*R*K,H=2*R,a=16*Math.PI/180,bw=W*Math.cos(a)+H*Math.sin(a),bh=W*Math.sin(a)+H*Math.cos(a),s=Math.min(1,42/bw,41/bh);
+  const hl=glanz?`<path d="M${n2(-6.6*d)} ${n2(-8.5*d)}c${n2(1.2*d)} ${n2(-3.6*d)} ${n2(3.2*d)} ${n2(-6.2*d)} ${n2(5.4*d)} ${n2(-7*d)}" ${glanz}/>`:"";
+  const faden=aktiv&&F&&art!=="refill"?`<path d="M${n2(D-.5)} ${n2(-F+.4)}c3.5-1.2 6.5.3 8.2 3s2.4 6.6 5.6 7.4" fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round"/><path d="M${n2(D-.5)} ${n2(-F+.4)}c3.5-1.2 6.5.3 8.2 3s2.4 6.6 5.6 7.4" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".4" stroke-linecap="round"/>`:"";
+  return wrap(`<g transform="translate(22 ${n2(41-s*bh/2)}) scale(${n2(s)}) rotate(-16) translate(${n2(-D/2)} 0)" stroke-linejoin="round">${hinten}${barrel}${rueck}<g transform="scale(${K} 1)">${vorne}</g>${art==="refill"?"":hl}${faden}</g>`)}
 const spool=(hex,cls="lgsw",bes,e)=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
   const fl=(bes||[]).map(x=>String(x).toLowerCase());const has=re=>fl.some(x=>re.test(x));
   const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/);

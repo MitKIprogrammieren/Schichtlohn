@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.34 – 01.11.2026
+- Lager: Die Spulen gibt es jetzt in drei Ansichten – stehend, frontal oder flach liegend. Auswahl unter Einstellungen → „Ansicht der Spulen“.
+- Die Größe richtet sich nach dem Spulengewicht: 250- und 500-g-Rollen sind kleiner, 2, 3, 5 und 10 kg werden breiter und etwas größer.
+
 ## 3.2.33 – 01.11.2026
 - PDF-Bestandsliste: Die neuen Spulen gibt es jetzt auch im PDF – mit Füllstand, Refill auf Kartonkern und der in den Einstellungen gewählten Spulenart. Mit „Filamentrolle (klassisch)“ bleibt das PDF wie bisher.
 
