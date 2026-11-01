@@ -495,33 +495,46 @@ class BambuRechnungenCard extends HTMLElement{
       await this._svc('bambu','add_item',{item:`${x.d} · ${x.o}`,description:JSON.stringify(desc)});
       const warn=x.sub!=null&&Math.abs(x.check-x.sub)>0.02?`<small>Hinweis: Die Positionen ergeben ${eur(x.check)}, auf der Rechnung stehen ${eur(x.sub)}. Bitte kurz prüfen.</small>`:'';
       this._log('ok',`<b>${dm(x.d)} · ${x.o}</b> eingetragen: ${items.length} Positionen, ${eur(x.net)} bezahlt.${warn}`);
-      if(this._c.preise_ins_lager) await this._preise(x.d,items);
+      if(this._c.preise_ins_lager) await this._preise(x.d,items,x.o);
     }catch(e){this.st.log=this.st.log.filter(m=>!m.h.startsWith('Lese '));this._log('err',`<b>${esc(f.name)}</b>: ${esc(e.message||e)}`)} } }
   async _lagerBase(){ if(this._lb) return this._lb;
     const info=await this._h.callWS({type:'supervisor/api',endpoint:`/addons/${this._c.lager_app}/info`,method:'get'});
     const s=await this._h.callWS({type:'supervisor/api',endpoint:'/ingress/session',method:'post'});
     document.cookie=`ingress_session=${s.session};path=/api/hassio_ingress/;SameSite=Strict${location.protocol==='https:'?';Secure':''}`;
     this._lb=info.ingress_entry; return this._lb; }
-  async _preise(datum,items){
-    const fil=items.filter(a=>a[5]==='Filament'&&a[4]&&a[2]>0); if(!fil.length) return;
+  async _preise(datum,items,bestellung){
+    /* Filament-Positionen erkennen: neue Rechnungen haben Kategorie und Farbcode, alte (2022–2024) oft keins von beiden */
+    const istFil=a=>a[2]>0&&(a[5]==='Filament'||(a[5]==null&&/^(PLA|PETG|ABS|ASA|PAHT|PA6|PC|TPU|PET|PPS|PPA|PVA|Support)\b/i.test(a[0])&&!/plate|glue|bundle|shaft/i.test(a[0])));
+    const fil=items.filter(istFil); if(!fil.length) return;
+    /* Bambu-ID im Lager → Produktname auf der Rechnung */
+    const LINIE={GFA00:/^PLA Basic/i,GFA01:/^PLA Matte/i,GFA02:/^PLA Metal/i,GFA06:/^PLA Silk\+/i,GFA08:/^PLA Sparkle/i,GFA10:/^PLA Tough\+/i,GFA15:/^PLA Galaxy/i,GFA16:/^PLA Wood/i,GFA50:/^PLA-CF/i,
+      GFB00:/^ABS$/i,GFB01:/^ASA$/i,GFB50:/^ABS-GF/i,GFB51:/^ASA-CF/i,GFC00:/^PC$/i,GFC01:/^PC FR/i,GFG00:/^PETG Basic/i,GFG01:/^PETG Translucent/i,GFG02:/^PETG HF/i,GFG50:/^PETG-CF/i,GFN04:/^PAHT-CF/i};
+    const DE={black:'schwarz',white:'weiß',gray:'grau',grey:'grau',blue:'blau',green:'grün',red:'rot',yellow:'gelb',silver:'silber',purple:'lila',brown:'braun'};
+    const fn=t=>String(t||'').toLowerCase().replace(/\(.*?\)/g,'').replace(/^(matte|abs|silk\+)\s+/,'').replace(/\s+(metallic|sparkle|galaxy)$/,'').replace(/grey/g,'gray').trim();
+    const gleich=(a,b)=>a&&b&&(a===b||DE[a]===b||DE[b]===a);
     try{
       const base=await this._lagerBase();
       const r=await fetch(base+'/api/listen/todo.filament',{credentials:'same-origin'}); if(!r.ok) throw new Error('Lager antwortet nicht ('+r.status+')');
-      const lager=(await r.json()).items||[];
+      const lager=((await r.json()).items||[]).map(x=>{let j=null;try{j=JSON.parse(x.description)}catch(e){}return j&&!j.typ&&/bambu/i.test(j.hersteller||'')?{x,j}:null}).filter(Boolean);
       const done=[],skip=[],miss=[];
-      for(const [n,v,q,s,c] of fil){
+      for(const [n,v,q,s,c0] of fil){
         const refill=/refill|nachfüll/i.test(v); const preis=Math.round(s/q*100)/100;
-        const cand=lager.map(x=>{let j=null;try{j=JSON.parse(x.description)}catch(e){}return j?{x,j}:null}).filter(e=>e&&String(e.j.fcode||'')===c&&/bambu/i.test(e.j.hersteller||''));
-        if(!cand.length){miss.push(`${n} ${v.split(' / ')[0]}`);continue}
+        const c=String(c0||(String(v).match(/\((\d{5})\)/)||[])[1]||'');
+        const farbe=fn(String(v).split('/').map(t=>t.trim()).find(t=>t&&!/refill|nachf|spool|spule|^\d+\s?kg$/i.test(t))||'');
+        let cand=c?lager.filter(e=>String(e.j.fcode||'')===c):[];
+        if(!cand.length)cand=lager.filter(e=>{const l=LINIE[e.j.bambu_id];return l&&l.test(n)&&gleich(fn(e.j.farbe),farbe)});
+        if(!cand.length){miss.push(`${n} ${String(v).split(' / ')[0]}`);continue}
         const best=cand.find(e=>(e.j.ausfuehrung==='refill')===refill)||cand[0];
         if(best.j.preis_datum&&best.j.preis_datum>datum){skip.push(best.x.summary);continue}
-        const alt=best.j.preis; best.j.preis=preis; best.j.preis_datum=datum; best.j.preis_quelle='Bambu-Rechnung';
+        const alt=best.j.preis; delete best.j.preis_herkunft; best.j.preis=preis; best.j.preis_datum=datum; best.j.preis_quelle='Bambu-Rechnung';
+        best.j.gekauft={shop:'Bambu Lab Store',datum,bestellung:bestellung||'',artikel:`${n} ${farbe}${c?' ('+c+')':''}${refill?' Refill':''}`};
+        if(c&&!best.j.fcode)best.j.fcode=c;
         const w=await fetch(base+'/api/listen/todo.filament',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:'update_item',data:{item:best.x.uid,description:JSON.stringify(best.j)}})});
         if(w.ok) done.push(`${esc(best.x.summary.replace(/^Bambu Lab /,''))}: ${alt!=null?eur(alt)+' → ':''}${eur(preis)}`); else miss.push(best.x.summary+' (Fehler '+w.status+')');
       }
       if(done.length) this._log('ok',`Lagerpreise aktualisiert (${done.length}):<small>${done.join(' · ')}</small>`);
       if(skip.length) this._log('warn',`Nicht überschrieben, weil im Lager schon ein neuerer Rechnungspreis steht:<small>${skip.map(esc).join(' · ')}</small>`);
-      if(miss.length) this._log('warn',`Nicht im Lager gefunden (Farbnummer fehlt dort):<small>${miss.map(esc).join(' · ')}</small>`);
+      if(miss.length) this._log('warn',`Nicht im Lager gefunden:<small>${miss.map(esc).join(' · ')}</small>`);
     }catch(e){this._lb=null;this._log('err','Preise konnten nicht ins Lager übernommen werden: '+esc(e.message||e)+'<small>Dafür braucht es einen Administrator-Zugang und den laufenden SchichtLohn-Server.</small>')}
   }
 }
