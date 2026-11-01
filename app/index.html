@@ -4293,6 +4293,9 @@ const FXDEFS=`<linearGradient id="lgFxSilk" x1="0" y1="0" x2="1" y2="1"><stop of
 const NEUDEFS=`<linearGradient id="lgNSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".65" stop-color="#000" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
 <linearGradient id="lgNShV" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset=".3" stop-color="#fff" stop-opacity=".25"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
 <linearGradient id="lgNFlG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
+<pattern id="lgNPerf" width="1.5" height="1.3" patternUnits="userSpaceOnUse"><circle cx=".75" cy=".65" r=".33" fill="#000" fill-opacity=".75"/><circle cx="0" cy="0" r=".33" fill="#000" fill-opacity=".75"/><circle cx="1.5" cy="0" r=".33" fill="#000" fill-opacity=".75"/><circle cx="0" cy="1.3" r=".33" fill="#000" fill-opacity=".75"/><circle cx="1.5" cy="1.3" r=".33" fill="#000" fill-opacity=".75"/></pattern>
+<pattern id="lgNKarton" width="4" height="4" patternUnits="userSpaceOnUse"><circle cx="1" cy="1.2" r=".18" fill="#5a3d1c" fill-opacity=".25"/><circle cx="3.1" cy="2.7" r=".14" fill="#5a3d1c" fill-opacity=".2"/><circle cx="2.2" cy=".4" r=".1" fill="#fff" fill-opacity=".25"/></pattern>
+<clipPath id="lgNHalb" clipPathUnits="userSpaceOnUse"><rect x="-40" y="-40" width="80" height="40"/></clipPath>
 <linearGradient id="lgNFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
 <linearGradient id="lgNFl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3f47"/><stop offset=".55" stop-color="#2a2e34"/><stop offset="1" stop-color="#1c1f23"/></linearGradient>`;
 /* Neue Spule: Füllstand über die Wicklung, Spulenart je Hersteller/Refill, dreht sich bei laufendem Druck */
@@ -4307,21 +4310,19 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":spMarkeArt(e.hersteller);
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klarsicht"],["dunkel","Dunkel mit Fenstern"],["pappe","Pappe"],["pappesw","Pappe schwarz-weiß lackiert"],["rund","Weiß mit runden Löchern"],["speiche","Offene Speichen"],["ring","Grau mit Lochkranz"]];
+const SP_TYPEN=[["klar","Klarsicht"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Schwarz mit Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
-  pappe:{fl:"#b98a55",flp:[185,138,85],st:"#e0c193",stp:[122,84,40],lo:"#4a3216",bk:'fill="#9c7244" stroke="#d4b283"',bkp:[156,114,68],nb:"#8a6236",nbp:[138,98,54],nr:"#d9b98a",in:"#2a1d10",bar:"#8a6236"},
-  pappesw:{fl:"#1f2023",flp:[31,32,35],st:"#f2f2f2",stp:[90,90,90],lo:"#000",bk:'fill="#f0f0f0" stroke="#bdbdbd"',bkp:[240,240,240],nb:"#f0f0f0",nbp:[240,240,240],nr:"#555",in:"#0b0b0c",bar:"#e6e6e6",weissRand:1},
-  rund:{fl:"#e8eaed",flp:[232,234,237],st:"#9aa3ae",stp:[140,148,158],lo:"#000",bk:'fill="#d5d9de" stroke="#9aa3ae"',bkp:[213,217,222],nb:"#c9cdd3",nbp:[201,205,211],nr:"#8b939e",in:"#101215",bar:"#b9bec5",glanz:1},
-  speiche:{fl:"#3b4048",flp:[59,64,72],st:"#8b939e",stp:[139,147,158],lo:"#000",bk:'fill="#2a2e34" stroke="#6f7782"',bkp:[42,46,52],nb:"#2a2e34",nbp:[42,46,52],nr:"#8b939e",in:"#101215",bar:"#454a52",glanz:1},
-  ring:{fl:"#6b727c",flp:[107,114,124],st:"#b4bcc6",stp:[150,158,168],lo:"#000",bk:'fill="#555b64" stroke="#8b939e"',bkp:[85,91,100],nb:"#4b5058",nbp:[75,80,88],nr:"#a3abb6",in:"#101215",bar:"#5a6069",glanz:1}};
+  pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
+  lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
+  zweifarbig:{fl:"#e9e7e2",flp:[233,231,226],st:"#bdbab3",stp:[120,120,120],lo:"#000",bk:'fill="#2a2b2e" stroke="#6f7782"',bkp:[42,43,46],nb:"#e9e7e2",nbp:[233,231,226],nr:"#9a968e",in:"#0b0c0e",bar:"#c9c5bd",halb:"#2b2c2f"}};
 /* Löcher im Flansch in Kreis-Koordinaten (Radius 17.4·d) */
 function spLoecher(art,d){const pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Math.sin(t)).toFixed(2)}`;
   const sek=(ro,ri,m,w)=>`M${pt(ro,m-w)}A${ro.toFixed(2)} ${ro.toFixed(2)} 0 0 1 ${pt(ro,m+w)}L${pt(ri,m+w)}A${ri.toFixed(2)} ${ri.toFixed(2)} 0 0 0 ${pt(ri,m-w)}Z`;
   const krs=(r0,t,r)=>{const cx=r0*Math.cos(t),cy=r0*Math.sin(t);return `M${(cx+r).toFixed(2)} ${cy.toFixed(2)}a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(-2*r).toFixed(2)} 0a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(2*r).toFixed(2)} 0Z`};
   const D=Math.PI/180;
-  if(art==="rund")return [0,1,2,3,4,5].map(i=>krs(11.4*d,i*60*D,3.2*d)).join("");
-  if(art==="speiche")return [0,1,2].map(i=>sek(15.6*d,7*d,(i*120+60)*D,48*D)).join("");
-  if(art==="ring")return [...Array(10)].map((_,i)=>krs(12.6*d,i*36*D,1.7*d)).join("")+[0,1].map(i=>sek(9*d,6.6*d,i*180*D,70*D)).join("");
+  if(art==="lochplatte")return [0,1,2,3,4,5].map(i=>sek(15.4*d,7.6*d,(i*60+30)*D,10*D)).join("");
+  if(art==="zweifarbig")return sek(14.6*d,11.2*d,-62*D,9*D)+sek(14.2*d,11.4*d,8*D,10*D)+sek(13.6*d,10.4*d,152*D,10*D)+sek(16.3*d,15.5*d,-42*D,22*D);
+  if(art==="pappe")return [...Array(8)].map((_,i)=>krs(16*d,(i*45+22.5)*D,.55*d)).join("")+krs(7.9*d,95*D,.6*d)+sek(12.6*d,10.9*d,205*D,6*D);
   return [0,1,2,3].map(i=>sek(15.1*d,7.6*d,(45+i*90)*D,31*D)).join("")}
 function spMarkeArt(h){const cfg=S.cfg||{},m=String(h||"").trim().toLowerCase(),z=cfg.spuleMarken||{};
   if(m&&z[m]&&SP_TYPEN.some(t=>t[0]===z[m]))return z[m];return /bambu/.test(m)?(cfg.spuleBambu||"klar"):(cfg.spuleFremd||"dunkel")}
@@ -4351,9 +4352,10 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   else{const klar=art==="klar",T=SP_FARBE[klar?"dunkel":art]||SP_FARBE.dunkel;R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
     const win=spLoecher(art,d);
     const disc=`M${n2(R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(-R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(R)} 0Z`;
+    const halb=T.halb?`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.halb}" clip-path="url(#lgNHalb)"/>`:"",perf=T.perf?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNPerf)"/><circle r="${n2(R-.9*d)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="${n2(.5*d)}"/><circle r="${n2(8.6*d)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".4"/>`:"",karton=T.karton?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNKarton)"/>`:"";
     const flansch=klar?`<circle r="${n2(R)}" fill="#cfe3ff" fill-opacity=".14" stroke="#a8b4c4" stroke-width=".9"/><circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
-      :`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.fl}"/>${T.glanz?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNFlG)"/>`:""}${T.weissRand?`<circle r="${n2(R-.9*d)}" fill="none" stroke="#f4f4f4" stroke-width="${n2(1.7*d)}"/><circle r="${n2(7.1*d)}" fill="none" stroke="#f4f4f4" stroke-width="${n2(.9*d)}"/>`:art==="pappe"?`<circle r="${n2(15.9*d)}" fill="none" stroke="#5a3d1c" stroke-opacity=".22" stroke-width=".4"/><circle r="${n2(16.7*d)}" fill="none" stroke="#5a3d1c" stroke-opacity=".18" stroke-width=".4"/>`:`<circle r="${n2(R-1.1)}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${n2(R)}" fill="none" stroke="${T.st}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${T.lo}" stroke-opacity=".6" stroke-width=".7"/>`;
-    const nabe=`<circle r="${n2(5.6*d)}" fill="${T.nb}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${T.nr}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${T.nr}"/>`;
+      :`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.fl}"/>${halb}${karton}${perf}${T.glanz?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNFlG)"/>`:""}${T.karton||T.halb?"":`<circle r="${n2(R-1.1)}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${n2(R)}" fill="none" stroke="${T.st}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${T.lo}" stroke-opacity=".6" stroke-width=".7"/>`;
+    const nabe=T.karton||T.halb?`<circle r="${n2(4.4*d)}" fill="#0d0e10" stroke="#000" stroke-opacity=".5" stroke-width=".6"/><path d="M${n2(-4.4*d)} 0A${n2(4.4*d)} ${n2(4.4*d)} 0 0 1 ${n2(4.4*d)} 0" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".7"/>`:`<circle r="${n2(5.6*d)}" fill="${T.nb}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${T.nr}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${T.nr}"/>`;
     vorne=`${klar?"":`<circle r="${n2(R-.5)}" fill="${T.in}"/>`}${F?face(F,HUB):""}<g class="lgrot">${flansch}${nabe}</g>${ans!=="stehend"?glanzKreis(R):""}`;
     hinten=ell(D,R,(klar?'fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"':T.bk)+' stroke-width=".9"');
     barrel=`<path d="${bandD(0,D,HUB)}" fill="${T.bar}"/>`;rueck=F?band(0,D,F):""}
@@ -6024,12 +6026,14 @@ function blPdf(){
     F_(bk);D_(flS);L_(.6);zug(ell(27,R),"FD",true);
     F_([107,113,122]);zug([[18,CY-H],...bog(27,H,-Math.PI/2,Math.PI/2,10),[18,CY+H]],"F",true);
     if(F)band(18,27,F);
-    const loch=art==="rund"||art==="ring";
-    if(!kl){F_(fl);D_(flS);L_(.7);zug(ell(18,R),"FD",true);if(!loch){F_(art==="pappe"?[42,29,16]:[21,23,26]);zug(ell(18,15.1),"F",true)}}
-    if(F&&!loch)face(18,F,H);
+    const loch=false,zu=art==="pappe"||art==="zweifarbig";
+    if(!kl){F_(fl);D_(flS);L_(.7);zug(ell(18,R),"FD",true);if(!zu){F_([21,23,26]);zug(ell(18,15.1),"F",true)}}
+    if(F&&!zu)face(18,F,H);
     const rk=(r0,t,r)=>bog(18+r0*K*Math.cos(t)/1,0,0,0,0)&&(()=>{const o=[];for(let i=0;i<16;i++){const a2=i/16*TAU;o.push([18+(r0*Math.cos(t)+r*Math.cos(a2))*K,CY+r0*Math.sin(t)+r*Math.sin(a2)])}return o})();
+    if(zu){if(art==="zweifarbig"){F_([43,44,47]);zug([...bog(18,R,Math.PI,TAU,24)],"F",true);D_(flS);L_(.7);zug(ell(18,R),"S",true)}else{F_([90,62,30]);for(let i=0;i<8;i++){const t=(i*45+22.5)*Math.PI/180;zug(rk(16,t,.6),"F",true)}}
+      F_([13,14,16]);zug(ell(18,4.4),"F",true);return}
     if(loch){const L=art==="rund"?[6,11.4,3.2]:[10,12.6,1.7];for(let i=0;i<L[0];i++){const t=i*TAU/L[0];F_(F>=L[1]?c:[21,23,26]);D_(flS);L_(.4);zug(rk(L[1],t,L[2]),"FD",true)}}
-    else{const n=art==="speiche"?3:4,hw=(art==="speiche"?12:14)*Math.PI/180,off=art==="speiche"?0:0;
+    else{const n=art==="lochplatte"?6:4,hw=(art==="lochplatte"?20:14)*Math.PI/180,off=0;
       const sp=m=>[...bog(18,16.6,m-hw,m+hw,6),...bog(18,6,m+hw,m-hw,4)];
       for(let i=0;i<n;i++){const m=off+i*TAU/n;if(kl){D_(flS);L_(.6);zug(sp(m),"S",true)}else{F_(fl);D_(flS);L_(.5);zug(sp(m),"FD",true)}}}
     if(kl){D_(flS);L_(.9);zug(ell(18,R),"S",true)}
