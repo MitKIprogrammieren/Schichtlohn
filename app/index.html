@@ -359,7 +359,7 @@ const SRV=window.SRV=(()=>{
   const put=(k,wert)=>req("PUT","/api/daten/"+encodeURIComponent(k),{wert,quelle:id});
   /* Start: ist ein Server eingetragen und erreichbar? */
   async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
-      if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
+      if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";try{setTimeout(()=>window.dispatchEvent(new Event("sl-srv-bereit")),0)}catch(x){}
       on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="daten"&&ev.name==="shoppreise_eigen")try{window.dispatchEvent(new Event("sl-ep-neu"))}catch(x){}if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
         if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu")zstLaden();
         if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
@@ -5659,7 +5659,7 @@ function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return P
     if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
     if(ep&&ep.z.length){d.shops=Object.assign({},d.shops,ep.shops);d.z=d.z.concat(ep.z)}
     const idx={},ean={};d.z.forEach(z=>{const r=plRow(z,d),e=r.ean;
-      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;PL.zeit=Date.now();try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
+      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;PL.zeit=ep&&ep._vorlaeufig?0:Date.now();try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
 function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMarke(e.hersteller)]||[])];[...(e.codes||[]),...(e.codes_refill||[])].forEach(c=>(d.ean[String(c)]||[]).forEach(r=>kand.push(r)));
   const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const gw=e.gewicht||1000;const best={};
   const zu=e.raw&&e.raw.shop_zu;for(const r of kand){if(r.refill!==refill)continue;const s=zu&&zu.m===r.m&&zu.t===r.key?2:plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
@@ -5673,6 +5673,8 @@ window.slPreiseLaden=shopPreiseHolen;
 window.slMarktPk=(uid,gew)=>{const e=G.loaded?entries().find(x=>x.uid===uid):null;if(e)return marktPk(e);const a=pvAngebote(uid,gew).map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
 const plNeuLaden=()=>{EP.d=null;PL.d=null;PL.laden=null;preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(()=>{})};
 window.addEventListener("sl-ep-neu",plNeuLaden);
+/* Server (wieder) verbunden: schon geladene Preise ohne Server-Stand neu holen */
+window.addEventListener("sl-srv-bereit",()=>{if(PL.d||PL.laden||EP.d)plNeuLaden()});
 window.addEventListener("sl-shoppreise",()=>{draw();if(document.querySelector("#modal #lgBl"))bestandModal()});
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgBl"))bestandModal()});
 /* Preis aus dem Lager als eigene Zeile über den Shop-Angeboten, mit Vergleich zum günstigsten Shop */
@@ -5703,9 +5705,12 @@ const SL_SHOPKNOPF="(async () => {\nconst B = \"__BASE__\", KURZ = __KURZ__;\nco
 /* ---------- Eigene Shoppreise: „An SchichtLohn senden“ von einer selbst geöffneten Shopseite (Lesezeichen am Mac, Kurzbefehl am iPhone) ---------- */
 const EP={d:null,imp:null,refill:null};
 const EP_MAT=["PLA","PETG","PCTG","PET","ABS","ASA","TPU","TPE","PC","PCABS","PA","PA6","PA12","PAHT","PPA","PPS","PVA","HIPS","PVB","PP","PE","BVOH"];
-async function epLaden(){if(EP.d)return EP.d;let d=null;
-  if(srv())try{const r=await SRV.req("GET","/api/daten/shoppreise_eigen");d=r&&r.wert}catch(e){}
-  if(!d)d=LS.get("shoppreise_eigen");EP.d=d&&Array.isArray(d.z)?d:{shops:{},z:[]};return EP.d}
+/* Eigene Shoppreise: vom Server, sonst die zuletzt gesehene Kopie im Browser. Nur eine echte Server-Antwort wird gemerkt –
+   war der Server gerade nicht da (z. B. beim Update), wird beim nächsten Öffnen erneut gefragt statt „keine Preise“ zu behalten. */
+async function epLaden(){if(EP.d)return EP.d;let d=null,ok=false;
+  if(srv())try{const r=await SRV.req("GET","/api/daten/shoppreise_eigen");d=r&&r.wert;ok=true;if(d&&Array.isArray(d.z))LS.set("shoppreise_eigen",d)}catch(e){}
+  if(!d)d=LS.get("shoppreise_eigen");const res=d&&Array.isArray(d.z)?d:{shops:{},z:[]};
+  if(ok||!SRV.url())EP.d=res;else res._vorlaeufig=true;return res}
 async function epSpeichern(d){EP.d=d;LS.set("shoppreise_eigen",d);PL.d=null;PL.laden=null;
   if(srv())await SRV.req("PUT","/api/daten/shoppreise_eigen",{wert:d,quelle:"shopknopf"})}
 function epShop(h,u,t,marke){h=String(h||"").toLowerCase().replace(/^www\./,"");let b="";try{b=new URL(u).origin+"/"}catch(x){}

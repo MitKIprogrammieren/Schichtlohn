@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.30 – 01.11.2026
+- Preisliste: Selbst übernommene Shoppreise (z. B. 3dk.berlin, Bambu Lab Store) verschwinden nicht mehr, wenn der Server kurz weg war (etwa beim Update). SchichtLohn holt sie automatisch nach, sobald der Server wieder da ist.
+
 ## 3.2.29 – 01.11.2026
 - Kopfzeile: Unter „SchichtLohn“ steht wieder ein Untertitel – „Lager · Preise · Drucke“.
 - Bambu Lab und Creality oben eckig wie die Reiter.
