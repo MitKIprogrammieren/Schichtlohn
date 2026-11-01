@@ -8,7 +8,7 @@
 (()=>{
 const VERSION='2.2.0';
 const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
-const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress'};
+const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress',andere:'rechnungen_andere'};
 const SEITE=150;
 /* Erstattung aus der Mail auf eine Bestellung anwenden (gleiche Regeln wie früher in der Automation); null = schon gezählt */
 function erstattungAnwenden(j,e){const refs=j.refs||[];const key=e.datum+'|'+e.betrag;if(refs.includes(key))return null;
@@ -54,9 +54,45 @@ let pdfReady=null;
 function loadPdf(){ if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
   if(!pdfReady) pdfReady=new Promise((ok,err)=>{const s=document.createElement('script');s.src=PDFJS+'pdf.min.js';s.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.js';ok(window.pdfjsLib)};s.onerror=()=>{pdfReady=null;err(new Error('PDF-Leser konnte nicht geladen werden. Prüfe die Internetverbindung.'))};document.head.appendChild(s)});
   return pdfReady; }
-async function readPdf(file){ const lib=await loadPdf(); const doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; const pages=[];
+async function pdfSeiten(file){ const lib=await loadPdf(); const doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; const pages=[];
   for(let p=1;p<=doc.numPages;p++){const tc=await (await doc.getPage(p)).getTextContent();pages.push(tc.items.map(i=>({s:i.str,x:i.transform[4],y:i.transform[5],w:i.width})))}
-  return blParsePages(pages); }
+  return pages; }
+async function readPdf(file){ return blParsePages(await pdfSeiten(file)); }
+/* Rechnung eines beliebigen Shops (PDF) → {shop,o,i,d,net,tot,ship,items:[{n,q,s,e}]} – Preise je Position brutto */
+function allgParse(pages){
+  const zahl=t=>{const m=String(t).replace(/\s/g,'').match(/-?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+\.\d{2}/);if(!m)return null;const z=m[0];return parseFloat(/,\d{2}$/.test(z)?z.replace(/\./g,'').replace(',','.'):z)};
+  const zeilen=[];
+  pages.forEach(items=>{const by=[];items.filter(i=>i.s&&i.s.trim()).forEach(i=>{let r=by.find(z=>Math.abs(z.y-i.y)<3);if(!r){r={y:i.y,t:[]};by.push(r)}r.t.push(i)});
+    by.sort((a,b)=>b.y-a.y).forEach(r=>{r.t.sort((a,b)=>a.x-b.x);const zel=[];r.t.forEach(i=>{const l=zel[zel.length-1];if(l&&i.x-(l.x+l.w)<4){l.s+=(i.x-(l.x+l.w)>1?' ':'')+i.s;l.w=i.x+i.w-l.x}else zel.push({s:i.s.trim(),x:i.x,w:i.w})});
+      zeilen.push({z:zel.map(c=>c.s.trim()).filter(Boolean),t:zel.map(c=>c.s.trim()).join('  ')})})});
+  const alles=zeilen.map(z=>z.t).join('\n');
+  const feld=re=>{const m=alles.match(re);return m?m[1].trim():''};
+  const datum=s=>{const m=String(s||'').match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);if(!m)return'';const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`};
+  /* Shop: Absenderzeile „Firma | Straße | Ort“, sonst Domain aus der E-Mail-Adresse */
+  let shop='';const abs=zeilen.find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
+  if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1]}
+  const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
+  const netto=zahl(feld(/(?:Netto(?:betrag|summe)|Summe netto|Zwischensumme netto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
+  const gesamt=zahl(feld(/(?:Gesamt(?:betrag|summe)?|Rechnungsbetrag|Endbetrag|Summe brutto)[ \t]*(?:\(brutto\))?[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
+  /* Spalten: Stehen die Positionen netto da (Kopf „Netto“, darunter USt), mit Gesamt/Netto auf brutto hochrechnen */
+  const kopfNetto=zeilen.some(z=>/Menge/i.test(z.t)&&/Netto/i.test(z.t)&&!/Brutto/i.test(z.t));
+  const f=kopfNetto&&netto&&gesamt?gesamt/netto:1;
+  const items=[];let ship=0;
+  for(let k=0;k<zeilen.length;k++){const c=zeilen[k].z;if(c.length<4)continue;
+    const betr=c.map(zahl);const n2=betr.length;
+    if(!/€|EUR|\d,\d{2}$/.test(c[n2-1])||betr[n2-1]==null||betr[n2-2]==null)continue;
+    const q=parseInt(c[n2-3],10);if(!(q>0&&q<1000&&/^\d+$/.test(c[n2-3])))continue;
+    let name=c.slice(0,n2-3).filter(t=>!/^\d{1,3}$/.test(t));if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0])&&/\s/.test(name.slice(1).join(' ')))name=name.slice(1);
+    const n=name.join(' ').trim();if(!n||/^(pos|artikel|beschreibung)/i.test(n))continue;
+    const s=Math.round(betr[n2-1]*f*100)/100;
+    if(/versand|porto|shipping/i.test(n)){ship+=s;continue}
+    let e='';const nx=zeilen[k+1]&&zeilen[k+1].t||'';const m=nx.match(/EAN\s*:?\s*(\d{8,14})/i);if(m)e=m[1];
+    items.push({n,q,s,e})}
+  return {shop,o:o||i,i,d,net:gesamt||items.reduce((a,b)=>a+b.s,0)+ship,tot:gesamt||null,ship,items}}
+/* Filament erkennen bei Rechnungen anderer Shops (Titel ohne „Filament“, z. B. „Polymaker PolyLite ASA Galaxy“) */
+function andKat(n){return azKat(n)==='Filament'||(/\b(PLA\+?|PETG|PCTG|ABS|ASA|TPU|PA6?|PA12|PAHT|PC|PET|PVA|HIPS)\b/i.test(n||'')&&!/trockner|halter|box|sensor|düse|nozzle|hotend|extruder|platte|kleber|dryer|holder/i.test(n||''))?'Filament':'Zubehör'}
 
 const eur=v=>(v||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const dm=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}.${m}.${y}`};
@@ -96,7 +132,8 @@ function azKat(n){return /filament/i.test(n)&&/1[,.]75|\d ?kg|\bpla\b|petg|\babs
 const SRC={bambu:{titel:'Bambu-Rechnungen',name:'Bambu Lab'},amazon:{titel:'Amazon-Bestellungen',name:'Amazon',datei:'amazon-bestellungen.json',
     art:id=>`https://www.amazon.de/dp/${id}`,best:o=>`https://www.amazon.de/your-orders/order-details?orderID=${o}`,bei:'Amazon',vk:'Verkauf durch '},
   aliexpress:{titel:'AliExpress-Bestellungen',name:'AliExpress',datei:'aliexpress-bestellungen.json',
-    art:id=>`https://www.aliexpress.com/item/${id}.html`,best:o=>`https://www.aliexpress.com/p/order/detail.html?orderId=${o}`,bei:'AliExpress',vk:'Shop: '}};
+    art:id=>`https://www.aliexpress.com/item/${id}.html`,best:o=>`https://www.aliexpress.com/p/order/detail.html?orderId=${o}`,bei:'AliExpress',vk:'Shop: '},
+  andere:{titel:'Andere Shops',name:'Andere Shops',pdf:true,vk:'',art:()=>'',best:()=>'',bei:''}};
 function invName(n){return n.replace(/^Pre-order\s+/i,'').replace(/\s+Final Payment$/i,'').replace(/\s+3D Printer$/i,'')}
 
 /* ---------- Design – gleiche Möglichkeiten wie in SchichtLohn ---------- */
@@ -252,7 +289,7 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 `;
 
 class BambuRechnungenCard extends HTMLElement{
-  setConfig(c){this._c=Object.assign({entity:'todo.bambu_rechnungen',amazon_entity:'todo.amazon_rechnungen',aliexpress_entity:'todo.aliexpress_rechnungen',lager_app:'7c128fa3_schichtlohn',preise_ins_lager:true},c||{});this._by=this._by||{bambu:null,amazon:null,aliexpress:null};this._uns=this._uns||{};
+  setConfig(c){this._c=Object.assign({entity:'todo.bambu_rechnungen',amazon_entity:'todo.amazon_rechnungen',aliexpress_entity:'todo.aliexpress_rechnungen',lager_app:'7c128fa3_schichtlohn',preise_ins_lager:true},c||{});this._by=this._by||{bambu:null,amazon:null,aliexpress:null,andere:null};this._uns=this._uns||{};
     let lay='liste',kg=160;try{lay=localStorage.getItem('bambu_rechnungen_lay')||lay;kg=+localStorage.getItem('bambu_rechnungen_kg')||kg}catch(e){}
     this.st=this.st||{lay,kg,src:'bambu',q:'',k:'',y:'',view:'art',sort:'d',dir:-1,log:[],del:null,ds:false}; this._d=this._d||Object.assign({},DESIGN_STD); }
   get _data(){return this._by[this.st.src]}
@@ -306,7 +343,7 @@ class BambuRechnungenCard extends HTMLElement{
     await this._neu(src); }
   _setItems(src,items){ const data=[];
     for(const it of items){ let j=null; try{j=JSON.parse(it.description||'')}catch(e){} if(!j||!j.o) continue; j.uid=it.uid;
-      if(src!=='bambu'){ j.items=(j.items||[]).map(a=>({n:a[0],v:a[1]?SRC[src].vk+a[1]:'',q:a[2]||1,s:a[3]||0,c:'',asin:a[4]||'',r0:!!a[5],ret:!!a[5]||!!j.storno,k:azKat(a[0])})); j.pay=j.storno?0:(j.net||0)-(j.erst||0); }
+      if(src!=='bambu'){ j.items=(j.items||[]).map(a=>({n:a[0],v:a[1]?SRC[src].vk+a[1]:'',q:a[2]||1,s:a[3]||0,c:src==='andere'?(a[4]||''):'',asin:src==='andere'?'':(a[4]||''),r0:!!a[5],ret:!!a[5]||!!j.storno,k:src==='andere'?andKat(a[0]):azKat(a[0])})); j.pay=j.storno?0:(j.net||0)-(j.erst||0); }
       else { j.items=(j.items||[]).map(a=>Array.isArray(a)?{n:a[0],v:a[1],q:a[2],s:a[3],c:a[4]||code(a[1]),k:a[5]||kat(a[0],a[1],a[4]||code(a[1]))}:a); j.pay=j.net||0; }
       data.push(j); }
     data.sort((a,b)=>(b.d||'').localeCompare(a.d||'')); this._by[src]=data; if(src===this.st.src){this._err=null;this._render()} }
@@ -403,12 +440,12 @@ class BambuRechnungenCard extends HTMLElement{
     const focus=this.shadowRoot.activeElement?.id; const caret=this.shadowRoot.getElementById('q')?.selectionStart;
     root.innerHTML=`
     <div class="seg src" role="tablist" aria-label="Quelle">${Object.entries(SRC).map(([k,s])=>`<button data-src="${k}" role="tab" aria-pressed="${st.src===k}">${s.name}<small>${this._by[k]?this._by[k].length:'…'}</small></button>`).join('')}</div>
-    <div class="head"><div><h2><i></i>${SRC[st.src].titel}</h2><p class="sub">${data.length?`${data.length} Bestellungen${ohne?` (${ohne} ohne Rechnung)`:''}${ruck?` · ${ruck} Artikel zurückgegeben oder storniert`:''}${data.filter(r=>r.storno).length?` · ${data.filter(r=>r.storno).length} storniert`:''} · ${dm(data[data.length-1].d)} bis ${dm(data[0].d)} · ${eur(total)} bezahlt${az?' (nach Erstattungen)':''}`:(this._err?esc(this._err):this._by[st.src]?(az?`Noch keine ${SRC[st.src].name}-Bestellungen. Zieh die Export-Datei auf die Karte.`:'Noch keine Rechnungen.'):'Lade Rechnungen …')}</p></div>
+    <div class="head"><div><h2><i></i>${SRC[st.src].titel}</h2><p class="sub">${data.length?`${data.length} Bestellungen${ohne?` (${ohne} ohne Rechnung)`:''}${ruck?` · ${ruck} Artikel zurückgegeben oder storniert`:''}${data.filter(r=>r.storno).length?` · ${data.filter(r=>r.storno).length} storniert`:''} · ${dm(data[data.length-1].d)} bis ${dm(data[0].d)} · ${eur(total)} bezahlt${az&&!SRC[st.src].pdf?' (nach Erstattungen)':''}`:(this._err?esc(this._err):this._by[st.src]?(SRC[st.src].pdf?'Noch keine Rechnungen anderer Shops. Zieh eine PDF-Rechnung auf die Karte.':az?`Noch keine ${SRC[st.src].name}-Bestellungen. Zieh die Export-Datei auf die Karte.`:'Noch keine Rechnungen.'):'Lade Rechnungen …')}</p></div>
       <div class="hr"><div class="seg" role="group" aria-label="Ansicht"><button data-v="art" aria-pressed="${st.view==='art'}">Artikel</button><button data-v="inv" aria-pressed="${st.view==='inv'}">Rechnungen</button><button data-v="bestand" aria-pressed="${st.view==='bestand'}">Inventar</button></div>
       <button class="ico" id="dsbtn" aria-pressed="${st.ds}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/></svg>Design</button></div></div>
     ${st.ds?this._designHTML():''}
-    <div class="tile box drop"><div class="txt">${az?`<b>${SRC[st.src].name}-Bestellungen importieren</b><span>Export-Datei (${SRC[st.src].datei}) hierher ziehen oder auswählen. Schon vorhandene Bestellungen werden nur aktualisiert, z. B. bei späteren Rücksendungen.</span>`:`<b>Neue Rechnung hinzufügen</b><span>PDF aus dem Bambu Lab EU-Store hierher ziehen oder auswählen. Filamentpreise ${this._c.preise_ins_lager?'werden automatisch ins SchichtLohn-Lager übernommen':'werden nicht ins Lager übernommen'}.</span>`}</div>
-      <button class="btn" id="pick">${az?'Datei auswählen':'PDF auswählen'}</button></div>
+    <div class="tile box drop"><div class="txt">${SRC[st.src].pdf?`<b>Rechnung eines anderen Shops hinzufügen</b><span>PDF-Rechnung (z. B. 3Dmensionals, 3DJake, Filamentworld) hierher ziehen oder auswählen. SchichtLohn liest Shop, Datum und Positionen aus; Filamentpreise ${this._c.preise_ins_lager?'werden ins SchichtLohn-Lager übernommen':'werden nicht ins Lager übernommen'}.</span>`:az?`<b>${SRC[st.src].name}-Bestellungen importieren</b><span>Export-Datei (${SRC[st.src].datei}) hierher ziehen oder auswählen. Schon vorhandene Bestellungen werden nur aktualisiert, z. B. bei späteren Rücksendungen.</span>`:`<b>Neue Rechnung hinzufügen</b><span>PDF aus dem Bambu Lab EU-Store hierher ziehen oder auswählen. Filamentpreise ${this._c.preise_ins_lager?'werden automatisch ins SchichtLohn-Lager übernommen':'werden nicht ins Lager übernommen'}.</span>`}</div>
+      <button class="btn" id="pick">${az&&!SRC[st.src].pdf?'Datei auswählen':'PDF auswählen'}</button></div>
     ${st.log.length?`<div class="tile box log">${st.log.map(m=>`<div class="msg ${m.t}">${m.h}</div>`).join('')}<div><button class="btn ghost" id="clrlog">Meldungen ausblenden</button></div></div>`:''}
     <div class="tile box"><div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="${az?'Suchen: Filament, Kabel, Verkäufer, Bestellnummer …':'Suchen: PLA Matte, Schwarz, 11103, Hotend …'}" aria-label="Artikel suchen" autocomplete="off" value="${esc(st.q)}">${st.q?'<button class="x" id="clr" aria-label="Suche leeren">×</button>':''}</div>
@@ -421,12 +458,12 @@ class BambuRechnungenCard extends HTMLElement{
         tags:r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:r.c?`<span class="code" style="margin:0">${this._hl(r.c)}</span>`:'',
         links:`${r.q} × ${eur(r.u)}`,rechts:eur(r.s),unten:`${dm(r.d)} · ${r.o}`})).join('')}</div>${mehr(rows.length)}`:`<div class="tile empty">Nichts gefunden.</div>`)
     :st.view==='art'?`<div class="tile tbl"><table><thead><tr>${[['d','Datum',''],['n','Artikel',''],[null,'Art','hs'],['q','Menge','num'],['u','Stückpreis','num'],['s','Summe','num']].map(([k,l,c])=>`<th class="${c}" ${k?`aria-sort="${st.sort===k?(st.dir>0?'ascending':'descending'):'none'}"`:''}>${k?`<button data-sort="${k}">${l}</button>`:l}</th>`).join('')}</tr></thead><tbody>
-      ${rows.length?rows.slice(0,st.n).map(r=>`<tr><td class="date">${dm(r.d)}</td><td${r.ret?' class="ret"':''}><div class="pbw">${this._pb(r)}<div><div class="nm">${r.asin&&az?`<a href="${SRC[st.src].art(r.asin)}" target="_blank" rel="noopener">${this._hl(r.n)}</a>`:this._hl(r.n)}${r.c?`<span class="code">${this._hl(r.c)}</span>`:''}</div>${r.v?`<div class="var">${this._hl(r.v)}</div>`:''}<div class="ord">${r.o}</div></div></div></td><td class="hs">${r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:`<span class="tag${r.k==='Filament'?' f':''}">${r.k==='Drucker'?'Drucker & AMS':r.k==='Zubehör'&&az?AZ_GNAME[azGruppe(r.n)]:r.k}</span>`}</td><td class="num">${r.q}</td><td class="num">${eur(r.u)}</td><td class="num">${eur(r.s)}</td></tr>`).join(''):`<tr><td colspan="6" class="empty">${data.length?'Nichts gefunden. Probier einen kürzeren Begriff, z. B. nur die Farbe oder die Farbnummer.':'Noch keine Rechnungen. Zieh eine PDF auf die Karte.'}</td></tr>`}
+      ${rows.length?rows.slice(0,st.n).map(r=>`<tr><td class="date">${dm(r.d)}</td><td${r.ret?' class="ret"':''}><div class="pbw">${this._pb(r)}<div><div class="nm">${r.asin&&az&&SRC[st.src].art(r.asin)?`<a href="${SRC[st.src].art(r.asin)}" target="_blank" rel="noopener">${this._hl(r.n)}</a>`:this._hl(r.n)}${r.c?`<span class="code">${this._hl(r.c)}</span>`:''}</div>${r.v?`<div class="var">${this._hl(r.v)}</div>`:''}<div class="ord">${r.o}</div></div></div></td><td class="hs">${r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:`<span class="tag${r.k==='Filament'?' f':''}">${r.k==='Drucker'?'Drucker & AMS':r.k==='Zubehör'&&az?AZ_GNAME[azGruppe(r.n)]:r.k}</span>`}</td><td class="num">${r.q}</td><td class="num">${eur(r.u)}</td><td class="num">${eur(r.s)}</td></tr>`).join(''):`<tr><td colspan="6" class="empty">${data.length?'Nichts gefunden. Probier einen kürzeren Begriff, z. B. nur die Farbe oder die Farbnummer.':'Noch keine Rechnungen. Zieh eine PDF auf die Karte.'}</td></tr>`}
       </tbody></table></div>${mehr(rows.length)}`
     :`<div class="invs">${vis.length?vis.slice(0,st.n).map(r=>{const its=r.items.filter(it=>!filtered||((!st.k||it.k===st.k)&&this._hit(it)));const pcs=r.items.reduce((s,i)=>s+i.q,0);const m=METH[r.m]||r.m||'';
       return `<details class="tile"${filtered?' open':''}><summary><span class="when">${dm(r.d)}</span><span class="meta">${pcs} Stück${m?' · '+esc(m):''}${r.ship?' · Versand '+eur(r.ship):''}${r.ohne?' · <span class="tag">ohne Rechnung</span>':''}<br><span class="ord">${r.o}${r.i?' · Rechnung '+esc(r.i):''}</span></span><span class="sum">${eur(r.pay)}${r.storno?'<small>storniert</small>':r.erst?`<small>${eur(r.erst)} erstattet</small>`:''}${r.tot&&r.tot!==r.net?`<small>von ${eur(r.tot)}${r.gift?', Rest per Gutschein':r.disc?' vor Rabatt':', Rest per Gutschein'}</small>`:''}</span></summary>
       <div class="tbl"><table><tbody>${its.map(it=>`<tr><td${it.ret?' class="ret"':''}>${it.ret?`<span class="tag rt" style="float:right">${r.storno?'storniert':'zurückgegeben'}</span>`:''}<div class="pbw">${this._pb(it)}<div><div class="nm">${this._hl(it.n)}${it.c?`<span class="code">${this._hl(it.c)}</span>`:''}</div>${it.v?`<div class="var">${this._hl(it.v)}</div>`:''}</div></div></td><td class="num">${it.q} ×</td><td class="num">${eur(it.s)}</td></tr>`).join('')}</tbody></table></div>
-      <div class="foot"><span class="ord">${az?`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`:r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span>${az?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
+      <div class="foot"><span class="ord">${SRC[st.src].pdf?esc([r.shop,r.i?'Rechnung '+r.i:'',r.file?'PDF: '+r.file:''].filter(Boolean).join(' · ')):az?`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`:r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span>${az&&!SRC[st.src].pdf?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
     const $=s=>root.querySelectorAll(s);
     $('[data-lay]').forEach(b=>b.onclick=()=>{st.lay=b.dataset.lay;try{localStorage.setItem('bambu_rechnungen_lay',st.lay)}catch(e){}this._render()});
     root.querySelector('#kg')?.addEventListener('input',e=>{st.kg=+e.target.value;$('.kgrid').forEach(g=>g.style.setProperty('--kg',st.kg+'px'))});
@@ -487,8 +524,8 @@ class BambuRechnungenCard extends HTMLElement{
   async _import(files){ for(const f of files){ try{
       if(/\.json$/i.test(f.name)){ await this._importShop(f); continue; }
       this._log('','Lese '+esc(f.name)+' …');
-      const x=await readPdf(f); this.st.log.pop();
-      if(!x.o||!x.items.length){this._log('err',`<b>${esc(f.name)}</b>: Das sieht nicht nach einer Rechnung aus dem Bambu Lab EU-Store aus.`);continue}
+      const seiten=await pdfSeiten(f); let x=this.st.src==='andere'?null:blParsePages(seiten); this.st.log.pop();
+      if(!x||!x.o||!x.items.length){ await this._importAndere(f,allgParse(seiten)); continue; }
       if((this._data||[]).some(r=>r.o===x.o)){this._log('warn',`<b>${x.o}</b> ist schon eingetragen.`);continue}
       const items=x.items.map(it=>{const c=code(it.v);return [it.n,it.v,it.q,it.s,c,kat(it.n,it.v,c)]});
       const desc={v:1,o:x.o,i:x.i,d:x.d,net:x.net,tot:x.tot,ship:x.ship,m:METH[x.m]||x.m,file:`${x.d}_${x.o}.pdf`,items};
@@ -497,6 +534,47 @@ class BambuRechnungenCard extends HTMLElement{
       this._log('ok',`<b>${dm(x.d)} · ${x.o}</b> eingetragen: ${items.length} Positionen, ${eur(x.net)} bezahlt.${warn}`);
       if(this._c.preise_ins_lager) await this._preise(x.d,items,x.o);
     }catch(e){this.st.log=this.st.log.filter(m=>!m.h.startsWith('Lese '));this._log('err',`<b>${esc(f.name)}</b>: ${esc(e.message||e)}`)} } }
+  async _importAndere(f,x){
+    if(!x.items.length){this._log('err',`<b>${esc(f.name)}</b>: In der PDF wurden keine Positionen erkannt (Zeilen mit Menge, Einzelpreis und Summe).`);return}
+    if(!x.o)x.o=x.i||f.name.replace(/\.pdf$/i,'');
+    if((this._by.andere||[]).some(r=>r.o===x.o)){this._log('warn',`<b>${esc(x.o)}</b> ist schon bei „Andere Shops“ eingetragen.`);return}
+    const desc={v:1,o:x.o,i:x.i,d:x.d,shop:x.shop,net:x.net,tot:x.tot,ship:x.ship,file:f.name,items:x.items.map(it=>[it.n,x.shop||'',it.q,it.s,it.e||'',0])};
+    await this._svc('andere','add_item',{item:`${x.d} · ${x.shop||''} · ${x.o}`,description:JSON.stringify(desc)},this.st.src!=='andere');
+    if(this.st.src!=='andere')await this._neu('andere');
+    this._log('ok',`<b>${dm(x.d)} · ${esc(x.shop||'Shop')} · ${esc(x.o)}</b> unter „Andere Shops“ eingetragen: ${x.items.length} ${x.items.length===1?'Position':'Positionen'}, ${eur(x.net)} bezahlt.`);
+    if(this._c.preise_ins_lager) await this._preiseAndere(x);
+  }
+  /* Filamentpreise aus Rechnungen anderer Shops: Marke + Material + Farbe aus dem Positionsnamen */
+  async _preiseAndere(x){
+    const fil=x.items.filter(it=>andKat(it.n)==='Filament'&&it.q>0); if(!fil.length) return;
+    const DE={black:'schwarz',white:'weiß',gray:'grau',grey:'grau',blue:'blau',green:'grün',red:'rot',yellow:'gelb',silver:'silber',purple:'lila',brown:'braun',orange:'orange',pink:'rosa',transparent:'transparent'};
+    const n0=t=>norm(t).replace(/[()\[\],\/]/g,' ');
+    try{
+      const base=await this._lagerBase();
+      const r=await fetch(base+'/api/listen/todo.filament',{credentials:'same-origin'}); if(!r.ok) throw new Error('Lager antwortet nicht ('+r.status+')');
+      const lager=((await r.json()).items||[]).map(z=>{let j=null;try{j=JSON.parse(z.description)}catch(e){}return j&&!j.typ?{x:z,j}:null}).filter(Boolean);
+      const done=[],miss=[],skip=[];
+      for(const it of fil){
+        const name=' '+n0(it.n)+' ';const hat=w=>name.includes(' '+w+' ')||(DE[w]&&name.includes(' '+norm(DE[w])+' '));
+        const cand=lager.filter(e=>{const h=n0(e.j.hersteller||'').trim();if(!h||!name.includes(' '+h.split(' ')[0]+' '))return false;
+          const mat=n0(e.j.material||'').trim();if(!mat||!name.includes(' '+mat+' '))return false;
+          const fw=n0(e.j.farbe||'').split(/\s+/).filter(Boolean);return fw.length&&fw.every(hat)});
+        /* „Galaxy Black“ schlägt „Black“: die Sorte mit den meisten passenden Farbwörtern gewinnt */
+        const fz=e=>n0(e.j.farbe||'').split(/\s+/).filter(Boolean).length;cand.sort((a,b)=>fz(b)-fz(a));
+        if(!cand.length||(cand.length>1&&fz(cand[0])===fz(cand[1]))){miss.push(it.n+(cand.length>1?' (mehrdeutig)':''));continue}
+        const e=cand[0];const km=it.n.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i),gm=it.n.match(/(\d{3,4})\s*g\b/i);const g=(km?parseFloat(km[1].replace(',','.'))*1000:gm?+gm[1]:0)||e.j.gewicht||1000;
+        const pk=Math.round(it.s/it.q/(g/1000)*100)/100;
+        if(e.j.preis_datum&&e.j.preis_datum>x.d){skip.push(e.x.summary);continue}
+        const alt=e.j.preis;delete e.j.preis_herkunft;e.j.preis=pk;e.j.preis_datum=x.d;e.j.preis_quelle=(x.shop||'Shop')+'-Rechnung';
+        e.j.gekauft={shop:x.shop||'Shop',datum:x.d,bestellung:x.o,artikel:it.n};
+        const w=await fetch(base+'/api/listen/todo.filament',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:'update_item',data:{item:e.x.uid,description:JSON.stringify(e.j)}})});
+        if(w.ok)done.push(`${esc(e.x.summary)}: ${alt?eur(alt)+' → ':''}${eur(pk)}/kg`);else miss.push(e.x.summary+' (Fehler '+w.status+')');
+      }
+      if(done.length) this._log('ok',`Lagerpreise aktualisiert (${done.length}):<small>${done.join(' · ')}</small>`);
+      if(skip.length) this._log('warn',`Nicht überschrieben, weil im Lager schon ein neuerer Rechnungspreis steht:<small>${skip.map(esc).join(' · ')}</small>`);
+      if(miss.length) this._log('warn',`Nicht im Lager zugeordnet:<small>${miss.map(esc).join(' · ')}</small>`);
+    }catch(e){this._lb=null;this._log('err','Preise konnten nicht ins Lager übernommen werden: '+esc(e.message||e))}
+  }
   async _lagerBase(){ if(this._lb) return this._lb;
     const info=await this._h.callWS({type:'supervisor/api',endpoint:`/addons/${this._c.lager_app}/info`,method:'get'});
     const s=await this._h.callWS({type:'supervisor/api',endpoint:'/ingress/session',method:'post'});
