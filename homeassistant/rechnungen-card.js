@@ -6,7 +6,7 @@
 // und die Filamentpreise (bezahlter Preis pro Rolle) über die Farbnummer ins SchichtLohn-Lager geschrieben.
 // Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), preise_ins_lager (true)
 (()=>{
-const VERSION='2.1.1';
+const VERSION='2.2.0';
 const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
 const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress'};
 const SEITE=150;
@@ -185,6 +185,21 @@ tr:last-child td{border-bottom:0}
 .pb{width:64px;height:64px;flex:none;border-radius:var(--rs);object-fit:contain;background:#fff;border:1px solid var(--line);cursor:pointer;padding:2px;box-sizing:border-box}
 .pb.leer{background:var(--soft);padding:14px;opacity:.8}
 .ret .pb{opacity:.45;filter:grayscale(1)}
+.cbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:0 2px}.cbar .count{flex:1;min-width:140px}
+.gr{display:inline-flex;align-items:center;gap:7px;color:var(--mut);font-size:.8rem}.gr input{width:120px;accent-color:var(--ac)}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--kg,160px),1fr));gap:var(--gap)}
+.kgh{margin:6px 2px -4px;font-size:.95rem;font-weight:700}.kgh span{font-weight:400;color:var(--mut)}
+.kc{display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative}
+.kc .pb{width:100%;height:auto;aspect-ratio:1;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:8%}
+.kc .pb.leer{padding:28%}
+.kc .kb{padding:9px 11px 11px;display:grid;gap:3px;min-width:0}
+.kc .nm{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}
+.kc .var{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kc .kp{display:flex;flex-wrap:wrap-reverse;justify-content:space-between;gap:0 8px;align-items:baseline;margin-top:3px;font-variant-numeric:tabular-nums}
+.kc .kp b{font-size:1rem;white-space:nowrap}.kc .kp span{color:var(--mut);font-size:.8rem;white-space:nowrap}
+.kc .kt{position:absolute;top:7px;left:7px;display:flex;gap:4px;flex-wrap:wrap}.kc .kt .tag{background:var(--k);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.kc .kd{color:var(--mut);font-size:.76rem;font-variant-numeric:tabular-nums}
+.kc.ret .pb{opacity:.45;filter:grayscale(1)}
 .nm{font-weight:600}.var{color:var(--mut);font-size:.84rem}
 .code{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;background:var(--ac-soft);color:var(--ac-ink);padding:1px 6px;border-radius:5px;margin-left:6px;white-space:nowrap}
 .tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px;background:var(--chip);color:var(--mut);white-space:nowrap}
@@ -238,7 +253,8 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 
 class BambuRechnungenCard extends HTMLElement{
   setConfig(c){this._c=Object.assign({entity:'todo.bambu_rechnungen',amazon_entity:'todo.amazon_rechnungen',aliexpress_entity:'todo.aliexpress_rechnungen',lager_app:'7c128fa3_schichtlohn',preise_ins_lager:true},c||{});this._by=this._by||{bambu:null,amazon:null,aliexpress:null};this._uns=this._uns||{};
-    this.st=this.st||{src:'bambu',q:'',k:'',y:'',view:'art',sort:'d',dir:-1,log:[],del:null,ds:false}; this._d=this._d||Object.assign({},DESIGN_STD); }
+    let lay='liste',kg=160;try{lay=localStorage.getItem('bambu_rechnungen_lay')||lay;kg=+localStorage.getItem('bambu_rechnungen_kg')||kg}catch(e){}
+    this.st=this.st||{lay,kg,src:'bambu',q:'',k:'',y:'',view:'art',sort:'d',dir:-1,log:[],del:null,ds:false}; this._d=this._d||Object.assign({},DESIGN_STD); }
   get _data(){return this._by[this.st.src]}
   get _ent(){return this._entOf(this.st.src)}
   _entOf(s){return s==='bambu'?this._c.entity:this._c[s+'_entity']}
@@ -343,12 +359,16 @@ class BambuRechnungenCard extends HTMLElement{
     return L; }
   /* Produktbild: der SchichtLohn-Server sucht es (Amazon/AliExpress per Artikel-ID, Bambu per Name) und hält es vor */
   _pbq(it){const src=this.st.src;const p={quelle:src,id:src==='bambu'?'':(it.asin||''),n:it.n||'',v:src==='bambu'?(it.v||''):''};return p}
-  _pb(it){ if(!this._lb) return ''; const p=this._pbq(it);
+  _pb(it,kl){ if(!this._lb) return ''; const p=this._pbq(it);
     const t=(this._pbv&&this._pbv[JSON.stringify(p)])||'';
-    return `<img class="pb" loading="lazy" decoding="async" alt="" src="${esc(this._lb+'/api/produktbild?'+new URLSearchParams(p)+(t?'&t='+t:''))}" data-pb="${esc(JSON.stringify(p))}">`; }
+    return `<img class="pb${kl?' '+kl:''}" loading="lazy" decoding="async" alt="" src="${esc(this._lb+'/api/produktbild?'+new URLSearchParams(p)+(t?'&t='+t:''))}" data-pb="${esc(JSON.stringify(p))}">`; }
   async _pbSetzen(p){ const url=prompt('Bildadresse für „'+p.n.slice(0,60)+'“ einfügen (Rechtsklick aufs Produktbild im Shop → Bildadresse kopieren).\nLeer lassen = wieder automatisch suchen.','');
     if(url===null) return; try{ await this._api('/api/produktbild',this._json('PUT',Object.assign({},p,{url:url.trim()}))); this._pbv=this._pbv||{}; this._pbv[JSON.stringify(p)]=Date.now(); this._render(); }
     catch(e){ this._log('err',esc(e.message||e)); } }
+  _lay(){ return this.st.lay||'liste'; }
+  _cbar(text,sortHtml){ const st=this.st,k=this._lay()==='kachel';
+    return `<div class="cbar"><p class="count">${text}</p>${k&&sortHtml?sortHtml:''}${k?`<label class="gr" title="Kachelgröße">▫<input type="range" id="kg" min="110" max="280" step="10" value="${st.kg||160}">◻</label>`:''}<div class="seg" role="group" aria-label="Darstellung"><button data-lay="liste" aria-pressed="${!k}" title="Liste">☰ Liste</button><button data-lay="kachel" aria-pressed="${k}" title="Kacheln">▦ Kacheln</button></div></div>`; }
+  _kachel(o){ return `<div class="tile kc${o.ret?' ret':''}"${o.title?` title="${esc(o.title)}"`:''}>${this._pb(o.it)}${o.tags?`<div class="kt">${o.tags}</div>`:''}<div class="kb"><div class="nm">${o.nm}</div>${o.v?`<div class="var">${o.v}</div>`:''}<div class="kp"><span>${o.links||''}</span><b>${o.rechts||''}</b></div>${o.unten?`<div class="kd">${o.unten}</div>`:''}</div></div>`; }
   _rows(){ const R=[];(this._data||[]).forEach(r=>r.items.forEach(it=>R.push({...it,d:r.d,o:r.o,storno:!!r.storno,u:it.q?it.s/it.q:it.s})));return R; }
   _hit(it){const st=this.st;if(!st.q)return true;const hay=norm(it.n+' '+it.v+' '+it.c+' '+it.o+' '+it.k+(it.ret?(it.storno?' storniert':' zurückgegeben'):''));return norm(st.q).split(/\s+/).filter(Boolean).every(w=>hay.includes(w))}
   _hl(s){const st=this.st;let out=esc(s);if(!st.q)return out;norm(st.q).split(/\s+/).filter(w=>w.length>1).forEach(w=>{out=out.replace(new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>')});return out}
@@ -357,12 +377,14 @@ class BambuRechnungenCard extends HTMLElement{
     const az=st.src!=='bambu', GL=az?AZ_GLISTE:GLISTE, GN=az?Object.fromEntries(AZ_GLISTE):GNAME;
     const sum=L.reduce((a,e)=>a+e.s,0), cnt=g=>L.filter(e=>e.g===g).reduce((a,e)=>a+e.q,0);
     const head=az?`<div class="tile stats"><div class="stat"><b>${cnt('druck3d')}</b><span>3D-Druck-Zubehör</span></div><div class="stat"><b>${cnt('werkzeug')}</b><span>Werkzeug</span></div><div class="stat"><b>${L.reduce((a,e)=>a+e.q,0)}</b><span>Teile gesamt</span></div><div class="stat"><b>${eur(sum)}</b><span>Wert (Kaufpreis)</span></div></div>
-      <p class="count">${L.length} Artikel${st.q||gq?' gefunden':''} · ohne Filament und ohne zurückgegebene Artikel</p>`:`<div class="tile stats"><div class="stat"><b>${cnt('drucker')}</b><span>Drucker</span></div><div class="stat"><b>${cnt('ams')}</b><span>AMS</span></div><div class="stat"><b>${L.filter(e=>!['drucker','ams'].includes(e.g)).reduce((a,e)=>a+e.q,0)}</b><span>Teile & Zubehör</span></div><div class="stat"><b>${eur(sum)}</b><span>Wert (Kaufpreis)</span></div></div>
-      <p class="count">${L.length} Artikel${st.q||gq?' gefunden':''} · Mengen laut Bestellungen, ohne Filament</p>`;
+      ${this._cbar(`${L.length} Artikel${st.q||gq?' gefunden':''} · ohne Filament und ohne zurückgegebene Artikel`)}`:`<div class="tile stats"><div class="stat"><b>${cnt('drucker')}</b><span>Drucker</span></div><div class="stat"><b>${cnt('ams')}</b><span>AMS</span></div><div class="stat"><b>${L.filter(e=>!['drucker','ams'].includes(e.g)).reduce((a,e)=>a+e.q,0)}</b><span>Teile & Zubehör</span></div><div class="stat"><b>${eur(sum)}</b><span>Wert (Kaufpreis)</span></div></div>
+      ${this._cbar(`${L.length} Artikel${st.q||gq?' gefunden':''} · Mengen laut Bestellungen, ohne Filament`)}`;
     if(!L.length) return head+`<div class="tile empty">Nichts gefunden.</div>`;
     const so=st.isort||'g';
     return head+GL.map(([g,t])=>{const G=L.filter(e=>e.g===g);if(!G.length)return '';
       G.sort((a,b)=>so==='d'?b.last.localeCompare(a.last):so==='s'?b.s-a.s:a.n.localeCompare(b.n,'de'));
+      if(this._lay()==='kachel') return `<h3 class="kgh">${t} <span>· ${G.reduce((a,e)=>a+e.q,0)} Stück · ${eur(G.reduce((a,e)=>a+e.s,0))}</span></h3><div class="kgrid" style="--kg:${st.kg||160}px">${G.map(e=>this._kachel({it:{n:e.n,v:e.pv||e.v,asin:e.asin},nm:this._hl(e.n),v:e.v&&!az?this._hl(e.v):'',
+        title:e.kaeufe.map(k=>dm(k.d)+': '+(k.q||'Anzahlung')+' × – '+k.o).join('\n'),links:`${e.q} Stück`,rechts:e.u?eur(e.u):'',unten:`zuletzt ${dm(e.last)}${e.kaeufe.length>1?' · '+e.kaeufe.length+' Käufe':''}`})).join('')}</div>`;
       return `<div class="tile tbl"><table><thead><tr><th colspan="2">${t} <span style="font-weight:400">· ${G.reduce((a,e)=>a+e.q,0)} Stück · ${eur(G.reduce((a,e)=>a+e.s,0))}</span></th><th class="num hs">Zuletzt</th><th class="num">Menge</th><th class="num hs">Stückpreis</th></tr></thead><tbody>
         ${G.map(e=>`<tr title="${esc(e.kaeufe.map(k=>dm(k.d)+': '+(k.q||'Anzahlung')+' × – '+k.o).join('\n'))}"><td colspan="2"><div class="pbw">${this._pb({n:e.n,v:e.pv||e.v,asin:e.asin})}<div><div class="nm">${this._hl(e.n)}</div>${e.v&&!az?`<div class="var">${this._hl(e.v)}</div>`:''}<div class="ord">${e.kaeufe.length>1?e.kaeufe.length+' Käufe, ':''}gesamt ${eur(e.s)}</div></div></div></td><td class="num date hs">${dm(e.last)}</td><td class="num"><b>${e.q}</b></td><td class="num hs">${e.u?eur(e.u):'–'}</td></tr>`).join('')}</tbody></table></div>`}).join('')
       +`<div class="row"><span class="hint">Sortieren:</span><div class="seg">${[['g','Name'],['d','Zuletzt gekauft'],['s','Wert']].map(([k,l])=>`<button data-isort="${k}" aria-pressed="${so===k}">${l}</button>`).join('')}</div></div>`; }
@@ -394,8 +416,11 @@ class BambuRechnungenCard extends HTMLElement{
       <div class="seg" role="group" aria-label="Jahr"><button data-y="" aria-pressed="${!st.y}">Alle Jahre</button>${years.map(y=>`<button data-y="${y}" aria-pressed="${st.y===y}">${y}</button>`).join('')}</div></div>
     <div class="quick">Schnell suchen: ${(az?['Filament','PETG','Druckplatte','Kabel','Werkzeug','Kleber','zurückgegeben']:['PLA Matte','PETG HF','ABS-GF','Silk','Schwarz','Refill','Hotend']).map(s=>`<button data-s="${s}">${s}</button>`).join('')}</div></div>
     ${st.view==='bestand'?this._bestandHTML(inY):`<div class="tile stats"><div class="stat"><b>${eur(paid)}</b><span>${filtered?'Summe der Treffer':'bezahlt'}</span></div><div class="stat"><b>${rows.reduce((s,r)=>s+r.q,0)}</b><span>Stück</span></div><div class="stat"><b>${nf}</b><span>Filament-Rollen</span></div><div class="stat"><b>${nf?eur(fil.reduce((s,r)=>s+r.s,0)/nf):'–'}</b><span>Ø bezahlt pro Rolle</span></div></div>
-    <p class="count">${st.view==='art'?`${rows.length} Positionen${filtered?' gefunden':''}`:`${vis.length} Bestellungen`}</p>
-    ${st.view==='art'?`<div class="tile tbl"><table><thead><tr>${[['d','Datum',''],['n','Artikel',''],[null,'Art','hs'],['q','Menge','num'],['u','Stückpreis','num'],['s','Summe','num']].map(([k,l,c])=>`<th class="${c}" ${k?`aria-sort="${st.sort===k?(st.dir>0?'ascending':'descending'):'none'}"`:''}>${k?`<button data-sort="${k}">${l}</button>`:l}</th>`).join('')}</tr></thead><tbody>
+    ${st.view==='art'?this._cbar(`${rows.length} Positionen${filtered?' gefunden':''}`,`<div class="seg">${[['d','Datum'],['n','Name'],['s','Preis']].map(([k,l])=>`<button data-sort="${k}" aria-pressed="${st.sort===k}">${l}${st.sort===k?(st.dir>0?' ↑':' ↓'):''}</button>`).join('')}</div>`):`<p class="count">${vis.length} Bestellungen</p>`}
+    ${st.view==='art'&&this._lay()==='kachel'?(rows.length?`<div class="kgrid" style="--kg:${st.kg||160}px">${rows.slice(0,st.n).map(r=>this._kachel({it:r,ret:r.ret,nm:this._hl(r.n),v:r.v?this._hl(r.v):'',
+        tags:r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:r.c?`<span class="code" style="margin:0">${this._hl(r.c)}</span>`:'',
+        links:`${r.q} × ${eur(r.u)}`,rechts:eur(r.s),unten:`${dm(r.d)} · ${r.o}`})).join('')}</div>${mehr(rows.length)}`:`<div class="tile empty">Nichts gefunden.</div>`)
+    :st.view==='art'?`<div class="tile tbl"><table><thead><tr>${[['d','Datum',''],['n','Artikel',''],[null,'Art','hs'],['q','Menge','num'],['u','Stückpreis','num'],['s','Summe','num']].map(([k,l,c])=>`<th class="${c}" ${k?`aria-sort="${st.sort===k?(st.dir>0?'ascending':'descending'):'none'}"`:''}>${k?`<button data-sort="${k}">${l}</button>`:l}</th>`).join('')}</tr></thead><tbody>
       ${rows.length?rows.slice(0,st.n).map(r=>`<tr><td class="date">${dm(r.d)}</td><td${r.ret?' class="ret"':''}><div class="pbw">${this._pb(r)}<div><div class="nm">${r.asin&&az?`<a href="${SRC[st.src].art(r.asin)}" target="_blank" rel="noopener">${this._hl(r.n)}</a>`:this._hl(r.n)}${r.c?`<span class="code">${this._hl(r.c)}</span>`:''}</div>${r.v?`<div class="var">${this._hl(r.v)}</div>`:''}<div class="ord">${r.o}</div></div></div></td><td class="hs">${r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:`<span class="tag${r.k==='Filament'?' f':''}">${r.k==='Drucker'?'Drucker & AMS':r.k==='Zubehör'&&az?AZ_GNAME[azGruppe(r.n)]:r.k}</span>`}</td><td class="num">${r.q}</td><td class="num">${eur(r.u)}</td><td class="num">${eur(r.s)}</td></tr>`).join(''):`<tr><td colspan="6" class="empty">${data.length?'Nichts gefunden. Probier einen kürzeren Begriff, z. B. nur die Farbe oder die Farbnummer.':'Noch keine Rechnungen. Zieh eine PDF auf die Karte.'}</td></tr>`}
       </tbody></table></div>${mehr(rows.length)}`
     :`<div class="invs">${vis.length?vis.slice(0,st.n).map(r=>{const its=r.items.filter(it=>!filtered||((!st.k||it.k===st.k)&&this._hit(it)));const pcs=r.items.reduce((s,i)=>s+i.q,0);const m=METH[r.m]||r.m||'';
@@ -403,6 +428,9 @@ class BambuRechnungenCard extends HTMLElement{
       <div class="tbl"><table><tbody>${its.map(it=>`<tr><td${it.ret?' class="ret"':''}>${it.ret?`<span class="tag rt" style="float:right">${r.storno?'storniert':'zurückgegeben'}</span>`:''}<div class="pbw">${this._pb(it)}<div><div class="nm">${this._hl(it.n)}${it.c?`<span class="code">${this._hl(it.c)}</span>`:''}</div>${it.v?`<div class="var">${this._hl(it.v)}</div>`:''}</div></div></td><td class="num">${it.q} ×</td><td class="num">${eur(it.s)}</td></tr>`).join('')}</tbody></table></div>
       <div class="foot"><span class="ord">${az?`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`:r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span>${az?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
     const $=s=>root.querySelectorAll(s);
+    $('[data-lay]').forEach(b=>b.onclick=()=>{st.lay=b.dataset.lay;try{localStorage.setItem('bambu_rechnungen_lay',st.lay)}catch(e){}this._render()});
+    root.querySelector('#kg')?.addEventListener('input',e=>{st.kg=+e.target.value;$('.kgrid').forEach(g=>g.style.setProperty('--kg',st.kg+'px'))});
+    root.querySelector('#kg')?.addEventListener('change',()=>{try{localStorage.setItem('bambu_rechnungen_kg',String(st.kg))}catch(e){}});
     $('img.pb').forEach(i=>{i.onerror=()=>{i.onerror=null;i.src=PB_LEER;i.classList.add('leer');i.title='Kein Bild gefunden – antippen, um eine Bildadresse einzutragen'};
       i.onclick=ev=>{ev.preventDefault();ev.stopPropagation();try{this._pbSetzen(JSON.parse(i.dataset.pb))}catch(e){}}});
     const q=root.querySelector('#q'); q.addEventListener('input',()=>{st.q=q.value.trim();clearTimeout(this._qt);this._qt=setTimeout(()=>this._render(),180)});
