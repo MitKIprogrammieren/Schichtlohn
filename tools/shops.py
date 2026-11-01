@@ -24,9 +24,14 @@ def ean_ok(k):
 def gewicht(*texte):
     for t in texte:
         t = str(t or "").lower().replace(",", ".")
+        # Mehrfachpackungen: „1KG / 3 Rolls“, „5 x 1 kg“, „2er-Pack“ → Gesamtgewicht
+        n = 1
+        mn = re.search(r"\b([2-9]|10)\s*(?:rolls?|rollen|spools?|spulen|packs?|er[- ]?pack|stück)\b", t) or re.search(r"\b([2-9]|10)\s*[x×]\s*\d", t)
+        if mn:
+            n = int(mn.group(1))
         m = re.search(r"(\d+(?:\.\d+)?)\s*kg\b", t)
         if m:
-            return int(round(float(m.group(1)) * 1000))
+            return int(round(float(m.group(1)) * 1000)) * n
         m = re.search(r"(\d{2,4})\s*g\b", t)
         if m:
             return int(m.group(1))
