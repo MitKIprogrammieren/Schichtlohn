@@ -2314,7 +2314,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 "use strict";
 const BK="schichtlohn_bambu",TODO="todo.druckprotokoll";
 const PROXY=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev")+"/bambu";
-const J={ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haErr:"",cloudErr:"",sel:new Set(),src:"alle",printer:"",q:"",open:true,login:null,more:false};
+const J={total:0,alle:false,ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haErr:"",cloudErr:"",sel:new Set(),src:"alle",printer:"",q:"",open:true,login:null,more:false};
 
 /* --- Bambu-Konto (nur in diesem Browser) --- */
 function acct(){try{const v=JSON.parse(localStorage.getItem(BK)||"null");return v&&v.token?v:null}catch(e){return null}}
@@ -2413,13 +2413,24 @@ async function loadHa(force){
   catch(e){J.haErr=/not.?found|unknown|entity/i.test(String(e&&e.message))?"Die Liste „Druckprotokoll“ (todo.druckprotokoll) fehlt in Home Assistant.":String(e&&e.message||e)}
   J.haLoading=false;redraw();
 }
+/* Geladene Cloud-Historie im Browser merken, damit ältere Seiten nicht bei jedem Öffnen neu geholt werden müssen */
+const CK_HIST="sl_cloud_historie";
+function cloudCacheLaden(a){if(J.cloud.length)return;try{const c=JSON.parse(localStorage.getItem(CK_HIST)||"null");
+  if(c&&c.konto===(a.account||"")&&Array.isArray(c.items)){J.cloud=c.items;J.total=c.total||0;J.more=J.total>J.cloud.length}}catch(e){}}
+function cloudCacheSpeichern(a){try{localStorage.setItem(CK_HIST,JSON.stringify({konto:a.account||"",total:J.total||0,items:J.cloud.slice(0,5000)}))}catch(e){}}
+/* Ganze Historie in einem Rutsch: Seite für Seite, bis die Cloud nichts mehr hat */
+async function loadAll(){const a=acct();if(!a||J.alle)return;J.alle=true;redraw();
+  try{for(let i=0;i<200&&J.more&&!J.cloudErr;i++){while(J.cloudLoading)await new Promise(r=>setTimeout(r,200));await loadCloud(true,true)}}
+  finally{J.alle=false;redraw();try{window.dispatchEvent(new Event("sl-historie"))}catch(e){}}}
 async function loadCloud(force,more){
-  const a=acct();if(!a||J.cloudLoading)return;if(!force&&!more&&J.cloudAt&&Date.now()-J.cloudAt<300000)return;
+  const a=acct();if(!a||J.cloudLoading)return;cloudCacheLaden(a);if(!force&&!more&&J.cloudAt&&Date.now()-J.cloudAt<300000)return;
   J.cloudLoading=true;J.cloudErr="";redraw();cloudStatus();
   try{const after=more&&J.cloud.length?J.cloud[J.cloud.length-1].id:undefined;
     const d=await api("my/tasks",{token:a.token,region:a.region,query:{limit:100,after}});
     const hits=(d.hits||[]).map(fromCloud);const seen=new Set(more?J.cloud.map(x=>x.id):[]);const fresh=hits.filter(h=>!seen.has(h.id));
-    J.cloud=more?J.cloud.concat(fresh):hits;J.more=fresh.length>=100&&num(d.total)>J.cloud.length;J.cloudAt=Date.now()}
+    // neue Drucke vorne einfügen, schon geladene ältere behalten
+    if(more)J.cloud=J.cloud.concat(fresh);else{const ids=new Set(hits.map(h=>h.id));J.cloud=hits.concat(J.cloud.filter(x=>!ids.has(x.id)))}
+    J.total=Math.max(num(d.total)||0,J.cloud.length);J.more=(more?fresh.length>=100:true)&&J.total>J.cloud.length;J.cloudAt=Date.now();cloudCacheSpeichern(a)}
   catch(e){if(e.status===401||e.status===403){J.cloudErr="Die Anmeldung bei Bambu ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else J.cloudErr=String(e&&e.message||e)}
   J.cloudLoading=false;redraw();cloudStatus();
 }
@@ -2515,7 +2526,7 @@ function render(m){
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
     body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
-      ${a&&J.more&&J.src!=="ha"?`<div class="row" style="margin-top:8px"><span class="sp"></span><button class="btn sm" data-act="jobMore">Ältere aus der Cloud laden</button><span class="sp"></span></div>`:""}`}
+      ${a&&(J.more||J.alle)&&J.src!=="ha"?`<div class="row" style="margin-top:8px"><span class="sp"></span>${J.alle?`<span class="hint">Lade die ganze Druckhistorie … ${J.cloud.length}${J.total?" von "+J.total:""}</span>`:`<button class="btn ghost sm" data-act="jobMore">100 ältere laden</button><button class="btn sm" data-act="jobAlle">Alle laden${J.total>J.cloud.length?` (noch ${J.total-J.cloud.length})`:""}</button>`}<span class="sp"></span></div>`:""}`}
   const selJ=list.filter(j=>J.sel.has(j.key));
   const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
     <button class="btn ghost sm" data-act="jobClear">Auswahl aufheben</button>
@@ -2660,6 +2671,7 @@ document.addEventListener("click",async e=>{
   else if(a==="jobClear"){J.sel.clear();redraw()}
   else if(a==="jobReload"){loadHa(true);loadCloud(true);if(window.CRE&&CRE.connected())CRE.load(true)}
   else if(a==="jobMore"){loadCloud(true,true)}
+  else if(a==="jobAlle"){loadAll()}
   else if(a==="jobToQuote")await take("quote");
   else if(a==="jobNewOrder"){closeModal();await take("new")}
   else if(a==="jobToOrder")orderPick();
@@ -2727,7 +2739,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={historie:()=>buchIndex()?all():null,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
@@ -6028,14 +6040,16 @@ document.addEventListener("change",ev=>{const t=ev.target;if(t&&t.dataset&&t.dat
 /* Drucke aus der Druckhistorie (Bambu-Cloud, Druckprotokoll, Creality), die nie im Lager abgebucht wurden – zählen im Rückblick mit, ziehen aber nichts ab */
 const RB_HIST="sl_rb_historie";const rbMitHist=()=>{try{return localStorage.getItem(RB_HIST)!=="0"}catch(e){return true}};
 function rbHistorie(){if(!rbMitHist()||!window.JOBS||!JOBS.historie)return {liste:[],laedt:false};try{JOBS.auto()}catch(e){}
-  const L=JOBS.historie();if(L===null||JOBS.busy())return {liste:[],laedt:true};const out=[];
+  if(JOBS.mehr&&JOBS.mehr()&&!JOBS.laedtAlles())JOBS.alleLaden();const alles=JOBS.laedtAlles&&JOBS.laedtAlles();
+  const L=JOBS.historie();if(L===null||(JOBS.busy()&&!alles))return {liste:[],laedt:true,alles};const out=[];
   L.filter(j=>!(j.buch&&j.buch.some(Boolean))&&!isNaN(Date.parse(j.end||j.start))).forEach(j=>{const zeit=j.end||j.start;const basis={typ:"verbrauch",zeit,drucker:j.printer||"",anlass:j.failed?"abgebrochen":"",hist:true};
     const ms=(j.mats||[]).filter(m=>Number(m.g)>0);
     if(ms.length)ms.forEach(m=>out.push(Object.assign({},basis,{gramm:Number(m.g),hex:m.color||"",material:m.type||"",sorte:m.name&&m.type&&m.name!==m.type?m.name:""})));
     else if(Number(j.grams)>0)out.push(Object.assign({},basis,{gramm:Number(j.grams)}))});
-  return {liste:out,laedt:false}}
+  return {liste:out,laedt:!!alles,alles}}
+window.addEventListener("sl-historie",()=>{if(document.querySelector("#modal #lgRb"))rueckblickModal()});
 function rueckblickModal(){
-  const hi=rbHistorie();if(hi.laedt){rueckblickModal.n=(rueckblickModal.n||0)+1;if(rueckblickModal.n<8){clearTimeout(rueckblickModal.t);rueckblickModal.t=setTimeout(()=>{if(document.querySelector("#modal #lgRb"))rueckblickModal()},1500)}}else rueckblickModal.n=0;
+  const hi=rbHistorie();if(hi.laedt){rueckblickModal.n=(rueckblickModal.n||0)+1;if(hi.alles||rueckblickModal.n<8){clearTimeout(rueckblickModal.t);rueckblickModal.t=setTimeout(()=>{if(document.querySelector("#modal #lgRb"))rueckblickModal()},1500)}}else rueckblickModal.n=0;
   const alle=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit))).concat(hi.liste);
   const jahrVon=d=>new Date(d.zeit).getFullYear();
   const jahre=[...new Set(alle.map(jahrVon))].sort((a,b)=>b-a);const j=jahre.includes(G.rbJahr)?G.rbJahr:(jahre[0]||new Date().getFullYear());
@@ -6043,7 +6057,7 @@ function rueckblickModal(){
   const eur=x=>x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});const gr=a=>a.reduce((s,d)=>s+(Number(d.gramm)||0),0);const ko=a=>a.reduce((s,d)=>s+(Number(d.kosten)||0),0);
   const druckKey=d=>String(d.zeit).slice(0,16)+"|"+(d.drucker||"");const drucke=a=>new Set(a.map(druckKey)).size;
   const histG=gr(D.filter(d=>d.hist));
-  const sel=`<div class="lgtg">${jahre.length>1?jahre.map(y=>`<button type="button" class="chip${y===j?" on":""}" data-act="lgRbJahr" data-j="${y}">${y}</button>`).join(""):""}<span class="sp"></span><button type="button" class="chip${rbMitHist()?" on":""}" data-act="lgRbHist" title="Drucke aus der Bambu-Cloud und dem Druckprotokoll mitzählen, die nicht im Lager abgebucht wurden – am Lager ändert sich nichts">Ganze Druckhistorie${hi.laedt?" …":""}</button></div>`;
+  const sel=`<div class="lgtg">${jahre.length>1?jahre.map(y=>`<button type="button" class="chip${y===j?" on":""}" data-act="lgRbJahr" data-j="${y}">${y}</button>`).join(""):""}<span class="sp"></span><button type="button" class="chip${rbMitHist()?" on":""}" data-act="lgRbHist" title="Drucke aus der Bambu-Cloud und dem Druckprotokoll mitzählen, die nicht im Lager abgebucht wurden – am Lager ändert sich nichts">Ganze Druckhistorie${hi.laedt?" …":""}</button></div>${hi.alles?`<div class="lghint">Die ganze Druckhistorie wird aus der Bambu-Cloud geladen – die Zahlen wachsen noch.</div>`:""}`;
   let h=`<div class="lgform rb" id="lgRb">${sel}`;
   if(!metaDa())h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt.</div>`;
   else if(!D.length)h+=`<div class="panel empty">${hi.laedt?"Druckhistorie wird geladen …":`Für ${j} gibt es noch keinen Verbrauch. Jede Abbuchung nach einem Druck zählt hier mit${rbMitHist()?", dazu die Drucke aus der Bambu-Cloud":""}.`}</div>`;
