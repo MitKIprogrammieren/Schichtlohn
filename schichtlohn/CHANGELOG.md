@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.39 – 01.11.2026
+- Lager: Neuer Spulentyp „Klarsicht mit Rippen“ – durchsichtiger Flansch mit Rippengitter, glatter Fläche und großer klarer Nabe. Auswählbar unter Einstellungen → „Spule je Marke“.
+
 ## 3.2.38 – 01.11.2026
 - Einstellungen: Neben jeder Marke zeigt ein kleines Bild, wie ihre Spule aussieht – es ändert sich sofort beim Umstellen.
 - Kürzere Namen: „Milchig“ und „Lochmuster“.
