@@ -6,7 +6,8 @@
 // und die Filamentpreise (bezahlter Preis pro Rolle) über die Farbnummer ins SchichtLohn-Lager geschrieben.
 // Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), preise_ins_lager (true)
 (()=>{
-const VERSION='2.0.0';
+const VERSION='2.1.0';
+const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
 const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress'};
 const SEITE=150;
 /* Erstattung aus der Mail auf eine Bestellung anwenden (gleiche Regeln wie früher in der Automation); null = schon gezählt */
@@ -180,6 +181,10 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:last-child td{border-bottom:0}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .date{white-space:nowrap;color:var(--mut);font-variant-numeric:tabular-nums}
+.pbw{display:flex;gap:11px;align-items:flex-start}.pbw>div{min-width:0}
+.pb{width:46px;height:46px;flex:none;border-radius:var(--rs);object-fit:contain;background:#fff;border:1px solid var(--line);cursor:pointer;padding:2px;box-sizing:border-box}
+.pb.leer{background:var(--soft);padding:9px;opacity:.8}
+.ret .pb{opacity:.45;filter:grayscale(1)}
 .nm{font-weight:600}.var{color:var(--mut);font-size:.84rem}
 .code{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;background:var(--ac-soft);color:var(--ac-ink);padding:1px 6px;border-radius:5px;margin-left:6px;white-space:nowrap}
 .tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px;background:var(--chip);color:var(--mut);white-space:nowrap}
@@ -333,9 +338,17 @@ class BambuRechnungenCard extends HTMLElement{
       const name=az?it.n:invName(it.n), key=name+'|'+(anz&&!az?it.v:'');
       let e=m.get(key); if(!e){e={n:name,v:anz?it.v:'',g:az?azGruppe(it.n):gruppe(it.n),q:0,s:0,kaeufe:[]};m.set(key,e)}
       if(!anz){ const p=[...m.values()].find(x=>x.n===name&&x!==e&&x.q); if(p){p.s+=it.s;m.delete(key);continue} }
-      e.q+=anz; e.s+=it.s; e.kaeufe.push({d:r.d,o:r.o,q:anz,s:it.s}); }
+      if(it.asin&&!e.asin)e.asin=it.asin; if(!e.pv)e.pv=it.v; e.q+=anz; e.s+=it.s; e.kaeufe.push({d:r.d,o:r.o,q:anz,s:it.s}); }
     const L=[...m.values()]; L.forEach(e=>{e.kaeufe.sort((a,b)=>b.d.localeCompare(a.d));e.last=e.kaeufe[0]?.d||'';const k=e.kaeufe.find(x=>x.q);e.u=k?k.s/k.q:0});
     return L; }
+  /* Produktbild: der SchichtLohn-Server sucht es (Amazon/AliExpress per Artikel-ID, Bambu per Name) und hält es vor */
+  _pbq(it){const src=this.st.src;const p={quelle:src,id:src==='bambu'?'':(it.asin||''),n:it.n||'',v:src==='bambu'?(it.v||''):''};return p}
+  _pb(it){ if(!this._lb) return ''; const p=this._pbq(it);
+    const t=(this._pbv&&this._pbv[JSON.stringify(p)])||'';
+    return `<img class="pb" loading="lazy" decoding="async" alt="" src="${esc(this._lb+'/api/produktbild?'+new URLSearchParams(p)+(t?'&t='+t:''))}" data-pb="${esc(JSON.stringify(p))}">`; }
+  async _pbSetzen(p){ const url=prompt('Bildadresse für „'+p.n.slice(0,60)+'“ einfügen (Rechtsklick aufs Produktbild im Shop → Bildadresse kopieren).\nLeer lassen = wieder automatisch suchen.','');
+    if(url===null) return; try{ await this._api('/api/produktbild',this._json('PUT',Object.assign({},p,{url:url.trim()}))); this._pbv=this._pbv||{}; this._pbv[JSON.stringify(p)]=Date.now(); this._render(); }
+    catch(e){ this._log('err',esc(e.message||e)); } }
   _rows(){ const R=[];(this._data||[]).forEach(r=>r.items.forEach(it=>R.push({...it,d:r.d,o:r.o,storno:!!r.storno,u:it.q?it.s/it.q:it.s})));return R; }
   _hit(it){const st=this.st;if(!st.q)return true;const hay=norm(it.n+' '+it.v+' '+it.c+' '+it.o+' '+it.k+(it.ret?(it.storno?' storniert':' zurückgegeben'):''));return norm(st.q).split(/\s+/).filter(Boolean).every(w=>hay.includes(w))}
   _hl(s){const st=this.st;let out=esc(s);if(!st.q)return out;norm(st.q).split(/\s+/).filter(w=>w.length>1).forEach(w=>{out=out.replace(new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>')});return out}
@@ -351,7 +364,7 @@ class BambuRechnungenCard extends HTMLElement{
     return head+GL.map(([g,t])=>{const G=L.filter(e=>e.g===g);if(!G.length)return '';
       G.sort((a,b)=>so==='d'?b.last.localeCompare(a.last):so==='s'?b.s-a.s:a.n.localeCompare(b.n,'de'));
       return `<div class="tile tbl"><table><thead><tr><th colspan="2">${t} <span style="font-weight:400">· ${G.reduce((a,e)=>a+e.q,0)} Stück · ${eur(G.reduce((a,e)=>a+e.s,0))}</span></th><th class="num hs">Zuletzt</th><th class="num">Menge</th><th class="num hs">Stückpreis</th></tr></thead><tbody>
-        ${G.map(e=>`<tr title="${esc(e.kaeufe.map(k=>dm(k.d)+': '+(k.q||'Anzahlung')+' × – '+k.o).join('\n'))}"><td colspan="2"><div class="nm">${this._hl(e.n)}</div>${e.v&&!az?`<div class="var">${this._hl(e.v)}</div>`:''}<div class="ord">${e.kaeufe.length>1?e.kaeufe.length+' Käufe, ':''}gesamt ${eur(e.s)}</div></td><td class="num date hs">${dm(e.last)}</td><td class="num"><b>${e.q}</b></td><td class="num hs">${e.u?eur(e.u):'–'}</td></tr>`).join('')}</tbody></table></div>`}).join('')
+        ${G.map(e=>`<tr title="${esc(e.kaeufe.map(k=>dm(k.d)+': '+(k.q||'Anzahlung')+' × – '+k.o).join('\n'))}"><td colspan="2"><div class="pbw">${this._pb({n:e.n,v:e.pv||e.v,asin:e.asin})}<div><div class="nm">${this._hl(e.n)}</div>${e.v&&!az?`<div class="var">${this._hl(e.v)}</div>`:''}<div class="ord">${e.kaeufe.length>1?e.kaeufe.length+' Käufe, ':''}gesamt ${eur(e.s)}</div></div></div></td><td class="num date hs">${dm(e.last)}</td><td class="num"><b>${e.q}</b></td><td class="num hs">${e.u?eur(e.u):'–'}</td></tr>`).join('')}</tbody></table></div>`}).join('')
       +`<div class="row"><span class="hint">Sortieren:</span><div class="seg">${[['g','Name'],['d','Zuletzt gekauft'],['s','Wert']].map(([k,l])=>`<button data-isort="${k}" aria-pressed="${so===k}">${l}</button>`).join('')}</div></div>`; }
   _render(){ const root=this.shadowRoot?.getElementById('root'); if(!root) return; const st=this.st; const data=this._data||[];
     const sig=[st.src,st.q,st.k,st.y,st.view,st.sort,st.dir,st.g].join('|'); if(sig!==this._sig){this._sig=sig;st.n=SEITE} st.n=st.n||SEITE;
@@ -383,13 +396,15 @@ class BambuRechnungenCard extends HTMLElement{
     ${st.view==='bestand'?this._bestandHTML(inY):`<div class="tile stats"><div class="stat"><b>${eur(paid)}</b><span>${filtered?'Summe der Treffer':'bezahlt'}</span></div><div class="stat"><b>${rows.reduce((s,r)=>s+r.q,0)}</b><span>Stück</span></div><div class="stat"><b>${nf}</b><span>Filament-Rollen</span></div><div class="stat"><b>${nf?eur(fil.reduce((s,r)=>s+r.s,0)/nf):'–'}</b><span>Ø bezahlt pro Rolle</span></div></div>
     <p class="count">${st.view==='art'?`${rows.length} Positionen${filtered?' gefunden':''}`:`${vis.length} Bestellungen`}</p>
     ${st.view==='art'?`<div class="tile tbl"><table><thead><tr>${[['d','Datum',''],['n','Artikel',''],[null,'Art','hs'],['q','Menge','num'],['u','Stückpreis','num'],['s','Summe','num']].map(([k,l,c])=>`<th class="${c}" ${k?`aria-sort="${st.sort===k?(st.dir>0?'ascending':'descending'):'none'}"`:''}>${k?`<button data-sort="${k}">${l}</button>`:l}</th>`).join('')}</tr></thead><tbody>
-      ${rows.length?rows.slice(0,st.n).map(r=>`<tr><td class="date">${dm(r.d)}</td><td${r.ret?' class="ret"':''}><div class="nm">${r.asin&&az?`<a href="${SRC[st.src].art(r.asin)}" target="_blank" rel="noopener">${this._hl(r.n)}</a>`:this._hl(r.n)}${r.c?`<span class="code">${this._hl(r.c)}</span>`:''}</div>${r.v?`<div class="var">${this._hl(r.v)}</div>`:''}<div class="ord">${r.o}</div></td><td class="hs">${r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:`<span class="tag${r.k==='Filament'?' f':''}">${r.k==='Drucker'?'Drucker & AMS':r.k==='Zubehör'&&az?AZ_GNAME[azGruppe(r.n)]:r.k}</span>`}</td><td class="num">${r.q}</td><td class="num">${eur(r.u)}</td><td class="num">${eur(r.s)}</td></tr>`).join(''):`<tr><td colspan="6" class="empty">${data.length?'Nichts gefunden. Probier einen kürzeren Begriff, z. B. nur die Farbe oder die Farbnummer.':'Noch keine Rechnungen. Zieh eine PDF auf die Karte.'}</td></tr>`}
+      ${rows.length?rows.slice(0,st.n).map(r=>`<tr><td class="date">${dm(r.d)}</td><td${r.ret?' class="ret"':''}><div class="pbw">${this._pb(r)}<div><div class="nm">${r.asin&&az?`<a href="${SRC[st.src].art(r.asin)}" target="_blank" rel="noopener">${this._hl(r.n)}</a>`:this._hl(r.n)}${r.c?`<span class="code">${this._hl(r.c)}</span>`:''}</div>${r.v?`<div class="var">${this._hl(r.v)}</div>`:''}<div class="ord">${r.o}</div></div></div></td><td class="hs">${r.ret?`<span class="tag rt">${r.storno?'storniert':'zurückgegeben'}</span>`:`<span class="tag${r.k==='Filament'?' f':''}">${r.k==='Drucker'?'Drucker & AMS':r.k==='Zubehör'&&az?AZ_GNAME[azGruppe(r.n)]:r.k}</span>`}</td><td class="num">${r.q}</td><td class="num">${eur(r.u)}</td><td class="num">${eur(r.s)}</td></tr>`).join(''):`<tr><td colspan="6" class="empty">${data.length?'Nichts gefunden. Probier einen kürzeren Begriff, z. B. nur die Farbe oder die Farbnummer.':'Noch keine Rechnungen. Zieh eine PDF auf die Karte.'}</td></tr>`}
       </tbody></table></div>${mehr(rows.length)}`
     :`<div class="invs">${vis.length?vis.slice(0,st.n).map(r=>{const its=r.items.filter(it=>!filtered||((!st.k||it.k===st.k)&&this._hit(it)));const pcs=r.items.reduce((s,i)=>s+i.q,0);const m=METH[r.m]||r.m||'';
       return `<details class="tile"${filtered?' open':''}><summary><span class="when">${dm(r.d)}</span><span class="meta">${pcs} Stück${m?' · '+esc(m):''}${r.ship?' · Versand '+eur(r.ship):''}${r.ohne?' · <span class="tag">ohne Rechnung</span>':''}<br><span class="ord">${r.o}${r.i?' · Rechnung '+esc(r.i):''}</span></span><span class="sum">${eur(r.pay)}${r.storno?'<small>storniert</small>':r.erst?`<small>${eur(r.erst)} erstattet</small>`:''}${r.tot&&r.tot!==r.net?`<small>von ${eur(r.tot)}${r.gift?', Rest per Gutschein':r.disc?' vor Rabatt':', Rest per Gutschein'}</small>`:''}</span></summary>
-      <div class="tbl"><table><tbody>${its.map(it=>`<tr><td${it.ret?' class="ret"':''}>${it.ret?`<span class="tag rt" style="float:right">${r.storno?'storniert':'zurückgegeben'}</span>`:''}<div class="nm">${this._hl(it.n)}${it.c?`<span class="code">${this._hl(it.c)}</span>`:''}</div>${it.v?`<div class="var">${this._hl(it.v)}</div>`:''}</td><td class="num">${it.q} ×</td><td class="num">${eur(it.s)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="tbl"><table><tbody>${its.map(it=>`<tr><td${it.ret?' class="ret"':''}>${it.ret?`<span class="tag rt" style="float:right">${r.storno?'storniert':'zurückgegeben'}</span>`:''}<div class="pbw">${this._pb(it)}<div><div class="nm">${this._hl(it.n)}${it.c?`<span class="code">${this._hl(it.c)}</span>`:''}</div>${it.v?`<div class="var">${this._hl(it.v)}</div>`:''}</div></div></td><td class="num">${it.q} ×</td><td class="num">${eur(it.s)}</td></tr>`).join('')}</tbody></table></div>
       <div class="foot"><span class="ord">${az?`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`:r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span>${az?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
     const $=s=>root.querySelectorAll(s);
+    $('img.pb').forEach(i=>{i.onerror=()=>{i.onerror=null;i.src=PB_LEER;i.classList.add('leer');i.title='Kein Bild gefunden – antippen, um eine Bildadresse einzutragen'};
+      i.onclick=ev=>{ev.preventDefault();ev.stopPropagation();try{this._pbSetzen(JSON.parse(i.dataset.pb))}catch(e){}}});
     const q=root.querySelector('#q'); q.addEventListener('input',()=>{st.q=q.value.trim();clearTimeout(this._qt);this._qt=setTimeout(()=>this._render(),180)});
     root.querySelector('#mehr')?.addEventListener('click',()=>{st.n+=300;this._render()}); if(focus==='q'){q.focus();try{q.setSelectionRange(caret,caret)}catch(e){}}
     root.querySelector('#clr')?.addEventListener('click',()=>{st.q='';this._render();root.querySelector('#q')?.focus()});

@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.34 – 01.11.2026
+- Rechnungen: Zu jeder Position gibt es jetzt ein kleines Produktbild. Der Server sucht es selbst – Amazon und AliExpress über die Artikelnummer, Bambu Lab im Bambu-Store (bei Filament in der gekauften Farbe) – und hebt es auf, damit die Karte schnell bleibt.
+- Kein Bild gefunden oder ein falsches? Bild antippen und die Bildadresse aus dem Shop einfügen.
+
 ## 3.2.33 – 01.11.2026
 - PDF-Bestandsliste: Die neuen Spulen gibt es jetzt auch im PDF – mit Füllstand, Refill auf Kartonkern und der in den Einstellungen gewählten Spulenart. Mit „Filamentrolle (klassisch)“ bleibt das PDF wie bisher.
 
