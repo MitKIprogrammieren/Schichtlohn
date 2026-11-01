@@ -182,6 +182,111 @@ def slice_info(daten, platte=None):
     return out
 
 
+def datei_kopf(daten, platte=None):
+    """3MF-Inhalt → Kurzinfo der gewählten Platte: {platte, minuten, gramm, filamente[{typ, farbe, gramm}], bild (PNG-Bytes oder None)}"""
+    with zipfile.ZipFile(io.BytesIO(daten)) as z:
+        root = ET.fromstring(z.read("Metadata/slice_info.config"))
+        wahl = _platte_wahl(root, platte)
+        meta = {m.get("key"): m.get("value") for m in (wahl.findall("metadata") if wahl is not None else [])}
+        idx = _int(meta.get("index"), platte or 1) or 1
+        namen = set(z.namelist())
+        bild = None
+        for n in (f"Metadata/plate_{idx}.png", f"Metadata/plate_{idx}_small.png", "Metadata/plate_1.png", "Metadata/thumbnail.png"):
+            if n in namen:
+                bild = z.read(n)
+                break
+    fil = []
+    for f in (wahl.findall("filament") if wahl is not None else []):
+        g = float(f.get("used_g") or 0)
+        if g > 0:
+            fil.append({"typ": f.get("type") or "", "farbe": _farbe(f.get("color")), "fid": f.get("tray_info_idx") or "", "gramm": round(g, 2)})
+    gramm = sum(f["gramm"] for f in fil) or float(meta.get("weight") or 0)
+    return {"platte": idx, "minuten": round(float(meta.get("prediction") or 0) / 60), "gramm": round(gramm, 2), "filamente": fil, "bild": bild}
+
+
+_LIST_RE = re.compile(r"^[-d][rwx-]{9}\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\w{3})\s+(\d{1,2})\s+(\d{1,2}:\d{2}|\d{4})\s+(.+)$")
+_MONATE = {m: i + 1 for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
+SPEICHER_ORDNER = ("/", "/cache", "/model", "/sdcard")
+SPEICHER_MAX_MB = 80
+
+
+def _list_zeit(mon, tag, rest):
+    """Datum aus einer LIST-Zeile (ohne Jahr = innerhalb der letzten 12 Monate)."""
+    jetzt = time.localtime()
+    try:
+        if ":" in rest:
+            h, mi = rest.split(":")
+            t = time.mktime((jetzt.tm_year, _MONATE.get(mon, 1), int(tag), int(h), int(mi), 0, 0, 0, -1))
+            if t > time.time() + 86400:
+                t = time.mktime((jetzt.tm_year - 1, _MONATE.get(mon, 1), int(tag), int(h), int(mi), 0, 0, 0, -1))
+            return t
+        return time.mktime((int(rest), _MONATE.get(mon, 1), int(tag), 12, 0, 0, 0, 0, -1))
+    except (ValueError, OverflowError):
+        return 0
+
+
+def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
+    """Druckdateien (.3mf) im Speicher des Druckers auflisten und auswerten.
+    bekannt: {pfad: eintrag} aus dem letzten Lauf – unveränderte Dateien (gleiche Größe) werden nicht neu geladen.
+    → [{pfad, titel, groesse, zeit, platte, minuten, gramm, filamente, bild (Bytes oder None, nur bei neu geladenen)}]"""
+    bekannt = bekannt or {}
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ftp = _FTPS(context=ctx, timeout=timeout)
+    ftp.connect(ip, 990)
+    try:
+        ftp.login("bblp", code)
+        ftp.prot_p()
+        dateien, gesehen = [], set()
+        for ordner in SPEICHER_ORDNER:
+            zeilen = []
+            try:
+                ftp.dir(ordner, zeilen.append)
+            except ftplib.all_errors:
+                continue
+            for z in zeilen:
+                m = _LIST_RE.match(z.strip())
+                if not m or z.startswith("d"):
+                    continue
+                name = m.group(5).strip()
+                if not name.lower().endswith(".3mf") or name in gesehen:
+                    continue
+                gesehen.add(name)
+                pfad = ordner.rstrip("/") + "/" + name
+                dateien.append({"pfad": pfad, "name": name, "groesse": int(m.group(1)), "zeit": _list_zeit(m.group(2), m.group(3), m.group(4))})
+        dateien.sort(key=lambda d: -d["zeit"])
+        out = []
+        for d in dateien[:max_dateien]:
+            titel = re.sub(r"(\.gcode)?\.3mf$", "", d["name"], flags=re.I)
+            alt = bekannt.get(d["pfad"])
+            if alt and alt.get("groesse") == d["groesse"]:
+                out.append(dict(alt, zeit=d["zeit"] or alt.get("zeit", 0), bild=None))
+                continue
+            e = {"pfad": d["pfad"], "titel": titel, "groesse": d["groesse"], "zeit": d["zeit"], "platte": None, "minuten": 0,
+                 "gramm": 0, "filamente": [], "bild": None, "fehler": ""}
+            if d["groesse"] > SPEICHER_MAX_MB * 1024 * 1024:
+                e["fehler"] = "Datei zu groß"
+                out.append(e)
+                continue
+            puffer = io.BytesIO()
+            try:
+                ftp.retrbinary("RETR " + d["pfad"], puffer.write)
+                m = re.search(r"plate_(\d+)", d["name"])
+                e.update(datei_kopf(puffer.getvalue(), int(m.group(1)) if m else None))
+            except ftplib.all_errors as ex:
+                e["fehler"] = f"nicht lesbar: {ex}"
+            except Exception as ex:  # keine gültige Druckdatei
+                e["fehler"] = f"nicht auswertbar: {ex}"
+            out.append(e)
+        return out
+    finally:
+        try:
+            ftp.close()
+        except Exception:
+            pass
+
+
 def _platte_wahl(root, platte):
     platten = root.findall("plate")
     if not platten:
@@ -700,6 +805,12 @@ class Drucker:
     def _datei_auswerten(self, a, daten, platte):
         a["datei"] = slice_info(daten, platte)
         try:
+            k = datei_kopf(daten, platte)
+            a["vorschau"] = k.get("bild")
+            a["minuten_plan"] = k.get("minuten") or 0
+        except Exception as e:
+            self.wirt.log(f"Drucker {self.serial}: Vorschaubild nicht lesbar: {e}")
+        try:
             a["objekte"] = objekte(daten, platte)
         except Exception as e:
             self.wirt.log(f"Drucker {self.serial}: Objekte nicht lesbar: {e}")
@@ -824,7 +935,8 @@ class Drucker:
                 self.wirt.log(f"Drucker {self.serial}: Vorschaubild nicht abrufbar: {e}")
         self.wirt.druckende(self, {"anlass": anlass, "anteil": anteil, "posten": posten, "quelle": quelle,
                                    "aufgabe": a.get("name") or "", "task": a.get("task") or "", "dauer": dauer, "bild": bild,
-                                   "uebersprungen": len(a.get("skip") or {}), "skip_genau": bool(a.get("skip_genau", True))})
+                                   "uebersprungen": len(a.get("skip") or {}), "skip_genau": bool(a.get("skip_genau", True)),
+                                   "start": a.get("start") or 0, "_vorschau": a.get("vorschau")})
 
 
 class Bambu:

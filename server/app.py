@@ -39,6 +39,7 @@ Mit der Umgebungsvariable TOKEN verlangt der Server bei /api/* den Schlüssel
 (Kopfzeile X-Token oder ?token=…). Ohne TOKEN ist alles im Heimnetz offen.
 """
 import io
+import hashlib
 import json
 import os
 import re
@@ -1635,10 +1636,120 @@ class _Wirt:
     def druckende(self, dr, erg):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
         erg["praefix"] = drucker_mod.praefix(dr.d)
+        vorschau = erg.pop("_vorschau", None)
+        try:
+            druck_merken(dr, name, erg, vorschau)
+        except Exception as ex:
+            print(f"{name}: Druck nicht ins Protokoll geschrieben: {ex}", flush=True)
         druck_abbuchen(name, erg)
 
     def log(self, text):
         print(text, flush=True)
+
+
+# ---------------------------------------------------------------- Druckprotokoll des Servers und Druckerspeicher
+# Jeder Druck, den der Server enden sieht (egal ob aus Bambu Studio übers Heimnetz oder über die Cloud gestartet),
+# kommt mit Titel, Zeit, Gramm je Filament und Vorschaubild in eine Liste. Dazu liest der Server alle 6 Stunden die
+# Druckdateien im Speicher der Drucker (IP und Zugangscode nötig) – so erscheinen auch ältere Drucke.
+DRUCKE_KEY = "_drucke"
+DRUCKE_MAX = 1000
+SPEICHER_KEY = "_druckerspeicher"
+SPEICHER_ALLE_H = 6
+DRUCKBILDER = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "druckbilder")
+SPEICHER_STAND = {"laeuft": False}
+_speicher_lock = threading.Lock()
+
+
+def _bild_id(*teile):
+    return hashlib.sha1("|".join(str(t) for t in teile).encode()).hexdigest()[:16]
+
+
+def _bild_speichern(bid, daten):
+    if not daten:
+        return ""
+    try:
+        os.makedirs(DRUCKBILDER, exist_ok=True)
+        with open(os.path.join(DRUCKBILDER, bid + ".png"), "wb") as f:
+            f.write(daten)
+        return bid
+    except OSError:
+        return ""
+
+
+def _iso(t):
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(t)) if t else ""
+
+
+def druck_merken(dr, name, erg, vorschau=None):
+    ende = time.time()
+    start = erg.get("start") or (ende - erg.get("dauer", 0) if erg.get("dauer") else 0)
+    did = _bild_id(dr.serial, int(ende))
+    eintrag = {"id": did, "drucker": name, "serial": dr.serial, "praefix": erg.get("praefix") or "",
+               "titel": erg.get("aufgabe") or "Druck", "start": _iso(start), "ende": _iso(ende),
+               "minuten": round((ende - start) / 60) if start else round(erg.get("dauer", 0) / 60),
+               "abgebrochen": erg.get("anlass") != "Druck fertig", "fortschritt": round((erg.get("anteil") or 1) * 100),
+               "quelle": erg.get("quelle") or "", "uebersprungen": erg.get("uebersprungen") or 0,
+               "filamente": [{"gramm": po.get("gramm") or 0, "farbe": po.get("col") or "", "typ": po.get("material") or "",
+                              "name": po.get("name") or "", "ort": po.get("ort") or "", "fid": po.get("fid") or ""}
+                             for po in erg.get("posten") or [] if (po.get("gramm") or 0) > 0],
+               "bild": _bild_speichern(did, vorschau), "bild_url": erg.get("bild") or ""}
+    eintrag["gramm"] = round(sum(f["gramm"] for f in eintrag["filamente"]), 2)
+    alt, _ = daten_lesen(DRUCKE_KEY)
+    liste = [eintrag] + [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
+    daten_schreiben(DRUCKE_KEY, liste[:DRUCKE_MAX])
+    melden({"typ": "drucke"})
+
+
+def speicher_abrufen(anlass="automatisch"):
+    """Druckdateien aller Drucker mit IP und Zugangscode auslesen."""
+    if not _speicher_lock.acquire(blocking=False):
+        return None
+    SPEICHER_STAND["laeuft"] = True
+    melden({"typ": "drucke", "laeuft": True})
+    try:
+        alt, _ = daten_lesen(SPEICHER_KEY)
+        alt = alt if isinstance(alt, dict) else {}
+        neu = {}
+        for d in einstellungen().get("drucker") or []:
+            serial = str(d.get("serial") or "").upper()
+            if not serial or d.get("aktiv") is False:
+                continue
+            vorher = alt.get(serial) or {}
+            name = d.get("name") or drucker_mod.MODELL_NAMEN.get(d.get("modell") or "", serial)
+            if not (d.get("ip") and d.get("code")):
+                neu[serial] = {"drucker": name, "stand": vorher.get("stand"), "fehler": "Keine IP-Adresse eingetragen",
+                               "dateien": vorher.get("dateien") or []}
+                continue
+            bekannt = {x["pfad"]: x for x in vorher.get("dateien") or [] if isinstance(x, dict) and x.get("pfad")}
+            try:
+                liste = drucker_mod.speicher_lesen(d["ip"], d["code"], bekannt)
+                for e in liste:
+                    bild = e.pop("bild", None)
+                    if bild:
+                        e["bild_id"] = _bild_speichern(_bild_id(serial, e["pfad"], e["groesse"]), bild)
+                    e["zeit_iso"] = _iso(e.get("zeit"))
+                neu[serial] = {"drucker": name, "stand": time.strftime("%Y-%m-%d %H:%M"), "fehler": None, "dateien": liste}
+                print(f"Druckerspeicher {name}: {len(liste)} Druckdateien", flush=True)
+            except Exception as ex:
+                neu[serial] = {"drucker": name, "stand": vorher.get("stand"), "fehler": drucker_mod.fehlertext(ex),
+                               "dateien": vorher.get("dateien") or []}
+                print(f"Druckerspeicher {name}: {ex}", flush=True)
+        daten_schreiben(SPEICHER_KEY, neu)
+        return neu
+    finally:
+        SPEICHER_STAND["laeuft"] = False
+        _speicher_lock.release()
+        melden({"typ": "drucke", "laeuft": False})
+
+
+def speicher_auto():
+    time.sleep(240)
+    while True:
+        try:
+            speicher_abrufen()
+        except Exception as ex:
+            print("Druckerspeicher:", ex, flush=True)
+        time.sleep(SPEICHER_ALLE_H * 3600)
 
 
 BAMBU = drucker_mod.Bambu(_Wirt())
@@ -2275,6 +2386,21 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({"entity_id": eid, "drucker": f["drucker"], "ort": fach_ort(eid), "name": f["name"],
                             "filament_id": f["fid"], "farbe": f["col"], **erg})
             return self._json(200, {"faecher": out, "meldung_an": einstellungen().get("fach_meldung", True)})
+        if teile == ["drucke"] and methode == "GET":
+            w, _ = daten_lesen(DRUCKE_KEY)
+            sp, _ = daten_lesen(SPEICHER_KEY)
+            return self._json(200, {"drucke": w if isinstance(w, list) else [], "speicher": sp if isinstance(sp, dict) else {},
+                                    "laeuft": SPEICHER_STAND["laeuft"]})
+        if teile == ["drucke", "speicher"] and methode == "POST":
+            im_hintergrund(speicher_abrufen, "von Hand")
+            return self._json(200, {"ok": True, "laeuft": True})
+        if len(teile) == 3 and teile[:2] == ["drucke", "bild"] and methode == "GET":
+            bid = re.sub(r"[^0-9a-f]", "", teile[2])[:16]
+            pf = os.path.join(DRUCKBILDER, bid + ".png")
+            if not bid or not os.path.exists(pf):
+                return self._senden(404, b"", "image/png", "private, max-age=600")
+            with open(pf, "rb") as f:
+                return self._senden(200, f.read(), "image/png", "private, max-age=2592000")
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
         if teile == ["drucker", "lan"] and methode == "POST":
@@ -2404,6 +2530,7 @@ if __name__ == "__main__":
     if os.environ.get("AUTO_AKTUALISIEREN", "1") != "0":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
     threading.Thread(target=preise_auto, daemon=True).start()
+    threading.Thread(target=speicher_auto, daemon=True).start()
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     threading.Thread(target=faecher_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
