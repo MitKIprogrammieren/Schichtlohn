@@ -426,7 +426,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
-        ${karte(IC.db,"Filament-Datenbank","",`<p id="srv_fdbinfo">wird geprüft …</p>`)}
+        ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb" title="Neueste Filament-Datenbank auf den Server holen">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
         ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp" title="Neueste App-Version vom Server holen lassen">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
         <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
           <p>Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</p>
@@ -539,7 +539,7 @@ const SRV=window.SRV=(()=>{
     if(a==="srvTgTest"){msg("Sende Testmeldung …");try{await req("POST","/api/telegram/test");msg("✓ Testmeldung an Telegram gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
     if(a==="srvTgAus"){try{E=await req("PUT","/api/einstellungen",{telegram:{token:"",chat:"",chat_name:""}});telegramForm();msg("Telegram getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
-    if(a==="srvFdb"){msg("Lade die neueste Filament-Datenbank auf die Synology …");b.disabled=true;
+    if(a==="srvFdb"){msg("Hole die neueste Filament-Datenbank auf den Server …");b.disabled=true;
       try{const d=await req("POST","/api/filamentdb/aktualisieren");G_fdbNeu();msg(d.vorher===d.stand?`✓ Schon aktuell (Stand ${esc(d.stand)}).`:`✓ Aktualisiert auf Stand ${esc(d.stand)} (vorher ${esc(d.vorher||"–")}).`);fdbInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
     if(a==="srvTest"){msg("Prüfe …");try{const d=await test(u,t);const l=await req("GET","/api/listen/todo.filament",undefined,u,t);msg(`✓ Verbunden, Version ${esc(d.version)}. Auf dem Server: ${l.items.length} Sorten im Lager.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
@@ -5885,7 +5885,9 @@ document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plzq"){PL.w
 function plRow(z,d){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e,stand]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));const sd=stand?new Date(stand):null;
   return {shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),matRaw:material,farbeRaw:farbe,key:plKey(titel),titel:titel+(sd&&!isNaN(sd)?" · übernommen am "+sd.toLocaleDateString("de-DE"):""),mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e}}
 function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return PL.laden;
-  PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null)]).then(([d,ep])=>{
+  PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null),
+    fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise-stand.json?t="+Math.floor(Date.now()/36e5)).then(r=>r.ok?r.json():null).catch(()=>null)]).then(([d,ep,ps])=>{
+    if(ps&&ps.geprueft&&!d.fehler)d.geprueft=ps.geprueft;
     if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
     if(ep&&ep.z.length){d.shops=Object.assign({},d.shops,ep.shops);d.z=d.z.concat(ep.z)}
     const idx={},ean={};d.z.forEach(z=>{const r=plRow(z,d),e=r.ean;
@@ -5936,6 +5938,14 @@ function gekauftHTML(e,kurz){const g=gekauftVon(e);if(!g)return "";const teile=[
 function plLager(e,a){if(!(e.preis>0))return "";const pr=e.preis*(e.gewicht||1000)/1000,b=a[0];let v="";
   if(b){const d=Math.round((e.preis-b.pk)*100)/100;v=Math.abs(d)<.01?`<em class="pllv">gleich wie ${esc(b.shop)}</em>`:d<0?`<em class="pllv gut">${eur(-d)}/kg unter ${esc(b.shop)}</em>`:`<em class="pllv teuer">${eur(d)}/kg über ${esc(b.shop)}</em>`}
   return `<div class="plo pllg" title="Preis aus deinem Lager"><span class="plon"><span class="pllt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/></svg>Lagerpreis</span>${v}${gekauftHTML(e,1)}</span><span class="plop"><b>${eur(pr)}</b><small>je Rolle · ${kg(e.gewicht||1000)}</small></span><span class="plok">${eur(e.preis)}/kg</span><span class="ploa"></span></div>`}
+/* Wie aktuell sind die Preise? Shoppreise (GitHub, täglich geprüft) und eBay/AliExpress (Server, täglich) */
+function plWann(t){const d=new Date(t);if(isNaN(d))return esc(t);const h=new Date();const g=new Date(Date.now()-864e5);const uhr=d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+  return d.toDateString()===h.toDateString()?"heute "+uhr:d.toDateString()===g.toDateString()?"gestern "+uhr:d.toLocaleDateString("de-DE",{day:"numeric",month:"long"})}
+function plStandZeile(d,stand){const alt=t=>{const x=new Date(String(t).replace(" ","T"));return isNaN(x)||Date.now()-x>2*864e5};
+  const z=(warn,txt)=>`<span class="${warn?"warn":"ok"}">${warn?"⚠":"✓"} ${txt}</span>`;
+  let h=d.geprueft?z(alt(d.geprueft),`Shoppreise geprüft ${plWann(d.geprueft)} · letzte Preisänderung ${esc(stand)}`):z(alt(d.stand),`Shoppreise vom ${esc(stand)}`);
+  if(srv()&&PV.d){const p=PV.d;h+=p.laeuft?`<span>eBay und AliExpress werden gerade abgerufen …</span>`:p.stand?z(alt(p.stand)||!!p.fehler,`eBay und AliExpress: ${plWann(String(p.stand).replace(" ","T"))}${p.fehler?" (mit Fehlern)":""}`):""}
+  return h}
 function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div class="lgform" id="lgPl">`;
   if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else{modal("Preisliste",h,`<button class="btn ghost" data-act="epEin" title="Preise von einer geöffneten Shopseite übernehmen, z. B. aus dem Bambu-Store">Preise aus Shopseiten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
     preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(err=>{const b=document.querySelector("#modal #lgPl");if(b)b.innerHTML=`<div class="panel empty">${esc(err.message||String(err))}</div>`});return}
@@ -5945,7 +5955,8 @@ function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div cl
   let spar=0,nsp=0;alle.forEach(({a})=>{const j=a.find(o=>o.shop==="3DJake");if(j&&a[0]&&a[0].shop!=="3DJake"){spar+=j.pk-a[0].pk;nsp++}});
   const st=new Date(d.stand);const stand=isNaN(st)?d.stand:st.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   h+=`<div class="plkpis"><div><b>${alle.length}</b><span>Sorten im Lager</span></div><div><b>${mit}</b><span>mit Preis</span></div>
-      <div><b>${Object.keys(shops).length}</b><span>Shops · ${esc(stand)}</span></div><div class="plspar"><b>${nsp?eur(spar/nsp):"–"}</b><span>je kg unter 3DJake</span></div></div>
+      <div><b>${Object.keys(shops).length}</b><span>Shops</span></div><div class="plspar"><b>${nsp?eur(spar/nsp):"–"}</b><span>je kg unter 3DJake</span></div></div>
+    <div class="plstand">${plStandZeile(d,stand)}</div>
     <div class="plbar"><input type="search" id="plq" placeholder="Marke, Material oder Farbe …" value="${esc(PL.q)}"><div class="lgtg">${[["alle","Alle"],["mit","Mit Preis"],["ohne","Ohne Treffer"]].map(([k,t])=>`<button type="button" class="chip${PL.f===k?" on":""}" data-act="lgPlF" data-f="${k}">${t}</button>`).join("")}</div></div>
     <div class="plshops">${Object.entries(shops).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span>${esc(k)} <b>${v}</b></span>`).join("")}</div><div class="pllist">`;
   const logo=m=>{const u=window.LAGER&&LAGER.logoUrls?LAGER.logoUrls(m).find(x=>x.own&&/^data:/.test(x.u)):null;return u?`<img class="plmkl" src="${u.u}" alt="" style="filter:${LAGER.darkUI&&LAGER.darkUI()?"none":"invert(1) brightness(.3)"}">`:""};
@@ -6518,6 +6529,7 @@ body.rx-einfach #mbar{display:none!important}
 [data-skin] nav.tabs button[aria-current="page"],[data-skin] .seg button[aria-pressed="true"],.rx-seg button[aria-pressed="true"]{color:var(--accent-ink)!important}
 /* Preisliste: breites, hohes Fenster (nicht Vollbild), Liste scrollt darin */
 .modal.plwide{width:min(1040px,94vw);height:min(88vh,1100px);display:flex;flex-direction:column}.modal.plwide .mb{flex:1;min-height:0;overflow:auto}
+.plstand{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-2)}.plstand .ok{color:var(--fg-2)}.plstand .warn{color:var(--warn)}
 .plkpis{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass-2,var(--glass));overflow:hidden}
 .plkpis>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;padding:9px 4px}
 .plkpis>div+div{border-left:1px solid var(--line)}

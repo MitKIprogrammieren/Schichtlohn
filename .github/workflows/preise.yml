@@ -35,10 +35,12 @@ jobs:
               alt={}
           open("/tmp/gleich","w").write("1" if neu.get("z")==alt.get("z") else "0")
           PY
-          if [ "$(cat /tmp/gleich)" = "1" ]; then git checkout -- preise.json tools/haendler/3djake.jsonl; echo "Keine Änderung"; exit 0; fi
           git config user.name "MitKIprogrammieren"
           git config user.email "MitKIprogrammieren@users.noreply.github.com"
-          git add preise.json tools/haendler/3djake.jsonl
-          git commit -m "Shoppreise aktualisiert"
+          if [ "$(cat /tmp/gleich)" = "1" ]; then git checkout -- preise.json tools/haendler/3djake.jsonl; echo "Keine Preisänderung"; else git add preise.json tools/haendler/3djake.jsonl; fi
+          # Wann zuletzt geprüft wurde – kleine eigene Datei, damit preise.json (1 MB) nicht jeden Tag neu gespeichert wird
+          python3 -c "import json,time;s=json.load(open('preise.json')).get('stand');json.dump({'geprueft':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'stand':s},open('preise-stand.json','w'))"
+          git add preise-stand.json
+          git commit -m "$( [ "$(cat /tmp/gleich)" = "1" ] && echo 'Shoppreise geprüft (keine Änderung)' || echo 'Shoppreise aktualisiert' )"
           for i in 1 2 3; do git pull -q --rebase && git push && break; sleep 5; done
-          curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json" | head -c 200 || true
+          for f in preise.json preise-stand.json; do curl -s "https://purge.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/$f" | head -c 200 || true; done
