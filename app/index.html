@@ -2578,8 +2578,14 @@ function spoolyNorm(x){const vm=x.vendor_meta||{};const ende=x.created_at||x.pri
   return {id:"spooly:"+x.id,herkunft:"spooly",titel:x.custom_name||x.print_name||"Druck",drucker:x.device_name||"",serial:String(x.bambulab_device_id||"").toUpperCase(),task,
     start,ende,minuten:Math.round(dur),abgebrochen:/fail|cancel/.test(st),fortschritt:/fail|cancel/.test(st)?num(x.failed_print_progress):100,
     quelle:"Spooly",filamente:fl,gramm:r2(fl.reduce((a,f)=>a+f.gramm,0)||num(x.grams_used)),bild:"",bild_url:""}}
-async function spoolyImport(datei){const roh=JSON.parse(await datei.text());const l=Array.isArray(roh)?roh:(roh.print_jobs||roh.items||roh.data||[]);
-  if(!l.length||!l[0].id||!("print_name" in l[0]))throw new Error("Das ist keine Spooly-Druckliste (Datei aus spooly.eu → Druckaufträge).");
+async function spoolyImport(datei){let text=await datei.text();text=text.replace(/^\uFEFF/,"").trim();let roh;
+  try{roh=JSON.parse(text)}catch(e){throw new Error(`„${datei.name}“ ist keine lesbare JSON-Datei (${Math.round(datei.size/1024)} KB, beginnt mit „${text.slice(0,30)}“).`)}
+  /* die Liste der Drucke finden – direkt oder irgendwo im Objekt */
+  const istDruck=x=>x&&typeof x==="object"&&("print_name" in x||"device_name" in x||"grams_used" in x);
+  const suche=(o,t=0)=>{if(Array.isArray(o))return o.some(istDruck)?o:null;if(o&&typeof o==="object"&&t<4)for(const v of Object.values(o)){const r=suche(v,t+1);if(r)return r}return null};
+  const l=(suche(roh)||[]).filter(istDruck);
+  if(!l.length)throw new Error(`In „${datei.name}“ steht keine Spooly-Druckliste. Gefunden: ${Array.isArray(roh)?"Liste mit "+roh.length+" Einträgen":"Objekt mit "+Object.keys(roh||{}).slice(0,6).join(", ")}.`);
+  l.forEach((x,i)=>{if(!x.id)x.id=String(x.import_source_key||x.bambulab_task_id||((x.print_name||"")+"|"+(x.created_at||i)))});
   const sn={};l.forEach(x=>{if(x.device_name&&x.bambulab_device_id)sn[x.device_name]=String(x.bambulab_device_id).toUpperCase()});
   const n=l.map(spoolyNorm);n.forEach(x=>{if(!x.serial&&sn[x.drucker])x.serial=sn[x.drucker]});
   const r=await SRV.req("POST","/api/drucke/import",{drucke:n});J.srvAt=0;loadSrv(true);return r}
