@@ -216,12 +216,12 @@ table.list tr.click:hover td{background:var(--glass)}
     <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>BC</span></button><button class="sync off" id="crst" type="button" data-act="crStatus" title="Creality Cloud nicht verbunden"><i></i><span>CC</span></button></span>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button data-tab="lager">Lager</button>
-      <button data-tab="drucke">Druckaufträge</button>
+      <button data-tab="drucke" data-kurz="Drucke">Druckaufträge</button>
       <button data-tab="rechner" aria-current="page">Rechner</button>
       <button data-tab="auftraege">Aufträge</button>
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="geschaeft">Geschäft</button>
-      <button data-tab="einstellungen">Einstellungen</button>
+      <button data-tab="einstellungen" data-kurz="Mehr">Einstellungen</button>
     </nav>
   </div>
 </header>
@@ -2259,7 +2259,26 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .job .sw{display:inline-flex;gap:3px;vertical-align:-2px}
 .job .sw i{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
 .job .right{text-align:right;font-size:13px;color:var(--fg-2);white-space:nowrap}
-.job .right b{display:block;font-size:15px;color:var(--fg)}
+.job .right b{display:block;font-size:15px;color:var(--fg)}.jinfo{min-width:0}
+/* Handy: Bild links mit Auswahl-Häkchen darauf, Titel bis zwei Zeilen, Gewicht und Zeit darunter; Filter als ruhiges Raster */
+@media (max-width:620px){
+  .jsrc{gap:6px}.jsrc .chip,.jsrc .btn{font-size:12.5px;padding:5px 10px;min-height:0}
+  .jhead{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jhead input[type=search]{grid-column:1/-1}
+  .jhead select,.jhead input[type=search]{max-width:none;width:100%;min-width:0}
+  .jhead>.sp{display:none}.jhead>label.chip{justify-self:start;padding:8px 12px}.jhead>.btn{justify-self:end;align-self:center}
+  .jday{padding:12px 2px 6px}
+  .job{position:relative;grid-template-columns:64px minmax(0,1fr) auto;grid-template-areas:"t i i" "t m r";gap:2px 12px;padding:10px;align-items:start}
+  .job input[type=checkbox]{position:absolute;left:14px;top:14px;z-index:1;width:20px;height:20px;background:var(--panel,#222);border-radius:5px}
+  .job .thumb{grid-area:t;width:64px;height:64px;align-self:center}
+  .job .jinfo{display:contents}
+  .job h3{grid-area:i;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;font-size:15px}
+  .job .meta{grid-area:m;margin-top:4px;gap:3px 8px;font-size:12.5px}
+  .job .meta .chip{font-size:11px;padding:1px 7px}
+  .job .right{grid-area:r;align-self:end;font-size:12px}
+  .job .right b{font-size:16px}
+  nav.tabs button{padding:6px 11px;font-size:14.5px}
+  nav.tabs button[data-kurz]{font-size:0}nav.tabs button[data-kurz]::after{content:attr(data-kurz);font-size:14.5px}
+}
 .jbar{position:sticky;bottom:12px;z-index:15;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;margin-top:8px;border:1px solid var(--accent);border-radius:var(--r-s);background:var(--header-bg,var(--panel));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .jbar .info{flex:1 1 200px;min-width:0}
 .jbar .info b{font-size:15px}
@@ -2287,7 +2306,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .kin span{color:var(--fg-2);font-size:13px}.kin:focus-within{border-color:var(--accent)}
 .kpct{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--fg-2)}.kpct .kin{width:90px}
 .ksum{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px solid var(--line)}
-@media (max-width:620px){.job{grid-template-columns:24px 76px minmax(0,1fr)}.job .thumb{width:76px;height:76px;grid-row:span 2}.job input[type=checkbox]{grid-row:span 2}.job .right{grid-column:3;text-align:left}.job .right b{display:inline;margin-right:8px}.jbar{bottom:8px}}
+@media (max-width:620px){.jbar{bottom:8px}}
 </style>
 <script>
 /* ===== Druckaufträge: Druckprotokoll aus Home Assistant und Druckhistorie aus der Bambu-Cloud ===== */
@@ -2471,7 +2490,7 @@ function render(m){
   for(const k of [...J.sel])if(!list.some(j=>j.key===k))J.sel.delete(k);
   const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
   const sources=`<div class="jsrc">
-    ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll · ${J.ha.length}`}</span>`:`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`}
+    ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll · ${J.ha.length}`}</span>`:(S.srv?"":`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`)}
     ${a?`<span class="chip cl">${J.cloudLoading?"Bambu-Cloud lädt…":J.cloudErr?`<span class="bad">Bambu-Cloud: ${esc(J.cloudErr)}</span>`:`Bambu-Cloud · ${J.cloud.length}`}</span>`:`<button class="btn sm" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button>`}
     ${window.CRE?CRE.chipHTML():""}
   </div>`;
@@ -2487,7 +2506,7 @@ function render(m){
       html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
         <input type="checkbox" ${sel?"checked":""} aria-label="${esc(j.title)} auswählen" tabindex="-1">
         <div class="thumb${j.cover?" zoom":""}" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}"${j.cover?` data-act="jobBild" data-key="${esc(j.key)}" role="button" title="Groß anzeigen"`:""}>${j.cover?"":ICON.cube}</div>
-        <div style="min-width:0"><h3 title="${esc(j.title)}">${esc(j.title)}</h3>
+        <div class="jinfo"><h3 title="${esc(j.title)}">${esc(j.title)}</h3>
           <div class="meta"><span>${esc(j.printer||"Drucker unbekannt")}</span><span class="num">${j.start?hm(j.start)+"–":""}${hm(j.end)}</span>
             <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
             ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
@@ -2708,7 +2727,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={historie:()=>buchIndex()?all():null,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
@@ -5338,6 +5357,7 @@ document.addEventListener("click",async e=>{
   if(a==="plZuWahl"){PL.wq="";plWahlModal(b.dataset.uid);return}
   if(a==="plZuW"){b.disabled=true;await plZuweisen(PL.wu,PL.wk[Number(b.dataset.i)]);return}
   if(a==="lgRbJahr"){G.rbJahr=Number(b.dataset.j);rueckblickModal();return}
+  if(a==="lgRbHist"){try{localStorage.setItem(RB_HIST,rbMitHist()?"0":"1")}catch(x){}rueckblickModal();return}
   if(a==="lgEtikett"){const uid=(G.form&&G.form.uid)||(G.hit&&G.hit.uid);if(uid)etikettModal(uid);return}
   if(a==="lgEtF"){const o=etOpt();o.format=b.dataset.f;etOptSave(o);document.querySelectorAll('[data-act="lgEtF"]').forEach(c=>c.classList.toggle("on",c===b));etZeichnen();return}
   if(a==="lgEtHoch"){const o=etOpt();o.hochkant=!o.hochkant;etOptSave(o);b.classList.toggle("on",o.hochkant);etZeichnen();return}
@@ -6005,17 +6025,28 @@ function blZelle(cell,u){const e=entries().find(x=>x.uid===u);if(!cell||!e)retur
   const n=blAenderungen().length,b=document.querySelector('#modal footer [data-act="lgBlUebern"]');if(b){b.disabled=!n;b.textContent="Übernehmen"+(n?` (${n})`:"")}}
 document.addEventListener("change",ev=>{const t=ev.target;if(t&&t.dataset&&t.dataset.blsort!=null){BL.sort=t.value;blSave();bestandModal()}});
 /* ---------- Jahresrückblick aus der Verbrauchsliste ---------- */
+/* Drucke aus der Druckhistorie (Bambu-Cloud, Druckprotokoll, Creality), die nie im Lager abgebucht wurden – zählen im Rückblick mit, ziehen aber nichts ab */
+const RB_HIST="sl_rb_historie";const rbMitHist=()=>{try{return localStorage.getItem(RB_HIST)!=="0"}catch(e){return true}};
+function rbHistorie(){if(!rbMitHist()||!window.JOBS||!JOBS.historie)return {liste:[],laedt:false};try{JOBS.auto()}catch(e){}
+  const L=JOBS.historie();if(L===null||JOBS.busy())return {liste:[],laedt:true};const out=[];
+  L.filter(j=>!(j.buch&&j.buch.some(Boolean))&&!isNaN(Date.parse(j.end||j.start))).forEach(j=>{const zeit=j.end||j.start;const basis={typ:"verbrauch",zeit,drucker:j.printer||"",anlass:j.failed?"abgebrochen":"",hist:true};
+    const ms=(j.mats||[]).filter(m=>Number(m.g)>0);
+    if(ms.length)ms.forEach(m=>out.push(Object.assign({},basis,{gramm:Number(m.g),hex:m.color||"",material:m.type||"",sorte:m.name&&m.type&&m.name!==m.type?m.name:""})));
+    else if(Number(j.grams)>0)out.push(Object.assign({},basis,{gramm:Number(j.grams)}))});
+  return {liste:out,laedt:false}}
 function rueckblickModal(){
-  const alle=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit)));
+  const hi=rbHistorie();if(hi.laedt){rueckblickModal.n=(rueckblickModal.n||0)+1;if(rueckblickModal.n<8){clearTimeout(rueckblickModal.t);rueckblickModal.t=setTimeout(()=>{if(document.querySelector("#modal #lgRb"))rueckblickModal()},1500)}}else rueckblickModal.n=0;
+  const alle=G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit))).concat(hi.liste);
   const jahrVon=d=>new Date(d.zeit).getFullYear();
   const jahre=[...new Set(alle.map(jahrVon))].sort((a,b)=>b-a);const j=jahre.includes(G.rbJahr)?G.rbJahr:(jahre[0]||new Date().getFullYear());
   const D=alle.filter(d=>jahrVon(d)===j),V=alle.filter(d=>jahrVon(d)===j-1);
   const eur=x=>x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});const gr=a=>a.reduce((s,d)=>s+(Number(d.gramm)||0),0);const ko=a=>a.reduce((s,d)=>s+(Number(d.kosten)||0),0);
   const druckKey=d=>String(d.zeit).slice(0,16)+"|"+(d.drucker||"");const drucke=a=>new Set(a.map(druckKey)).size;
-  const sel=jahre.length>1?`<div class="lgtg">${jahre.map(y=>`<button type="button" class="chip${y===j?" on":""}" data-act="lgRbJahr" data-j="${y}">${y}</button>`).join("")}</div>`:"";
+  const histG=gr(D.filter(d=>d.hist));
+  const sel=`<div class="lgtg">${jahre.length>1?jahre.map(y=>`<button type="button" class="chip${y===j?" on":""}" data-act="lgRbJahr" data-j="${y}">${y}</button>`).join(""):""}<span class="sp"></span><button type="button" class="chip${rbMitHist()?" on":""}" data-act="lgRbHist" title="Drucke aus der Bambu-Cloud und dem Druckprotokoll mitzählen, die nicht im Lager abgebucht wurden – am Lager ändert sich nichts">Ganze Druckhistorie${hi.laedt?" …":""}</button></div>`;
   let h=`<div class="lgform rb" id="lgRb">${sel}`;
   if(!metaDa())h+=`<div class="panel empty">Die Verbrauchsliste <code>${META}</code> fehlt.</div>`;
-  else if(!D.length)h+=`<div class="panel empty">Für ${j} gibt es noch keinen Verbrauch. Jede Abbuchung nach einem Druck zählt hier mit.</div>`;
+  else if(!D.length)h+=`<div class="panel empty">${hi.laedt?"Druckhistorie wird geladen …":`Für ${j} gibt es noch keinen Verbrauch. Jede Abbuchung nach einem Druck zählt hier mit${rbMitHist()?", dazu die Drucke aus der Bambu-Cloud":""}.`}</div>`;
   else{const g0=gr(D),k0=ko(D),n0=drucke(D);
     const fehl=D.filter(d=>/abgebrochen/i.test(d.anlass||""));const fg=gr(fehl),fk=ko(fehl),fn=drucke(fehl);
     const dichte=m=>{try{return (TYPE_DEFAULTS[typeKey(m)]||{}).d||1.24}catch(x){return 1.24}};
@@ -6027,7 +6058,7 @@ function rueckblickModal(){
     const fname=x=>{const s=Object.entries(x.sorte).sort((a,b)=>b[1]-a[1])[0];const nm=s?String(s[0]).split(" · ").pop():"";return nm||((window.farbName&&farbName(x.k))||x.k.toUpperCase())};
     const vg=gr(V);const vgl=vg>0?Math.round((g0/vg-1)*100):null;
     const zahl=x=>Math.round(x).toLocaleString("de-DE");
-    h+=`<div class="rb-hero"><span>Dein Druckjahr ${j}</span><b>${kg(g0)}</b><small>Filament verdruckt${vgl!=null?` · ${vgl>=0?"+":""}${vgl} % zu ${j-1}`:""}</small></div>
+    h+=`<div class="rb-hero"><span>Dein Druckjahr ${j}</span><b>${kg(g0)}</b><small>Filament verdruckt${vgl!=null?` · ${vgl>=0?"+":""}${vgl} % zu ${j-1}`:""}</small>${histG>0?`<small class="rb-hist">davon ${kg(histG)} aus der Druckhistorie, nicht im Lager abgebucht</small>`:""}</div>
       <div class="rb-tiles"><div><b>${zahl(n0)}</b><span>Drucke</span></div><div><b>${k0>0?eur(k0):"–"}</b><span>Filamentkosten</span></div><div><b>${meter>=1000?(meter/1000).toLocaleString("de-DE",{maximumFractionDigits:1})+" km":zahl(meter)+" m"}</b><span>Filament am Stück</span></div><div><b>${(g0/1000).toLocaleString("de-DE",{maximumFractionDigits:1})}</b><span>Rollen à 1 kg</span></div></div>
       <div class="lgsh"><span>Pro Monat</span></div><div class="rb-mon">${mon.map((x,i)=>`<div class="${i===mTop&&x>0?"top":""}" title="${MN[i]}: ${kg(x)}"><i style="height:${x>0?Math.max(4,Math.round(x/mMax*100)):0}%"></i><span>${MN[i]}</span></div>`).join("")}</div>
       <div class="lghint">Fleißigster Monat: <b>${["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"][mTop]}</b> mit ${kg(mon[mTop])}.</div>
@@ -6213,7 +6244,7 @@ body.rx-einfach #mbar{display:none!important}
 .rb-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 12px;border-radius:var(--r,12px);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 6%,transparent));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
 .rb-hero span{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
 .rb-hero b{font-size:44px;line-height:1.1;margin:6px 0 2px;font-variant-numeric:tabular-nums}
-.rb-hero small{color:var(--fg-3);font-size:13px}
+.rb-hero small{color:var(--fg-3);font-size:13px}.rb-hero .rb-hist{font-size:11.5px;margin-top:3px;opacity:.85}
 .rb-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .rb-tiles>div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line);border-radius:var(--r-s,8px)}
 .rb-tiles b{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
