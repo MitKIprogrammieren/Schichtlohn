@@ -69,24 +69,28 @@ function allgParse(pages){
   const feld=re=>{const m=alles.match(re);return m?m[1].trim():''};
   const datum=s=>{const m=String(s||'').match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);if(!m)return'';const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`};
   /* Shop: Absenderzeile „Firma | Straße | Ort“, sonst Domain aus der E-Mail-Adresse */
-  let shop='';const abs=zeilen.find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
+  let shop='';const abs=zeilen.slice(0,4).find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
+  if(!shop){const w=alles.match(/www\.([a-z0-9-]+)\.[a-z]{2,}/i);if(w){const k=alles.match(new RegExp('\\b('+w[1].replace(/-/g,'\\-')+')\\b','gi'))||[];shop=k.find(x=>x!==x.toLowerCase())||w[1]}}
   if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1]}
-  const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrag\s*#\s*([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
-  const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
-  const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
+  const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Best\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrag\s*#\s*([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Rech\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Rech\.?-?Datum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
   const netto=zahl(feld(/(?:Netto(?:betrag|summe)|Summe netto|Zwischensumme netto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
-  const gesamt=zahl(feld(/(?:Gesamt(?:betrag|summe)?|Rechnungsbetrag|Endbetrag|Summe brutto)[ \t]*(?:\(brutto\))?[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
+  const gesamt=zahl(feld(/(?:Gesamt(?:betrag|summe)?|Rechnungsbetrag(?: inkl\. USt\.?)?|Endbetrag|Summe brutto)[ \t]*(?:\(brutto\))?[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
   /* Spalten: Stehen die Positionen netto da (Kopf „Netto“, darunter USt), mit Gesamt/Netto auf brutto hochrechnen */
   const kopfNetto=zeilen.some(z=>/Menge/i.test(z.t)&&/Netto/i.test(z.t)&&!/Brutto/i.test(z.t));
   const items=[];let ship=0;
-  for(let k=0;k<zeilen.length;k++){const c=zeilen[k].z;if(c.length<4)continue;
-    const betr=c.map(zahl);const n2=betr.length;
-    if(!/€|EUR|\d,\d{2}$/.test(c[n2-1])||betr[n2-1]==null||betr[n2-2]==null)continue;
-    const qm=String(c[n2-3]).match(/^(\d{1,3})(?:[.,]0+)?(?:\s*(?:Stk\.?|Stück|x|pcs))?$/i);const q=qm?+qm[1]:0;if(!(q>0))continue;
-    let name=c.slice(0,n2-3).filter(t=>!/^\d{1,3}$/.test(t)).map(t=>t.replace(/^\[[^\]]+\]\s*/,''));if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0])&&/\s/.test(name.slice(1).join(' ')))name=name.slice(1);
-    let n=name.join(' ').trim();const nx0=zeilen[k+1];if(nx0&&(n.split('(').length>n.split(')').length||/,$/.test(n))&&nx0.z.length===1)n=(n+' '+nx0.t).replace(/,\s*\)/,')');if(!n||/^(pos|artikel|beschreibung)/i.test(n))continue;
-    const s=betr[n2-1];
-    if(/versand|porto|shipping/i.test(n)){ship+=s;continue}
+  const isQ=t=>/^(\d{1,3})(?:[.,]0+)?(?:\s*(?:Stk\.?|Stück|x|pcs))?$/i.test(String(t).trim());
+  for(let k=0;k<zeilen.length;k++){const c=zeilen[k].z;if(c.length<3)continue;
+    const last=c[c.length-1];if(!/€|EUR/.test(last)&&!/\d,\d{2}$/.test(last))continue;const summe=zahl(last);if(summe==null)continue;
+    const qi=c.findIndex((t,j)=>j>0&&isQ(t)&&c.slice(j+1).some(x=>/€|\d,\d{2}/.test(x)));if(qi<1)continue;
+    const q=+String(c[qi]).match(/\d+/)[0];if(!(q>0))continue;
+    let name=c.slice(0,qi).map(t=>t.replace(/^\[[^\]]+\]\s*/,'')).filter(t=>t&&!/^\d{1,3}$/.test(t));
+    if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0]))name=name.slice(1);
+    let n=name.join(' ').trim();if(!n||/^(pos|art|artikel|beschreibung|bezeichnung)/i.test(n))continue;
+    const nx0=zeilen[k+1];if(nx0&&nx0.z.length===1&&((n.split('(').length>n.split(')').length||/,$/.test(n))||/\d\s*(g|kg)\b/i.test(nx0.t)))n=(n+(/,$/.test(n)?' ':' · ')+nx0.t).replace(/,\s*\)/,')').replace(/\( ·/,'(');
+    const s=summe;
+    if(/versand|porto|shipping|verpackung/i.test(n)){ship+=s;continue}
     let e='';const nx=zeilen[k+1]&&zeilen[k+1].t||'';const m=nx.match(/EAN\s*:?\s*(\d{8,14})/i);if(m)e=m[1];
     items.push({n,q,s,e})}
   /* Netto-Positionen (Summe = Nettobetrag, darunter USt): mit Gesamt/Netto auf brutto hochrechnen */
