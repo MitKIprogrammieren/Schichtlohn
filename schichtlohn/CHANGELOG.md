@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.32 – 01.11.2026
+- Lager: Neue Spulen. Die Wicklung zeigt, wie viel Filament auf der angebrochenen Rolle noch drauf ist – eine fast leere Rolle sieht man sofort.
+- Bambu-Spulen mit Klarsicht-Flansch, andere Hersteller dunkel mit Fenstern, Refills als Wicklung auf Kartonkern. Unter Einstellungen → „Farbe der Sorten anzeigen als“ lässt sich das ändern (auch Pappspule); die alte Rolle und das Farbquadrat gibt es weiter.
+- Die Rolle, mit der gerade gedruckt wird, dreht sich und der Faden läuft heraus.
+
 ## 3.2.31 – 01.11.2026
 - Lagerwert springt nicht mehr: Für Rollen ohne eigenen Preis schreibt SchichtLohn den geschätzten Shop-Preis einmal am Tag fest. Vorher hing der Wert davon ab, welche Preise beim Öffnen schon geladen waren (eBay und AliExpress fehlten in der Lager-Ansicht oft).
 - Der Schätzpreis ist jetzt der Median der Shop-Angebote statt des Durchschnitts – eine einzelne teure oder spottbillige Rolle verzieht ihn nicht mehr. Fällt ein Shop aus, bleibt der letzte Preis stehen.
