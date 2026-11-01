@@ -71,7 +71,7 @@ function allgParse(pages){
   /* Shop: Absenderzeile „Firma | Straße | Ort“, sonst Domain aus der E-Mail-Adresse */
   let shop='';const abs=zeilen.slice(0,4).find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
   if(!shop){const w=alles.match(/www\.([a-z0-9-]+)\.[a-z]{2,}/i);if(w){const k=alles.match(new RegExp('\\b('+w[1].replace(/-/g,'\\-')+')\\b','gi'))||[];shop=k.find(x=>x!==x.toLowerCase())||(w[1][0].toUpperCase()+w[1].slice(1))}}
-  if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1]}
+  if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1][0].toUpperCase()+m[1].slice(1)}
   const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Best\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrag\s*#\s*([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
   const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/^Rechnung[ \t]+([A-Z]{0,3}-?\d[\w-]{3,})/m)||feld(/Rech\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i);
   const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Rech\.?-?Datum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
@@ -83,11 +83,16 @@ function allgParse(pages){
   const isQ=t=>/^(\d{1,3})(?:[.,]0+)?(?:\s*(?:Stk\.?|Stück|x|pcs))?$/i.test(String(t).trim());
   for(let k=0;k<zeilen.length;k++){const c=zeilen[k].z;if(c.length<3)continue;
     const last=c[c.length-1];if(!/€|EUR/.test(last)&&!/\d,\d{2}$/.test(last))continue;const summe=zahl(last);if(summe==null)continue;
-    const qi=c.findIndex((t,j)=>j>0&&isQ(t)&&c.slice(j+1).some(x=>/€|\d,\d{2}/.test(x)));if(qi<1)continue;
+    let qi=c.findIndex((t,j)=>j>0&&isQ(t)&&c.slice(j+1).some(x=>/€|\d,\d{2}/.test(x)));
+    let vorher='';if(qi<1){const q0=c.findIndex(t=>isQ(t));const v=zeilen[k-1];if(q0<0||q0>1||!v||!v.z.length||/^(elemente|pos|artikel)/i.test(v.t))continue;
+      vorher=v.z.filter(t=>!/€|^\d+,\d{2}$/.test(t)).join(' ');if(!vorher||!/[a-z]{3}/i.test(vorher))continue;qi=q0}
     const q=+String(c[qi]).match(/\d+/)[0];if(!(q>0))continue;
-    let name=c.slice(0,qi).map(t=>t.replace(/^\[[^\]]+\]\s*/,'')).filter(t=>t&&!/^\d{1,3}$/.test(t));
-    if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0]))name=name.slice(1);
-    let n=name.join(' ').trim();if(!n||/^(pos|art|artikel|beschreibung|bezeichnung)/i.test(n))continue;
+    let name=(vorher?[vorher,...c.slice(0,qi)]:c.slice(0,qi)).map(t=>t.replace(/^\[[^\]]+\]\s*/,'')).filter(t=>t&&!/^\d{1,3}$/.test(t));
+    if(!vorher&&name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0]))name=name.slice(1);
+    let n=name.join(' ').trim();
+    /* umgebrochener Name („… 1 kg 1.75“ / Preis / „mm  1  24,05 €“): Anfang aus den Zeilen darüber holen */
+    if(!vorher&&n.replace(/[^a-z]/gi,'').length<4){for(let b=k-1;b>=Math.max(0,k-3);b--){const t=zeilen[b].z.filter(x=>!/€|^\d+,\d{2}$/.test(x)).join(' ');if(t&&/[a-z]{3}/i.test(t)&&!/^SKU|^EAN/i.test(t)){n=(t+' '+n).trim();break}}}
+    if(!n||/^(pos|art|artikel|beschreibung|bezeichnung)/i.test(n))continue;
     const nx0=zeilen[k+1];if(nx0&&nx0.z.length===1&&((n.split('(').length>n.split(')').length||/,$/.test(n))||/\d\s*(g|kg)\b/i.test(nx0.t)))n=(n+(/,$/.test(n)?' ':' · ')+nx0.t).replace(/,\s*\)/,')').replace(/\( ·/,'(');
     const s=summe;
     if(/versand|porto|shipping|verpackung/i.test(n)){ship+=s;continue}
@@ -96,7 +101,8 @@ function allgParse(pages){
   if(!ship){const v=zahl(feld(/(?:Versand(?:kosten)?|Porto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€)/i));if(v)ship=v}
   /* Netto-Positionen (Summe = Nettobetrag, darunter USt): mit Gesamt/Netto auf brutto hochrechnen */
   const roh=items.reduce((a,b)=>a+b.s,0)+ship;
-  const f=netto&&gesamt&&gesamt>netto&&(kopfNetto||Math.abs(roh-netto)<0.05)?gesamt/netto:1;
+  const steuerSpalte=zeilen.some(z=>/(Menge|Anzahl)/i.test(z.t)&&/Steuer|USt/i.test(z.t))&&zeilen.some(z=>/\(\s*(19|7|20)\s*%\s*\)/.test(z.t));
+  const f=netto&&gesamt&&gesamt>netto&&(kopfNetto||Math.abs(roh-netto)<0.05)?gesamt/netto:(steuerSpalte&&gesamt&&roh&&gesamt/roh>1.04&&gesamt/roh<1.26?gesamt/roh:1);
   if(f!==1){items.forEach(it=>it.s=Math.round(it.s*f*100)/100);ship=Math.round(ship*f*100)/100}
   return {shop,o:o||i,i,d,net:gesamt||items.reduce((a,b)=>a+b.s,0)+ship,tot:gesamt||null,ship,items}}
 /* Filament erkennen bei Rechnungen anderer Shops (Titel ohne „Filament“, z. B. „Polymaker PolyLite ASA Galaxy“) */
@@ -564,7 +570,7 @@ class BambuRechnungenCard extends HTMLElement{
       const done=[],miss=[],skip=[];
       for(const it of fil){
         const name=' '+n0(it.n)+' ';const hat=w=>name.includes(' '+w+' ')||(DE[w]&&name.includes(' '+norm(DE[w])+' '));
-        const cand=lager.filter(e=>{const h=n0(e.j.hersteller||'').trim();if(!h||!name.includes(' '+h.split(' ')[0]+' '))return false;
+        const cand=lager.filter(e=>{const h=n0(e.j.hersteller||'').trim();if(!h||!(name.includes(' '+h.split(' ')[0]+' ')||n0(x.shop||'').trim()===h))return false;
           const mat=n0(e.j.material||'').trim();if(!mat||!name.includes(' '+mat+' '))return false;
           const fw=n0(e.j.farbe||'').split(/\s+/).filter(Boolean);return fw.length&&fw.every(hat)});
         /* „Galaxy Black“ schlägt „Black“: die Sorte mit den meisten passenden Farbwörtern gewinnt */
