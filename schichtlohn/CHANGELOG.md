@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.33 – 01.11.2026
+- PDF-Bestandsliste: Die neuen Spulen gibt es jetzt auch im PDF – mit Füllstand, Refill auf Kartonkern und der in den Einstellungen gewählten Spulenart. Mit „Filamentrolle (klassisch)“ bleibt das PDF wie bisher.
+
 ## 3.2.32 – 01.11.2026
 - Lager: Neue Spulen. Die Wicklung zeigt, wie viel Filament auf der angebrochenen Rolle noch drauf ist – eine fast leere Rolle sieht man sofort.
 - Bambu-Spulen mit Klarsicht-Flansch, andere Hersteller dunkel mit Fenstern, Refills als Wicklung auf Kartonkern. Unter Einstellungen → „Farbe der Sorten anzeigen als“ lässt sich das ändern (auch Pappspule); die alte Rolle und das Farbquadrat gibt es weiter.
