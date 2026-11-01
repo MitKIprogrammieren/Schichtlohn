@@ -4314,7 +4314,7 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":spMarkeArt(e.hersteller);
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klarsicht"],["milchig","Milchig"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
+const SP_TYPEN=[["klar","Klarsicht"],["milchig","Milchig"],["rippen","Klarsicht mit Rippen"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
   pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
   lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
@@ -4355,13 +4355,17 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   if(art==="refill"){const Hc=7*d;R=16*d;F=pct>0?Hc+.8*d+(16*d-Hc-.8*d)*pct:Hc;D=13*w;HUB=Hc;
     vorne=`${pct>0?face(F,Hc):""}<g class="lgrot"><circle r="${n2(Hc)}" fill="#c99a62" stroke="#7a5428" stroke-width=".7"/><circle r="${n2(Hc-1.3*d)}" fill="#3a2a17"/><circle cy="${n2(-(Hc-.65*d))}" r=".45" fill="#7a5428"/></g>${pct>0?glanzKreis(F):""}`;
     rueck=pct>0?band(0,D,F):`${ell(D,Hc,'fill="#a77a45"')}`;R=pct>0?F:Hc}
-  else{const milch=art==="milchig",klar=art==="klar"||milch,T=SP_FARBE[klar?"dunkel":art]||SP_FARBE.dunkel;R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
+  else{const milch=art==="milchig",rip=art==="rippen",klar=art==="klar"||milch||rip,T=SP_FARBE[klar?"dunkel":art]||SP_FARBE.dunkel;R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
     const win=spLoecher(art,d);
     const disc=`M${n2(R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(-R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(R)} 0Z`;
     const halb=T.halb?`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.halb}" clip-path="url(#lgNHalb)"/>`:"",perf=T.perf?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNPerf)"/><circle r="${n2(R-.9*d)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="${n2(.5*d)}"/><circle r="${n2(8.6*d)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".4"/>`:"",karton=T.karton?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNKarton)"/>`:"";
-    const flansch=klar?`<circle r="${n2(R)}" fill="${milch?"#eef2f6":"#cfe3ff"}" fill-opacity="${milch?".62":".14"}" stroke="#a8b4c4" stroke-width=".9"/>${milch?`<circle r="${n2(R)}" fill="url(#lgNFlG)"/>`:""}<circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
+    const flansch=klar?`<circle r="${n2(R)}" fill="${milch?"#eef2f6":"#cfe3ff"}" fill-opacity="${milch?".62":".14"}" stroke="#a8b4c4" stroke-width=".9"/>${milch?`<circle r="${n2(R)}" fill="url(#lgNFlG)"/>`:""}${rip?(()=>{let h="";const ringe=[7.4,10.4,13.4,16.2],sp=[[7.4,10.4,10,0],[10.4,13.4,12,15],[13.4,16.2,24,7.5]];
+      const pt=(r,t)=>`${n2(r*d*Math.cos(t))} ${n2(r*d*Math.sin(t))}`;let lin="";sp.forEach(([a,b,n,o])=>{for(let i=0;i<n;i++){const t=(o+i*360/n)*Math.PI/180;lin+=`M${pt(a,t)}L${pt(b,t)}`}});
+      h+=`<path d="${lin}" stroke="#000" stroke-opacity=".35" stroke-width="1.1" transform="translate(.35 .35)"/><path d="${lin}" stroke="#f2f6fa" stroke-opacity=".7" stroke-width=".7"/>`;
+      ringe.forEach(r=>h+=`<circle r="${n2(r*d)}" fill="none" stroke="#000" stroke-opacity=".3" stroke-width="1" transform="translate(.3 .3)"/><circle r="${n2(r*d)}" fill="none" stroke="#f2f6fa" stroke-opacity=".75" stroke-width=".65"/>`);
+      return h})():""}<circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
       :`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.fl}"/>${halb}${karton}${perf}${T.glanz?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNFlG)"/>`:""}${T.karton||T.halb?"":`<circle r="${n2(R-1.1)}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${n2(R)}" fill="none" stroke="${T.st}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${T.lo}" stroke-opacity=".6" stroke-width=".7"/>`;
-    const nabe=T.karton||T.halb?`<circle r="${n2(4.4*d)}" fill="#0d0e10" stroke="#000" stroke-opacity=".5" stroke-width=".6"/><path d="M${n2(-4.4*d)} 0A${n2(4.4*d)} ${n2(4.4*d)} 0 0 1 ${n2(4.4*d)} 0" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".7"/>`:`<circle r="${n2(5.6*d)}" fill="${T.nb}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${T.nr}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${T.nr}"/>`;
+    const nabe=rip?`<circle r="${n2(6.6*d)}" fill="#dfe8f2" fill-opacity=".18" stroke="#e8eef5" stroke-opacity=".8" stroke-width=".7"/><circle r="${n2(4.6*d)}" fill="#0d0e10" fill-opacity=".55" stroke="#e8eef5" stroke-opacity=".7" stroke-width=".6"/><path d="M${n2(-4.6*d)} 0A${n2(4.6*d)} ${n2(4.6*d)} 0 0 1 ${n2(4.6*d)} 0" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".6"/>`:T.karton||T.halb?`<circle r="${n2(4.4*d)}" fill="#0d0e10" stroke="#000" stroke-opacity=".5" stroke-width=".6"/><path d="M${n2(-4.4*d)} 0A${n2(4.4*d)} ${n2(4.4*d)} 0 0 1 ${n2(4.4*d)} 0" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".7"/>`:`<circle r="${n2(5.6*d)}" fill="${T.nb}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${T.nr}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${T.nr}"/>`;
     vorne=`${klar?"":`<circle r="${n2(R-.5)}" fill="${T.in}"/>`}${F?face(F,HUB):""}<g class="lgrot">${flansch}${nabe}</g>${ans!=="stehend"?glanzKreis(R):""}`;
     hinten=ell(D,R,(klar?(milch?'fill="#e6ebf0" fill-opacity=".55" stroke="#97a3b3" stroke-opacity=".8"':'fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"'):T.bk)+' stroke-width=".9"');
     barrel=`<path d="${bandD(0,D,HUB)}" fill="${T.bar}"/>`;rueck=F?band(0,D,F):""}
@@ -6027,7 +6031,7 @@ function blPdf(){
     const face=(cx,F,min)=>{F_(c);D_([85,85,85]);L_(.5);zug(ell(cx,F),"FD",true);D_(c.map(v=>Math.round(v*.8)));L_(.45);for(let r=F-1.6;r>min+.5;r-=1.6)zug(ell(cx,r),"S",true)};
     if(art==="refill"){const Hc=7,F=pct>0?Hc+.8+(16-Hc-.8)*pct:Hc;if(pct>0){band(15,28,F);face(15,F,Hc)}
       F_([201,154,98]);D_([122,84,40]);L_(.6);zug(ell(15,Hc),"FD",true);F_([58,42,23]);zug(ell(15,Hc-1.3),"F",true);return}
-    const kl=art==="klar"||art==="milchig",T=SP_FARBE[kl?"dunkel":art]||SP_FARBE.dunkel,F=pct>0?H+(15.3-H)*pct:0;
+    const kl=art==="klar"||art==="milchig"||art==="rippen",T=SP_FARBE[kl?"dunkel":art]||SP_FARBE.dunkel,F=pct>0?H+(15.3-H)*pct:0;
     const fl=kl?[233,239,247]:T.flp,flS=kl?[142,154,170]:T.stp,bk=kl?[242,245,249]:T.bkp;
     F_(bk);D_(flS);L_(.6);zug(ell(27,R),"FD",true);
     F_([107,113,122]);zug([[18,CY-H],...bog(27,H,-Math.PI/2,Math.PI/2,10),[18,CY+H]],"F",true);
