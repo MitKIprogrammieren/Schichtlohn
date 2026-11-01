@@ -13,7 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}
+</style>
 <script>/* eingebettet (Home-Assistant-App): die iPhone-Aussparung gilt hier nicht, kein leerer Streifen oben */try{if(self!==top)document.documentElement.classList.add("eingebettet")}catch(e){document.documentElement.classList.add("eingebettet")}</script>
 <style>html.eingebettet{padding-top:0!important}html.eingebettet body::before{display:none}html.eingebettet header.top{top:0}html.eingebettet .result{top:76px}html.eingebettet .modal-bg{padding-top:5vh}</style>
 </head>
@@ -221,7 +222,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <button data-tab="auftraege">Aufträge</button>
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="geschaeft">Geschäft</button>
-      <button data-tab="einstellungen" data-kurz="⚙" aria-label="Einstellungen">Einstellungen</button>
+      <button data-tab="einstellungen" aria-label="Einstellungen"><svg class="tabico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.99 3.73L9.76 3.49L10.42 1.32L13.58 1.32L14.24 3.49L15.01 3.73L15.75 4.04L17.66 2.80L20.08 4.83L19.19 6.92L19.62 7.60L19.99 8.31L22.25 8.59L22.80 11.70L20.77 12.73L20.67 13.53L20.49 14.31L22.04 15.98L20.46 18.71L18.25 18.20L17.66 18.74L17.02 19.23L17.14 21.50L14.17 22.58L12.80 20.76L12.00 20.80L11.20 20.76L9.83 22.58L6.86 21.50L6.98 19.23L6.34 18.74L5.75 18.20L3.54 18.71L1.96 15.98L3.51 14.31L3.33 13.53L3.23 12.73L1.20 11.70L1.75 8.59L4.01 8.31L4.38 7.60L4.81 6.92L3.92 4.83L6.34 2.80L8.25 4.04Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3" stroke-opacity=".55"/><circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tabtxt">Einstellungen</span></button>
     </nav>
   </div>
 </header>
@@ -2281,6 +2282,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .job .right{text-align:right;font-size:13px;color:var(--fg-2);white-space:nowrap}
 .job .right b{display:block;font-size:15px;color:var(--fg)}.jinfo{min-width:0}
 /* Handy: Bild links mit Auswahl-Häkchen darauf, Titel bis zwei Zeilen, Gewicht und Zeit darunter; Filter als ruhiges Raster */
+nav.tabs .tabico{display:none}
 @media (max-width:620px){
   .jsrc{gap:6px}.jsrc .chip,.jsrc .btn{font-size:12.5px;padding:5px 10px;min-height:0}
   .jhead{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jhead input[type=search]{grid-column:1/-1}
@@ -2298,6 +2300,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
   .job .right b{font-size:16px}
   nav.tabs button{padding:6px 11px;font-size:14.5px}
   nav.tabs button[data-kurz]{font-size:0}nav.tabs button[data-kurz]::after{content:attr(data-kurz);font-size:14.5px}
+  nav.tabs .tabico{display:inline-block;width:22px;height:22px;vertical-align:-6px}nav.tabs .tabtxt{display:none}
 }
 .jbar{position:sticky;bottom:12px;z-index:15;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;margin-top:8px;border:1px solid var(--accent);border-radius:var(--r-s);background:var(--header-bg,var(--panel));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .jbar .info{flex:1 1 200px;min-width:0}
