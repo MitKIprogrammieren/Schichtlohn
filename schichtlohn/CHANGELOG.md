@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.29 – 01.11.2026
+- Kopfzeile: Unter „SchichtLohn“ steht wieder ein Untertitel – „Lager · Preise · Drucke“.
+- Bambu Lab und Creality oben eckig wie die Reiter.
+
 ## 3.2.28 – 01.11.2026
 - Kopfzeile: „SchichtLohn“ größer, der Untertitel „Druckpreise kalkulieren“ ist weg.
 - Der Server-Zustand steckt jetzt im Logo: grüner Punkt = erreichbar, gelb = speichert, rot = offline. Die eigene „Server“-Anzeige entfällt.

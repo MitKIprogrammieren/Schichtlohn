@@ -211,7 +211,7 @@ table.list tr.click:hover td{background:var(--glass)}
   <div class="wrap topin">
     <div class="brand">
       <svg viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="slTag"><path d="M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z"/></clipPath><mask id="slHole"><rect width="48" height="48" fill="#fff"/><circle cx="33.5" cy="15.5" r="4.4" fill="#000"/></mask></defs><g clip-path="url(#slTag)" mask="url(#slHole)" fill="currentColor"><rect x="0" y="8.0" width="48" height="2.4"/><rect x="0" y="11.4" width="48" height="2.4"/><rect x="0" y="14.8" width="48" height="2.4"/><rect x="0" y="18.2" width="48" height="2.4"/><rect x="0" y="21.6" width="48" height="2.4"/><rect x="0" y="25.0" width="48" height="2.4"/><rect x="0" y="28.4" width="48" height="2.4"/><rect x="0" y="31.8" width="48" height="2.4"/><rect x="0" y="35.2" width="48" height="2.4"/><rect x="0" y="38.6" width="48" height="2.4"/></g><circle cx="33.5" cy="15.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M33.5 12.9V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
-      <div>SchichtLohn</div>
+      <div>SchichtLohn<small>Lager · Preise · Drucke</small></div>
     </div>
     <span class="syncs"><span class="sync" id="sync"><i></i><span>Lädt…</span></span><button class="sync off" id="cloudst" type="button" data-act="bbStatus" title="Bambu Cloud nicht verbunden"><i></i><span>BC</span></button><button class="sync off" id="crst" type="button" data-act="crStatus" title="Creality Cloud nicht verbunden"><i></i><span>CC</span></button></span>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
@@ -1803,7 +1803,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 [data-skin="bambu"] .price{font-weight:600;letter-spacing:0}
 [data-skin="bambu"] .sync.ok i{box-shadow:none}
 /* Status-Chips in der Kopfzeile: ruhiger, einheitliche Höhe, ohne Rahmen */
-[data-skin="bambu"] .syncs .sync{height:26px;padding:0 11px 0 9px;border:0;background:var(--glass-2);gap:7px;font-size:12.5px;font-weight:600;color:var(--fg-2)}
+[data-skin="bambu"] .syncs .sync{height:30px;padding:0 12px 0 10px;border:0;border-radius:5px;background:var(--glass-2);gap:7px;font-size:12.5px;font-weight:600;color:var(--fg-2)}
 [data-skin="bambu"] .syncs button.sync:hover{background:var(--line);color:var(--fg)}
 [data-skin="bambu"] .syncs .sync i{width:7px;height:7px}
 [data-skin="bambu"] .syncs .sync.ok i{background:var(--good,#19d36b)}
