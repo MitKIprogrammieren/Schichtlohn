@@ -360,7 +360,7 @@ const SRV=window.SRV=(()=>{
   /* Start: ist ein Server eingetragen und erreichbar? */
   async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";
-      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
+      on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="daten"&&ev.name==="shoppreise_eigen")try{window.dispatchEvent(new Event("sl-ep-neu"))}catch(x){}if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
         if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu")zstLaden();
         if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
         if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}});
@@ -5308,7 +5308,7 @@ document.addEventListener("click",async e=>{
       try{await silicaSpeichern(w);toast("Silica-Tausch gespeichert");setTimeout(()=>silicaModal(),400)}catch(err){toast("Speichern fehlgeschlagen")}});return}
   if(a==="lgStat"){statModal();return}
   if(a==="lgRueck"){rueckblickModal();return}
-  if(a==="lgPreise"){preislisteModal();return}
+  if(a==="lgPreise"){if(PL.d&&Date.now()-(PL.zeit||0)>300000){EP.d=null;PL.d=null;PL.laden=null}preislisteModal();return}
   if(a==="lgBestand"){bestandModal();return}
   if(a==="lgBlFmt"){BL.fmt=b.dataset.v;blSave();bestandModal();return}
   if(a==="lgBlSp"){BL.sp[b.dataset.v]=!BL.sp[b.dataset.v];blSave();bestandModal();return}
@@ -5597,7 +5597,7 @@ function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return P
     if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
     if(ep&&ep.z.length){d.shops=Object.assign({},d.shops,ep.shops);d.z=d.z.concat(ep.z)}
     const idx={},ean={};d.z.forEach(z=>{const r=plRow(z,d),e=r.ean;
-      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
+      (idx[r.m]=idx[r.m]||[]).push(r);if(e)(ean[e]=ean[e]||[]).push(r)});d.idx=idx;d.ean=ean;PL.d=d;PL.zeit=Date.now();try{window.dispatchEvent(new Event("sl-shoppreise"))}catch(x){}return d}).catch(err=>{PL.laden=null;throw err});return PL.laden}
 function preiseFuer(e){const d=PL.d;if(!d)return [];const kand=[...(d.idx[plMarke(e.hersteller)]||[])];[...(e.codes||[]),...(e.codes_refill||[])].forEach(c=>(d.ean[String(c)]||[]).forEach(r=>kand.push(r)));
   const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);const gw=e.gewicht||1000;const best={};
   const zu=e.raw&&e.raw.shop_zu;for(const r of kand){if(r.refill!==refill)continue;const s=zu&&zu.m===r.m&&zu.t===r.key?2:plPasst(e,r);if(!s)continue;const pk=r.preis/(r.gew/1000);const g=[Math.min(s,2),r.gew===gw?1:0,-pk];const a=best[r.shop];
@@ -5609,6 +5609,8 @@ const preisVon=e=>e.preis>0?{pk:e.preis,q:"lager"}:(()=>{const m=marktPk(e);retu
 let shopPreiseAngestossen=false;const shopPreiseHolen=()=>{if(shopPreiseAngestossen||PL.d)return;shopPreiseAngestossen=true;preiseLaden().catch(()=>{shopPreiseAngestossen=false})};
 window.slPreiseLaden=shopPreiseHolen;
 window.slMarktPk=(uid,gew)=>{const e=G.loaded?entries().find(x=>x.uid===uid):null;if(e)return marktPk(e);const a=pvAngebote(uid,gew).map(o=>o.pk).filter(x=>x>0);return a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length*100)/100:null};
+const plNeuLaden=()=>{EP.d=null;PL.d=null;PL.laden=null;preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(()=>{})};
+window.addEventListener("sl-ep-neu",plNeuLaden);
 window.addEventListener("sl-shoppreise",()=>{draw();if(document.querySelector("#modal #lgBl"))bestandModal()});
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgBl"))bestandModal()});
 /* Preis aus dem Lager als eigene Zeile über den Shop-Angeboten, mit Vergleich zum günstigsten Shop */
