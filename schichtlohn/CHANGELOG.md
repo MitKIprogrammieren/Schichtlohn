@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.3.2 – 02.11.2026
+- Neu: „Spooly-Import entfernen“ unter Einstellungen → SchichtLohn-Server → Druckprotokoll nimmt alle aus Spooly übernommenen Drucke wieder heraus.
+- Der Spooly-Import nimmt nur noch die Druckliste aus Spooly an und meldet bei einer falschen Datei, was darin war.
+
 ## 3.3.1 – 01.11.2026
 - Behoben: Nach einem Neustart des Servers konnte die Druckerliste verschwinden, wenn mehrere Drucker gleichzeitig über die Cloud verbunden wurden – dabei gingen auch die IP-Adressen verloren.
 - Behoben: Beim Übernehmen aus der Bambu-Cloud oder beim Bearbeiten eines Druckers konnte ein veralteter Stand die eingetragenen Drucker überschreiben – dabei gingen IP-Adressen verloren. Jetzt wird die Druckerliste vorher immer frisch geholt, IP und Zugangscode bleiben erhalten, und die Liste kann nicht mehr versehentlich ganz geleert werden.

@@ -68,7 +68,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.3.1"
+VERSION = "3.3.2"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -2425,6 +2425,18 @@ class Handler(BaseHTTPRequestHandler):
             b = self._json_rumpf()
             neu = [x for x in (b.get("drucke") or []) if isinstance(x, dict) and x.get("id")]
             return self._json(200, drucke_importieren(neu))
+        if teile == ["drucke", "entfernen"] and methode == "POST":
+            b = self._json_rumpf()
+            ids, herkunft = set(b.get("ids") or []), str(b.get("herkunft") or "")
+            if not ids and not herkunft:
+                raise Fehler(400, "ids oder herkunft fehlt")
+            with _db_lock:
+                alt, _ = daten_lesen(DRUCKE_KEY)
+                alt = [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
+                neu = [x for x in alt if x.get("id") not in ids and not (herkunft and x.get("herkunft") == herkunft)]
+                daten_schreiben(DRUCKE_KEY, neu)
+            melden({"typ": "drucke"})
+            return self._json(200, {"ok": True, "entfernt": len(alt) - len(neu), "gesamt": len(neu)})
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
