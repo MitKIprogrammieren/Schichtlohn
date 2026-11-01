@@ -4091,8 +4091,8 @@ window.Etikett=(()=>{
     liste.forEach(([nm,w],i)=>{const zy=y+(i+1)*zh-Math.round(zh*0.22);if(nm)text(ctx,nm,x,zy,gn,500);
       const wp=passend(ctx,w,breite-(nm?spalte:0),gw,800,8);text(ctx,wp.text,x+(nm?spalte:0),zy,wp.g,800)})}
   /* Werteliste untereinander: kleiner Name, darunter großer Wert (schmale Etiketten) */
-  function werteGestapelt(ctx,liste,x,y,breite,zh,gw){liste.forEach(([nm,w],i)=>{const y0=y+i*zh;const g1=Math.round(zh*0.3),g2=gw||Math.round(zh*0.5);
-      if(nm)text(ctx,nm,x,y0+g1,g1,500);const wp=passend(ctx,w,breite,g2,800,9);text(ctx,wp.text,x,y0+g1+Math.round(zh*0.08)+wp.g,wp.g,800)})}
+  function werteGestapelt(ctx,liste,x,y,breite,zh,gw,gl){liste.forEach(([nm,w],i)=>{const y0=y+i*zh;const g1=Math.round(zh*0.3),g2=gw||Math.round(zh*0.5);
+      if(nm)text(ctx,nm,x,y0+g1,g1,500);const wp=passend(ctx,w,breite,g2,800,9);text(ctx,wp.text,x,y0+g1+Math.round(zh*0.08)+(gl||wp.g),wp.g,800)})}
 
   /** o: { format, slots[4], rgb ("text"|"aus"), qr (Inhalt), id, rest, eigene, leerStandard, hochkant } */
   async function zeichnen(canvas,s,o={}){
@@ -4140,7 +4140,10 @@ window.Etikett=(()=>{
     const fp=passend(ctx,farbeVon(s),innen,Math.round(ref*0.09),700,9);y+=fp.g;text(ctx,fp.text,m,y,fp.g,700);y+=Math.round(ref*0.03);
     const unten=H-m;const q=o.qr?Math.min(unten-y,Math.round(W*0.27)):0;const breite=innen-(q?q+Math.round(ref*0.03):0);
     const liste=zeilen(s,o,4);const sp=Math.floor(breite/2);const zh=Math.floor((unten-y)/2);
-    liste.forEach((z,i)=>werteGestapelt(ctx,[z],m+(i%2)*sp,y+Math.floor(i/2)*zh,sp-Math.round(ref*0.03),zh));
+    const sb=sp-Math.round(ref*0.03),g2=Math.round(zh*0.5),gr=liste.map(([,w])=>passend(ctx,w,sb,g2,800,9).g);
+    // gleiche Zeile: gemeinsame Grundlinie; ähnlich große Werte bekommen dieselbe Schrift, damit nichts tanzt
+    liste.forEach((z,i)=>{const j=i%2?i-1:i+1;const a=gr[i],b=gr[j]??a;const gw=Math.min(a,b)/Math.max(a,b)>0.7?Math.min(a,b):a;
+      werteGestapelt(ctx,[z],m+(i%2)*sp,y+Math.floor(i/2)*zh,sb,zh,gw,Math.max(a,b))});
     if(q)qr(ctx,o.qr,W-m-q,unten-q,q);return liste.weg}
   /* Vertikal (30×40): Werte über dem QR – nie daneben, damit nichts abgeschnitten wird */
   function hoch(ctx,s,o,img,W,H,hex,f,fett=false,max=f.werte){const ref=W;const m=Math.round(ref*0.055);const innen=W-2*m;let y=m;
