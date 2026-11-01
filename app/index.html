@@ -2319,20 +2319,20 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
       ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
     ${fil?`<div class="dl-fil">${fil}</div>`:""}</div>`}
 const ICON_AUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5M12 20h.01"/></svg>';
-function html(){const q=quelle();if(!q.l.length)return "";
+function html(){const q=quelle();if(!q.l.length)return `<div id="dlive" hidden></div>`;
   const n={druckt:0,bereit:0,aus:0};let aktiv=0;
   for(const d of q.l){const k=art(d);if(k==="druckt"||k==="pause"){n.druckt++;aktiv+=d.weight}else if(k==="aus")n.aus++;else n.bereit++}
   const kachel=(t,v)=>`<div class="dl-k"><span>${t}</span><b class="num">${v}</b></div>`;
   return `<section class="panel dlive" id="dlive" aria-label="Drucker jetzt"><div class="dl-ks">${kachel("Drucken",n.druckt)}${kachel("Bereit",n.bereit)}${kachel("Offline",n.aus)}${q.art==="ha"?kachel("Filament aktiv",gr(aktiv)):""}</div>
     <div class="dl-liste">${q.l.map(zeile).join("")}</div></section>`}
-function after(){if(window.HAP&&S.backend==="ha")HAP.liveCovers("#dlive ");
+function after(){if(window.HAP&&S.backend==="ha"){if(!HAP._printers().length&&!after.l){after.l=1;HAP.ensure().then(()=>{after.l=0;letzt="";neu()}).catch(()=>{after.l=0})}HAP.liveCovers("#dlive ")}
   else if(window.JOBS&&JOBS.coverFor)document.querySelectorAll("#dlive [data-lc]").forEach(async el=>{if(el.dataset.done)return;el.dataset.done=1;
     const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
 /* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */
 let tm=null,letzt="";
 function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("dlive");if(!alt)return;
   const h=html();if(h===letzt)return;letzt=h;const bilder={};alt.querySelectorAll("[data-lc]").forEach(el=>{if(el.style.backgroundImage)bilder[el.dataset.lc]=el.style.backgroundImage});
-  if(!h){alt.remove();return}alt.outerHTML=h;document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
+  alt.outerHTML=h;document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
 const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
 window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
 /* Online-Version mit eigener HA-Verbindung: Zustände alle 30 s holen, solange der Reiter offen ist */
