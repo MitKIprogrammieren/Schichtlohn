@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.2.37 – 01.11.2026
+- Lager: Neue Spulentypen – halbdurchsichtig (milchig), schwarz mit Lochmuster, Pappe schwarz-weiß und schlichte Pappe, dazu weiter Klarsicht und dunkel mit Fenstern.
+- Unter Einstellungen → „Spule je Marke“ bekommt jede Marke aus dem Lager ihre eigene Spule; neue Marken bekommen den eingestellten Standard.
+- Neu: „Spulen drehen sich“ – nur beim Drucken, immer langsam oder nie.
+- Alles in allen drei Ansichten (stehend, frontal, flach liegend) und in der PDF-Bestandsliste.
+
 ## 3.2.36 – 01.11.2026
 - Rechnungen: Bilder für Bambu-Lab-Bestellungen kommen jetzt aus dem Bambu-Store – bei Filament in der gekauften Farbe. Die Produktbilder sind außerdem größer und schärfer.
 
