@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.38 – 01.11.2026
+- Einstellungen: Neben jeder Marke zeigt ein kleines Bild, wie ihre Spule aussieht – es ändert sich sofort beim Umstellen.
+- Kürzere Namen: „Milchig“ und „Lochmuster“.
+- Auf dem Handy steht für die Einstellungen jetzt ein Zahnrad-Symbol in der Reiterleiste statt „Mehr“.
+
 ## 3.2.37 – 01.11.2026
 - Lager: Neue Spulentypen – halbdurchsichtig (milchig), schwarz mit Lochmuster, Pappe schwarz-weiß und schlichte Pappe, dazu weiter Klarsicht und dunkel mit Fenstern.
 - Unter Einstellungen → „Spule je Marke“ bekommt jede Marke aus dem Lager ihre eigene Spule; neue Marken bekommen den eingestellten Standard.

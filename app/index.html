@@ -13,7 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}
+</style>
 <script>/* eingebettet (Home-Assistant-App): die iPhone-Aussparung gilt hier nicht, kein leerer Streifen oben */try{if(self!==top)document.documentElement.classList.add("eingebettet")}catch(e){document.documentElement.classList.add("eingebettet")}</script>
 <style>html.eingebettet{padding-top:0!important}html.eingebettet body::before{display:none}html.eingebettet header.top{top:0}html.eingebettet .result{top:76px}html.eingebettet .modal-bg{padding-top:5vh}</style>
 </head>
@@ -221,7 +222,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <button data-tab="auftraege">Aufträge</button>
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="geschaeft">Geschäft</button>
-      <button data-tab="einstellungen" data-kurz="Mehr">Einstellungen</button>
+      <button data-tab="einstellungen" aria-label="Einstellungen"><svg class="tabico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.99 3.73L9.76 3.49L10.42 1.32L13.58 1.32L14.24 3.49L15.01 3.73L15.75 4.04L17.66 2.80L20.08 4.83L19.19 6.92L19.62 7.60L19.99 8.31L22.25 8.59L22.80 11.70L20.77 12.73L20.67 13.53L20.49 14.31L22.04 15.98L20.46 18.71L18.25 18.20L17.66 18.74L17.02 19.23L17.14 21.50L14.17 22.58L12.80 20.76L12.00 20.80L11.20 20.76L9.83 22.58L6.86 21.50L6.98 19.23L6.34 18.74L5.75 18.20L3.54 18.71L1.96 15.98L3.51 14.31L3.33 13.53L3.23 12.73L1.20 11.70L1.75 8.59L4.01 8.31L4.38 7.60L4.81 6.92L3.92 4.83L6.34 2.80L8.25 4.04Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3" stroke-opacity=".55"/><circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tabtxt">Einstellungen</span></button>
     </nav>
   </div>
 </header>
@@ -1167,7 +1168,7 @@ function renderSettings(m){
 </div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe">${[["spule","Spule mit Füllstand"],["rolle","Filamentrolle (klassisch)"],["quadrat","Farbquadrat"]].map(([v,t])=>`<option value="${v}"${(S.cfg.lagerFarbe||"spule")===v?" selected":""}>${t}</option>`).join("")}</select></label>
-      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
+      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:40px auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`${window.LGN&&LGN.spool?`<span data-spic="${esc(m)}">${LGN.spool("#4f8cff","spvor",[],{hersteller:m,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}})}</span>`:""}<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
         return `<details class="field lgx"><summary>Logos der Marken (${m.length})</summary><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl],ud=lg[sl+"-dunkel"];
           return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
@@ -1621,7 +1622,8 @@ document.addEventListener("change",e=>{
   if(t.tagName!=="SELECT"&&t.type!=="color")return;
   if(t.id==="lagerModus"){try{localStorage.setItem("schichtlohn_lagermodus",t.value)}catch(e){}toast("Gespeichert");return}
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");if(typeof render==="function")render();return}
-  if(t.dataset&&t.dataset.spmarke){const m=t.dataset.spmarke.trim().toLowerCase();S.cfg.spuleMarken=Object.assign({},S.cfg.spuleMarken||{},{[m]:t.value});saveCfgSoon();toast("Gespeichert");return}
+  if(t.dataset&&t.dataset.spmarke){const m0=t.dataset.spmarke,m=m0.trim().toLowerCase();S.cfg.spuleMarken=Object.assign({},S.cfg.spuleMarken||{},{[m]:t.value});saveCfgSoon();toast("Gespeichert");
+    const ic=[...document.querySelectorAll("[data-spic]")].find(x=>x.dataset.spic===m0);if(ic&&window.LGN&&LGN.spool)ic.innerHTML=LGN.spool("#4f8cff","spvor",[],{hersteller:m0,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}});return}
   if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"||t.id==="spuleAnimation"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
@@ -2280,6 +2282,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
 .job .right{text-align:right;font-size:13px;color:var(--fg-2);white-space:nowrap}
 .job .right b{display:block;font-size:15px;color:var(--fg)}.jinfo{min-width:0}
 /* Handy: Bild links mit Auswahl-Häkchen darauf, Titel bis zwei Zeilen, Gewicht und Zeit darunter; Filter als ruhiges Raster */
+nav.tabs .tabico{display:none}
 @media (max-width:620px){
   .jsrc{gap:6px}.jsrc .chip,.jsrc .btn{font-size:12.5px;padding:5px 10px;min-height:0}
   .jhead{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jhead input[type=search]{grid-column:1/-1}
@@ -2297,6 +2300,7 @@ window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSav
   .job .right b{font-size:16px}
   nav.tabs button{padding:6px 11px;font-size:14.5px}
   nav.tabs button[data-kurz]{font-size:0}nav.tabs button[data-kurz]::after{content:attr(data-kurz);font-size:14.5px}
+  nav.tabs .tabico{display:inline-block;width:22px;height:22px;vertical-align:-6px}nav.tabs .tabtxt{display:none}
 }
 .jbar{position:sticky;bottom:12px;z-index:15;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;margin-top:8px;border:1px solid var(--accent);border-radius:var(--r-s);background:var(--header-bg,var(--panel));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .jbar .info{flex:1 1 200px;min-width:0}
@@ -3922,7 +3926,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgr:hover{background:var(--sunken)}
 .lgr.leer{opacity:.55}
 .lgsw{width:30px;height:30px;border-radius:var(--r-s);box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
-.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.lgakt .lgrot{animation:lgrot 6s linear infinite}.lglangsam .lgrot{animation-duration:18s}@keyframes lgrot{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.lgakt .lgrot{animation:none}}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.spvor.lgspool{display:inline-flex;width:40px;height:40px;vertical-align:middle}.lgakt .lgrot{animation:lgrot 6s linear infinite}.lglangsam .lgrot{animation-duration:18s}@keyframes lgrot{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.lgakt .lgrot{animation:none}}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
 .lgn{font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
 .lgn small{color:var(--fg-2);font-weight:400;font-size:13px}
 .lgs{font-size:12.5px;color:var(--fg-2);margin-top:2px}
@@ -4310,7 +4314,7 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":spMarkeArt(e.hersteller);
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klarsicht"],["milchig","Halbdurchsichtig (milchig)"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Schwarz mit Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
+const SP_TYPEN=[["klar","Klarsicht"],["milchig","Milchig"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
   pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
   lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
