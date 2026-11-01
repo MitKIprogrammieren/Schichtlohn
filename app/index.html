@@ -1434,6 +1434,10 @@ function estimate(stats,matId){
   const minutes=grams/Math.max(1,num(pr.gph))*60+8;
   return {grams:r2(grams),minutes:Math.round(minutes)};
 }
+// 3MF-Transform "m00 m01 m02 m10 … m32" → lineare 3x3 (Zeilenvektor-Konvention, Verschiebung egal für Volumen/Fläche)
+function tf3(s){const a=String(s||"").trim().split(/\s+/).map(Number);return a.length===12&&a.every(Number.isFinite)?a.slice(0,9):[1,0,0,0,1,0,0,0,1]}
+function mul3(a,b){const r=[];for(let i=0;i<3;i++)for(let j=0;j<3;j++)r.push(a[i*3]*b[j]+a[i*3+1]*b[3+j]+a[i*3+2]*b[6+j]);return r} // erst a, dann b
+function isId3(m){return [1,0,0,0,1,0,0,0,1].every((v,i)=>Math.abs(m[i]-v)<1e-9)}
 async function parse3mf(file){
   const zip=await JSZip.loadAsync(file);const base=file.name.replace(/\.gcode\.3mf$|\.3mf$/i,"");
   const parts=[];
@@ -1467,12 +1471,15 @@ async function parse3mf(file){
       const d=new DOMParser().parseFromString(await zip.file(n).async("string"),"text/xml");
       const path="/"+n.replace(/^\//,"");
       d.querySelectorAll("object").forEach(o=>{const id=o.getAttribute("id");const mesh=o.getElementsByTagName("mesh")[0];
-        if(mesh){const vs=[...mesh.getElementsByTagName("vertex")].map(v=>[+v.getAttribute("x"),+v.getAttribute("y"),+v.getAttribute("z")]);const ts=[...mesh.getElementsByTagName("triangle")];const t=new Float32Array(ts.length*9);ts.forEach((tr,i)=>{const a=vs[+tr.getAttribute("v1")],b=vs[+tr.getAttribute("v2")],c=vs[+tr.getAttribute("v3")];if(a&&b&&c)t.set([...a,...b,...c],i*9)});objects[path+"#"+id]={stats:meshStats(t),name:o.getAttribute("name")}}
-        else{const comps=[...o.getElementsByTagName("component")].map(cp=>(cp.getAttribute("p:path")||path)+"#"+cp.getAttribute("objectid"));objects[path+"#"+id]={comps,name:o.getAttribute("name")}}});
-      if(/3dmodel\.model$/i.test(n))build=[...d.getElementsByTagName("item")].map(it=>path+"#"+it.getAttribute("objectid"));
+        if(mesh){const vs=[...mesh.getElementsByTagName("vertex")].map(v=>[+v.getAttribute("x"),+v.getAttribute("y"),+v.getAttribute("z")]);const ts=[...mesh.getElementsByTagName("triangle")];const t=new Float32Array(ts.length*9);ts.forEach((tr,i)=>{const a=vs[+tr.getAttribute("v1")],b=vs[+tr.getAttribute("v2")],c=vs[+tr.getAttribute("v3")];if(a&&b&&c)t.set([...a,...b,...c],i*9)});objects[path+"#"+id]={tris:t,name:o.getAttribute("name")}}
+        else{const comps=[...o.getElementsByTagName("component")].map(cp=>({k:(cp.getAttribute("p:path")||path)+"#"+cp.getAttribute("objectid"),m:tf3(cp.getAttribute("transform"))}));objects[path+"#"+id]={comps,name:o.getAttribute("name")}}});
+      if(/3dmodel\.model$/i.test(n))build=[...d.getElementsByTagName("item")].map(it=>({k:path+"#"+it.getAttribute("objectid"),m:tf3(it.getAttribute("transform"))}));
     }
-    const statOf=(k,depth=0)=>{const o=objects[k]||objects[k.replace(/^\/+/,"/")];if(!o||depth>8)return {vol:0,area:0};if(o.stats)return o.stats;return o.comps.reduce((a,c)=>{const s=statOf(c,depth+1);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0})};
-    const tot=build.reduce((a,k)=>{const s=statOf(k);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0});
+    // Transformationen (Skalierung/Drehung aus Build-Item und Komponenten) auf das Netz anwenden – Bambu speichert Netze oft verkleinert
+    const statOf=(k,m,depth=0)=>{const o=objects[k]||objects[k.replace(/^\/+/,"/")];if(!o||depth>8)return {vol:0,area:0};
+      if(o.tris){if(isId3(m))return o.stats||(o.stats=meshStats(o.tris));const t=o.tris,u=new Float32Array(t.length);for(let i=0;i<t.length;i+=3){const x=t[i],y=t[i+1],z=t[i+2];u[i]=x*m[0]+y*m[3]+z*m[6];u[i+1]=x*m[1]+y*m[4]+z*m[7];u[i+2]=x*m[2]+y*m[5]+z*m[8]}return meshStats(u)}
+      return o.comps.reduce((a,c)=>{const s=statOf(c.k,mul3(c.m,m),depth+1);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0})};
+    const tot=build.reduce((a,b)=>{const s=statOf(b.k,b.m);return {vol:a.vol+s.vol,area:a.area+s.area}},{vol:0,area:0});
     if(tot.vol>0){const e=estimate(tot);const tf=zip.file("Metadata/thumbnail.png")||zip.file("Metadata/plate_1.png");parts.push({name:base,minutes:e.minutes,mats:[{g:e.grams,type:"",color:""}],thumb:tf?await blobToThumb(await tf.async("blob")):"",src:"Schätzung aus Modell"})}
   }
   return parts;

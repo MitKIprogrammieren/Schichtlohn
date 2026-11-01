@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.26 – 01.11.2026
+- Rechner: Ungeslicte 3MF-Dateien werden jetzt in der richtigen Größe geschätzt. Wurde ein Modell in Bambu Studio vergrößert oder gedreht, rechnet SchichtLohn das mit ein – vorher kamen solche Teile viel zu leicht und zu schnell heraus.
+
 ## 3.2.25 – 31.10.2026
 - Bestandsliste: „Nach Marke“ und die Suche gehen wieder über die ganze Breite, sind aber nur so hoch wie die Umschalter darüber.
 
