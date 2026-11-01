@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.41 – 01.11.2026
+- Spulentypen heißen jetzt: Klar, Bambu Spule, FD3D, JAYO, Sunlu/JAYO, TINMORRY, FILAXIX und Polymaker.
+
 ## 3.2.40 – 01.11.2026
 - Lager: Neuer Spulentyp „Schwarz mit Schlitzen“ – vier schmale Fenster mit je drei Kammern, an denen man den Füllstand sieht. Auswählbar unter Einstellungen → „Spule je Marke“.
 

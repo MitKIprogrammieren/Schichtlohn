@@ -4314,7 +4314,7 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":spMarkeArt(e.hersteller);
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klarsicht"],["milchig","Milchig"],["rippen","Klarsicht mit Rippen"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Lochmuster"],["schlitz","Schwarz mit Schlitzen"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
+const SP_TYPEN=[["klar","Klar"],["milchig","Bambu Spule"],["rippen","FD3D"],["dunkel","JAYO"],["lochplatte","Sunlu/JAYO"],["schlitz","TINMORRY"],["zweifarbig","FILAXIX"],["pappe","Polymaker"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
   pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
   lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
