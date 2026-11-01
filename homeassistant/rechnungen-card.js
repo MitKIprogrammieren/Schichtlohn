@@ -70,10 +70,10 @@ function allgParse(pages){
   const datum=s=>{const m=String(s||'').match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);if(!m)return'';const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`};
   /* Shop: Absenderzeile „Firma | Straße | Ort“, sonst Domain aus der E-Mail-Adresse */
   let shop='';const abs=zeilen.slice(0,4).find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
-  if(!shop){const w=alles.match(/www\.([a-z0-9-]+)\.[a-z]{2,}/i);if(w){const k=alles.match(new RegExp('\\b('+w[1].replace(/-/g,'\\-')+')\\b','gi'))||[];shop=k.find(x=>x!==x.toLowerCase())||w[1]}}
+  if(!shop){const w=alles.match(/www\.([a-z0-9-]+)\.[a-z]{2,}/i);if(w){const k=alles.match(new RegExp('\\b('+w[1].replace(/-/g,'\\-')+')\\b','gi'))||[];shop=k.find(x=>x!==x.toLowerCase())||(w[1][0].toUpperCase()+w[1].slice(1))}}
   if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1]}
   const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Best\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrag\s*#\s*([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
-  const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Rech\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/^Rechnung[ \t]+([A-Z]{0,3}-?\d[\w-]{3,})/m)||feld(/Rech\.?-?Nr\.?\s*:?\s+([A-Z0-9][\w-]{3,})/i);
   const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Rech\.?-?Datum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
   const netto=zahl(feld(/(?:Netto(?:betrag|summe)|Summe netto|Zwischensumme netto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
   const gesamt=zahl(feld(/(?:Gesamt(?:betrag|summe)?|Rechnungsbetrag(?: inkl\. USt\.?)?|Endbetrag|Summe brutto)[ \t]*(?:\(brutto\))?[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
@@ -93,6 +93,7 @@ function allgParse(pages){
     if(/versand|porto|shipping|verpackung/i.test(n)){ship+=s;continue}
     let e='';const nx=zeilen[k+1]&&zeilen[k+1].t||'';const m=nx.match(/EAN\s*:?\s*(\d{8,14})/i);if(m)e=m[1];
     items.push({n,q,s,e})}
+  if(!ship){const v=zahl(feld(/(?:Versand(?:kosten)?|Porto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€)/i));if(v)ship=v}
   /* Netto-Positionen (Summe = Nettobetrag, darunter USt): mit Gesamt/Netto auf brutto hochrechnen */
   const roh=items.reduce((a,b)=>a+b.s,0)+ship;
   const f=netto&&gesamt&&gesamt>netto&&(kopfNetto||Math.abs(roh-netto)<0.05)?gesamt/netto:1;
@@ -555,7 +556,7 @@ class BambuRechnungenCard extends HTMLElement{
   async _preiseAndere(x){
     const fil=x.items.filter(it=>andKat(it.n)==='Filament'&&it.q>0); if(!fil.length) return;
     const DE={black:'schwarz',white:'weiß',gray:'grau',grey:'grau',blue:'blau',green:'grün',red:'rot',yellow:'gelb',silver:'silber',purple:'lila',brown:'braun',orange:'orange',pink:'rosa',transparent:'transparent'};
-    const n0=t=>norm(t).replace(/[()\[\],\/]/g,' ');
+    const n0=t=>norm(t).replace(/[()\[\],\/]/g,' ').replace(/\bgrey\b/g,'gray');
     try{
       const base=await this._lagerBase();
       const r=await fetch(base+'/api/listen/todo.filament',{credentials:'same-origin'}); if(!r.ok) throw new Error('Lager antwortet nicht ('+r.status+')');
