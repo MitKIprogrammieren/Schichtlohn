@@ -356,16 +356,26 @@ const SRV=window.SRV=(()=>{
   function sub(name,cb){let lauf=0;const holen=async()=>{const n=++lauf;try{const it=await liste(name);if(n===lauf)cb(it)}catch(e){console.warn("Server",e)}};
     const ab=on(ev=>{if(ev.typ==="neu"||(ev.typ==="liste"&&ev.name===name))holen()});return holen().then(()=>ab)}
   /* Daten (cfg, portfolio, orders) */
-  async function get(k){try{return ((await req("GET","/api/daten/"+encodeURIComponent(k)))||{}).wert}catch(e){if(e.status===404)return null;throw e}}
+  let cfgBasis=null;const kopie=v=>v==null?v:JSON.parse(JSON.stringify(v));
+  async function get(k){try{const w=((await req("GET","/api/daten/"+encodeURIComponent(k)))||{}).wert;if(k==="cfg")cfgBasis=kopie(w)||{};return w}catch(e){if(e.status===404){if(k==="cfg")cfgBasis={};return null}throw e}}
+  /* Einstellungen speichern: nur was auf diesem Gerät geändert wurde, auf den aktuellen Server-Stand legen.
+     So überschreibt ein Gerät mit älterem Stand nicht die Einstellungen, die inzwischen ein anderes Gerät gemacht hat. */
+  async function cfgSpeichern(){const neu=cfgOhneLokal();const basis=cfgBasis;const jetzt=(await get("cfg"))||{};
+    const out=Object.assign({},jetzt),gleich=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+    if(!basis)Object.assign(out,neu);else new Set([...Object.keys(neu),...Object.keys(basis)]).forEach(k=>{if(!gleich(neu[k],basis[k])){if(k in neu)out[k]=neu[k];else delete out[k]}});
+    await put("cfg",out);cfgBasis=kopie(out);
+    Object.keys(out).forEach(k=>{if(!gleich(S.cfg[k],out[k]))S.cfg[k]=kopie(out[k])})}
   const put=(k,wert)=>req("PUT","/api/daten/"+encodeURIComponent(k),{wert,quelle:id});
   /* Start: ist ein Server eingetragen und erreichbar? */
   async function init(){if(!url())return;try{const d=await req("GET","/");if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter "+url()+" läuft kein SchichtLohn-Server");
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";try{setTimeout(()=>window.dispatchEvent(new Event("sl-srv-bereit")),0)}catch(x){}
       on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="daten"&&ev.name==="shoppreise_eigen")try{window.dispatchEvent(new Event("sl-ep-neu"))}catch(x){}if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
-        if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu")zstLaden();
+        if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu"){zstLaden();["cfg","portfolio","orders"].forEach(nachladen)}
         if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
         if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}});
-      zstLaden()}
+      zstLaden();
+      /* Kommt die App aus dem Hintergrund zurück, zuerst den Stand vom Server holen – sonst überschreibt ein veralteter Stand beim nächsten Speichern die Einstellungen der anderen Geräte */
+      document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")["cfg","portfolio","orders"].forEach(nachladen)})}
     catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
   /* Zustände im Format von Home Assistant (Drucker, AMS-Fächer, Feuchte, Waage) */
   const zst={};let zstT=null;
@@ -542,7 +552,7 @@ const SRV=window.SRV=(()=>{
     if(a==="srvAus"){confirmBox("Server nicht mehr verwenden? Die Daten bleiben auf dem Server; SchichtLohn arbeitet danach wieder mit "+(window.__PW_HA||(window.HAP&&HAP.savedConn&&HAP.savedConn())?"Home Assistant":"den Daten in diesem Browser")+".","Trennen",()=>{lss(K_URL,"");lss(K_TOK,"");location.reload()});return}});
   /* neue Datenbank sofort nutzen */
   function G_fdbNeu(){try{if(window.__fdbNeu)window.__fdbNeu()}catch(e){}}
-  return {url,token,norm,req,on,liste,svc,sub,get,put,init,html,cfgOhneLokal,id,zst,zstV:()=>zstNeu.v||0}})();
+  return {url,token,norm,req,on,liste,svc,sub,get,put,cfgSpeichern,init,html,cfgOhneLokal,id,zst,zstV:()=>zstNeu.v||0}})();
 const Store={
   db:null,
   async init(){
@@ -585,7 +595,7 @@ const Store={
     return {cfg:LS.get("cfg"),portfolio:LS.get("portfolio")||[],orders:LS.get("orders")||[]};
   },
   async saveCfg(){return this._run(async()=>{
-    if(S.srv)await SRV.put("cfg",SRV.cfgOhneLokal());
+    if(S.srv)await SRV.cfgSpeichern();
     else if(S.backend==="ha")await haSet("schichtlohn_cfg",S.cfg);
     else if(S.backend==="claude")await this.col.doc("cfg").set({data:JSON.stringify(S.cfg)});
     else LS.set("cfg",S.cfg);})},

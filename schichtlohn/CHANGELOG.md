@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.44 – 01.11.2026
+- Einstellungen bleiben auf allen Geräten gleich: Speichert ein Gerät, das länger offen war (z. B. die Home-Assistant-App auf dem Mac), überschreibt es nicht mehr, was du inzwischen auf dem Handy eingestellt hast – es werden nur die Werte übernommen, die du auf diesem Gerät geändert hast.
+- Kommt SchichtLohn aus dem Hintergrund zurück oder war kurz die Verbindung weg, holt es sich zuerst den aktuellen Stand von Einstellungen, Portfolio und Aufträgen.
+
 ## 3.2.43 – 01.11.2026
 - Preise aus Shopseiten: Auch Sammelseiten (z. B. colorfabb.com „3D-Druck-Filamente“) werden jetzt deinen Sorten zugeordnet – Material und Farbe kommen aus dem Variantennamen („Varioshore TPU 95A Schwarz“).
 - Preisliste: colorFabb Varioshore TPU von 3DJake ist dabei.
