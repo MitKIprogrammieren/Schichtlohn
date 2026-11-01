@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.47 – 01.11.2026
+- Fächer werden wieder erkannt: Beim ersten Start holt sich der Server einmal die Bambu-Profile und gelernten AMS-Farben, die du früher in Home Assistant den Sorten zugeordnet hast. Nur fehlende Angaben werden ergänzt – Bestand, Preise und alles andere bleiben, wie sie sind.
+
 ## 3.2.46 – 01.11.2026
 - Neu: „Fach nicht zugeordnet“ kommt jetzt vom SchichtLohn-Server und prüft gegen dein SchichtLohn-Lager. Legst du ein Filament ins AMS (oder änderst Profil oder Farbe) und keine Sorte mit Bestand passt, bekommst du eine Handymeldung mit bis zu drei Vorschlägen.
 - Ein Vorschlag in der Meldung öffnet SchichtLohn und ordnet das Fach gleich zu – „In SchichtLohn öffnen“ zeigt die Auswahl aller Sorten.

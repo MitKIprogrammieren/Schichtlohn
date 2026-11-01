@@ -67,7 +67,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.46"
+VERSION = "3.2.47"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1817,8 +1817,56 @@ def faecher_durchlauf(jetzt=None):
             _meldung_weg(eid)
 
 
+HA_IDS_KEY = "_ha_ids_uebernommen"
+
+
+def ha_ids_uebernehmen(erzwingen=False):
+    """Einmalig: Bambu-IDs und gelernte AMS-Farben aus der alten HA-Liste todo.filament in das Server-Lager holen.
+    Füllt nur, was auf dem Server fehlt (gleiche Sorte über uid, sonst über den Namen); Bestand, Preise usw. bleiben."""
+    fertig, _ = daten_lesen(HA_IDS_KEY)
+    if fertig and not erzwingen:
+        return fertig
+    url, token = ha_cfg()
+    if not (url and token):
+        return None
+    antwort = ha_anfrage("/api/services/todo/get_items?return_response", {"entity_id": ENT}, timeout=30)
+    ha_items = ((antwort or {}).get("service_response") or {}).get(ENT, {}).get("items") or []
+    nach_uid = {it.get("uid"): it for it in ha_items}
+    nach_name = {}
+    for it in ha_items:
+        nach_name.setdefault(str(it.get("summary") or "").strip().lower(), it)
+    ids = farben = 0
+    for it in liste_lesen(ENT):
+        d = _desc(it)
+        if not d.get("material"):
+            continue
+        h = nach_uid.get(it["uid"]) or nach_name.get(str(it["summary"] or "").strip().lower())
+        if not h:
+            continue
+        hd = _desc(h)
+        neu = dict(d)
+        if not str(d.get("bambu_id") or "").strip() and str(hd.get("bambu_id") or "").strip():
+            neu["bambu_id"] = str(hd["bambu_id"]).strip()
+            ids += 1
+        alt_f = [x.lower() for x in (d.get("ams_farben") or []) if isinstance(x, str)]
+        dazu = [x.lower() for x in (hd.get("ams_farben") or []) if isinstance(x, str) and x.lower() not in alt_f]
+        if dazu and (neu.get("bambu_id") or "") == (hd.get("bambu_id") or ""):
+            neu["ams_farben"] = alt_f + dazu
+            farben += 1
+        if neu != d:
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+    erg = {"zeit": time.strftime("%Y-%m-%dT%H:%M:%S"), "bambu_ids": ids, "ams_farben": farben, "ha_eintraege": len(ha_items)}
+    daten_schreiben(HA_IDS_KEY, erg)
+    print(f"Aus der HA-Liste übernommen: {ids} Bambu-IDs, {farben}× AMS-Farben", flush=True)
+    return erg
+
+
 def faecher_schleife():
     time.sleep(40)
+    try:
+        ha_ids_uebernehmen()
+    except Exception as ex:
+        print("Bambu-IDs aus HA:", ex, flush=True)
     while True:
         try:
             faecher_durchlauf()
@@ -2217,6 +2265,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"dienste": sorted(dienste, key=lambda x: x["name"]), "verbunden": True})
             except Exception as ex:
                 return self._json(200, {"dienste": [], "verbunden": False, "fehler": str(ex)})
+        if teile == ["faecher", "ha_ids"] and methode == "POST":
+            return self._json(200, ha_ids_uebernehmen(erzwingen=True) or {"fehler": "Home Assistant nicht erreichbar"})
         if teile == ["faecher"] and methode == "GET":
             # alle AMS-Fächer mit Prüfergebnis gegen das Lager (ohne Meldung)
             out = []
