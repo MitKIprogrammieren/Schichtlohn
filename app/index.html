@@ -1918,7 +1918,8 @@ const ROLE={
   status:/_(druckstatus|print_status)$/, progress:/_(druckfortschritt|print_progress)$/,
   weight:/_(gewicht_des_drucks|print_weight)$/, remaining:/_(verbleibende_zeit|remaining_time)$/,
   start:/_(startzeit|start_time)$/, end:/_(endzeit|end_time)$/, task:/_(name_der_aufgabe|task_name)$/,
-  gcode:/_(gcode_dateiname|gcode_filename|gcode_file)$/, pname:/_(name_des_druckers|printer_name)$/
+  gcode:/_(gcode_dateiname|gcode_filename|gcode_file)$/, pname:/_(name_des_druckers|printer_name)$/,
+  laenge:/_(drucklange|print_length)$/
 };
 const COVER=/_(titelbild|cover_image)$/;
 const BAD=new Set(["unknown","unavailable","","none","?"]);
@@ -2269,11 +2270,97 @@ const _rs=renderSettings;renderSettings=function(m){_rs(m);if(S.backend==="ha"&&
 function init(){if(S.backend!=="ha")return;loadRegistry(false).then(()=>{list=printers();autoMap(list);for(const p of list)p.snap=snapshot(p)}).catch(()=>{});
   setTimeout(syncOrders,4000);clearInterval(timer);timer=setInterval(()=>{syncOrders();if(S.addMode==="drucker"&&S.tab==="rechner"&&!loading){list.forEach(p=>p.snap=snapshot(p));if(!isWS())redrawPanel()}},60000)}
 
-window.HAP={panelHTML,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload,
+/* Live-Übersicht für den Reiter „Druckaufträge“: Zustand, Fortschritt, Filament je Drucker */
+function liveInfo(){return list.map(p=>{const s=snapshot(p);const r=st(p.roles.remaining);const u=((r&&r.attributes)||{}).unit_of_measurement||"h";
+  const pre=p.roles.status.split(".")[1].replace(/_(druckstatus|print_status)$/,"");
+  const err=["druckfehler","hms_fehler","print_error","hms_errors"].some(k=>String((st("binary_sensor."+pre+"_"+k)||{}).state)==="on");
+  return {key:p.dev,name:p.name,status:s.status,progress:s.progress,remaining:s.remaining*(u==="h"?60:u==="s"?1/60:1),end:s.end,
+    weight:s.weight,laenge:p.roles.laenge?num(val(p.roles.laenge)):0,task:s.task,err,serial:(pre.split("_")[1]||"").toUpperCase()}})}
+async function liveCovers(sel){for(const p of list){const el=document.querySelector(sel+`[data-lc="${CSS.escape(p.dev)}"]`);if(!el||el.dataset.done)continue;el.dataset.done=1;
+  const sn=(p.roles.status.split(".")[1].split("_")[1]||"").toUpperCase();
+  const cloud=async()=>{if(!window.JOBS||!JOBS.coverFor)return [];const c=await JOBS.coverFor(sn);return c?[c]:[]};
+  const haOk=p.cover&&!BAD.has(String((st(p.cover)||{}).state||"unavailable").toLowerCase());
+  (haOk?coverSrc(p):Promise.resolve([])).then(async u=>tryImg(u.concat(await cloud()),el)).catch(()=>{})}}
+window.HAP={panelHTML,liveInfo,liveCovers,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload,
   mapAms,kwhFor,cfgMap,coverThumb,async ensure(){await loadRegistry(false);list=printers();autoMap(list);return list},
   bySerial(sn){sn=String(sn||"").toLowerCase();return sn?list.find(p=>p.roles.status.toLowerCase().includes("_"+sn+"_"))||null:null}};
 })();
 </script>
+<script>
+/* ===== Drucker jetzt: kurze Live-Übersicht oben im Reiter „Druckaufträge“ ===== */
+(function(){
+"use strict";
+const AUS=new Set(["unavailable","unknown","offline","","none"]);
+const LAEUFT=new Set(["running","prepare","slicing","init"]);
+const gr=v=>N0.format(Math.round(v||0))+" g";
+const m1=v=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).format(v)+" m";
+/* Quellen: Home Assistant (vollständig) oder SchichtLohn-Server (Zustand, Fortschritt, Restzeit) */
+function quelle(){
+  if(S.backend==="ha"&&window.HAP&&HAP._printers().length)return {art:"ha",l:HAP.liveInfo()};
+  if(S.srv&&window.SRV&&SRV.zst){const z=SRV.zst,l=[];
+    for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_druckstatus$/);if(!m)continue;const pre=m[1];const a=z[id].attributes||{};
+      const v=k=>(z["sensor."+pre+"_"+k]||{}).state;
+      l.push({key:pre,name:a.drucker_name||pre.split("_")[0].toUpperCase(),status:String(z[id].state||"").toLowerCase(),progress:num(v("druckfortschritt")),
+        remaining:num(v("verbleibende_zeit")),end:null,weight:0,laenge:0,task:v("aktuelle_aufgabe")||"",err:false,serial:(pre.split("_")[1]||"").toUpperCase()})}
+    l.sort((a,b)=>(AUS.has(a.status)?1:0)-(AUS.has(b.status)?1:0)||a.name.localeCompare(b.name));
+    return {art:"srv",l}}
+  return {art:"",l:[]}}
+function art(d){if(AUS.has(d.status))return "aus";if(d.err||d.status==="failed")return "err";if(d.status==="pause")return "pause";if(LAEUFT.has(d.status))return "druckt";return "bereit"}
+const TXT={druckt:"Druckt",pause:"Pausiert",err:"Fehler",bereit:"Bereit",aus:"Offline"};
+function fertig(d){if(d.end){const t=new Date(d.end);if(!isNaN(t)&&t>Date.now()-6e4)return t}
+  return d.remaining>0?new Date(Date.now()+d.remaining*60000):null}
+function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
+  const f=lauf?fertig(d):null;
+  const info=k==="err"?(d.status==="failed"?"Druck abgebrochen":"Fehler am Drucker"):lauf?[`${N0.format(d.progress)} %`,d.remaining>0?"noch "+dur(d.remaining):"",f?"fertig "+f.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):""].filter(Boolean).join(" · "):TXT[k];
+  const fil=d.weight>0?(lauf?`<b class="num">${gr(d.weight*d.progress/100)} / ${gr(d.weight)}</b>${d.laenge>0?`<span>${m1(d.laenge)}</span>`:""}`:k!=="aus"?`<span>zuletzt ${gr(d.weight)}</span>`:""):"";
+  return `<div class="dl-z dl-${k}"><div class="dl-bild" data-lc="${esc(d.key)}">${k==="aus"?ICON_AUS:ICON.cube}</div>
+    <div class="dl-mitte"><div class="dl-name"><i class="dl-punkt"></i>${esc(d.name)}</div>
+      <div class="dl-info">${esc(info)}${lauf&&d.task?` <span class="dl-task" title="${esc(d.task)}">· ${esc(d.task)}</span>`:""}</div>
+      ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
+    ${fil?`<div class="dl-fil">${fil}</div>`:""}</div>`}
+const ICON_AUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5M12 20h.01"/></svg>';
+function html(){const q=quelle();if(!q.l.length)return "";
+  const n={druckt:0,bereit:0,aus:0};let aktiv=0;
+  for(const d of q.l){const k=art(d);if(k==="druckt"||k==="pause"){n.druckt++;aktiv+=d.weight}else if(k==="aus")n.aus++;else n.bereit++}
+  const kachel=(t,v)=>`<div class="dl-k"><span>${t}</span><b class="num">${v}</b></div>`;
+  return `<section class="panel dlive" id="dlive" aria-label="Drucker jetzt"><div class="dl-ks">${kachel("Drucken",n.druckt)}${kachel("Bereit",n.bereit)}${kachel("Offline",n.aus)}${q.art==="ha"?kachel("Filament aktiv",gr(aktiv)):""}</div>
+    <div class="dl-liste">${q.l.map(zeile).join("")}</div></section>`}
+function after(){if(window.HAP&&S.backend==="ha")HAP.liveCovers("#dlive ");
+  else if(window.JOBS&&JOBS.coverFor)document.querySelectorAll("#dlive [data-lc]").forEach(async el=>{if(el.dataset.done)return;el.dataset.done=1;
+    const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
+/* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */
+let tm=null,letzt="";
+function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("dlive");if(!alt)return;
+  const h=html();if(h===letzt)return;letzt=h;const bilder={};alt.querySelectorAll("[data-lc]").forEach(el=>{if(el.style.backgroundImage)bilder[el.dataset.lc]=el.style.backgroundImage});
+  if(!h){alt.remove();return}alt.outerHTML=h;document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
+const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
+window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
+/* Online-Version mit eigener HA-Verbindung: Zustände alle 30 s holen, solange der Reiter offen ist */
+setInterval(()=>{if(S.tab!=="drucke"||document.hidden)return;if(S.backend==="ha"&&window.HAP&&window.__hass&&window.__hass.__ws)HAP.ensure().then(neu).catch(()=>{});else neu()},30000);
+window.DLIVE={html,after};
+})();
+</script>
+<style>
+.dlive{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.dl-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.dl-k{background:var(--sunken);border-radius:var(--r-s);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.dl-k span{font-size:12px;color:var(--fg-2)}.dl-k b{font-size:20px;font-weight:600}
+.dl-liste{display:flex;flex-direction:column}
+.dl-z{display:flex;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid var(--line)}
+.dl-bild{width:44px;height:44px;flex:none;border-radius:8px;background:var(--sunken) center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--fg-3)}
+.dl-bild svg{width:20px;height:20px}
+.dl-mitte{flex:1;min-width:0}
+.dl-name{font-weight:600;font-size:15px;display:flex;align-items:center;gap:7px}
+.dl-punkt{width:8px;height:8px;border-radius:50%;background:var(--fg-3);flex:none}
+.dl-info{font-size:13px;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-task{color:var(--fg-3)}
+.dl-bar{height:4px;border-radius:2px;background:var(--track,var(--sunken));margin-top:6px;overflow:hidden}.dl-bar i{display:block;height:100%;background:var(--good)}
+.dl-fil{flex:none;text-align:right;font-size:12px;color:var(--fg-2);display:flex;flex-direction:column;gap:1px}.dl-fil b{font-size:14px;color:var(--fg)}
+.dl-druckt .dl-punkt{background:var(--good)}.dl-druckt .dl-info{color:var(--fg)}.dl-druckt .dl-bild{border-color:var(--good)}
+.dl-pause .dl-punkt,.dl-pause .dl-bar i{background:var(--warn)}
+.dl-err .dl-punkt{background:var(--bad)}.dl-err .dl-info{color:var(--bad)}
+.dl-aus .dl-punkt{background:none;border:1.5px solid var(--fg-3)}.dl-aus .dl-name,.dl-aus .dl-info{color:var(--fg-3)}.dl-aus .dl-bild{border-style:dashed;background-color:transparent}
+</style>
 <style>
 .jhead{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}.jhead>label.chip{font-size:inherit;padding:0 12px;border-radius:var(--r-s);gap:8px;color:var(--fg)}.jhead>.btn,.jhead>.sp{align-self:center}
 .jhead select,.jhead input[type=search]{width:auto;max-width:220px}
@@ -2570,6 +2657,7 @@ function render(m){
   m.innerHTML=`<div class="stack">
     <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span></div>
     ${sources}
+    ${window.DLIVE?DLIVE.html():""}
     ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
@@ -2579,6 +2667,7 @@ function render(m){
       <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
     ${body}${bar}
   </div>`;
+  if(window.DLIVE)DLIVE.after();
 }
 function redraw(){if(S.tab!=="drucke")return;const q=$("#job_q");const foc=q&&document.activeElement===q,pos=q?q.selectionStart:0;render();if(foc){const n=$("#job_q");n.focus();n.setSelectionRange(pos,pos)}}
 
