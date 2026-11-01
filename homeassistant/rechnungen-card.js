@@ -370,7 +370,7 @@ class BambuRechnungenCard extends HTMLElement{
     return `<div class="cbar"><p class="count">${text}</p>${k&&sortHtml?sortHtml:''}${k?`<label class="gr" title="Kachelgröße">▫<input type="range" id="kg" min="110" max="280" step="10" value="${st.kg||160}">◻</label>`:''}<div class="seg" role="group" aria-label="Darstellung"><button data-lay="liste" aria-pressed="${!k}" title="Liste">☰ Liste</button><button data-lay="kachel" aria-pressed="${k}" title="Kacheln">▦ Kacheln</button></div></div>`; }
   _kachel(o){ return `<div class="tile kc${o.ret?' ret':''}"${o.title?` title="${esc(o.title)}"`:''}>${this._pb(o.it)}${o.tags?`<div class="kt">${o.tags}</div>`:''}<div class="kb"><div class="nm">${o.nm}</div>${o.v?`<div class="var">${o.v}</div>`:''}<div class="kp"><span>${o.links||''}</span><b>${o.rechts||''}</b></div>${o.unten?`<div class="kd">${o.unten}</div>`:''}</div></div>`; }
   _rows(){ const R=[];(this._data||[]).forEach(r=>r.items.forEach(it=>R.push({...it,d:r.d,o:r.o,storno:!!r.storno,u:it.q?it.s/it.q:it.s})));return R; }
-  _hit(it){const st=this.st;if(!st.q)return true;const hay=norm(it.n+' '+it.v+' '+it.c+' '+it.o+' '+it.k+(it.ret?(it.storno?' storniert':' zurückgegeben'):''));return norm(st.q).split(/\s+/).filter(Boolean).every(w=>hay.includes(w))}
+  _hit(it){const st=this.st;if(!st.q)return true;const hay=norm(it.n+' '+it.v+' '+it.c+' '+it.o+' '+it.k+(it.ret?(it.storno?' storniert':' zurückgegeben'):''));const hz=hay.replace(/[\s\-_]+/g,'');return norm(st.q).split(/\s+/).filter(Boolean).every(w=>hay.includes(w)||hz.includes(w.replace(/[\-_]+/g,'')))}
   _hl(s){const st=this.st;let out=esc(s);if(!st.q)return out;norm(st.q).split(/\s+/).filter(w=>w.length>1).forEach(w=>{out=out.replace(new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>')});return out}
   _bestandHTML(inY){ const st=this.st; const gq=st.g||'';
     let L=this._inventar().filter(e=>e.kaeufe.some(k=>inY(k.d))&&(!gq||e.g===gq)&&(!st.q||this._hit({n:e.n,v:e.v,c:'',o:e.kaeufe.map(k=>k.o).join(' '),k:(this.st.src!=='bambu'?AZ_GNAME:GNAME)[e.g]})));
@@ -433,7 +433,7 @@ class BambuRechnungenCard extends HTMLElement{
     root.querySelector('#kg')?.addEventListener('change',()=>{try{localStorage.setItem('bambu_rechnungen_kg',String(st.kg))}catch(e){}});
     $('img.pb').forEach(i=>{i.onerror=()=>{i.onerror=null;i.src=PB_LEER;i.classList.add('leer');i.title='Kein Bild gefunden – antippen, um eine Bildadresse einzutragen'};
       i.onclick=ev=>{ev.preventDefault();ev.stopPropagation();try{this._pbSetzen(JSON.parse(i.dataset.pb))}catch(e){}}});
-    const q=root.querySelector('#q'); q.addEventListener('input',()=>{st.q=q.value.trim();clearTimeout(this._qt);this._qt=setTimeout(()=>this._render(),180)});
+    const q=root.querySelector('#q'); q.addEventListener('input',()=>{st.q=q.value;clearTimeout(this._qt);this._qt=setTimeout(()=>this._render(),180)});
     root.querySelector('#mehr')?.addEventListener('click',()=>{st.n+=300;this._render()}); if(focus==='q'){q.focus();try{q.setSelectionRange(caret,caret)}catch(e){}}
     root.querySelector('#clr')?.addEventListener('click',()=>{st.q='';this._render();root.querySelector('#q')?.focus()});
     root.querySelector('#pick').addEventListener('click',()=>this.shadowRoot.getElementById('file').click());
