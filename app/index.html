@@ -1167,7 +1167,7 @@ function renderSettings(m){
 </div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe">${[["spule","Spule mit Füllstand"],["rolle","Filamentrolle (klassisch)"],["quadrat","Farbquadrat"]].map(([v,t])=>`<option value="${v}"${(S.cfg.lagerFarbe||"spule")===v?" selected":""}>${t}</option>`).join("")}</select></label>
-      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${SP_TYPEN.map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${SP_TYPEN.map(([v,t])=>`<option value="${v}"${spMarkeArt(m)===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
+      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
         return `<details class="field lgx"><summary>Logos der Marken (${m.length})</summary><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl],ud=lg[sl+"-dunkel"];
           return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
@@ -1622,7 +1622,7 @@ document.addEventListener("change",e=>{
   if(t.id==="lagerModus"){try{localStorage.setItem("schichtlohn_lagermodus",t.value)}catch(e){}toast("Gespeichert");return}
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");if(typeof render==="function")render();return}
   if(t.dataset&&t.dataset.spmarke){const m=t.dataset.spmarke.trim().toLowerCase();S.cfg.spuleMarken=Object.assign({},S.cfg.spuleMarken||{},{[m]:t.value});saveCfgSoon();toast("Gespeichert");return}
-  if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
+  if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"||t.id==="spuleAnimation"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
   if(t.dataset.act==="ordStatus"){const o=S.orders.find(x=>x.id===t.dataset.id);if(o){o.status=t.value;t.className="st-"+t.value;Store.saveItem("o",o);if(S.quote.id===o.id)S.quote.status=o.status;toast(`Status: ${statusName(o.status)}`)}return}
@@ -3922,7 +3922,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgr:hover{background:var(--sunken)}
 .lgr.leer{opacity:.55}
 .lgsw{width:30px;height:30px;border-radius:var(--r-s);box-shadow:inset 0 0 0 1px rgba(127,127,127,.5)}
-.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.lgakt .lgrot{animation:lgrot 6s linear infinite}@keyframes lgrot{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.lgakt .lgrot{animation:none}}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.lgsw.lgspool{box-shadow:none;border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;margin:-8px}.lgakt .lgrot{animation:lgrot 6s linear infinite}.lglangsam .lgrot{animation-duration:18s}@keyframes lgrot{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.lgakt .lgrot{animation:none}}.lgspool svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
 .lgn{font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
 .lgn small{color:var(--fg-2);font-weight:400;font-size:13px}
 .lgs{font-size:12.5px;color:var(--fg-2);margin-top:2px}
@@ -4310,7 +4310,7 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
   const art=refill?"refill":spMarkeArt(e.hersteller);
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klarsicht"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Schwarz mit Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
+const SP_TYPEN=[["klar","Klarsicht"],["milchig","Halbdurchsichtig (milchig)"],["dunkel","Dunkel mit Fenstern"],["lochplatte","Schwarz mit Lochmuster"],["zweifarbig","Pappe schwarz-weiß"],["pappe","Pappe schlicht"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
   pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
   lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
@@ -4326,6 +4326,7 @@ function spLoecher(art,d){const pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Ma
   return [0,1,2,3].map(i=>sek(15.1*d,7.6*d,(45+i*90)*D,31*D)).join("")}
 function spMarkeArt(h){const cfg=S.cfg||{},m=String(h||"").trim().toLowerCase(),z=cfg.spuleMarken||{};
   if(m&&z[m]&&SP_TYPEN.some(t=>t[0]===z[m]))return z[m];return /bambu/.test(m)?(cfg.spuleBambu||"klar"):(cfg.spuleFremd||"dunkel")}
+window.SP_TYPEN=SP_TYPEN;window.spMarkeArt=spMarkeArt;
 function spMasse(g){g=Math.min(g>0?g:1000,20000);return {d:g<=1000?.45+.55*Math.sqrt(g/1000):1+.15*Math.log10(g/1000),w:g<1000?.75+.25*Math.sqrt(g/1000):1+Math.pow(g/1000-1,.6)*.35}}
 function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMasse(inf.gewicht),cfg=S.cfg||{};
   const ans=["frontal","liegend"].includes(cfg.spuleAnsicht)?cfg.spuleAnsicht:"stehend",o=ans==="liegend"?"y":"x";
@@ -4333,7 +4334,8 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   const col=sh=>(f.trans?sh.replace("FILL","url(#lgFxChk)"):"")+sh.replace("FILL",c).replace("/>",f.trans?' fill-opacity=".58"/>':"/>");
   const fx=sh=>[f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")")).join("");
   const glanz=f.matt?"":`stroke="#fff" stroke-opacity="${f.seide||f.metal||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal?1.2:.8}" fill="none" stroke-linecap="round"`;
-  const wrap=b=>`<span class="${cls} lgspool lgneu${aktiv?" lgakt":""}" role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg></span>`;
+  const anim=cfg.spuleAnimation||"druck",dreht=anim==="immer"||(anim==="druck"&&aktiv);
+  const wrap=b=>`<span class="${cls} lgspool lgneu${dreht?" lgakt":""}${anim==="immer"&&!aktiv?" lglangsam":""}" role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg></span>`;
   /* Bausteine entlang der Achse (o="x": stehend, o="y": liegend) */
   const bandD=(x0,x1,F)=>o==="x"?`M${n2(x0)} ${n2(-F)}H${n2(x1)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x1)} ${n2(F)}H${n2(x0)}Z`:`M${n2(-F)} ${n2(x0)}V${n2(x1)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x1)}V${n2(x0)}Z`;
   const winds=(x0,x1,F)=>{let p="";for(let x=x0+1.1;x<x1-.2;x+=1.05)p+=o==="x"?`M${n2(x)} ${n2(-F)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x)} ${n2(F)}`:`M${n2(-F)} ${n2(x)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x)}`;return p?`<path d="${p}" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".35"/>`:""};
@@ -4349,15 +4351,15 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   if(art==="refill"){const Hc=7*d;R=16*d;F=pct>0?Hc+.8*d+(16*d-Hc-.8*d)*pct:Hc;D=13*w;HUB=Hc;
     vorne=`${pct>0?face(F,Hc):""}<g class="lgrot"><circle r="${n2(Hc)}" fill="#c99a62" stroke="#7a5428" stroke-width=".7"/><circle r="${n2(Hc-1.3*d)}" fill="#3a2a17"/><circle cy="${n2(-(Hc-.65*d))}" r=".45" fill="#7a5428"/></g>${pct>0?glanzKreis(F):""}`;
     rueck=pct>0?band(0,D,F):`${ell(D,Hc,'fill="#a77a45"')}`;R=pct>0?F:Hc}
-  else{const klar=art==="klar",T=SP_FARBE[klar?"dunkel":art]||SP_FARBE.dunkel;R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
+  else{const milch=art==="milchig",klar=art==="klar"||milch,T=SP_FARBE[klar?"dunkel":art]||SP_FARBE.dunkel;R=17.4*d;HUB=6.2*d;F=pct>0?HUB+(15.3*d-HUB)*pct:0;D=9*w;
     const win=spLoecher(art,d);
     const disc=`M${n2(R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(-R)} 0A${n2(R)} ${n2(R)} 0 1 0 ${n2(R)} 0Z`;
     const halb=T.halb?`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.halb}" clip-path="url(#lgNHalb)"/>`:"",perf=T.perf?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNPerf)"/><circle r="${n2(R-.9*d)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="${n2(.5*d)}"/><circle r="${n2(8.6*d)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".4"/>`:"",karton=T.karton?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNKarton)"/>`:"";
-    const flansch=klar?`<circle r="${n2(R)}" fill="#cfe3ff" fill-opacity=".14" stroke="#a8b4c4" stroke-width=".9"/><circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
+    const flansch=klar?`<circle r="${n2(R)}" fill="${milch?"#eef2f6":"#cfe3ff"}" fill-opacity="${milch?".62":".14"}" stroke="#a8b4c4" stroke-width=".9"/>${milch?`<circle r="${n2(R)}" fill="url(#lgNFlG)"/>`:""}<circle r="${n2(R-1.2)}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width=".45"/><path d="${win}" fill="none" stroke="#8e9aaa" stroke-opacity=".45" stroke-width=".5"/>`
       :`<path d="${disc}${win}" fill-rule="evenodd" fill="${T.fl}"/>${halb}${karton}${perf}${T.glanz?`<path d="${disc}${win}" fill-rule="evenodd" fill="url(#lgNFlG)"/>`:""}${T.karton||T.halb?"":`<circle r="${n2(R-1.1)}" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".6"/>`}<circle r="${n2(R)}" fill="none" stroke="${T.st}" stroke-width=".9"/><path d="${win}" fill="none" stroke="${T.lo}" stroke-opacity=".6" stroke-width=".7"/>`;
     const nabe=T.karton||T.halb?`<circle r="${n2(4.4*d)}" fill="#0d0e10" stroke="#000" stroke-opacity=".5" stroke-width=".6"/><path d="M${n2(-4.4*d)} 0A${n2(4.4*d)} ${n2(4.4*d)} 0 0 1 ${n2(4.4*d)} 0" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".7"/>`:`<circle r="${n2(5.6*d)}" fill="${T.nb}" stroke="#000" stroke-opacity=".45" stroke-width=".6"/><circle r="${n2(4.1*d)}" fill="none" stroke="${T.nr}" stroke-width=".5"/><circle r="${n2(2.3*d)}" fill="#15171a" stroke="#a3abb6" stroke-width=".6"/><circle cy="${n2(-4.85*d)}" r=".5" fill="${T.nr}"/>`;
     vorne=`${klar?"":`<circle r="${n2(R-.5)}" fill="${T.in}"/>`}${F?face(F,HUB):""}<g class="lgrot">${flansch}${nabe}</g>${ans!=="stehend"?glanzKreis(R):""}`;
-    hinten=ell(D,R,(klar?'fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"':T.bk)+' stroke-width=".9"');
+    hinten=ell(D,R,(klar?(milch?'fill="#e6ebf0" fill-opacity=".55" stroke="#97a3b3" stroke-opacity=".8"':'fill="#cfe3ff" fill-opacity=".1" stroke="#97a3b3" stroke-opacity=".75"'):T.bk)+' stroke-width=".9"');
     barrel=`<path d="${bandD(0,D,HUB)}" fill="${T.bar}"/>`;rueck=F?band(0,D,F):""}
   if(ans==="frontal"){const s=Math.min(1,21.5/R);return wrap(`<g transform="translate(22 22) scale(${n2(s)})">${vorne}</g>`)}
   if(ans==="liegend"){const s=Math.min(1,42/(2*R),40/(2*R*k+D));
@@ -6021,7 +6023,7 @@ function blPdf(){
     const face=(cx,F,min)=>{F_(c);D_([85,85,85]);L_(.5);zug(ell(cx,F),"FD",true);D_(c.map(v=>Math.round(v*.8)));L_(.45);for(let r=F-1.6;r>min+.5;r-=1.6)zug(ell(cx,r),"S",true)};
     if(art==="refill"){const Hc=7,F=pct>0?Hc+.8+(16-Hc-.8)*pct:Hc;if(pct>0){band(15,28,F);face(15,F,Hc)}
       F_([201,154,98]);D_([122,84,40]);L_(.6);zug(ell(15,Hc),"FD",true);F_([58,42,23]);zug(ell(15,Hc-1.3),"F",true);return}
-    const kl=art==="klar",T=SP_FARBE[kl?"dunkel":art]||SP_FARBE.dunkel,F=pct>0?H+(15.3-H)*pct:0;
+    const kl=art==="klar"||art==="milchig",T=SP_FARBE[kl?"dunkel":art]||SP_FARBE.dunkel,F=pct>0?H+(15.3-H)*pct:0;
     const fl=kl?[233,239,247]:T.flp,flS=kl?[142,154,170]:T.stp,bk=kl?[242,245,249]:T.bkp;
     F_(bk);D_(flS);L_(.6);zug(ell(27,R),"FD",true);
     F_([107,113,122]);zug([[18,CY-H],...bog(27,H,-Math.PI/2,Math.PI/2,10),[18,CY+H]],"F",true);
