@@ -62,7 +62,7 @@ async function readPdf(file){ return blParsePages(await pdfSeiten(file)); }
 function allgParse(pages){
   const zahl=t=>{const m=String(t).replace(/\s/g,'').match(/-?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+\.\d{2}/);if(!m)return null;const z=m[0];return parseFloat(/,\d{2}$/.test(z)?z.replace(/\./g,'').replace(',','.'):z)};
   const zeilen=[];
-  pages.forEach(items=>{const by=[];items.filter(i=>i.s&&i.s.trim()).forEach(i=>{let r=by.find(z=>Math.abs(z.y-i.y)<3);if(!r){r={y:i.y,t:[]};by.push(r)}r.t.push(i)});
+  pages.forEach(items=>{const by=[];items.filter(i=>i.s&&i.s.trim()).filter((i,k,a)=>!a.slice(0,k).some(j=>j.s===i.s&&Math.abs(j.x-i.x)<2&&Math.abs(j.y-i.y)<2)).forEach(i=>{let r=by.find(z=>Math.abs(z.y-i.y)<3);if(!r){r={y:i.y,t:[]};by.push(r)}r.t.push(i)});
     by.sort((a,b)=>b.y-a.y).forEach(r=>{r.t.sort((a,b)=>a.x-b.x);const zel=[];r.t.forEach(i=>{const l=zel[zel.length-1];if(l&&i.x-(l.x+l.w)<4){l.s+=(i.x-(l.x+l.w)>1?' ':'')+i.s;l.w=i.x+i.w-l.x}else zel.push({s:i.s.trim(),x:i.x,w:i.w})});
       zeilen.push({z:zel.map(c=>c.s.trim()).filter(Boolean),t:zel.map(c=>c.s.trim()).join('  ')})})});
   const alles=zeilen.map(z=>z.t).join('\n');
@@ -71,25 +71,28 @@ function allgParse(pages){
   /* Shop: Absenderzeile „Firma | Straße | Ort“, sonst Domain aus der E-Mail-Adresse */
   let shop='';const abs=zeilen.find(z=>/\|/.test(z.t));if(abs)shop=abs.t.split('|')[0].trim();
   if(!shop){const m=alles.match(/[\w.-]+@([\w-]+)\.[a-z]{2,}/i);if(m)shop=m[1]}
-  const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
+  const o=feld(/Bestell(?:nr\.?|nummer|ung)\s*:?\s+([A-Z0-9][\w-]{3,})/i)||feld(/Auftrag\s*#\s*([A-Z0-9][\w-]{3,})/i)||feld(/Auftrags(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
   const i=feld(/Rechnungs(?:nr\.?|nummer)\s*:?\s+([A-Z0-9][\w-]{3,})/i);
   const d=datum(feld(/Rechnungsdatum\s*:?\s+([\d.]+)/i))||datum(feld(/Datum\s*:?\s+([\d.]+)/i))||datum(alles);
   const netto=zahl(feld(/(?:Netto(?:betrag|summe)|Summe netto|Zwischensumme netto)[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
   const gesamt=zahl(feld(/(?:Gesamt(?:betrag|summe)?|Rechnungsbetrag|Endbetrag|Summe brutto)[ \t]*(?:\(brutto\))?[ \t]*:?[ \t]+([\d.,]+[ \t]*€?)/i));
   /* Spalten: Stehen die Positionen netto da (Kopf „Netto“, darunter USt), mit Gesamt/Netto auf brutto hochrechnen */
   const kopfNetto=zeilen.some(z=>/Menge/i.test(z.t)&&/Netto/i.test(z.t)&&!/Brutto/i.test(z.t));
-  const f=kopfNetto&&netto&&gesamt?gesamt/netto:1;
   const items=[];let ship=0;
   for(let k=0;k<zeilen.length;k++){const c=zeilen[k].z;if(c.length<4)continue;
     const betr=c.map(zahl);const n2=betr.length;
     if(!/€|EUR|\d,\d{2}$/.test(c[n2-1])||betr[n2-1]==null||betr[n2-2]==null)continue;
-    const q=parseInt(c[n2-3],10);if(!(q>0&&q<1000&&/^\d+$/.test(c[n2-3])))continue;
-    let name=c.slice(0,n2-3).filter(t=>!/^\d{1,3}$/.test(t));if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0])&&/\s/.test(name.slice(1).join(' ')))name=name.slice(1);
-    const n=name.join(' ').trim();if(!n||/^(pos|artikel|beschreibung)/i.test(n))continue;
-    const s=Math.round(betr[n2-1]*f*100)/100;
+    const qm=String(c[n2-3]).match(/^(\d{1,3})(?:[.,]0+)?(?:\s*(?:Stk\.?|Stück|x|pcs))?$/i);const q=qm?+qm[1]:0;if(!(q>0))continue;
+    let name=c.slice(0,n2-3).filter(t=>!/^\d{1,3}$/.test(t)).map(t=>t.replace(/^\[[^\]]+\]\s*/,''));if(name.length>1&&/^[A-Z0-9][A-Z0-9.\-_/]{3,}$/.test(name[0])&&/\s/.test(name.slice(1).join(' ')))name=name.slice(1);
+    let n=name.join(' ').trim();const nx0=zeilen[k+1];if(nx0&&(n.split('(').length>n.split(')').length||/,$/.test(n))&&nx0.z.length===1)n=(n+' '+nx0.t).replace(/,\s*\)/,')');if(!n||/^(pos|artikel|beschreibung)/i.test(n))continue;
+    const s=betr[n2-1];
     if(/versand|porto|shipping/i.test(n)){ship+=s;continue}
     let e='';const nx=zeilen[k+1]&&zeilen[k+1].t||'';const m=nx.match(/EAN\s*:?\s*(\d{8,14})/i);if(m)e=m[1];
     items.push({n,q,s,e})}
+  /* Netto-Positionen (Summe = Nettobetrag, darunter USt): mit Gesamt/Netto auf brutto hochrechnen */
+  const roh=items.reduce((a,b)=>a+b.s,0)+ship;
+  const f=netto&&gesamt&&gesamt>netto&&(kopfNetto||Math.abs(roh-netto)<0.05)?gesamt/netto:1;
+  if(f!==1){items.forEach(it=>it.s=Math.round(it.s*f*100)/100);ship=Math.round(ship*f*100)/100}
   return {shop,o:o||i,i,d,net:gesamt||items.reduce((a,b)=>a+b.s,0)+ship,tot:gesamt||null,ship,items}}
 /* Filament erkennen bei Rechnungen anderer Shops (Titel ohne „Filament“, z. B. „Polymaker PolyLite ASA Galaxy“) */
 function andKat(n){return azKat(n)==='Filament'||(/\b(PLA\+?|PETG|PCTG|ABS|ASA|TPU|PA6?|PA12|PAHT|PC|PET|PVA|HIPS)\b/i.test(n||'')&&!/trockner|halter|box|sensor|düse|nozzle|hotend|extruder|platte|kleber|dryer|holder/i.test(n||''))?'Filament':'Zubehör'}
