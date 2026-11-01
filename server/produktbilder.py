@@ -3,7 +3,7 @@
 Die Karte fragt GET /api/produktbild?quelle=…&id=…&n=…&v=… und bekommt ein kleines JPEG (oder 404).
   amazon      Artikelseite amazon.de/dp/<ASIN> → Hauptbild
   aliexpress  Partnerprogramm (aliexpress.affiliate.productdetail.get), sonst Artikelseite → Hauptbild
-  bambu       Bambu-Store (Shopify-Suche nach dem Namen), bei Filament das Bild der passenden Farbe
+  bambu       Bambu-Store (Shop-Suche nach dem Namen), bei Filament das Bild der passenden Farbe
 Gefundene Bilder liegen verkleinert neben der Datenbank im Ordner „produktbilder“; ein Fehlschlag wird
 eine Weile gemerkt, damit nicht jede Kartenansicht die Shops erneut abfragt. Eine eigene Bildadresse
 (PUT /api/produktbild) hat immer Vorrang.
@@ -22,7 +22,9 @@ import urllib.request
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0 Safari/537.36")
 BAMBU_STORE = "https://eu.store.bambulab.com"
-GROESSE = 240                 # Kantenlänge der gespeicherten Vorschau
+BAMBU_API = "https://eu-store-api.bambulab.com"
+STAND = 2                     # neue Suchlogik → alte Fehlschläge gelten nicht mehr
+GROESSE = 320                 # Kantenlänge der gespeicherten Vorschau
 NOCHMAL_NACH = 3 * 86400      # nichts gefunden → frühestens nach 3 Tagen erneut suchen
 _lock = threading.Lock()
 _gleichzeitig = threading.Semaphore(3)   # höchstens drei Shop-Abfragen auf einmal
@@ -69,7 +71,7 @@ class Bilder:
         if e.get("ok") and os.path.exists(pfad):
             with open(pfad, "rb") as f:
                 return f.read()
-        if e and not e.get("ok") and time.time() - e.get("zeit", 0) < NOCHMAL_NACH:
+        if e and not e.get("ok") and e.get("stand") == STAND and time.time() - e.get("zeit", 0) < NOCHMAL_NACH:
             return None
         with _lock:
             ev = _laeuft.get(k)
@@ -83,7 +85,7 @@ class Bilder:
             url = e.get("eigen") or self._suchen(quelle, pid, name, variante)
             daten = self._laden(url) if url else None
             with _lock:
-                self.index[k] = {"ok": bool(daten), "url": url or "", "zeit": time.time(), **({"eigen": e["eigen"]} if e.get("eigen") else {})}
+                self.index[k] = {"ok": bool(daten), "url": url or "", "zeit": time.time(), "stand": STAND, **({"eigen": e["eigen"]} if e.get("eigen") else {})}
                 if daten:
                     with open(pfad, "wb") as f:
                         f.write(daten)
@@ -195,33 +197,45 @@ class Bilder:
         return (prods[0].get("product_main_image_url") if prods else None) or None
 
     def _bambu(self, name, variante):
+        """Bambu-Store: Suche über die Shop-Schnittstelle, Farbbild über die Varianten auf der Produktseite (Farbnummer)"""
         n = re.sub(r"^Pre-order\s+|\s+Final Payment$|\s*\(.*?\)", "", name, flags=re.I).strip()
-        q = urllib.parse.urlencode({"q": n, "resources[type]": "product", "resources[limit]": "4"})
-        d = self._get(f"{BAMBU_STORE}/search/suggest.json?{q}", json_erwartet=True)
-        prods = ((d.get("resources") or {}).get("results") or {}).get("products") or []
-        if not prods:
+        req = urllib.request.Request(BAMBU_API + "/mall-goods/product/globalSearchV2",
+                                     data=json.dumps({"content": n, "current": 1, "size": 6}).encode(),
+                                     headers={"User-Agent": UA, "Content-Type": "application/json", "Accept": "application/json",
+                                              "Bbl-Locale": "de-DE", "X-BBL-STORE-REGION": "EU"})
+        with _gleichzeitig, urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read().decode("utf-8") or "{}")
+        recs = ((d.get("data") or {}).get("page") or {}).get("records") or []
+        if not recs:
             return None
-        nw = set(re.findall(r"[a-z0-9]+", n.lower()))
-        prod = max(prods, key=lambda p: len(nw & set(re.findall(r"[a-z0-9]+", str(p.get("title", "")).lower()))))
-        bild = prod.get("image") or (prod.get("featured_image") or {}).get("url")
-        # Filament & Co.: Bild der gekauften Farbe (Farbnummer oder Farbname aus der Variante)
-        v = str(variante or "").lower()
-        if v and prod.get("url"):
+        wort = lambda t: set(re.findall(r"[a-z0-9+]+", str(t).lower())) - {"bambu", "lab"}
+        nw = wort(n)
+        # bester Treffer: meiste gemeinsame Wörter, bei Gleichstand der mit den wenigsten überzähligen Wörtern
+        rec = max(recs, key=lambda x: (len(nw & wort(x.get("name"))), -len(wort(x.get("name")) - nw)))
+        if not nw & wort(rec.get("name")):
+            return None
+        bild = (rec.get("mediaFiles") or [None])[0]
+        v = str(variante or "")
+        nr = re.search(r"\((\d{5})\)", v)
+        farbe = [w for w in re.findall(r"[a-zäöüß]+", v.split("/")[0].lower()) if len(w) > 2]
+        if (nr or farbe) and rec.get("seoCode"):
             try:
-                pfad = urllib.parse.urlparse(prod["url"]).path
-                p = self._get(f"{BAMBU_STORE}{pfad}.js", json_erwartet=True)
-                nr = re.search(r"\((\d{5})\)", v)
-                woerter = [w for w in re.findall(r"[a-zäöüß]+", v.split("/")[0]) if len(w) > 2]
+                html = self._get(f"{BAMBU_STORE}/de/products/{urllib.parse.quote(rec['seoCode'])}").decode("utf-8", "ignore")
                 beste, punkte = None, 0
-                for var in p.get("variants") or []:
-                    t = " ".join(str(var.get(x) or "") for x in ("title", "option1", "option2", "option3", "sku")).lower()
-                    s = (5 if nr and nr.group(1) in t else 0) + sum(1 for w in woerter if w in t)
-                    fi = var.get("featured_image") or {}
-                    if s > punkte and fi.get("src"):
-                        beste, punkte = fi["src"], s
-                bild = beste or bild
-            except Exception:
-                pass
+                for roh in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', html, re.S):
+                    try:
+                        j = json.loads(roh)
+                    except ValueError:
+                        continue
+                    for var in (j.get("hasVariant") or []) if isinstance(j, dict) else []:
+                        t = str(var.get("name") or "").lower()
+                        sc = (10 if nr and nr.group(1) in t else 0) + sum(1 for w in farbe if w in t)
+                        if sc > punkte and var.get("image"):
+                            beste, punkte = var["image"], sc
+                if beste and (punkte >= 10 or not nr):
+                    bild = beste
+            except Exception as e:
+                print("Bambu-Farbbild nicht gelesen:", e, flush=True)
         if bild and bild.startswith("//"):
             bild = "https:" + bild
         return bild or None

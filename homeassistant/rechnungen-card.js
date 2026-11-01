@@ -6,7 +6,7 @@
 // und die Filamentpreise (bezahlter Preis pro Rolle) über die Farbnummer ins SchichtLohn-Lager geschrieben.
 // Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), preise_ins_lager (true)
 (()=>{
-const VERSION='2.1.0';
+const VERSION='2.1.1';
 const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
 const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress'};
 const SEITE=150;
@@ -181,9 +181,9 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:last-child td{border-bottom:0}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .date{white-space:nowrap;color:var(--mut);font-variant-numeric:tabular-nums}
-.pbw{display:flex;gap:11px;align-items:flex-start}.pbw>div{min-width:0}
-.pb{width:46px;height:46px;flex:none;border-radius:var(--rs);object-fit:contain;background:#fff;border:1px solid var(--line);cursor:pointer;padding:2px;box-sizing:border-box}
-.pb.leer{background:var(--soft);padding:9px;opacity:.8}
+.pbw{display:flex;gap:13px;align-items:flex-start}.pbw>div{min-width:0}
+.pb{width:64px;height:64px;flex:none;border-radius:var(--rs);object-fit:contain;background:#fff;border:1px solid var(--line);cursor:pointer;padding:2px;box-sizing:border-box}
+.pb.leer{background:var(--soft);padding:14px;opacity:.8}
 .ret .pb{opacity:.45;filter:grayscale(1)}
 .nm{font-weight:600}.var{color:var(--mut);font-size:.84rem}
 .code{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;background:var(--ac-soft);color:var(--ac-ink);padding:1px 6px;border-radius:5px;margin-left:6px;white-space:nowrap}
