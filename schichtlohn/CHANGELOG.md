@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.3.0 – 01.11.2026
+- Neu: Der Server schreibt jeden Druck mit, den er enden sieht – auch Drucke, die Bambu Studio direkt übers Heimnetz schickt und die deshalb nicht in der Bambu-Cloud stehen. Mit Name, Zeit, Gramm je Filament und Vorschaubild aus der Druckdatei. Du findest sie unter „Druckaufträge“.
+- Neu: Alle 6 Stunden liest der Server die Druckdateien im Speicher deiner Drucker (bei Druckern mit IP-Adresse). So tauchen auch ältere Drucke auf, mit Gramm und Druckzeit laut Datei.
+- Neu: Drucke aus Spooly übernehmen – unter Einstellungen → SchichtLohn-Server → Druckprotokoll die Datei aus Spooly auswählen.
+
 ## 3.2.48 – 01.11.2026
 - Fächer und Sorten werden jetzt nach der Farbe zugeordnet, wie das Auge sie sieht: Grau bleibt Grau, egal ob hell oder dunkel, und wird nicht mehr mit einem hellen Grün verwechselt. Gilt für die Anzeige im Lager, die Meldung „Fach nicht zugeordnet“ und die Abbuchung nach dem Druck.
 

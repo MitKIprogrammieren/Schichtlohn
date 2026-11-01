@@ -372,7 +372,8 @@ const SRV=window.SRV=(()=>{
       on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="daten"&&ev.name==="shoppreise_eigen")try{window.dispatchEvent(new Event("sl-ep-neu"))}catch(x){}if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
         if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu"){zstLaden();["cfg","portfolio","orders"].forEach(nachladen)}
         if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
-        if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}});
+        if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}
+        if(ev.typ==="drucke")try{window.dispatchEvent(new CustomEvent("sl-drucke",{detail:ev}))}catch(x){}});
       zstLaden();
       /* Kommt die App aus dem Hintergrund zurück, zuerst den Stand vom Server holen – sonst überschreibt ein veralteter Stand beim nächsten Speichern die Einstellungen der anderen Geräte */
       document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")["cfg","portfolio","orders"].forEach(nachladen)})}
@@ -426,6 +427,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
+        ${karte(IC.app,"Druckprotokoll",`<button class="btn sm" data-act="srvSpeicher" title="Druckdateien aller Drucker mit IP-Adresse jetzt auslesen">Druckerspeicher lesen</button>`,`<p id="srv_druckinfo">wird geprüft …</p><div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn sm" style="cursor:pointer">Spooly-Datei importieren<input type="file" id="srv_spooly" accept=".json,application/json" hidden></label></div><div class="hint">Der Server schreibt jeden Druck mit, den er enden sieht – egal ob aus Bambu Studio oder über die Cloud gestartet. Ältere Drucke kannst du aus Spooly übernehmen: auf spooly.eu die Druckaufträge als Datei sichern und hier auswählen.</div>`)}
         ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb" title="Neueste Filament-Datenbank auf den Server holen">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
         ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp" title="Neueste App-Version vom Server holen lassen">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
         <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
@@ -434,11 +436,18 @@ const SRV=window.SRV=(()=>{
       </div></section>`}
   /* Der Server holt App und Filament-Datenbank selbst (beim Start, dann alle 6 Stunden) */
   const autoText=a=>!a?" Wird automatisch aktuell gehalten (ab Server 3.1.7).":a.fehler?` Automatische Prüfung fehlgeschlagen: ${a.fehler}`:` Wird automatisch alle ${a.alle_h||6} Stunden geprüft${a.geprueft?", zuletzt "+a.geprueft.slice(8,10)+"."+a.geprueft.slice(5,7)+". "+a.geprueft.slice(11):""}.`;
+  async function druckInfo(){const el=document.getElementById("srv_druckinfo");if(!el)return;try{const d=await req("GET","/api/drucke");const l=d.drucke||[];const sp=Object.values(d.speicher||{});
+      const nSp=l.filter(x=>x.herkunft==="spooly").length;const dat=sp.reduce((a,x)=>a+((x.dateien||[]).length),0);const st=sp.map(x=>x.stand).filter(Boolean).sort().pop();const err=sp.filter(x=>x.fehler&&!/Keine IP/.test(x.fehler)).map(x=>x.drucker+": "+x.fehler);
+      el.innerHTML=`${l.length.toLocaleString("de-DE")} Drucke${nSp?`, davon ${nSp.toLocaleString("de-DE")} aus Spooly`:""}. ${d.laeuft?"Druckerspeicher wird gerade gelesen …":st?`Druckerspeicher zuletzt gelesen ${esc(st)} (${sp.filter(x=>!x.fehler).length} Drucker, ${dat} Dateien).`:"Druckerspeicher noch nicht gelesen."}${err.length?` <span style="color:var(--bad)">${esc(err.join("; "))}</span>`:""}`}
+    catch(e){el.textContent=e.status===404?"Braucht Server-Version 3.3 – bitte die App „SchichtLohn-Server“ in Home Assistant aktualisieren.":"Nicht abrufbar ("+(e.message||e)+")."}}
   async function fdbInfo(){const el=document.getElementById("srv_fdbinfo");if(!el)return;try{const d=await req("GET","/api/filamentdb");
       el.textContent=(d.vorhanden?`Stand ${d.stand||"?"} · ${(d.farben||0).toLocaleString("de-DE")} Farben von ${d.marken} Marken · ${(d.barcodes||0).toLocaleString("de-DE")} Barcodes. Funktioniert auch ohne Internet.`:"Noch keine Datenbank auf dem Server.")+autoText(d.auto)}
     catch(e){el.textContent="Unbekannt ("+(e.message||e)+"). Der Server braucht Version 2.4."}}
-  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();drLaden()},50)});
-  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();drLaden()}},1500);
+  document.addEventListener("change",async e=>{if(!e.target||e.target.id!=="srv_spooly"||!e.target.files||!e.target.files[0])return;const f=e.target.files[0];e.target.value="";
+    msg("Übernehme Drucke aus Spooly …");try{if(!window.SPOOLY)throw new Error("Druckaufträge sind ausgeschaltet");const r=await SPOOLY.importieren(f);msg(`✓ ${r.uebernommen.toLocaleString("de-DE")} Drucke aus Spooly übernommen (${r.neu.toLocaleString("de-DE")} neu). Du findest sie unter „Druckaufträge“.`);druckInfo()}
+    catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}});
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();druckInfo();drLaden()},50)});
+  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();druckInfo();drLaden()}},1500);
   /* App von der Synology */
   async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
       el.innerHTML=(d.vorhanden?`Stand ${esc(d.stand)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server.")+esc(autoText(d.auto))}
@@ -499,6 +508,7 @@ const SRV=window.SRV=(()=>{
   async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
   document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
     const {u,t}=feld();
+    if(a==="srvSpeicher"){b.disabled=true;try{await req("POST","/api/drucke/speicher");msg("Der Server liest jetzt die Druckdateien aller Drucker mit IP-Adresse – das dauert ein paar Minuten.");setTimeout(druckInfo,1500)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
     if(a==="srvApp"){msg("Hole die neueste App und ihre Bibliotheken auf den Server …");b.disabled=true;
       try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}. Seite neu laden (in der iPhone-App: schließen und neu öffnen), um sie zu nutzen.`);appInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
@@ -2434,7 +2444,7 @@ nav.tabs .tabico{display:none}
 "use strict";
 const BK="schichtlohn_bambu",TODO="todo.druckprotokoll";
 const PROXY=(/\.pages\.dev$/i.test(location.hostname)?location.origin:"https://schichtlohn.pages.dev")+"/bambu";
-const J={total:0,alle:false,ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haErr:"",cloudErr:"",sel:new Set(),src:"alle",printer:"",q:"",open:true,login:null,more:false};
+const J={srv:[],speicher:[],srvAt:0,srvLoading:false,srvErr:"",srvLaeuft:false,speicherInfo:{},total:0,alle:false,ha:[],cloud:[],haAt:0,cloudAt:0,haLoading:false,cloudLoading:false,haErr:"",cloudErr:"",sel:new Set(),src:"alle",printer:"",q:"",open:true,login:null,more:false};
 
 /* --- Bambu-Konto (nur in diesem Browser) --- */
 function acct(){try{const v=JSON.parse(localStorage.getItem(BK)||"null");return v&&v.token?v:null}catch(e){return null}}
@@ -2525,6 +2535,47 @@ function fromHa(i){
     grams:r2(mats.reduce((a,m)=>a+m.g,0)),mats,cover:""};
 }
 
+/* Druckprotokoll des SchichtLohn-Servers (jeder Druck, den der Server enden sieht, plus Importe z. B. aus Spooly) */
+function srvBild(id){return id&&window.SRV?SRV.url()+"/api/drucke/bild/"+encodeURIComponent(id)+(SRV.token()?"?token="+encodeURIComponent(SRV.token()):""):""}
+function fromSrv(d){
+  const failed=!!d.abgebrochen;
+  const mats=(d.filamente||[]).filter(f=>num(f.gramm)>0).map(f=>({g:r2(num(f.gramm)),type:f.typ||"",color:hex(f.farbe),filament_id:f.fid||"",name:f.name||f.typ||"",ort:f.ort||""}));
+  if(!mats.length&&num(d.gramm)>0)mats.push({g:r2(num(d.gramm)),type:"",color:"",filament_id:"",name:""});
+  return {key:"s:"+d.id,src:"srv",herkunft:d.herkunft||"server",task:String(d.task||""),title:d.titel||"Druck",printer:d.drucker||"",serial:String(d.serial||"").toUpperCase(),
+    start:d.start||"",end:d.ende||"",minutes:num(d.minuten)>0&&num(d.minuten)<20000?Math.round(num(d.minuten)):0,failed,progress:num(d.fortschritt),
+    grams:r2(mats.reduce((a,m)=>a+m.g,0)),mats,cover:d.bild?srvBild(d.bild):(d.bild_url||"")};
+}
+/* Druckdateien im Speicher der Drucker: Druck geplant/gesendet, Gramm und Zeit laut Datei */
+function fromSpeicher(serial,dr,f){const t=f.zeit?new Date(f.zeit*1000):null;
+  const mats=(f.filamente||[]).map(m=>({g:r2(num(m.gramm)),type:m.typ||"",color:hex(m.farbe),filament_id:m.fid||"",name:m.typ||""}));
+  return {key:"f:"+serial+":"+f.pfad,src:"speicher",title:f.titel||"Druckdatei",printer:dr,serial,start:t?t.toISOString():"",end:t&&f.minuten?new Date(t.getTime()+f.minuten*60000).toISOString():(t?t.toISOString():""),
+    minutes:f.minuten||0,failed:false,progress:0,grams:r2(num(f.gramm)||mats.reduce((a,m)=>a+m.g,0)),mats,cover:f.bild_id?srvBild(f.bild_id):"",datei:true}}
+async function loadSrv(force){
+  if(!(S.srv&&window.SRV)||J.srvLoading)return;if(!force&&J.srvAt&&Date.now()-J.srvAt<60000)return;
+  J.srvLoading=true;J.srvErr="";redraw();
+  try{const d=await SRV.req("GET","/api/drucke");J.srv=(d.drucke||[]).map(fromSrv);J.speicherInfo=d.speicher||{};J.srvLaeuft=!!d.laeuft;
+    J.speicher=[];for(const [sn,x] of Object.entries(d.speicher||{}))(x.dateien||[]).forEach(f=>{if(!f.fehler)J.speicher.push(fromSpeicher(sn,x.drucker||sn,f))});J.srvAt=Date.now()}
+  catch(e){J.srvErr=e.status===404?"Braucht Server-Version 3.3":String(e&&e.message||e)}
+  J.srvLoading=false;redraw();
+}
+window.addEventListener("sl-drucke",e=>{const d=e.detail||{};if(d.laeuft!=null)J.srvLaeuft=!!d.laeuft;J.srvAt=0;if(S.tab==="drucke")loadSrv(true)});
+/* Spooly-Export (JSON aus spooly.eu, Liste der Druckaufträge) → Druckprotokoll des Servers */
+function spoolyNorm(x){const vm=x.vendor_meta||{};const ende=x.created_at||x.printed_at||"";const dur=num(x.duration_minutes);
+  const start=vm.druckstart||(ende&&dur?new Date(new Date(ende).getTime()-dur*60000).toISOString():"");
+  const task=String(x.bambulab_task_id||((String(x.notes||"").match(/Task #(\d+)/)||[])[1])||"");
+  const fl=(x.is_multi_filament&&Array.isArray(x.filaments_used)&&x.filaments_used.length?x.filaments_used:[{grams_used:x.grams_used,filament_color:x.filament_color,filament_type:x.filament_type,filament_name:x.filament_name,manufacturer:x.filament_manufacturer}])
+    .filter(f=>num(f.grams_used)>0).map(f=>({gramm:r2(num(f.grams_used)),farbe:f.filament_color||"",typ:f.filament_type||"",name:[f.manufacturer||f.filament_manufacturer,f.filament_name].filter(Boolean).join(" "),ort:f.ams_slot_key?"AMS "+f.ams_slot_key:"",fid:""}));
+  const st=String(x.print_status||"");
+  return {id:"spooly:"+x.id,herkunft:"spooly",titel:x.custom_name||x.print_name||"Druck",drucker:x.device_name||"",serial:String(x.bambulab_device_id||"").toUpperCase(),task,
+    start,ende,minuten:Math.round(dur),abgebrochen:/fail|cancel/.test(st),fortschritt:/fail|cancel/.test(st)?num(x.failed_print_progress):100,
+    quelle:"Spooly",filamente:fl,gramm:r2(fl.reduce((a,f)=>a+f.gramm,0)||num(x.grams_used)),bild:"",bild_url:""}}
+async function spoolyImport(datei){const roh=JSON.parse(await datei.text());const l=Array.isArray(roh)?roh:(roh.print_jobs||roh.items||roh.data||[]);
+  if(!l.length||!l[0].id||!("print_name" in l[0]))throw new Error("Das ist keine Spooly-Druckliste (Datei aus spooly.eu → Druckaufträge).");
+  const sn={};l.forEach(x=>{if(x.device_name&&x.bambulab_device_id)sn[x.device_name]=String(x.bambulab_device_id).toUpperCase()});
+  const n=l.map(spoolyNorm);n.forEach(x=>{if(!x.serial&&sn[x.drucker])x.serial=sn[x.drucker]});
+  const r=await SRV.req("POST","/api/drucke/import",{drucke:n});J.srvAt=0;loadSrv(true);return r}
+window.SPOOLY={importieren:spoolyImport};
+
 /* --- Laden --- */
 async function loadHa(force){
   if(S.backend!=="ha"||J.haLoading)return;if(!force&&J.haAt&&Date.now()-J.haAt<60000)return;
@@ -2559,13 +2610,19 @@ async function loadCloud(force,more){
 function usedMap(){const m={};const add=(p,where)=>{if(p&&p.job)(p.job.keys||[p.job.key]).filter(Boolean).forEach(k=>{if(!m[k])m[k]=where})};
   S.orders.forEach(o=>(o.parts||[]).forEach(p=>add(p,"Auftrag "+(o.no||""))));(S.quote&&S.quote.parts||[]).forEach(p=>add(p,"Kalkulation"));return m}
 function all(){
-  const ha=J.ha.map(x=>Object.assign({},x)),out=[];const used=new Set();
+  const nah=(a,b)=>a.serial&&a.serial===b.serial&&a.end&&b.end&&Math.abs(new Date(a.end)-new Date(b.end))<15*60000;
+  const srv=J.srv.filter(s=>!J.ha.some(h=>nah(h,s))).map(x=>Object.assign({},x));
+  const ha=J.ha.map(x=>Object.assign({},x)).concat(srv),out=[];const used=new Set();
   for(const h of ha){const t=new Date(h.end).getTime();
-    const c=J.cloud.find(c=>!used.has(c.id)&&c.serial&&c.serial.toUpperCase()===h.serial&&c.end&&Math.abs(new Date(c.end).getTime()-t)<15*60000);
-    if(c){used.add(c.id);h.cloud=c;h.cover=c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
+    const c=J.cloud.find(c=>!used.has(c.id)&&((h.task&&c.id===h.task)||(c.serial&&c.serial.toUpperCase()===h.serial&&c.end&&Math.abs(new Date(c.end).getTime()-t)<15*60000)));
+    if(c){used.add(c.id);h.cloud=c;h.cover=h.cover||c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
     out.push(h)}
   J.cloud.forEach(c=>{if(!used.has(c.id))out.push(Object.assign({},c))});
   if(window.CRE)CRE.jobs().forEach(c=>out.push(Object.assign({},c)));
+  /* Druckdateien im Druckerspeicher nur zeigen, wenn es dazu noch keinen Druck gibt (gleicher Name auf demselben Drucker) */
+  const nn=t=>String(t||"").toLowerCase().replace(/(\.gcode)?\.3mf$/,"").replace(/[^a-z0-9äöüß]+/g,"");
+  const da=new Set(out.map(j=>(j.serial||"")+"|"+nn(j.title)));
+  J.speicher.forEach(f=>{const k=f.serial+"|"+nn(f.title);if(!da.has(k)){da.add(k);out.push(Object.assign({},f))}});
   const tv=j=>{const t=new Date(j.end||j.start||0).getTime();return isNaN(t)?0:t};
   const bi=buchIndex();out.forEach(j=>anpassen(j,bi));
   return out.sort((a,b)=>tv(b)-tv(a));
@@ -2599,7 +2656,7 @@ const keysOf=j=>[j.key].concat(j.cloud?[j.cloud.key]:[]);
 function visible(list,used){
   const q=J.q.trim().toLowerCase();
   return list.filter(j=>{if(j.running)return false;
-    if(J.src==="ha"&&j.src!=="ha")return false;if(J.src==="cloud"&&!(j.src==="cloud"||j.cloud))return false;if(J.src==="creality"&&j.src!=="creality")return false;
+    if(J.src==="ha"&&!(j.src==="ha"||j.src==="srv"))return false;if(J.src==="speicher"&&j.src!=="speicher")return false;if(J.src==="cloud"&&!(j.src==="cloud"||j.cloud))return false;if(J.src==="creality"&&j.src!=="creality")return false;
     if(J.printer&&j.printer!==J.printer)return false;
     if(J.open&&(j.done||keysOf(j).some(k=>used[k])))return false;
     if(q&&!(j.title+" "+j.printer+" "+j.mats.map(m=>m.name+" "+m.type).join(" ")).toLowerCase().includes(q))return false;
@@ -2616,19 +2673,20 @@ let J_list=[];
 function render(m){
   m=m||$("#main");if(!m)return;
   const a=acct(),isHa=S.backend==="ha";
-  if(isHa)loadHa(false);if(a)loadCloud(false);const cre=!!(window.CRE&&CRE.connected());if(cre)CRE.load(false);
+  if(isHa)loadHa(false);if(S.srv)loadSrv(false);if(a)loadCloud(false);const cre=!!(window.CRE&&CRE.connected());if(cre)CRE.load(false);
   const used=usedMap();const list=all();J_list=list;const vis=visible(list,used);
   for(const k of [...J.sel])if(!list.some(j=>j.key===k))J.sel.delete(k);
   const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
   const sources=`<div class="jsrc">
-    ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll · ${J.ha.length}`}</span>`:(S.srv?"":`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`)}
+    ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll HA · ${J.ha.length}`}</span>`:(S.srv?"":`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`)}
+    ${S.srv?`<span class="chip" title="Jeder Druck, den der SchichtLohn-Server enden sieht, plus Importe aus Spooly">${J.srvLoading&&!J.srv.length?"Druckprotokoll lädt…":J.srvErr?`<span class="bad">Druckprotokoll: ${esc(J.srvErr)}</span>`:`Druckprotokoll · ${J.srv.length}`}</span>${J.speicher.length?`<span class="chip" title="Druckdateien im Speicher der Drucker">${J.srvLaeuft?"Druckerspeicher wird gelesen…":`Druckerspeicher · ${J.speicher.length}`}</span>`:""}`:""}
     ${a?`<span class="chip cl">${J.cloudLoading?"Bambu-Cloud lädt…":J.cloudErr?`<span class="bad">Bambu-Cloud: ${esc(J.cloudErr)}</span>`:`Bambu-Cloud · ${J.cloud.length}`}</span>`:`<button class="btn sm" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button>`}
     ${window.CRE?CRE.chipHTML():""}
   </div>`;
   let body;
-  if(!isHa&&!a&&!cre&&!J.cloudErr)body=`<div class="panel empty"><h3>Druckaufträge übernehmen</h3>Hier erscheinen deine fertigen Drucke mit Gewicht je Filament, Druckzeit und Drucker. Du kannst einzelne oder mehrere davon in eine Kalkulation oder einen Auftrag übernehmen.<br><br>
+  if(!isHa&&!S.srv&&!a&&!cre&&!J.cloudErr)body=`<div class="panel empty"><h3>Druckaufträge übernehmen</h3>Hier erscheinen deine fertigen Drucke mit Gewicht je Filament, Druckzeit und Drucker. Du kannst einzelne oder mehrere davon in eine Kalkulation oder einen Auftrag übernehmen.<br><br>
       Quellen sind das Druckprotokoll aus Home Assistant (in den Einstellungen verbinden) und die Druckhistorie deines Bambu-Kontos.<div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn pri" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button><span class="sp"></span></div></div>`;
-  else if(!list.length&&(J.haLoading||J.cloudLoading||(cre&&CRE.busy())))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
+  else if(!list.length&&(J.haLoading||J.srvLoading||J.cloudLoading||(cre&&CRE.busy())))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
   else if(!list.length)body=`<div class="panel empty"><h3>Noch keine Drucke</h3>${isHa?"Sobald ein Drucker einen Druck beendet, trägt Home Assistant ihn ins Druckprotokoll ein.":""}${a?"":" Für ältere Drucke verbinde die Bambu-Cloud."}</div>`;
   else if(!vis.length)body=`<div class="panel empty">${J.open?"Alle Drucke sind schon übernommen. Schalte „Nur offene“ aus, um sie zu sehen.":"Kein Druck passt zum Filter."}</div>`;
   else{let html="",lastDay=null;
@@ -2642,7 +2700,7 @@ function render(m){
             <span class="sw">${j.mats.slice(0,8).map(m=>`<i style="background:${esc(m.color||"#888")}" title="${esc((m.name||m.type||"Filament")+" · "+N1.format(m.g)+" g")}"></i>`).join("")}</span>
             ${j.failed?`<span class="chip bad">abgebrochen${j.progress?` bei ${N0.format(j.progress)} %`:""}</span>`:""}
             ${j.skip?`<span class="chip warn">${j.skip} Teil${j.skip>1?"e":""} übersprungen</span>`:""}${j.korr?`<span class="chip">angepasst</span>`:""}
-            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
+            ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="srv"?`<span class="chip">${j.herkunft==="spooly"?"Spooly":"Protokoll"}</span>`:""}${j.src==="speicher"?`<span class="chip" title="Datei im Druckerspeicher – Gramm und Zeit laut Datei">Druckerspeicher</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
     body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
@@ -2661,7 +2719,7 @@ function render(m){
     ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
-      <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option><option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option>${cre?`<option value="creality"${J.src==="creality"?" selected":""}>Creality-Cloud</option>`:""}</select>
+      <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option>${J.speicher.length?`<option value="speicher"${J.src==="speicher"?" selected":""}>Druckerspeicher</option>`:""}<option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option>${cre?`<option value="creality"${J.src==="creality"?" selected":""}>Creality-Cloud</option>`:""}</select>
       <select id="job_pr" aria-label="Drucker"><option value="">Alle Drucker</option>${printers.map(p=>`<option${p===J.printer?" selected":""}>${esc(p)}</option>`).join("")}</select>
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="job_open" ${J.open?"checked":""} style="margin:0 4px 0 0;accent-color:var(--accent)">Nur offene</label>
       <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
@@ -2681,7 +2739,7 @@ async function partFromJob(j){
     const hit=S.cfg.printers.find(x=>{const n=x.name.toLowerCase().replace(/[\s_-]+/g,"");return n===nm||(md&&n.startsWith(md)&&(md.includes("mini")===n.includes("mini")))});printerId=hit?hit.id:""}
   let kwh=0;if(pr&&j.start&&j.end){try{kwh=await HAP.kwhFor(pr.dev,j.start,j.end)}catch(e){}}
   const thumb=await thumbFor(j.cover);
-  return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"?"Druckprotokoll":j.src==="creality"?"Creality-Cloud":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
+  return newPart({name:j.title+(j.failed?" (abgebrochen)":""),time:j.minutes||60,thumb,src:(j.src==="ha"||j.src==="srv"?(j.herkunft==="spooly"?"Spooly":"Druckprotokoll"):j.src==="speicher"?"Druckerspeicher":j.src==="creality"?"Creality-Cloud":"Bambu-Cloud")+(j.printer?" · "+j.printer:""),printerId,kwh:kwh>0?r2(kwh*1000)/1000:0,
     mats:mats.length?mats:[{matId:"",g:0}],job:{key:j.key,keys:keysOf(j),printer:j.printer,start:j.start,end:j.end,failed:j.failed,cover:j.cover||""}});
 }
 async function markHa(jobs){if(S.backend!=="ha")return;for(const j of jobs)if(j.src==="ha"&&j.uid&&!j.done){try{await hass().callWS({type:"call_service",domain:"todo",service:"update_item",target:{entity_id:TODO},service_data:{item:j.uid,status:"completed"}});j.done=true;const o=J.ha.find(x=>x.uid===j.uid);if(o)o.done=true}catch(e){console.warn("Druckprotokoll",e)}}}
@@ -2734,7 +2792,7 @@ function korrModal(j){KJ=j;const buchOk=j.buch.some(Boolean);
   const voll=(m,i)=>{const b=j.buch[i];return b&&b.gramm_voll!=null?Number(b.gramm_voll):m.g};
   const rows=j.mats0.map((m,i)=>{const b=j.buch[i];
     return `<div class="krow"><i style="background:${esc(m.color||"#888")}"></i><div style="min-width:0"><b>${esc(b?b.sorte:(m.name||m.type||"Filament"))}</b>
-      <small>${j.src==="ha"?"laut Protokoll":j.src==="creality"?"laut Creality":"laut Datei"} ${zahl1(voll(m,i))} g${b?` · abgebucht ${zahl1(b.eff)} g${b.ort?" · "+esc(b.ort):""}`:""}</small></div>
+      <small>${j.src==="ha"||j.src==="srv"?"laut Protokoll":j.src==="creality"?"laut Creality":"laut Datei"} ${zahl1(voll(m,i))} g${b?` · abgebucht ${zahl1(b.eff)} g${b.ort?" · "+esc(b.ort):""}`:""}</small></div>
       <label class="kin"><input type="text" inputmode="decimal" id="kr_${i}" data-voll="${voll(m,i)}" value="${zahl1(j.mats[i]?j.mats[i].g:m.g)}" aria-label="Gramm ${esc(m.name||m.type||"")}"><span>g</span></label></div>`}).join("");
   const n=j.skip,gespart=j.buch.reduce((s,b)=>s+(b&&b.gramm_voll!=null?Number(b.gramm_voll)-Number(b.gramm):0),0),genau=j.buch.every(b=>!b||b.skip_genau!==false);
   const note=n?`<div class="knote">Am Drucker ${n>1?`wurden ${n} Teile`:"wurde 1 Teil"} übersprungen. ${gespart>0.05?`SchichtLohn hat dafür schon ${zahl1(gespart)} g weniger abgebucht${genau?" (aus der Druckdatei berechnet)":" – das ist nur geschätzt, prüfe die Werte"}.`:"Wie viel dadurch weniger verbraucht wurde, war nicht bekannt – trag die Gramm unten ein."}</div>`:"";

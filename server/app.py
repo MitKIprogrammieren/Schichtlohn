@@ -68,7 +68,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.48"
+VERSION = "3.3.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1700,6 +1700,18 @@ def druck_merken(dr, name, erg, vorschau=None):
     melden({"typ": "drucke"})
 
 
+def drucke_importieren(neu):
+    alt, _ = daten_lesen(DRUCKE_KEY)
+    liste = [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
+    ids = {x["id"] for x in neu}
+    vorher = len(liste)
+    liste = [x for x in liste if x.get("id") not in ids] + neu
+    liste.sort(key=lambda x: str(x.get("ende") or x.get("start") or ""), reverse=True)
+    daten_schreiben(DRUCKE_KEY, liste[:max(DRUCKE_MAX, len(neu) + 500)])
+    melden({"typ": "drucke"})
+    return {"ok": True, "uebernommen": len(neu), "neu": len(liste) - vorher, "gesamt": len(liste)}
+
+
 def speicher_abrufen(anlass="automatisch"):
     """Druckdateien aller Drucker mit IP und Zugangscode auslesen."""
     if not _speicher_lock.acquire(blocking=False):
@@ -2391,6 +2403,11 @@ class Handler(BaseHTTPRequestHandler):
             sp, _ = daten_lesen(SPEICHER_KEY)
             return self._json(200, {"drucke": w if isinstance(w, list) else [], "speicher": sp if isinstance(sp, dict) else {},
                                     "laeuft": SPEICHER_STAND["laeuft"]})
+        if teile == ["drucke", "import"] and methode == "POST":
+            # Drucke aus einer anderen App übernehmen (z. B. Spooly): gleiche id ersetzt, sonst dazu
+            b = self._json_rumpf()
+            neu = [x for x in (b.get("drucke") or []) if isinstance(x, dict) and x.get("id")]
+            return self._json(200, drucke_importieren(neu))
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
