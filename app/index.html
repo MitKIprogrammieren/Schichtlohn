@@ -2550,7 +2550,7 @@ async function loadCloud(force,more){
     const hits=(d.hits||[]).map(fromCloud);const seen=new Set(more?J.cloud.map(x=>x.id):[]);const fresh=hits.filter(h=>!seen.has(h.id));
     // neue Drucke vorne einfügen, schon geladene ältere behalten
     if(more)J.cloud=J.cloud.concat(fresh);else{const ids=new Set(hits.map(h=>h.id));J.cloud=hits.concat(J.cloud.filter(x=>!ids.has(x.id)))}
-    J.total=Math.max(num(d.total)||0,J.cloud.length);J.more=(more?fresh.length>=100:true)&&J.total>J.cloud.length;J.cloudAt=Date.now();cloudCacheSpeichern(a)}
+    J.total=Math.max(num(d.total)||0,J.cloud.length);J.more=(more?fresh.length>0:true)&&J.total>J.cloud.length;J.cloudAt=Date.now();cloudCacheSpeichern(a)}
   catch(e){if(e.status===401||e.status===403){J.cloudErr="Die Anmeldung bei Bambu ist abgelaufen. Bitte neu verbinden.";setAcct(null)}else J.cloudErr=String(e&&e.message||e)}
   J.cloudLoading=false;redraw();cloudStatus();
 }
@@ -4712,7 +4712,7 @@ function body0(){G._allZu=false;
   const opt=(k,lst,lbl)=>`<select data-lgf="${k}" class="${fl[k]?"on":""}" aria-label="${lbl}"><option value="">${lbl}</option>${lst.map(([v,t])=>`<option value="${esc(v)}"${fl[k]===v?" selected":""}>${esc(t)}</option>`).join("")}</select>`;
   const EV=einVoll();
   let h=`<div class="dcard kompakt lgbest"><button class="btn icon ghost lgstat" data-act="lgStat" title="Verbrauch und Kosten" aria-label="Verbrauch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg></button><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="6.5" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg></span><div class="dt"><span class="dn">Bestand</span></div>
-    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${wL+wM>0?`<div class="dv" title="${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen, ${Math.round(wM).toLocaleString("de-DE")} € aus dem Ø der Shop-Preise"><span>Wert</span><b>${Math.round(wL+wM).toLocaleString("de-DE")} €</b></div>`:""}${monatKurz()}</div><div class="lgknopf"><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button>`:""}</div></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
+    <div class="dvs"><div class="dv"><span>Gesamt</span><b>${kg(sum)}</b></div><div class="dv"><span>Sorten</span><b>${all.length}</b></div><div class="dv" title="${spulen-refills} mit Spule, ${refills} Refill"><span>Rollen</span><b>${spulen}</b></div>${wL+wM>0?`<div class="dv" title="${Math.round(wL).toLocaleString("de-DE")} € aus Lagerpreisen, ${Math.round(wM).toLocaleString("de-DE")} € aus dem Ø der Shop-Preise"><span>Wert</span><b>${Math.round(wL+wM).toLocaleString("de-DE")} €</b></div>`:""}${monatKurz()}</div><div class="lgknopf"><button class="btn sm lgekbtn${einkauf().length?" hat":""}" data-act="lgEinkauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg> Einkaufsliste${einkauf().length?` <b>${einkauf().length}</b>`:""}</button>${fnAn("preisliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgPreise" title="Preise der Shops für deine Sorten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> Preisliste</button>`:""}${fnAn("bestandsliste")?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgBestand" title="Bestandsliste ansehen, Inventur machen und drucken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg> Bestandsliste</button>`:""}${fnAn("rueckblick")&&metaDa()?`<button class="btn sm lgekbtn lgrbbtn" data-act="lgRueck" title="Dein Druckjahr in Zahlen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg> Rückblick</button><button class="btn sm lgekbtn lggvbtn" data-act="lgGesamt" title="Verbrauch seit deinem ersten Druck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg> Gesamt</button>`:""}</div></div>${(S.cfg&&(S.cfg.lagerAus||[]).includes("feuchte"))?"":feuchteCard(EV)}\u0002\u0001
     <div class="lgbar"><label class="lgsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input type="search" id="lgq" placeholder="Suchen …" title="Farbe, Marke, Material, Strichcode oder AMS-Fach" value="${esc(G.q)}" autocomplete="off">${G.q?`<button type="button" class="lgclr" data-act="lgQClear" aria-label="Suche leeren">${ICON.x}</button>`:""}</label>
       <select class="lgsort" data-lgsort aria-label="Sortieren">${SORTS.map(([k,t])=>`<option value="${k}"${sort===k?" selected":""}>Nach ${t}</option>`).join("")}</select>
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
@@ -5583,6 +5583,8 @@ document.addEventListener("click",async e=>{
       try{await silicaSpeichern(w);toast("Silica-Tausch gespeichert");setTimeout(()=>silicaModal(),400)}catch(err){toast("Speichern fehlgeschlagen")}});return}
   if(a==="lgStat"){statModal();return}
   if(a==="lgRueck"){rueckblickModal();return}
+  if(a==="lgGesamt"){gesamtModal();return}
+  if(a==="lgGvAns"){try{localStorage.setItem(GV_ANS,b.dataset.v)}catch(x){}gesamtModal();return}
   if(a==="lgPreise"){if(PL.d&&Date.now()-(PL.zeit||0)>300000){EP.d=null;PL.d=null;PL.laden=null}preislisteModal();return}
   if(a==="lgBestand"){bestandModal();return}
   if(a==="lgBlFmt"){BL.fmt=b.dataset.v;blSave();bestandModal();return}
@@ -6391,6 +6393,59 @@ function rueckblickModal(){
   h+=`</div>`;
   const b=document.querySelector("#modal #lgRb");if(b){b.outerHTML=h;return}
   modal("Jahresrückblick",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
+/* ---------- Gesamtverbrauch seit dem ersten Druck ----------
+   Abgebuchter Verbrauch aus dem Lager plus alle Drucke aus der Druckhistorie (Bambu-Cloud, Druckprotokoll, Creality), die nie abgebucht wurden.
+   Nur Statistik: am Lager ändert sich nichts. Preis je Druck: Lagerpreis der passenden Sorte, sonst Schätzpreis aus den Shop-Preisen,
+   sonst Median der Lagerpreise dieses Materials, sonst Richtwert des Materials. */
+const GV_ANS="sl_gv_ansicht";const gvAns=()=>{try{return ["m","d","j"].includes(localStorage.getItem(GV_ANS))?localStorage.getItem(GV_ANS):"m"}catch(e){return "m"}};
+window.addEventListener("sl-historie",()=>{if(document.querySelector("#modal #lgGv"))gesamtModal()});
+function gvPreis(){const cache={};const lager=entries().map(e=>({e,pr:preisVon(e),t:typeKey(e.material)})).filter(x=>x.pr);
+  return (material,hex)=>{const t=typeKey(material);const h=hexOk(hex)?String(hex).toLowerCase():"";const key=t+"|"+h;if(cache[key])return cache[key];
+    const gleich=lager.filter(x=>x.t===t);let r=null;
+    if(h){let best=null,bd=1e9;gleich.forEach(x=>{if(!hexOk(x.e.hex))return;const d=dist(h,x.e.hex);if(d<bd){bd=d;best=x}});if(best&&bd<=20)r={pk:best.pr.pk,q:best.pr.q==="lager"?"lager":"markt"}}
+    if(!r&&gleich.length){const m=plMedian(gleich.map(x=>x.pr.pk));if(m)r={pk:m,q:"median"}}
+    if(!r)r={pk:(TYPE_DEFAULTS[t]||{p:20}).p,q:"richtwert"};return cache[key]=r}}
+function gvDaten(){
+  let jobs=null,laedt=false,alles=false;
+  if(window.JOBS&&JOBS.historie){try{JOBS.auto()}catch(e){}if(JOBS.mehr&&JOBS.mehr()&&!JOBS.laedtAlles())JOBS.alleLaden();alles=!!(JOBS.laedtAlles&&JOBS.laedtAlles());
+    jobs=JOBS.historie();laedt=jobs===null||alles||(JOBS.busy&&JOBS.busy())}
+  const preis=gvPreis();const posten=[];
+  G.meta.map(i=>desc(i)).filter(d=>d.typ==="verbrauch"&&!isNaN(Date.parse(d.zeit))&&Number(d.gramm)>0).forEach(d=>{const g=Number(d.gramm);
+    const k=Number(d.kosten)>0?{eur:Number(d.kosten),q:"lager"}:(p=>({eur:g/1000*p.pk,q:p.q}))(preis(d.material,d.hex));
+    posten.push({zeit:d.zeit,gramm:g,drucker:d.drucker||"",material:typeKey(d.material),eur:k.eur,q:k.q,gebucht:true,schl:String(d.zeit).slice(0,16)+"|"+(d.drucker||"")})});
+  const start=posten.reduce((m,x)=>Math.min(m,Date.parse(x.zeit)),Infinity);
+  let minuten=0;
+  (jobs||[]).filter(j=>!j.running&&!isNaN(Date.parse(j.end||j.start))).forEach(j=>{minuten+=Number(j.minutes)||0;if(j.buch&&j.buch.some(Boolean))return;
+    const zeit=j.end||j.start;const schl="h|"+(j.key||zeit+"|"+(j.printer||""));const ms=(j.mats||[]).filter(m=>Number(m.g)>0);
+    const liste=ms.length?ms.map(m=>({g:Number(m.g),typ:m.type,hex:m.color})):(Number(j.grams)>0?[{g:Number(j.grams),typ:"",hex:""}]:[]);
+    liste.forEach(m=>{const p=preis(m.typ,m.hex);posten.push({zeit,gramm:m.g,drucker:j.printer||"",material:m.typ?typeKey(m.typ):"",eur:m.g/1000*p.pk,q:p.q,gebucht:false,schl})})});
+  return {posten,start,minuten,laedt,alles,geladen:window.JOBS&&JOBS._J?JOBS._J.cloud.length:0,gesamt:window.JOBS&&JOBS._J?JOBS._J.total:0}}
+function gesamtModal(){
+  const D=gvDaten();
+  if(D.laedt){gesamtModal.n=(gesamtModal.n||0)+1;if(D.alles||gesamtModal.n<8){clearTimeout(gesamtModal.t);gesamtModal.t=setTimeout(()=>{if(document.querySelector("#modal #lgGv"))gesamtModal()},1500)}}else gesamtModal.n=0;
+  const P=D.posten;const eur=x=>Math.round(x).toLocaleString("de-DE")+" €";const zahl=x=>Math.round(x).toLocaleString("de-DE");
+  const sum=a=>a.reduce((s,x)=>s+x.gramm,0),kos=a=>a.reduce((s,x)=>s+x.eur,0),geschaetzt=a=>a.some(x=>x.q!=="lager");
+  let h=`<div class="lgform gv" id="lgGv">`;
+  if(!P.length)h+=`<div class="panel empty">${D.laedt?"Druckhistorie wird geladen …":"Noch kein Verbrauch. Verbinde die Bambu-Cloud, dann zählt SchichtLohn hier alle Drucke seit dem ersten mit."}</div>`;
+  else{const vor=isFinite(D.start)?P.filter(x=>!x.gebucht&&Date.parse(x.zeit)<D.start):P.filter(x=>!x.gebucht);const seit=P.filter(x=>!vor.includes(x));
+    const g0=sum(P),k0=kos(P),drucke=new Set(P.map(x=>x.schl)).size,drucker=new Set(P.map(x=>x.drucker).filter(Boolean)).size;
+    const anteil=g0>0?Math.round(sum(seit)/g0*100):0;const ans=gvAns();
+    const key=ans==="d"?(x=>x.drucker||"Unbekannt"):ans==="j"?(x=>String(new Date(x.zeit).getFullYear())):(x=>x.material||"Unbekannt");
+    const m={};P.forEach(x=>{const k=key(x);const y=m[k]||(m[k]={k,g:0,e:0});y.g+=x.gramm;y.e+=x.eur});
+    let gr=Object.values(m).sort((a,b)=>ans==="j"?b.k.localeCompare(a.k):b.g-a.g);
+    if(ans==="m"&&gr.length>5){const rest=gr.slice(4);gr=gr.slice(0,4).concat([{k:"Sonstige",g:rest.reduce((s,x)=>s+x.g,0),e:rest.reduce((s,x)=>s+x.e,0)}])}
+    const gMax=Math.max(...gr.map(x=>x.g),1);
+    h+=`<div class="gv-kopf"><b>${kg(g0)}</b><span>≈ ${eur(k0)} Filament</span></div>
+      <div class="gv-unter">${zahl(drucke)} Drucke${D.minuten>0?` · ${zahl(D.minuten/60)} h`:""}${drucker?` · ${drucker} Drucker`:""}</div>
+      <div class="gv-balken" title="${anteil} % seit SchichtLohn"><i style="width:${100-anteil}%"></i><i style="width:${anteil}%"></i></div>
+      <div class="gv-zwei"><div><span>Vor SchichtLohn</span><b>${kg(sum(vor))}</b><small class="gv-sch">≈ ${eur(kos(vor))} geschätzt</small></div>
+        <div><span>Seit SchichtLohn</span><b>${kg(sum(seit))}</b><small class="${geschaetzt(seit)?"gv-sch":"gv-ok"}">${geschaetzt(seit)?"≈ "+eur(kos(seit))+" teils geschätzt":eur(kos(seit))+" aus Lager"}</small></div></div>
+      <div class="gv-seg" role="tablist">${[["m","Material"],["d","Drucker"],["j","Jahr"]].map(([v,t])=>`<button type="button" role="tab" aria-selected="${v===ans}" class="${v===ans?"on":""}" data-act="lgGvAns" data-v="${v}">${t}</button>`).join("")}</div>
+      <div class="gv-liste">${gr.map(x=>`<div><div class="gv-z"><span>${esc(x.k)}</span><span>${kg(x.g)} · ${eur(x.e)}</span></div><i style="width:${Math.max(2,Math.round(x.g/gMax*100))}%"></i></div>`).join("")}</div>
+      <div class="lghint">${D.alles?`Lade die ganze Druckhistorie … ${zahl(D.geladen)}${D.gesamt?" von "+zahl(D.gesamt):""}<br>`:""}Nur Statistik – dein Lagerbestand bleibt unverändert. Fehlt ein Lagerpreis, rechnet SchichtLohn mit dem Schätzpreis aus den Shop-Preisen.</div>`}
+  h+=`</div>`;
+  const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
+  modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
@@ -6567,6 +6622,7 @@ body.rx-einfach #mbar{display:none!important}
 .rb-hero span{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
 .rb-hero b{font-size:44px;line-height:1.1;margin:6px 0 2px;font-variant-numeric:tabular-nums}
 .rb-hero small{color:var(--fg-3);font-size:13px}.rb-hero .rb-hist{font-size:11.5px;margin-top:3px;opacity:.85}
+.gv-kopf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.gv-kopf b{font-size:34px;line-height:1.1;color:var(--accent);font-family:var(--f-mono);font-variant-numeric:tabular-nums}.gv-kopf span{color:var(--fg-2);font-size:14px}.gv-unter{color:var(--fg-3);font-size:12.5px;margin:2px 0 12px}.gv-balken{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--track);margin-bottom:10px}.gv-balken i:first-child{background:color-mix(in srgb,var(--accent) 35%,transparent)}.gv-balken i:last-child{background:var(--accent)}.gv-zwei{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}.gv-zwei>div{display:flex;flex-direction:column;gap:1px;padding:10px;border:1px solid var(--line);border-radius:var(--r-s,8px);background:var(--glass)}.gv-zwei span{font-size:12px;color:var(--fg-2)}.gv-zwei b{font-size:17px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}.gv-zwei small{font-size:12px}.gv-sch{color:var(--warn)}.gv-ok{color:var(--accent)}.gv-seg{display:flex;background:var(--strip);border-radius:var(--r-s,8px);padding:3px;margin-bottom:8px}.gv-seg button{flex:1;border:0;background:transparent;color:var(--fg-2);font:inherit;font-size:13px;padding:7px 0;border-radius:6px;cursor:pointer}.gv-seg button.on{background:var(--accent-soft);color:var(--accent)}.gv-liste>div{padding:4px 0}.gv-liste i{display:block;height:4px;border-radius:2px;background:var(--accent);opacity:.55;margin-top:3px}.gv-z{display:flex;justify-content:space-between;gap:8px;font-size:13px}.gv-z span:last-child{font-family:var(--f-mono);color:var(--fg-2);white-space:nowrap}
 .rb-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .rb-tiles>div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line);border-radius:var(--r-s,8px)}
 .rb-tiles b{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
