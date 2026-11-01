@@ -427,7 +427,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
         ${karte(IC.db,"Filament-Datenbank","",`<p id="srv_fdbinfo">wird geprüft …</p>`)}
-        ${karte(IC.app,"App",`${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
+        ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp" title="Neueste App-Version vom Server holen lassen">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
         <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
           <p>Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</p>
           <div class="srvcopy"><input type="text" id="srv_umzug" value="" placeholder="http://192.168.1.4:8093" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvUmzug">Daten holen</button></div></details>
@@ -499,8 +499,8 @@ const SRV=window.SRV=(()=>{
   async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
   document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
     const {u,t}=feld();
-    if(a==="srvApp"){msg("Lade die neueste App und ihre Bibliotheken auf die Synology …");b.disabled=true;
-      try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}.${window.__SL_SRV?" Seite neu laden, um sie zu nutzen.":""}`);appInfo()}
+    if(a==="srvApp"){msg("Hole die neueste App und ihre Bibliotheken auf den Server …");b.disabled=true;
+      try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}. Seite neu laden (in der iPhone-App: schließen und neu öffnen), um sie zu nutzen.`);appInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
     if(a==="srvDrLanSuchen"||a==="srvDrLanPruefen"){const v=id=>((document.getElementById(id)||{}).value||"").trim();const m2=document.getElementById("dr_lan_msg");
       const such=a==="srvDrLanSuchen";const ip=v("dr_ip");if(!such&&!ip){m2.textContent="Erst eine IP-Adresse eintragen oder „IP suchen“ antippen.";return}
