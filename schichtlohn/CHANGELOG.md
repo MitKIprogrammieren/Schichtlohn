@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.2.42 – 01.11.2026
+- Lagerpreise aus Amazon-Rechnungen: Bei Sorten mit Rechnungspreis steht jetzt „Gekauft bei Amazon · Händler · Datum“ mit Link zum Artikel – im Bearbeiten-Fenster unter „Preis je kg“ und in der Preisliste beim Lagerpreis. Auch Preise aus Bambu-Rechnungen zeigen, woher sie kommen.
+- Änderst du den Preis von Hand, verschwindet der Hinweis automatisch.
+
 ## 3.2.41 – 01.11.2026
 - Spulentypen heißen jetzt: Klar, Bambu Spule, FD3D, JAYO, Sunlu/JAYO, TINMORRY, FILAXIX und Polymaker.
 

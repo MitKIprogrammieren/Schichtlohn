@@ -3951,6 +3951,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgform{display:flex;flex-direction:column;gap:12px}
 .lgform .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .lgform .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.lfk{grid-column:1/-1;display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.45;color:var(--fg-2);margin-top:-2px}.lfk svg{width:14px;height:14px;color:var(--fg-3);flex:none;margin-top:1px}.lfk b{color:var(--fg);font-weight:600}.lfk a{color:var(--accent);text-decoration:none}.lfk i{font-style:normal;color:var(--fg-3)}
 .lgform .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .lgdots{display:flex;flex-wrap:wrap;gap:6px}
 .lgdots button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-2);cursor:pointer;padding:0}
@@ -4530,7 +4531,7 @@ async function write(e,patch){
     flow:fNum(x.flow),td:fNum(x.td),mvs:fNum(x.mvs),k:fNum(x.k),kammer:fNum(x.kammer),schwund:fNum(x.schwund),buegeln_tempo:fNum(x.buegeln_tempo),buegeln_flow:fNum(x.buegeln_flow),
     ams:x.ams===true||x.ams===false?x.ams:null,ams_modelle:x.ams_modelle?String(x.ams_modelle).trim():"",sku:x.sku?String(x.sku).trim():"",
     ams_farben:[...new Set((x.ams_farben||[]).filter(hexOk).map(c=>c.toLowerCase()))]});
-  delete d.rest;delete d.typ;
+  delete d.rest;delete d.typ;if(fNum((e.raw||{}).preis)!==d.preis){delete d.gekauft;delete d.preis_quelle;delete d.preis_datum}
   if(!e.uid)return svc("add_item",{item:summary(d),description:JSON.stringify(d)});
   return svc("update_item",{item:e.uid,rename:summary(d),description:JSON.stringify(d)})}
 function abbuchen(e,gramm){const gw=e.gewicht;let sp=Math.max(0,e.spulen),g0=gramm;let rl=[...(e.reste||[])].sort((a,b)=>a-b).slice(0,sp);
@@ -4710,7 +4711,7 @@ function formModal(e,prefill){
     <details class="lgx"${(f.bambu_id||f.preis||f.duese_min||f.fcode||f.flow||f.mvs||f.k||f.sku)?" open":""}><summary>Technische Daten, Preis und Bambu-ID</summary><div class="lgform" style="margin-top:10px">
       <div class="g3"><label class="field"><span>Bambu-ID (Abbuchung)</span><input type="text" id="lf_bid" value="${v(f.bambu_id)}" placeholder="GFG02"></label>
         <label class="field"><span>Preis je kg</span><div class="unit"><input type="text" inputmode="decimal" id="lf_p" value="${f.preis==null?"":String(f.preis).replace(".",",")}" placeholder="19,99"><em>€</em></div></label>
-        <label class="field"><span>Davon Refill</span><div class="unit"><input type="text" inputmode="numeric" id="lf_rf" value="${v(f.refills)}"><em>Stk</em></div></label></div>
+        <label class="field"><span>Davon Refill</span><div class="unit"><input type="text" inputmode="numeric" id="lf_rf" value="${v(f.refills)}"><em>Stk</em></div></label>${isNew?"":gekauftHTML(e)}</div>
       <div class="g4"><label class="field"><span>Druck von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d1" value="${v(f.duese_min)}"><em>°C</em></div></label>
         <label class="field"><span>Druck bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d2" value="${v(f.duese_max)}"><em>°C</em></div></label>
         <label class="field"><span>Bett von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b1" value="${v(f.bett_min)}"><em>°C</em></div></label>
@@ -5795,9 +5796,18 @@ window.addEventListener("sl-srv-bereit",()=>{if(PL.d||PL.laden||EP.d)plNeuLaden(
 window.addEventListener("sl-shoppreise",()=>{draw();if(document.querySelector("#modal #lgBl"))bestandModal()});
 window.addEventListener("sl-pv",()=>{if(document.querySelector("#modal #lgBl"))bestandModal()});
 /* Preis aus dem Lager als eigene Zeile über den Shop-Angeboten, mit Vergleich zum günstigsten Shop */
+/* Kaufnachweis eines Lagerpreises (aus Amazon-/Bambu-Rechnung), nur solange der Preis unverändert ist */
+const SV_KORB='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 11h10.6l2-8H6.4"/></svg>';
+function gekauftVon(e){const r=(e&&e.raw)||{},g=r.gekauft;if(!(e&&e.preis>0)||fNum(r.preis)!==e.preis)return null;
+  if(g&&g.shop)return g;if(r.preis_quelle)return {shop:/bambu/i.test(r.preis_quelle)?"Bambu Lab Store":String(r.preis_quelle).replace(/-?Rechnung$/,""),datum:r.preis_datum};return null}
+const gkDatum=d=>{const x=d?new Date(d):null;return x&&!isNaN(x)?x.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}):""};
+const gkLink=g=>/^https:\/\//.test(g.url||"")?`<a href="${esc(g.url)}" target="_blank" rel="noopener">${"Artikel ansehen ↗"}</a>`:"";
+function gekauftHTML(e,kurz){const g=gekauftVon(e);if(!g)return "";const teile=[`${kurz?"gekauft bei":"Gekauft bei"} ${kurz?esc(g.shop):`<b>${esc(g.shop)}</b>`}`,g.haendler&&g.haendler!==g.shop?esc(g.haendler):"",gkDatum(g.datum)].filter(Boolean).join(" · ");
+  const l=gkLink(g);return kurz?`<span class="pllq">${teile}${l?" · "+l.replace("Artikel ansehen","Artikel"):""}</span>`
+    :`<div class="lfk">${SV_KORB}<span>${teile}${g.typ?' <i>(Farbe aus der Rechnung nicht erkennbar – Preis der Sorte)</i>':""}${l?" · "+l:""}</span></div>`}
 function plLager(e,a){if(!(e.preis>0))return "";const pr=e.preis*(e.gewicht||1000)/1000,b=a[0];let v="";
   if(b){const d=Math.round((e.preis-b.pk)*100)/100;v=Math.abs(d)<.01?`<em class="pllv">gleich wie ${esc(b.shop)}</em>`:d<0?`<em class="pllv gut">${eur(-d)}/kg unter ${esc(b.shop)}</em>`:`<em class="pllv teuer">${eur(d)}/kg über ${esc(b.shop)}</em>`}
-  return `<div class="plo pllg" title="Preis aus deinem Lager"><span class="plon"><span class="pllt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/></svg>Lagerpreis</span>${v}</span><span class="plop"><b>${eur(pr)}</b><small>je Rolle · ${kg(e.gewicht||1000)}</small></span><span class="plok">${eur(e.preis)}/kg</span><span class="ploa"></span></div>`}
+  return `<div class="plo pllg" title="Preis aus deinem Lager"><span class="plon"><span class="pllt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M5 4v16M19 4v16"/></svg>Lagerpreis</span>${v}${gekauftHTML(e,1)}</span><span class="plop"><b>${eur(pr)}</b><small>je Rolle · ${kg(e.gewicht||1000)}</small></span><span class="plok">${eur(e.preis)}/kg</span><span class="ploa"></span></div>`}
 function preislisteModal(){if(srv()&&!PV.d)pvLaden();const d=PL.d;let h=`<div class="lgform" id="lgPl">`;
   if(!d){h+=`<div class="panel empty">Preise werden geladen …</div></div>`;const b=document.querySelector("#modal #lgPl");if(b)b.outerHTML=h;else{modal("Preisliste",h,`<button class="btn ghost" data-act="epEin" title="Preise von einer geöffneten Shopseite übernehmen, z. B. aus dem Bambu-Store">Preise aus Shopseiten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);const md=document.querySelector("#modal .modal");if(md)md.classList.add("plwide")}
     preiseLaden().then(()=>{if(document.querySelector("#modal #lgPl"))preislisteModal()}).catch(err=>{const b=document.querySelector("#modal #lgPl");if(b)b.innerHTML=`<div class="panel empty">${esc(err.message||String(err))}</div>`});return}
@@ -6359,6 +6369,7 @@ body.rx-einfach #mbar{display:none!important}
 .plw+.plw{border-top:1px solid var(--line)}.plw.top{background:var(--accent-soft)}.plw.top .plop b{color:var(--accent)}
 .plw .plop small{white-space:nowrap}.plwn{min-width:0;display:flex;flex-direction:column;gap:2px}.plwn b{font-size:14px}.plwn small{font-size:11.5px;color:var(--fg-3)}
 .plo.pllg{background:color-mix(in srgb,var(--fg) 5%,transparent);box-shadow:inset 3px 0 0 var(--fg-3)}
+.pllq{display:block;font-size:11.5px;font-weight:400;white-space:normal;color:var(--fg-3);margin-top:2px}.pllq a{color:var(--accent);text-decoration:none}
 .pllt{display:inline-flex;align-items:center;gap:5px}.pllt svg{width:14px;height:14px;color:var(--fg-3)}
 .pllv{font-style:normal;font-size:11px;font-weight:600;color:var(--fg-3)}.pllv.gut{color:var(--good)}.pllv.teuer{color:var(--warn)}
 .plo.pllg+.plkein,.plo.pllg+.plvs{border-top:1px solid var(--line)}
