@@ -482,6 +482,9 @@ const SRV=window.SRV=(()=>{
     box.innerHTML=`<div class="srvhandys">${d.dienste.map(x=>`<label class="srvhy"><input type="checkbox" value="${esc(x.id)}"${gew.has(x.id)?" checked":""}><span>${esc(x.name)}</span></label>`).join("")}</div>`;
     inp.parentElement.querySelector("input").hidden=true;
     const sync=()=>{inp.value=[...box.querySelectorAll("input:checked")].map(c=>c.value).join(", ")};box.addEventListener("change",sync)}
+  /* Druckerliste immer frisch vom Server holen, bevor sie geändert wird – sonst kann ein veralteter oder leerer Stand
+     (z. B. während der Server neu startet) die eingetragenen Drucker samt IP-Adressen überschreiben */
+  async function druckerFrisch(){const e=await req("GET","/api/einstellungen");if(!e||!Array.isArray(e.drucker))throw new Error("Druckerliste nicht lesbar – bitte gleich noch einmal versuchen.");E=e;return [...e.drucker]}
   async function einstSpeichern(neu,ok){try{E=await req("PUT","/api/einstellungen",neu);if(ok)msg(ok);setTimeout(drLaden,1500);setTimeout(drLaden,6000)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}}
   document.addEventListener("change",e=>{if(e.target&&e.target.id==="srv_abb")einstSpeichern({abbuchung:e.target.checked},e.target.checked?"✓ Automatische Abbuchung an.":"Automatische Abbuchung aus.")});
   const MOD=[["","automatisch (aus der Seriennummer)"],["h2c","H2C"],["h2d","H2D"],["h2s","H2S"],["x1c","X1C"],["x1e","X1E"],["p1s","P1S"],["p1p","P1P"],["p2s","P2S"],["a1","A1"],["a1mini","A1 mini"]];
@@ -520,16 +523,18 @@ const SRV=window.SRV=(()=>{
       catch(x){m2.innerHTML=`<span style="color:var(--bad)">${esc(x.message)}</span>`}b.disabled=false;return}
     if(a==="srvDrNeu"){drModal(null);return}
     if(a==="srvDrEdit"){drModal(+b.dataset.i);return}
-    if(a==="srvDrWeg"){const l=(E.drucker||[]).filter((_,i)=>i!==+b.dataset.i);closeModal();einstSpeichern({drucker:l},"Drucker entfernt.");return}
+    if(a==="srvDrWeg"){const weg=((E&&E.drucker)||[])[+b.dataset.i];if(!weg)return;let l;try{l=(await druckerFrisch()).filter(x=>(weg.id?x.id!==weg.id:x.serial!==weg.serial))}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`);return}
+      closeModal();einstSpeichern({drucker:l,drucker_leeren:!l.length},"Drucker entfernt.");return}
     if(a==="srvDrOk"){const v=id=>((document.getElementById(id)||{}).value||"").trim();
       const d={name:v("dr_name"),serial:v("dr_serial").toUpperCase(),modus:v("dr_modus"),ip:v("dr_ip"),code:v("dr_code"),modell:v("dr_modell"),aktiv:document.getElementById("dr_aktiv").checked};
       if(!d.serial){toast("Seriennummer fehlt");return}if(d.modus==="lokal"&&(!d.ip||!d.code)){toast("IP-Adresse und Zugangscode fehlen");return}
-      const l=[...(E.drucker||[])];const i=b.dataset.i;if(i!=="")l[+i]=Object.assign({},l[+i],d);else{const alt=l.findIndex(x=>x.serial===d.serial);if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d)}
+      const vorher=b.dataset.i!==""?((E&&E.drucker)||[])[+b.dataset.i]:null;let l;try{l=await druckerFrisch()}catch(x){toast(x.message);return}
+      const alt=l.findIndex(x=>(vorher&&vorher.id&&x.id===vorher.id)||x.serial===d.serial);if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d);
       if(d.modus==="cloud"){const k=bambuKonto();if(k)await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""}).catch(()=>{})}
       closeModal();einstSpeichern({drucker:l},`✓ ${esc(d.name||d.serial)} gespeichert – der Server verbindet sich …`);return}
     if(a==="srvDrCloud"){const k=bambuKonto();if(!k){msg(`<span style="color:var(--bad)">Erst oben unter <b>Bambu-Cloud</b> anmelden${window.__SL_SRV?" – hier in dieser Ansicht, die Anmeldung von schichtlohn.pages.dev gilt hier nicht":""}. Danach diesen Knopf noch einmal antippen.</span>`);const d=[...document.querySelectorAll("details,section")].find(x=>/Bambu-Cloud/i.test((x.querySelector("summary,.sec-title,h2")||{}).textContent||""));if(d){if(d.tagName==="DETAILS")d.open=true;d.scrollIntoView({behavior:"smooth",block:"start"})}return}
       msg("Frage die Bambu-Cloud nach deinen Druckern …");
-      try{const r=await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""});const l=[...(E.drucker||[])];let n=0;
+      try{const r=await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""});const l=await druckerFrisch();let n=0;
         (r.geraete||[]).forEach(g=>{if(!g.serial||l.some(x=>x.serial===g.serial))return;l.push({name:g.name||g.produkt,serial:g.serial,modell:g.modell,modus:"cloud",code:g.code||"",aktiv:true});n++});
         if(!n){msg(r.geraete&&r.geraete.length?"Alle Drucker aus der Cloud sind schon eingetragen.":"In der Bambu-Cloud sind keine Drucker gebunden.");return}
         einstSpeichern({drucker:l},`✓ ${n} Drucker aus der Bambu-Cloud übernommen (Verbindung über die Cloud). Unter „Bearbeiten“ kannst du auf Heimnetz umstellen – IP eintragen, der Zugangscode ist schon da.`)}

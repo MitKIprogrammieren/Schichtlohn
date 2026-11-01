@@ -68,7 +68,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.3.0"
+VERSION = "3.3.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -81,7 +81,7 @@ MODELLE = os.environ.get("MODELLE", os.path.dirname(MERKMAL_MODELL))
 
 # ---------------------------------------------------------------- Datenbank
 
-_db_lock = threading.Lock()
+_db_lock = threading.RLock()  # auch Lesen sperren: eine gemeinsame Verbindung für alle Threads
 
 
 def db():
@@ -187,7 +187,10 @@ def liste_ersetzen(name, items):
 
 
 def daten_lesen(k):
-    r = db().execute("SELECT wert, geaendert FROM daten WHERE schluessel=?", (k,)).fetchone()
+    with _db_lock:
+        r = db().execute("SELECT wert, geaendert FROM daten WHERE schluessel=?", (k,)).fetchone()
+    if r and r[0] is None:
+        raise RuntimeError(f"Daten „{k}“ nicht lesbar")
     return (json.loads(r[0]), r[1]) if r else (None, None)
 
 
@@ -624,13 +627,22 @@ def einstellungen_setzen(neu):
     alt = einstellungen()
     e = dict(alt)
     if isinstance(neu.get("drucker"), list):
+        if not neu["drucker"] and alt["drucker"] and not neu.get("drucker_leeren"):
+            raise Fehler(409, "Die Druckerliste würde ganz geleert – abgebrochen. Bitte die Seite neu laden und noch einmal versuchen.")
         alte = {d.get("id"): d for d in alt["drucker"]}
+        nach_serie = {str(d.get("serial") or "").upper(): d for d in alt["drucker"] if d.get("serial")}
         liste = []
         for d in neu["drucker"]:
             d = {k: (v.strip() if isinstance(v, str) else v) for k, v in d.items()}
-            d["id"] = d.get("id") or uuid.uuid4().hex[:8]
+            vorher = alte.get(d.get("id")) or nach_serie.get(str(d.get("serial") or "").upper()) or {}
+            d["id"] = d.get("id") or vorher.get("id") or uuid.uuid4().hex[:8]
+            # Fehlt eine Angabe ganz (z. B. beim Übernehmen aus der Bambu-Cloud), die bisherige behalten – IP und Zugangscode gehen so nicht verloren
+            if "ip" not in d and vorher.get("ip"):
+                d["ip"] = vorher["ip"]
+            if not d.get("code") and vorher.get("code"):  # ein leerer Zugangscode ist nie gewollt
+                d["code"] = vorher["code"]
             if d.get("code") == MASKE:
-                d["code"] = (alte.get(d["id"]) or {}).get("code", "")
+                d["code"] = vorher.get("code", "")
             if d.get("serial"):
                 d["serial"] = d["serial"].upper()
                 if not d.get("modell"):
@@ -1617,9 +1629,14 @@ class _Wirt:
         return dict(einstellungen()["cloud"])
 
     def cloud_merken(self, c):
-        e = einstellungen()
-        e["cloud"].update({"uid": c.get("uid")})
-        daten_schreiben(EINST_KEY, e)
+        # Lesen und Schreiben unter einer Sperre – sonst können gleichzeitig startende Drucker einen
+        # halben Stand zurückschreiben (so ging die Druckerliste samt IP-Adressen verloren)
+        with _db_lock:
+            w, _ = daten_lesen(EINST_KEY)
+            if not isinstance(w, dict):
+                return
+            w.setdefault("cloud", {})["uid"] = c.get("uid")
+            daten_schreiben(EINST_KEY, w)
 
     def zustaende(self, dr, z):
         for eid, (s, a) in z.items():

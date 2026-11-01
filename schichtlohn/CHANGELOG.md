@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.3.1 – 01.11.2026
+- Behoben: Nach einem Neustart des Servers konnte die Druckerliste verschwinden, wenn mehrere Drucker gleichzeitig über die Cloud verbunden wurden – dabei gingen auch die IP-Adressen verloren.
+- Behoben: Beim Übernehmen aus der Bambu-Cloud oder beim Bearbeiten eines Druckers konnte ein veralteter Stand die eingetragenen Drucker überschreiben – dabei gingen IP-Adressen verloren. Jetzt wird die Druckerliste vorher immer frisch geholt, IP und Zugangscode bleiben erhalten, und die Liste kann nicht mehr versehentlich ganz geleert werden.
+
 ## 3.3.0 – 01.11.2026
 - Neu: Der Server schreibt jeden Druck mit, den er enden sieht – auch Drucke, die Bambu Studio direkt übers Heimnetz schickt und die deshalb nicht in der Bambu-Cloud stehen. Mit Name, Zeit, Gramm je Filament und Vorschaubild aus der Druckdatei. Du findest sie unter „Druckaufträge“.
 - Neu: Alle 6 Stunden liest der Server die Druckdateien im Speicher deiner Drucker (bei Druckern mit IP-Adresse). So tauchen auch ältere Drucke auf, mit Gramm und Druckzeit laut Datei.
