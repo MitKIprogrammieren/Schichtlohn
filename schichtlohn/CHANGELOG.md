@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.48 – 01.11.2026
+- Fächer und Sorten werden jetzt nach der Farbe zugeordnet, wie das Auge sie sieht: Grau bleibt Grau, egal ob hell oder dunkel, und wird nicht mehr mit einem hellen Grün verwechselt. Gilt für die Anzeige im Lager, die Meldung „Fach nicht zugeordnet“ und die Abbuchung nach dem Druck.
+
 ## 3.2.47 – 01.11.2026
 - Fächer werden wieder erkannt: Beim ersten Start holt sich der Server einmal die Bambu-Profile und gelernten AMS-Farben, die du früher in Home Assistant den Sorten zugeordnet hast. Nur fehlende Angaben werden ergänzt – Bestand, Preise und alles andere bleiben, wie sie sind.
 

@@ -67,7 +67,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.2.47"
+VERSION = "3.2.48"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1194,10 +1194,10 @@ def sorte_fuer(fid, col):
         if not fid or str(d.get("bambu_id") or "") != fid or int(_zahl(d.get("spulen"))) <= 0:
             continue
         farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
-        dist = min(drucker_mod.farbabstand(h, col) if col else 0 for h in farben)
+        dist = min(drucker_mod.farbunterschied(h, col) if col else 0 for h in farben)
         if dist < abst:
             beste, abst = (it, d), dist
-    if beste and abst <= 19200:
+    if beste and abst <= drucker_mod.FARB_TOL:
         return beste, ""
     if beste:
         return None, f"Farbe {col} passt zu keiner Sorte mit Bambu-ID {fid}"
@@ -1655,7 +1655,7 @@ BILDER = produktbilder.Bilder(os.path.join(os.path.dirname(os.path.abspath(DB_PF
 FACH_RE = re.compile(r"_(?:ams_(\d+)_slot_(\d+)(?:_\d+)?|externalspool(\d*)_externe_spule)$")
 FACH_RUHE = 20          # Sekunden, die ein neuer Fachinhalt gleich bleiben muss
 FACH_TAKT = 10          # Sekunden zwischen zwei Durchläufen
-FACH_TOL = 19200        # gleiche Farbtoleranz wie Karte und Abbuchung
+FACH_TOL = drucker_mod.FARB_TOL  # gleiche Farbtoleranz wie Karte und Abbuchung
 FACH_STAND = {}         # entity_id -> {"sig": bestätigter Inhalt, "neu": wartender Inhalt, "seit": Zeit}
 FACH_GEMELDET = {}      # entity_id -> Inhalt, zu dem eine Meldung offen ist
 HA_FAECHER_VORLAGE = (
@@ -1734,7 +1734,7 @@ def fach_pruefen(eid, f, melden_=True):
         if d.get("typ") is not None or int(_zahl(d.get("spulen"))) <= 0:  # Merkzeilen und aufgebrauchte Sorten nicht
             continue
         farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
-        dist = min(drucker_mod.farbabstand(h, col) if col else 0 for h in farben)
+        dist = min(drucker_mod.farbunterschied(h, col) if col else 0 for h in farben)
         gleich = str(d.get("bambu_id") or "") == fid and not generic
         if gleich:
             mitid = True

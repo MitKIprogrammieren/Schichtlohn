@@ -429,6 +429,51 @@ def farbabstand(a, b):
     return sum((int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) ** 2 for i in (1, 3, 5))
 
 
+def _lab(h):
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    f = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = f(r), f(g), f(b)
+    x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047
+    y = r * 0.2126 + g * 0.7152 + b * 0.0722
+    z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883
+    t = lambda v: v ** (1 / 3) if v > 0.008856 else 7.787 * v + 16 / 116
+    return 116 * t(y) - 16, 500 * (t(x) - t(y)), 200 * (t(y) - t(z))
+
+
+def farbunterschied(a, b):
+    """Farbabstand wie das Auge ihn sieht (CIEDE2000, Helligkeit halb gewichtet): Grau bleibt Grau, egal wie hell.
+    Etwa: 0–10 gleiche Farbe, bis 20 ähnlich, darüber andere Farbe. Fehlt eine Farbe: 0."""
+    import math
+    a, b = _farbe(a), _farbe(b)
+    if not a or not b:
+        return 0
+    L1, a1, b1 = _lab(a)
+    L2, a2, b2 = _lab(b)
+    cm = (math.hypot(a1, b1) + math.hypot(a2, b2)) / 2
+    g = 0.5 * (1 - math.sqrt(cm ** 7 / (cm ** 7 + 25 ** 7)))
+    a1p, a2p = a1 * (1 + g), a2 * (1 + g)
+    c1, c2 = math.hypot(a1p, b1), math.hypot(a2p, b2)
+    h1, h2 = math.degrees(math.atan2(b1, a1p)) % 360, math.degrees(math.atan2(b2, a2p)) % 360
+    dl, dc = L2 - L1, c2 - c1
+    if c1 * c2 == 0:
+        dh, hm = 0, h1 + h2
+    else:
+        d = h2 - h1
+        dh = d if abs(d) <= 180 else (d - 360 if d > 180 else d + 360)
+        hm = (h1 + h2) / 2 if abs(h1 - h2) <= 180 else ((h1 + h2 + 360) / 2 if h1 + h2 < 360 else (h1 + h2 - 360) / 2)
+    dH = 2 * math.sqrt(c1 * c2) * math.sin(math.radians(dh / 2))
+    lm, cpm = (L1 + L2) / 2, (c1 + c2) / 2
+    t = (1 - 0.17 * math.cos(math.radians(hm - 30)) + 0.24 * math.cos(math.radians(2 * hm))
+         + 0.32 * math.cos(math.radians(3 * hm + 6)) - 0.20 * math.cos(math.radians(4 * hm - 63)))
+    sl = 1 + 0.015 * (lm - 50) ** 2 / math.sqrt(20 + (lm - 50) ** 2)
+    sc, sh = 1 + 0.045 * cpm, 1 + 0.015 * cpm * t
+    rt = -math.sin(math.radians(2 * 30 * math.exp(-((hm - 275) / 25) ** 2))) * 2 * math.sqrt(cpm ** 7 / (cpm ** 7 + 25 ** 7))
+    return math.sqrt(max(0.0, (dl / (2 * sl)) ** 2 + (dc / sc) ** 2 + (dH / sh) ** 2 + rt * (dc / sc) * (dH / sh)))
+
+
+FARB_TOL = 20  # bis hierhin gilt eine Fachfarbe als dieselbe Sorte
+
+
 def cloud_anfrage(token, region, pfad, timeout=20):
     req = urllib.request.Request(CLOUD_API.get(region, CLOUD_API["global"]) + pfad,
                                  headers=dict(KOPF, Authorization="Bearer " + token))
