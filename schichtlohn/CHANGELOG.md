@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.2.45 – 01.11.2026
+- Lager: Die Auswahlmenüs (Material, Marke, Farbe, Ort, Sortierung) klappen nicht mehr von selbst zu, wenn Waage oder Drucker neue Werte melden – vor allem in Home Assistant hingen sie dadurch.
+
 ## 3.2.44 – 01.11.2026
 - Einstellungen bleiben auf allen Geräten gleich: Speichert ein Gerät, das länger offen war (z. B. die Home-Assistant-App auf dem Mac), überschreibt es nicht mehr, was du inzwischen auf dem Handy eingestellt hast – es werden nur die Werte übernommen, die du auf diesem Gerät geändert hast.
 - Kommt SchichtLohn aus dem Hintergrund zurück oder war kurz die Verbindung weg, holt es sich zuerst den aktuellen Stand von Einstellungen, Portfolio und Aufträgen.
