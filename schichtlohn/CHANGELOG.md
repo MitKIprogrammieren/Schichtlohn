@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.28 – 01.11.2026
+- Kopfzeile: „SchichtLohn“ größer, der Untertitel „Druckpreise kalkulieren“ ist weg.
+- Der Server-Zustand steckt jetzt im Logo: grüner Punkt = erreichbar, gelb = speichert, rot = offline. Die eigene „Server“-Anzeige entfällt.
+- Bambu Lab und Creality oben als ruhige Felder ohne Rahmen; auf dem Handy steht alles in einer Zeile.
+
 ## 3.2.27 – 01.11.2026
 - Rechner: Die Schätzung aus ungeslicten 3MF-Dateien und STL ist deutlich genauer. Feine Oberflächen (z. B. Zapfen, Rinde, Muster) zählen nicht mehr als riesige Wandfläche, und bei 3MF werden Füllung und Wandlinien aus der Datei übernommen.
 
