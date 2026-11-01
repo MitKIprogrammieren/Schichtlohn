@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.2.43 – 01.11.2026
+- Preise aus Shopseiten: Auch Sammelseiten (z. B. colorfabb.com „3D-Druck-Filamente“) werden jetzt deinen Sorten zugeordnet – Material und Farbe kommen aus dem Variantennamen („Varioshore TPU 95A Schwarz“).
+- Preisliste: colorFabb Varioshore TPU von 3DJake ist dabei.
+- Rechnungen: Leerzeichen in der Suche gehen wieder; alte Bambu-Rechnungen ohne Farbcode übertragen ihre Preise jetzt auch ins Lager.
+
 ## 3.2.42 – 01.11.2026
 - Lagerpreise aus Amazon-Rechnungen: Bei Sorten mit Rechnungspreis steht jetzt „Gekauft bei Amazon · Händler · Datum“ mit Link zum Artikel – im Bearbeiten-Fenster unter „Preis je kg“ und in der Preisliste beim Lagerpreis. Auch Preise aus Bambu-Rechnungen zeigen, woher sie kommen.
 - Änderst du den Preis von Hand, verschwindet der Hinweis automatisch.

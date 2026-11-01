@@ -5876,7 +5876,10 @@ function epZeilen(p,refillWahl){const sh=epShop(p.h,p.u,p.t,p.b),t=epTitel(p.t),
   if(gemeinsam)v=p.f.map(f=>Object.assign({},v[0],{farbe:f}));
   const offen=v.some(x=>x.refill===null);
   const z=v.map(x=>{const rf=x.refill===null?!!refillWahl:x.refill;
-    return [sh.k,sh.marke,[t,x.farbe].filter(Boolean).join(" ")+(rf?" Refill":""),mat,x.farbe||t,x.gew,rf?1:0,x.p,x.np>x.p?x.np:x.p,p.u,x.e||"",heute]});
+    /* Sammelseite („3D-Druck-Filamente“): Material steht nur im Variantennamen – „VARIOSHORE TPU 95A SCHWARZ“ → TPU, Farbe „SCHWARZ“ */
+    let m=mat,tt=t,fa=x.farbe;if(!m&&fa){const vm=epMaterial(fa);if(vm){m=vm;const w=fa.split(/\s+/),i=w.findIndex(q=>q.replace(/[^A-Za-z0-9+-]/g,"").toUpperCase()===vm);
+      let j=i+1;while(j<w.length-1&&/^(\d{2,3}[AD]|HF|HS|CF|GF|\+|PLUS|PRO|BASIC|MATTE?)$/i.test(w[j]))j++;tt=w.slice(0,j).join(" ");fa=w.slice(j).join(" ")||fa}}
+    return [sh.k,sh.marke,[tt,fa].filter(Boolean).join(" ")+(rf?" Refill":""),m,fa||tt,x.gew,rf?1:0,x.p,x.np>x.p?x.np:x.p,p.u,x.e||"",heute]});
   return {sh,t,mat,z,gemeinsam,offen}}
 /* passende Sorte im Lager zu einer Zeile (gleiche Regeln wie in der Preisliste) */
 function epSorte(z){const r=plRow(z,{shops:{}});return entries().find(e=>{const refill=e.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen);return r.refill===refill&&plPasst(e,r)>0})||null}
