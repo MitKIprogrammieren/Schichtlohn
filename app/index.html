@@ -5892,8 +5892,10 @@ document.addEventListener("input",e=>{const t=e.target;if(t.id==="lgq"){G.q=t.va
 document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="lf_h"||t.id==="lf_m"){const x=document.getElementById(t.id+"x");if(x){x.hidden=t.value!==ANDERE;if(!x.hidden)x.focus()}
     if(t.id==="lf_h"&&t.value!==ANDERE){const m=document.getElementById("lf_m");if(m&&m.value!==ANDERE){const cur=m.value;m.innerHTML=matOpts(t.value,cur)}}return}
-  if(t.matches&&t.matches("[data-lgsort]")){G.sort=t.value;savePref();draw()}
-  else if(t.dataset&&t.dataset.lgf!==undefined){G.f=Object.assign({},G.f,{[t.dataset.lgf]:t.value});savePref();draw()}});
+  /* Erst zeichnen, wenn das Auswahlmenü zu ist: Die Mac-App (WebKit) zeigt sonst die neue Liste erst nach dem nächsten Klick */
+  const spaeter=()=>{try{t.blur()}catch(x){}setTimeout(()=>requestAnimationFrame(()=>draw()),30)};
+  if(t.matches&&t.matches("[data-lgsort]")){G.sort=t.value;savePref();spaeter()}
+  else if(t.dataset&&t.dataset.lgf!==undefined){G.f=Object.assign({},G.f,{[t.dataset.lgf]:t.value});savePref();spaeter()}});
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^lg/.test(a))return;
   if(a==="lgMode"){try{localStorage.setItem("schichtlohn_lagermodus",b.dataset.v)}catch(x){}window.render&&window.render();return}
