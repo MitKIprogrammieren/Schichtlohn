@@ -2653,9 +2653,16 @@ function all(){
   J.cloud.forEach(c=>{if(!used.has(c.id))out.push(Object.assign({},c))});
   if(window.CRE)CRE.jobs().forEach(c=>out.push(Object.assign({},c)));
   /* Druckdateien im Druckerspeicher nur zeigen, wenn es dazu noch keinen Druck gibt (gleicher Name auf demselben Drucker) */
-  const nn=t=>String(t||"").toLowerCase().replace(/(\.gcode)?\.3mf$/,"").replace(/[^a-z0-9äöüß]+/g,"");
-  const da=new Set(out.map(j=>(j.serial||"")+"|"+nn(j.title)));
-  J.speicher.forEach(f=>{const k=f.serial+"|"+nn(f.title);if(!da.has(k)){da.add(k);out.push(Object.assign({},f))}});
+  const nn=t=>String(t||"").replace(/&apos;/g,"'").toLowerCase().replace(/(\.gcode)?\.3mf$/,"").replace(/[^a-z0-9äöüß]+/g,"");
+  /* Drucke ohne Gewicht (ältere Spooly-Einträge): Gewicht und Filament aus der Druckdatei im Druckerspeicher,
+     gleicher Dateiname auf demselben Drucker. Abgleich auch über den Druckernamen, weil Spooly andere Gerätenummern speichert. */
+  const dk=j=>String(j.printer||"").toLowerCase()+"|"+nn(j.title);
+  const datei={};J.speicher.forEach(f=>{const k=dk(f);if(f.grams>0&&!datei[k])datei[k]=f});
+  out.forEach(j=>{if(j.grams>0||j.datei||j.running)return;const f=datei[dk(j)];if(!f)return;
+    const anteil=j.failed&&j.progress>0&&j.progress<100?j.progress/100:1;
+    j.mats=f.mats.map(m=>Object.assign({},m,{g:r2(m.g*anteil)}));j.grams=r2(f.grams*anteil);j.gewichtAus="Druckerspeicher";if(!j.cover)j.cover=f.cover});
+  const da=new Set(out.map(j=>(j.serial||"")+"|"+nn(j.title)).concat(out.map(dk)));
+  J.speicher.forEach(f=>{const k=f.serial+"|"+nn(f.title);if(!da.has(k)&&!da.has(dk(f))){da.add(k);out.push(Object.assign({},f))}});
   const tv=j=>{const t=new Date(j.end||j.start||0).getTime();return isNaN(t)?0:t};
   const bi=buchIndex();out.forEach(j=>anpassen(j,bi));
   return out.sort((a,b)=>tv(b)-tv(a));
@@ -2952,7 +2959,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_fromSrv:fromSrv};
+window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_fromSrv:fromSrv,_fromSpeicher:fromSpeicher};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
