@@ -2643,7 +2643,9 @@ function all(){
   const ha=J.ha.map(x=>Object.assign({},x)).concat(srv),out=[];const used=new Set();
   for(const h of ha){const t=new Date(h.end).getTime();
     const c=J.cloud.find(c=>!used.has(c.id)&&((h.task&&c.id===h.task)||(c.serial&&c.serial.toUpperCase()===h.serial&&c.end&&Math.abs(new Date(c.end).getTime()-t)<15*60000)));
-    if(c){used.add(c.id);h.cloud=c;h.cover=h.cover||c.cover;if(!h.minutes)h.minutes=c.minutes;if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
+    if(c){used.add(c.id);h.cloud=c;h.cover=h.cover||c.cover;if(!h.minutes)h.minutes=c.minutes;
+      /* ohne Gewicht (z. B. ältere Spooly-Einträge): Filament und Gewicht aus der Bambu-Cloud übernehmen */
+      if(!(h.grams>0)&&c.grams>0){h.grams=c.grams;h.mats=(c.mats||[]).map(m=>Object.assign({},m));h.gewichtAus="Bambu-Cloud"}if(h.title==="Druck"&&c.title)h.title=c.title;if(!h.start)h.start=c.start}
     out.push(h)}
   J.cloud.forEach(c=>{if(!used.has(c.id))out.push(Object.assign({},c))});
   if(window.CRE)CRE.jobs().forEach(c=>out.push(Object.assign({},c)));
@@ -2947,7 +2949,7 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa};
+window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_fromSrv:fromSrv};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
