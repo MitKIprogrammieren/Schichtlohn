@@ -2445,7 +2445,23 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
       ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
     ${fil?`<div class="dl-fil">${fil}</div>`:""}
     ${k!=="aus"&&d.pre?`<button type="button" class="btn icon dl-kbtn" data-dk="${esc(d.key)}" aria-pressed="${OFFEN.has(d.key)}" aria-label="Kamera ${esc(d.name)}" title="Kamera">${ICON_KAM}</button>`:""}</div>
+    ${k!=="aus"&&d.pre?amsHtml(d.pre,lauf):""}
     ${k!=="aus"&&d.pre&&OFFEN.has(d.key)?`<div class="dl-kam" data-kam="${esc(d.key)}" data-pre="${esc(d.pre)}"><img alt="Kamera ${esc(d.name)}" data-dkv="${esc(d.key)}"><span class="dl-klade">Kamera wird verbunden …</span></div>`:""}`}
+/* AMS-Fächer des Druckers (Home Assistant oder SchichtLohn-Server, gleiche Namen): kleine Spulen wie im Lager, aktives Fach hervorgehoben */
+function zustaende(){const h=window.__hass&&window.__hass.states;const z=window.SRV&&SRV.zst;return h&&Object.keys(h).length?h:(z||{})}
+function amsHtml(pre,lauf){const Z=zustaende(),re=new RegExp("^sensor\\."+pre.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"_(?:ams_(\\d+)_slot_(\\d+)|externalspool(\\d*)_externe_spule)$");
+  const gr={};for(const id of Object.keys(Z)){const m=id.match(re);if(!m)continue;const a=(Z[id]||{}).attributes||{};
+    const ams=m[1]?+m[1]:0,fach=m[1]?+m[2]:(m[3]?+m[3]:1),ext=!m[1];if(ext&&a.empty)continue;
+    const g=ext?"Extern":ams>=128?"AMS HT"+(ams>128?" "+(ams-127):""):"AMS "+ams;(gr[g]=gr[g]||{o:ext?999:ams,l:[]}).l.push({fach,a})}
+  const namen=Object.keys(gr).sort((x,y)=>gr[x].o-gr[y].o);if(!namen.length)return "";
+  const B=window.LGN&&LGN._book;
+  const slot=(g,{fach,a})=>{const leer=!!a.empty,an=!!a.active&&!leer;const hx=String(a.color||"").slice(0,7);const hex=/^#[0-9a-f]{6}$/i.test(hx)?hx:"#9e9e9e";
+    const typ=a.type&&a.type!=="?"?a.type:"";let e=null;try{e=!leer&&B&&B.finde?B.finde(typ,hex):null}catch(x){}
+    const sp=leer?'<span class="dl-sleer"></span>':(window.LGN&&LGN.spool?LGN.spool(hex,"dl-sp",e?e.besonderheiten:[],e||{uid:"",gewicht:1000,spulen:1,reste:[]}):`<span class="dl-sleer" style="background:${hex}"></span>`);
+    const rest=a.remain>=0&&a.remain_enabled!==false&&!leer?a.remain+" %":"";
+    const name=leer?"leer":(e?[e.hersteller,e.material,e.farbe].filter(Boolean).join(" "):a.name||typ);
+    return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}" title="${esc(g+(g==="Extern"?"":" · Fach "+fach)+" · "+name+(rest?" · "+rest:"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(leer?"leer":typ||"?")}</b><small>${esc(rest||"\u00a0")}</small></span>`};
+  return `<div class="dl-ams">${namen.map(g=>`<div class="dl-amsg"><span class="dl-amsn">${esc(g)}</span><div class="dl-sls">${gr[g].l.sort((x,y)=>x.fach-y.fach).map(x=>slot(g,x)).join("")}</div></div>`).join("")}</div>`}
 const ICON_KAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>';
 const ICON_AUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5M12 20h.01"/></svg>';
 function html(){const q=quelle();if(!q.l.length)return `<div id="dlive" hidden></div>`;
@@ -2515,6 +2531,19 @@ window.DLIVE={html,after};
 .dl-k{background:var(--sunken);border-radius:var(--r-s);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
 .dl-k span{font-size:12px;color:var(--fg-2)}.dl-k b{font-size:20px;font-weight:600}
 .dl-liste{display:flex;flex-direction:column}
+.dl-ams{display:flex;flex-wrap:wrap;gap:6px 18px;padding:0 2px 8px 56px;margin-top:-2px}
+.dl-amsg{display:flex;align-items:center;gap:8px;min-width:0}
+.dl-amsn{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-3);white-space:nowrap}
+.dl-sls{display:flex;gap:4px}
+.dl-sl{display:flex;flex-direction:column;align-items:center;width:44px;padding:3px 0 2px;border-radius:8px;border:1px solid transparent;line-height:1.15}
+.dl-sl .dl-sp{width:30px;height:30px;margin:-2px 0 0}
+.dl-sl b{font-size:10.5px;font-weight:600;color:var(--fg-2);max-width:42px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-sl small{font-size:10px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.dl-sl.an{border-color:var(--line-2);background:var(--sunken)}
+.dl-sl.lauf{border-color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}.dl-sl.lauf b{color:var(--good)}
+.dl-sl.leer{opacity:.55}
+.dl-sleer{display:block;width:22px;height:22px;margin:2px 0 4px;border-radius:50%;border:1.5px dashed var(--line-2)}
+@media (max-width:620px){.dl-ams{padding-left:2px}}
 .dl-kbtn{flex:none;width:34px;height:34px;color:var(--fg-3)}.dl-kbtn[aria-pressed="true"]{color:var(--accent,var(--fg));background:var(--sunken)}
 .dl-kam{position:relative;margin:0 0 6px;width:100%;max-width:560px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
 .dl-kam img{display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s}.dl-kam.ok img{opacity:1}
@@ -2548,9 +2577,12 @@ window.DLIVE={html,after};
 .jkb{position:relative;aspect-ratio:1/1;background:var(--sunken);display:flex;align-items:center;justify-content:center;color:var(--fg-3)}
 .jkb img{width:100%;height:100%;object-fit:contain;padding:6%;box-sizing:border-box}.jkb>svg{width:40%;height:40%;opacity:.5}
 .jkd,.jkx{position:absolute;top:6px;font-size:11px;border-radius:999px;padding:1px 8px;background:var(--panel,var(--glass));border:1px solid var(--line);color:var(--fg-2)}
-.jkd{left:6px}.jkx{right:6px;color:var(--bad);border-color:var(--bad)}
+.jkd{left:6px}.jkx{left:6px;top:30px;color:var(--bad);border-color:var(--bad)}
 .jks{position:absolute;bottom:6px;right:6px;display:flex;gap:3px}.jks i{width:11px;height:11px;border-radius:50%;border:1px solid var(--line-2)}
-.jkh{position:absolute;bottom:6px;left:6px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink,#fff);display:flex;align-items:center;justify-content:center;font-size:13px}
+.jkh{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;border:2px solid var(--line-2);background:var(--panel,var(--glass));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-sizing:border-box}
+.jkh.an{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}.jk:hover .jkh:not(.an){border-color:var(--accent)}
+.jkz{position:absolute;bottom:6px;left:6px;width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel,var(--glass));color:var(--fg-2);display:flex;align-items:center;justify-content:center;padding:0;cursor:zoom-in}
+.jkz svg{width:15px;height:15px}.jkz:hover{color:var(--fg);border-color:var(--line-2)}
 .jkt{padding:8px 10px 10px;display:flex;flex-direction:column;gap:3px;min-width:0}
 .jkt b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jkt div{display:flex;justify-content:space-between;font-size:12px;color:var(--fg-2)}.jkt small{font-size:11px;color:var(--fg-3)}
@@ -2891,9 +2923,9 @@ function render(m){
       const u=keysOf(j).map(k=>used[k]).find(Boolean);const sel=J.sel.has(j.key);
       /* Kachel: großes Vorschaubild (lädt erst, wenn es ins Bild kommt), darunter Name, Zeit, Gramm */
       if(kach){html+=`<div class="jk${sel?" sel":""}${u||j.done?" used":""}${j.failed?" bad":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
-        <div class="jkb"${j.cover?` data-act="jobBild" data-key="${esc(j.key)}" role="button" title="Groß anzeigen"`:""}>${j.cover?`<img src="${esc(j.cover)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON.cube}
+        <div class="jkb">${j.cover?`<img src="${esc(j.cover)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON.cube}
           <span class="jkd">${esc(j.printer||"?")}</span>${j.failed?`<span class="jkx">abgebrochen${j.progress?` ${N0.format(j.progress)} %`:""}</span>`:""}
-          <span class="jks">${j.mats.slice(0,6).map(m=>`<i style="background:${esc(m.color||"#888")}"></i>`).join("")}</span>${sel?`<span class="jkh">✓</span>`:""}</div>
+          <span class="jks">${j.mats.slice(0,6).map(m=>`<i style="background:${esc(m.color||"#888")}"></i>`).join("")}</span><span class="jkh${sel?" an":""}" aria-hidden="true">${sel?"✓":""}</span>${j.cover?`<button type="button" class="jkz" data-act="jobBild" data-key="${esc(j.key)}" title="Groß anzeigen" aria-label="Bild groß anzeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m20 20-5-5M10.5 8v5M8 10.5h5"/></svg></button>`:""}</div>
         <div class="jkt"><b title="${esc(j.title)}">${esc(j.title)}</b><div><span>${j.minutes?dur(j.minutes):"–"}</span><span class="num">${g(j.grams)}</span></div>
           ${u?`<small>${esc(u)}</small>`:j.done?`<small>übernommen</small>`:j.src==="srv"&&j.herkunft==="spooly"?`<small>Spooly</small>`:j.src==="speicher"?`<small>Druckerspeicher</small>`:""}</div></div>`;continue}
       html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
@@ -4650,6 +4682,7 @@ const BES=[
  [/^(tough\+?|tough plus)$/i,"tough","arm-flex","Tough+","#4e342e","#ffcc80","#8d6e63"],
  [/^basic$/i,"basic","check-circle-outline","Basic","transparent","inherit","currentColor"],
  [/^flex/i,"flex","sine-wave",null,"linear-gradient(90deg,#7b1fa2,#ab47bc)","#fff"]];
+const besKey=b=>{const o=besOf(b);return o?o.k:String(b||"").trim().toLowerCase()};const besName=b=>{const o=besOf(b);return o?o.t:String(b||"").trim()};
 const besOf=b=>{const m=BES.find(x=>x[0].test(String(b).trim()));return m?{k:m[1],ic:m[2],t:m[3]||b,bg:m[4],fg:m[5],bd:m[6]}:null};
 (()=>{let css="";BES.forEach(([,k,,,bg,fg,bd])=>{const sh=k==="leucht"?";box-shadow:0 0 7px #76ff0388":"";const ts=/verlauf|multi|glitzer/.test(k)?";text-shadow:0 0 2px #000,0 1px 2px #000":"";
   css+=`.lgc .chip.bx.bx-${k},.chip.bx.bx-${k},.lgp .hmat.bx-${k}{background:${bg};color:${fg==="inherit"?"var(--fg)":fg};border:1px ${k==="trans"?"dashed":"solid"} ${bd?(bd==="currentColor"?"color-mix(in srgb,var(--fg) 45%,transparent)":bd):"transparent"}${sh}${ts}}\n`});
@@ -4995,6 +5028,9 @@ function body0(){G._allZu=false;
   const q=G.q.trim().toLowerCase(),worte=q.split(/\s+/).filter(Boolean);
   const txt=e=>[e.hersteller,e.material,e.farbe,fam(e.hex),...e.besonderheiten,e.fcode,e.bambu_id,...e.codes,...(imFach[e.uid]||[]).map(s=>s.ort)].join(" ").toLowerCase();
   const passt=e=>{if(fl.material&&e.material!==fl.material)return false;if(fl.hersteller&&e.hersteller!==fl.hersteller)return false;if(fl.farbe&&fam(e.hex)!==fl.farbe)return false;
+    if(fl.bes&&!(fl.bes==="_ohne"?!(e.besonderheiten||[]).length:(e.besonderheiten||[]).some(b=>besKey(b)===fl.bes)))return false;
+    if(fl.art){const rf=e.raw&&e.raw.ausfuehrung==="refill"||(e.refills>0&&e.refills>=e.spulen),gw=Math.round(e.gewicht||1000);
+      if(fl.art==="refill"&&!rf)return false;if(fl.art==="spule"&&rf)return false;if(/^g\d+$/.test(fl.art)&&gw!==+fl.art.slice(1))return false}
     if(fl.ort){const o=imFach[e.uid]||[];if(fl.ort==="ams"&&!o.length)return false;if(fl.ort==="lager"&&o.length)return false;if(fl.ort==="angebrochen"&&!(e.spulen>0&&e.reste.length))return false;
       if(fl.ort==="knapp"&&!(e.spulen>0&&total(e)<(E.knapp_g||0)))return false;if(fl.ort==="leer"&&e.spulen>0)return false}return true};
   const sicht=(q||zeigLeer||fl.ort==="leer")?all:all.filter(e=>e.spulen>0);
@@ -5015,6 +5051,10 @@ function body0(){G._allZu=false;
       <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn sm lgtb" data-act="lgFoto" title="Spule fotografieren oder Fotos hochladen: Etikett, Barcode und Farbe werden erkannt">${CAMI} Foto</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
+      ${(()=>{const m=new Map();all.forEach(e=>(e.besonderheiten||[]).forEach(b=>{const k=besKey(b);if(k&&!m.has(k))m.set(k,besName(b))}));
+        return opt("bes",[...m].sort((a,b)=>a[1].localeCompare(b[1],"de")).concat(all.some(e=>!(e.besonderheiten||[]).length)?[["_ohne","Ohne Besonderheit"]]:[]),"Alle Besonderheiten")})()}
+      ${(()=>{const gw=[...new Set(all.map(e=>Math.round(e.gewicht||1000)))].sort((a,b)=>b-a);
+        return opt("art",[["spule","Mit Spule"],["refill","Refill"]].concat(gw.length>1?gw.map(g=>["g"+g,g>=1000?(g/1000).toLocaleString("de-DE")+" kg":g+" g"]):[]),"Spule & Gewicht")})()}
       ${opt("ort",[["ams","Im AMS"],["lager","Nur im Lager"],["angebrochen","Angebrochen"],...(E.knapp_g>0?[["knapp","Knapp"]]:[]),["leer","Aufgebraucht"]],"Überall")}</div>`:""}`;
   if(G.err)h+=`<div class="note" style="border-color:var(--bad)">${esc(G.err)}</div>`;
   if(G.serie&&G.serie.length){const sg=serieGruppen();h+=`<section class="panel lgp lgo lgso"><div class="row pad"><span class="gl">Serienscan: ${plural(serieSumme(),"Rolle","Rollen")} offen</span><span class="sp"></span><span class="dim" style="font-size:12px;margin-right:10px">${sg.bekannt.length} bekannt · ${sg.unbekannt.length} unbekannt</span><button class="btn sm pri" data-act="lgSerieListe">Liste öffnen</button></div></section>`}
