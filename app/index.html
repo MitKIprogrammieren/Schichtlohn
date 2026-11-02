@@ -2401,6 +2401,22 @@ window.DLIVE={html,after};
 .jhead select,.jhead input[type=search]{width:auto;max-width:220px}
 .jsrc{display:flex;flex-wrap:wrap;gap:8px}
 .jday{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2);padding:14px 4px 6px}
+.jkg{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.jkg>.jday{grid-column:1/-1;margin:6px 0 -2px}
+.jk{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel,var(--glass));cursor:pointer;display:flex;flex-direction:column}
+.jk.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}.jk.used{opacity:.6}
+.jkb{position:relative;aspect-ratio:1/1;background:var(--sunken);display:flex;align-items:center;justify-content:center;color:var(--fg-3)}
+.jkb img{width:100%;height:100%;object-fit:contain;padding:6%;box-sizing:border-box}.jkb>svg{width:40%;height:40%;opacity:.5}
+.jkd,.jkx{position:absolute;top:6px;font-size:11px;border-radius:999px;padding:1px 8px;background:var(--panel,var(--glass));border:1px solid var(--line);color:var(--fg-2)}
+.jkd{left:6px}.jkx{right:6px;color:var(--bad);border-color:var(--bad)}
+.jks{position:absolute;bottom:6px;right:6px;display:flex;gap:3px}.jks i{width:11px;height:11px;border-radius:50%;border:1px solid var(--line-2)}
+.jkh{position:absolute;bottom:6px;left:6px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink,#fff);display:flex;align-items:center;justify-content:center;font-size:13px}
+.jkt{padding:8px 10px 10px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.jkt b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jkt div{display:flex;justify-content:space-between;font-size:12px;color:var(--fg-2)}.jkt small{font-size:11px;color:var(--fg-3)}
+.jseg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r-s);overflow:hidden}
+.jseg button{border:0;background:none;padding:5px 12px;font:inherit;font-size:13px;color:var(--fg-2);cursor:pointer}.jseg button[aria-pressed="true"]{background:var(--accent-soft,var(--sunken));color:var(--fg)}
+@media (max-width:420px){.jkg{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
 .job{display:grid;grid-template-columns:26px 96px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel,transparent);cursor:pointer;margin-bottom:6px}
 .job:hover{border-color:var(--line-2)}
 .job.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
@@ -2709,6 +2725,7 @@ function dayLabel(iso){if(!iso)return "Ohne Datum";const d=new Date(iso);const t
 const hm=iso=>iso?new Date(iso).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"";
 
 /* --- Darstellung --- */
+const ansicht=()=>{try{return localStorage.getItem("schichtlohn_drucke_ansicht")||"kacheln"}catch(e){return "kacheln"}};
 let J_list=[];
 function render(m){
   m=m||$("#main");if(!m)return;
@@ -2729,9 +2746,16 @@ function render(m){
   else if(!list.length&&(J.haLoading||J.srvLoading||J.cloudLoading||(cre&&CRE.busy())))body=`<div class="panel empty">Druckaufträge werden geladen…</div>`;
   else if(!list.length)body=`<div class="panel empty"><h3>Noch keine Drucke</h3>${isHa?"Sobald ein Drucker einen Druck beendet, trägt Home Assistant ihn ins Druckprotokoll ein.":""}${a?"":" Für ältere Drucke verbinde die Bambu-Cloud."}</div>`;
   else if(!vis.length)body=`<div class="panel empty">${J.open?"Alle Drucke sind schon übernommen. Schalte „Nur offene“ aus, um sie zu sehen.":"Kein Druck passt zum Filter."}</div>`;
-  else{let html="",lastDay=null;
+  else{let html="",lastDay=null;const kach=ansicht()==="kacheln";
     for(const j of vis.slice(0,400)){const dk=dayKey(j.end||j.start);if(dk!==lastDay){html+=`<div class="jday">${esc(dayLabel(j.end||j.start))}</div>`;lastDay=dk}
       const u=keysOf(j).map(k=>used[k]).find(Boolean);const sel=J.sel.has(j.key);
+      /* Kachel: großes Vorschaubild (lädt erst, wenn es ins Bild kommt), darunter Name, Zeit, Gramm */
+      if(kach){html+=`<div class="jk${sel?" sel":""}${u||j.done?" used":""}${j.failed?" bad":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
+        <div class="jkb"${j.cover?` data-act="jobBild" data-key="${esc(j.key)}" role="button" title="Groß anzeigen"`:""}>${j.cover?`<img src="${esc(j.cover)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON.cube}
+          <span class="jkd">${esc(j.printer||"?")}</span>${j.failed?`<span class="jkx">abgebrochen${j.progress?` ${N0.format(j.progress)} %`:""}</span>`:""}
+          <span class="jks">${j.mats.slice(0,6).map(m=>`<i style="background:${esc(m.color||"#888")}"></i>`).join("")}</span>${sel?`<span class="jkh">✓</span>`:""}</div>
+        <div class="jkt"><b title="${esc(j.title)}">${esc(j.title)}</b><div><span>${j.minutes?dur(j.minutes):"–"}</span><span class="num">${g(j.grams)}</span></div>
+          ${u?`<small>${esc(u)}</small>`:j.done?`<small>übernommen</small>`:j.src==="srv"&&j.herkunft==="spooly"?`<small>Spooly</small>`:j.src==="speicher"?`<small>Druckerspeicher</small>`:""}</div></div>`;continue}
       html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
         <input type="checkbox" ${sel?"checked":""} aria-label="${esc(j.title)} auswählen" tabindex="-1">
         <div class="thumb${j.cover?" zoom":""}" style="${j.cover?`background-image:url('${esc(j.cover)}')`:""}"${j.cover?` data-act="jobBild" data-key="${esc(j.key)}" role="button" title="Groß anzeigen"`:""}>${j.cover?"":ICON.cube}</div>
@@ -2743,7 +2767,7 @@ function render(m){
             ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="srv"?`<span class="chip">${j.herkunft==="spooly"?"Spooly":"Protokoll"}</span>`:""}${j.src==="speicher"?`<span class="chip" title="Datei im Druckerspeicher – Gramm und Zeit laut Datei">Druckerspeicher</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
         <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
-    body=`<div>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
+    body=`<div${kach?' class="jkg"':""}>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
       ${a&&(J.more||J.alle)&&J.src!=="ha"?`<div class="row" style="margin-top:8px"><span class="sp"></span>${J.alle?`<span class="hint">Lade die ganze Druckhistorie … ${J.cloud.length}${J.total?" von "+J.total:""}</span>`:`<button class="btn ghost sm" data-act="jobMore">100 ältere laden</button><button class="btn sm" data-act="jobAlle">Alle laden${J.total>J.cloud.length?` (noch ${J.total-J.cloud.length})`:""}</button>`}<span class="sp"></span></div>`:""}`}
   const selJ=list.filter(j=>J.sel.has(j.key));
   const bar=selJ.length?`<div class="jbar" role="region" aria-label="Auswahl"><div class="info"><b>${selJ.length} Druck${selJ.length>1?"e":""} ausgewählt</b><div class="hint">${g(selJ.reduce((x,j)=>x+j.grams,0))} · ${dur(selJ.reduce((x,j)=>x+j.minutes,0))}</div></div>
@@ -2753,7 +2777,8 @@ function render(m){
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
     <button class="btn pri sm" data-act="jobToOrder">${ICON.save} Auftrag …</button></div>`:"";
   m.innerHTML=`<div class="stack">
-    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span></div>
+    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
+      <div class="jseg" role="group" aria-label="Ansicht">${[["liste","Liste"],["kacheln","Kacheln"]].map(([v,t])=>`<button type="button" data-act="jobAnsicht" data-v="${v}" aria-pressed="${ansicht()===v}">${t}</button>`).join("")}</div></div>
     ${sources}
     ${window.DLIVE?DLIVE.html():""}
     ${window.CRE?CRE.statusHTML():""}
@@ -2886,6 +2911,7 @@ document.addEventListener("click",async e=>{
   else if(a==="jobBildZu"){bildZu()}
   else if(a==="jobKorr"){const j=J_list.find(x=>J.sel.has(x.key));if(j)korrModal(j)}
   else if(a==="jobKorrOk"){korrSpeichern(b)}
+  else if(a==="jobAnsicht"){try{localStorage.setItem("schichtlohn_drucke_ansicht",b.dataset.v)}catch(e){}redraw()}
   else if(a==="jobToggle"){const k=b.dataset.key;J.sel.has(k)?J.sel.delete(k):J.sel.add(k);redraw()}
   else if(a==="jobAll"){visible(J_list,usedMap()).slice(0,400).forEach(j=>J.sel.add(j.key));redraw()}
   else if(a==="jobClear"){J.sel.clear();redraw()}
