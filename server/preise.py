@@ -173,6 +173,95 @@ def ali_angebot(cfg, e):
     return beste
 
 
+# ---------------------------------------------------------------- freie Suche (Preisvergleichsseite)
+
+_such_cache = {}
+
+
+def _ali_produkte(cfg, keywords):
+    params = {"app_key": cfg["key"], "method": "aliexpress.affiliate.product.query", "sign_method": "sha256",
+              "timestamp": str(int(time.time() * 1000)), "v": "2.0", "format": "json",
+              "keywords": keywords, "target_currency": "EUR", "target_language": "DE", "ship_to_country": "DE",
+              "page_size": "40", "sort": "SALE_PRICE_ASC"}
+    if cfg.get("tracking"):
+        params["tracking_id"] = cfg["tracking"]
+    params["sign"] = _ali_signieren(params, cfg["secret"])
+    d = _anfrage("https://api-sg.aliexpress.com/sync?" + urllib.parse.urlencode(params))
+    if d.get("error_response"):
+        raise RuntimeError("AliExpress: " + str(d["error_response"].get("msg") or d["error_response"]))
+    res = ((d.get("aliexpress_affiliate_product_query_response") or {}).get("resp_result") or {})
+    return ((res.get("result") or {}).get("products") or {}).get("product") or []
+
+
+def _alle_woerter(titel, woerter):
+    """Jedes Suchwort muss im Titel stehen (Farben auch auf Englisch)."""
+    t = " " + _norm(titel).replace("gray", "gray grey") + " "
+    for w in woerter:
+        vs = {w} | ({FARBE_DE_EN[w]} if w in FARBE_DE_EN else set())
+        if not any(v in t for v in vs):
+            return False
+    return True
+
+
+def suchen(cfg, q, max_je=12):
+    """Freie Suche bei eBay und AliExpress, z. B. „petg schwarz“ → {"ebay": [...], "ali": [...], "fehler": [...]}.
+    Preise inkl. Versand, sofern der Händler ihn nennt; €/kg aus Gewicht und Stückzahl im Titel. Ergebnis 1 Stunde gemerkt."""
+    q = " ".join(str(q or "").split())[:80]
+    woerter = [w for w in _norm(q).split() if len(w) > 1 and w not in ("filament", "1kg", "kg")]
+    if not woerter:
+        return {"ebay": [], "ali": [], "fehler": []}
+    schluessel = " ".join(woerter)
+    alt = _such_cache.get(schluessel)
+    if alt and time.time() - alt[0] < 3600:
+        return alt[1]
+    eb, al = (cfg or {}).get("ebay") or {}, (cfg or {}).get("ali") or {}
+    out = {"ebay": [], "ali": [], "fehler": []}
+    e0 = {"gewicht": 1000}
+    if eb.get("id") and eb.get("secret"):
+        try:
+            token = ebay_token(eb["id"], eb["secret"])
+            for t in _ebay_suche(token, {"q": schluessel + " filament"}):
+                if not _alle_woerter(t.get("title"), woerter):
+                    continue
+                p = t.get("price") or {}
+                if p.get("currency") != "EUR":
+                    continue
+                versand = None
+                for v in t.get("shippingOptions") or []:
+                    k = (v.get("shippingCost") or {})
+                    if k.get("currency") == "EUR":
+                        versand = float(k.get("value") or 0)
+                        break
+                summe = float(p.get("value") or 0) + (versand or 0)
+                if summe <= 0:
+                    continue
+                pk, gew, n = _je_kg(summe, t.get("title"), e0)
+                out["ebay"].append({"titel": t.get("title") or "", "preis": round(summe, 2), "versand": None if versand is None else round(versand, 2),
+                                    "pk": pk, "gew": gew, "stueck": n, "url": t.get("itemWebUrl") or "", "bild": ((t.get("image") or {}).get("imageUrl") or "")})
+        except Exception as ex:
+            out["fehler"].append(str(getattr(ex, "reason", None) or ex)[:200])
+    if al.get("key") and al.get("secret"):
+        try:
+            for p in _ali_produkte(al, schluessel + " filament"):
+                if not _alle_woerter(p.get("product_title"), woerter):
+                    continue
+                preis = float(p.get("target_sale_price") or p.get("sale_price") or 0)
+                if preis <= 0:
+                    continue
+                pk, gew, n = _je_kg(preis, p.get("product_title"), e0)
+                out["ali"].append({"titel": p.get("product_title") or "", "preis": round(preis, 2), "versand": None, "pk": pk, "gew": gew, "stueck": n,
+                                   "url": p.get("promotion_link") or p.get("product_detail_url") or "", "bild": p.get("product_main_image_url") or ""})
+        except Exception as ex:
+            out["fehler"].append(str(getattr(ex, "reason", None) or ex)[:200])
+    for k in ("ebay", "ali"):
+        out[k] = sorted(out[k], key=lambda x: x["pk"])[:max_je]
+    if not out["fehler"]:
+        if len(_such_cache) > 200:
+            _such_cache.clear()
+        _such_cache[schluessel] = (time.time(), out)
+    return out
+
+
 # ---------------------------------------------------------------- Ablauf
 
 def abrufen(cfg, sorten, alt=None, melde=print):

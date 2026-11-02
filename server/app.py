@@ -26,6 +26,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
+  GET  /api/preise/suche?q=…          freie Suche bei eBay und AliExpress (Preisvergleichsseite)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
   GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
 
@@ -2411,6 +2412,11 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise"] and methode == "GET":
             w, _ = daten_lesen(PREISE_KEY)
             return self._json(200, dict(w if isinstance(w, dict) else {}, laeuft=PREISE_STAND["laeuft"]))
+        if teile == ["preise", "suche"] and methode == "GET":
+            cfg = einstellungen().get("preise") or {}
+            an = [k for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret"))) if all((cfg.get(k) or {}).get(x) for x in f)]
+            erg = preise_mod.suchen(cfg, (q.get("q") or [""])[0]) if an else {"ebay": [], "ali": [], "fehler": []}
+            return self._json(200, dict(erg, dienste=an))
         if teile == ["preise", "protokoll"] and methode == "GET":
             w, _ = daten_lesen(PROTOKOLL_KEY)
             return self._json(200, {"laeufe": w if isinstance(w, list) else []})

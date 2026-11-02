@@ -219,6 +219,7 @@ table.list tr.click:hover td{background:var(--glass)}
       <button data-tab="lager">Lager</button>
       <button data-tab="drucke" data-kurz="Drucke">Druckaufträge</button>
       <button data-tab="rechner" aria-current="page">Rechner</button>
+      <button data-tab="preise" data-kurz="Preise">Preisvergleich</button>
       <button data-tab="auftraege">Aufträge</button>
       <button data-tab="portfolio">Portfolio</button>
       <button data-tab="geschaeft">Geschäft</button>
@@ -709,14 +710,14 @@ function roundPrice(p,mode){
 }
 
 /* ---------- Rendering ---------- */
-const TABNAMES={lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
+const TABNAMES={lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",preise:"Preisvergleich",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
 function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
 function render(){if(window.WACHE)WACHE.Z.render++;try{designAnwenden()}catch(e){}
   const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
   if(hid.includes(S.tab)){const f=$$("#tabs button").find(b=>!b.hidden);S.tab=f?f.dataset.tab:"einstellungen"}
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
   const m=$("#main");
-  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML=""),lager:m=>window.LAGER?LAGER.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
+  ({rechner:renderCalc,portfolio:renderPortfolio,auftraege:renderOrders,geschaeft:renderBiz,einstellungen:renderSettings,drucke:m=>window.JOBS?JOBS.render(m):(m.innerHTML=""),lager:m=>window.LAGER?LAGER.render(m):(m.innerHTML=""),preise:m=>window.PVG?PVG.render(m):(m.innerHTML="")}[S.tab]||renderCalc)(m);
 }
 function opt(list,sel,empty){return (empty?`<option value="">${esc(empty)}</option>`:"")+list.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.name)}</option>`).join("")}
 function unitIn(bind,val,u,extra=""){return `<div class="unit"><input type="text" inputmode="decimal" data-bind="${bind}" value="${inV(val)}" ${extra}><em>${u}</em></div>`}
@@ -5164,7 +5165,7 @@ function farbName(h){const [r,g,b]=hexRgb(h).map(v=>v/255);const mx=Math.max(r,g
   if(l>.7)return hell[t];if(l<.33)return dunkel[t];
   if(t==="gelb"&&hu<55&&s<.7&&l<.55)return "Gold";
   return t[0].toUpperCase()+t.slice(1)}
-window.farbName=farbName;
+window.farbName=farbName;window.farbHex=ausWoerterbuch;
 const naechsterName=h=>{const p=FARBEN.find(([,x])=>x.toLowerCase()===String(h).toLowerCase());return p?p[0]:farbName(h)};
 const wert=id=>{const e=document.getElementById(id);return e?e.value:""};
 function hinweis(txt){const f=document.getElementById("lf_f");if(!f)return;let h=document.getElementById("lf_fhint");if(!h){h=document.createElement("div");h.id="lf_fhint";h.className="lghint";h.style.marginTop="4px";f.closest(".field").appendChild(h)}h.textContent=txt;h.hidden=!txt}
@@ -6588,10 +6589,140 @@ function gesamtModal(){
   h+=`</div>`;
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
-window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
+window.LGN={render,onStates,_G:G,besOf,spool,preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
+<script>
+/* ---------- Preisvergleich: alle Shops aus der Preisliste (täglich) + live eBay/AliExpress über den SchichtLohn-Server ---------- */
+(()=>{
+const P={q:"",mat:"",marke:"",gew:"alle",art:"alle",sort:"pk",mehr:40,d:null,laden:null,fehler:"",idx:null,markt:null,marktQ:"",marktLaeuft:false,lager:null};
+const nz=s=>String(s||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/gray/g,"grey").replace(/colour/g,"color");
+const wds=s=>nz(s).split(/[^a-z0-9+]+/).filter(Boolean);
+const DE_EN={schwarz:"black",weiss:"white",grau:"grey",rot:"red",blau:"blue",gruen:"green",gelb:"yellow",orange:"orange",lila:"purple",violett:"purple",rosa:"pink",pink:"pink",braun:"brown",beige:"beige",silber:"silver",gold:"gold",natur:"natural",tuerkis:"turquoise",kupfer:"copper",bronze:"bronze",oliv:"olive",mint:"mint",elfenbein:"ivory",hellgrau:"light grey",dunkelgrau:"dark grey",hellblau:"light blue",dunkelblau:"dark blue",dunkelgruen:"dark green",hellgruen:"light green",dunkelrot:"dark red",himmelblau:"sky blue",marineblau:"navy blue"};
+const EN_DE=Object.fromEntries(Object.entries(DE_EN).filter(([,v])=>!v.includes(" ")).map(([k,v])=>[v,k]));
+const KW={matt:["matt","matte"],seide:["silk","seide","seiden"],cf:["cf","carbon"],gf:["gf","glass","glasfaser"],hf:["hf","highspeed","rapid","hs","speed"],marmor:["marble","marmor"],holz:["wood","holz"],leucht:["glow","leucht","leuchtend","luminous"],glitzer:["sparkle","galaxy","glitter","glitzer"],transl:["translucent","transparent","clear"],tough:["tough","tough+"],dual:["dual","tri","rainbow","multicolor","gradient","mehrfarbig"],metall:["metal","metallic"]};
+const KWL={matt:"Matt",seide:"Seide",cf:"CF",gf:"GF",hf:"HF",marmor:"Marmor",holz:"Holz",leucht:"Leuchtend",glitzer:"Glitzer",transl:"Transparent",tough:"Tough",dual:"Mehrfarbig",metall:"Metallic"};
+const ALLKW=new Set(Object.values(KW).flat());
+const MATS=["PLA+","PLA","PETG","PCTG","ABS","ASA","TPU","PA12","PA6","PA","PC","PET","PVA","HIPS","PP","PEEK"];
+const STOP=new Set(["filament","3d","printer","drucker","1","75","1kg","kg","mm","spule","spool","refill","the","and","with","fuer","for","basic","pro","plus","high","von"]);
+const kwsVon=t=>{const w=new Set(wds(t)),j=" "+wds(t).join(" ")+" ",o=new Set();for(const [k,ws] of Object.entries(KW))if(ws.some(x=>w.has(x)||(x.length>4&&j.includes(x))))o.add(k);if(/high[\s-]*speed/i.test(t))o.add("hf");return o};
+function matVon(m,t){const x=String(m||"").toUpperCase().trim();let b=x.split(/[\s-]+/)[0].replace(/[^A-Z0-9+]/g,"");
+  if(!b||!MATS.some(k=>b===k||b.startsWith(k))){const T=" "+String(t||"").toUpperCase().replace(/[^A-Z0-9+]+/g," ")+" ";b=MATS.find(k=>T.includes(" "+k+" "))||b||"?"}
+  if(b.endsWith("X")&&b.length>3)b=b.slice(0,-1);return b}
+function farbeKey(farbe,marke,mat){const mw=new Set([...wds(marke),...wds(mat)]);
+  return [...new Set(wds(farbe).filter(w=>!STOP.has(w)&&!ALLKW.has(w)&&!mw.has(w)&&!/^\d+(g|kg|mm)?$/.test(w)).map(w=>DE_EN[w]||w))].sort().join(" ")}
+const farbeDe=f=>{const w=wds(f);if(w.length&&w.length<=2&&w.every(x=>EN_DE[x]||DE_EN[x]||x==="light"||x==="dark")){const t=w.map(x=>EN_DE[x]||x).join(" ").replace(/^light /,"hell").replace(/^dark /,"dunkel").replace(/weiss/g,"weiß").replace(/gruen/g,"grün").replace(/tuerkis/g,"türkis");return t.charAt(0).toUpperCase()+t.slice(1)}return f};
+const titelFall=s=>String(s||"").replace(/\s+/g," ").trim().replace(/(^|\s)(\S)/g,(a,b,c)=>b+c.toUpperCase());
+function farbHex(f){const h=window.farbHex;if(!h)return "#888888";const t=String(f||"").trim();let x=h(t);if(x)return x;const de=wds(t).map(w=>EN_DE[w]||w).join(" ");x=h(de);return x||"#888888"}
+function pk(o){return Math.round(o.preis/(o.stueck||1)/((o.gew||1000)/1000)*100)/100}
+
+/* Zeilen aus preise.json (über das Lager geladen) zu Sorten bündeln */
+function indexBauen(d){const G=new Map();
+  for(const z of d.z){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad]=z;if(!(preis>0))continue;
+    const mat=matVon(material,titel),kw=kwsVon(titel+" "+farbe+" "+material);if(mat==="?")continue;
+    const fk=farbeKey(farbe||titel,marke,material)||"?";const ref=refill?1:0;
+    const key=[nz(marke).replace(/[^a-z0-9]/g,""),mat,[...kw].sort().join(","),fk,ref].join("|");
+    let g=G.get(key);if(!g){g={key,marke,mat,kw,fk,refill:!!ref,farbe:titelFall(farbe||fk),hay:"",o:[]};G.set(key,g)}
+    const url=/^https?:/.test(pfad)?pfad:((d.shops[shop]||[,""])[1]||"")+pfad;
+    const o={shop:(d.shops[shop]||[shop])[0],preis:+preis,normal:+normal||+preis,gew:+gew||1000,stueck:1,url,titel};o.pk=pk(o);g.o.push(o);
+    if(String(farbe||"").length&&String(farbe).length<g.farbe.length)g.farbe=titelFall(farbe)}
+  for(const g of G.values()){const w=new Set();[g.marke,g.mat,g.farbe,...g.o.map(o=>o.titel)].forEach(t=>wds(t).forEach(x=>{w.add(x);if(DE_EN[x])wds(DE_EN[x]).forEach(y=>w.add(y));if(EN_DE[x])w.add(EN_DE[x])}));
+    g.kw.forEach(k=>{w.add(k);KW[k].forEach(x=>w.add(x));w.add(nz(KWL[k]))});g.hay=" "+[...w].join(" ")+" ";g.hex=farbHex(g.farbe);
+    g.name=[g.mat,...[...g.kw].map(k=>KWL[k])].join(" ");g.farbe=farbeDe(g.farbe);
+    g.buendel=g.fk==="?"||/\b(set|pack|bundle|mix|sample|probe|muster|farbwechsel\w*|sortiment|kit|combo)\b/i.test(g.farbe+" "+g.o.map(o=>o.titel).join(" "))||wds(g.farbe).every(w=>ALLKW.has(w)||STOP.has(w))}
+  return [...G.values()]}
+function lagerKeys(){try{const L=(window.LGN&&LGN.sorten&&LGN.sorten())||[];const s=new Set();
+  L.forEach(e=>{const kw=kwsVon([e.material,...(e.besonderheiten||[]),e.farbe].join(" "));s.add([nz(e.hersteller).replace(/[^a-z0-9]/g,""),matVon(e.material,""),[...kw].sort().join(","),farbeKey(e.farbe,e.hersteller,e.material)].join("|"))});return s}catch(x){return new Set()}}
+const imLager=g=>P.lager&&P.lager.has(g.key.split("|").slice(0,4).join("|"));
+const gewOk=o=>P.gew==="alle"||(P.gew==="1"?o.gew>=750&&o.gew<=1250:P.gew==="klein"?o.gew<750:o.gew>1250);
+const MAT_W=w=>{const u=w.toUpperCase();return MATS.includes(u)?u:null};
+function passt(g,t){return t.every(w=>{const m=MAT_W(w);if(m)return g.mat===m||(m==="PLA"&&g.mat==="PLA+");return g.hay.includes(" "+w)||(DE_EN[w]&&g.hay.includes(" "+wds(DE_EN[w])[0]))||(EN_DE[w]&&g.hay.includes(" "+EN_DE[w]))})}
+function auswahl(){const t=wds(P.q).filter(w=>!STOP.has(w));const out=[];
+  for(const g of P.idx){if(P.mat&&g.mat!==P.mat)continue;if(P.marke&&g.marke.toLowerCase()!==P.marke.toLowerCase())continue;if(P.art!=="alle"&&g.refill!==(P.art==="refill"))continue;
+    if(t.length&&!passt(g,t))continue;const best={};g.o.filter(gewOk).forEach(o=>{const a=best[o.shop];if(!a||o.pk<a.pk)best[o.shop]=o});
+    const o=Object.values(best).sort((a,b)=>P.sort==="preis"?a.preis-b.preis:a.pk-b.pk);if(!o.length)continue;out.push({g,o})}
+  return out.sort((a,b)=>P.sort==="preis"?a.o[0].preis-b.o[0].preis:a.o[0].pk-b.o[0].pk)}
+const kgT=g=>g>=1000?(g/1000).toLocaleString("de-DE",{maximumFractionDigits:2})+" kg":g+" g";
+function oZeile(o,best,mehr){return `<a class="plo${best&&mehr?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt&&(typeof pvVersandText==="function")?" · "+pvVersandText(o):""}">
+  <span class="plon">${esc(o.shop)}${best&&mehr?`<i>günstigste</i>`:""}<small>${o.stueck>1?o.stueck+" × ":""}${kgT(o.gew)}</small></span>
+  <span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt&&(typeof pvVersandText==="function")?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`}
+function gKarte({g,o}){const sp=window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):"";
+  return `<div class="plz"><div class="pls">${sp}<div style="min-width:0"><b>${esc(g.marke)} ${esc(g.name)} · ${esc(g.farbe)}</b><small>${g.refill?"Refill · ":""}${o.length} ${o.length===1?"Shop":"Shops"}${imLager(g)?` · <span class="pvgl">im Lager</span>`:""}</small></div></div>
+    <div class="pla">${o.map((x,i)=>oZeile(x,i===0,o.length>1)).join("")}</div></div>`}
+/* eBay/AliExpress live */
+function marktHTML(){if(!wds(P.q).length)return "";
+  const kopf=`<div class="plmk">Marktplätze · live</div>`;
+  if(!S.srv)return kopf+`<div class="panel empty">eBay und AliExpress werden über den SchichtLohn-Server gesucht – unter Einstellungen verbinden.</div>`;
+  if(P.marktLaeuft&&!P.markt)return kopf+`<div class="panel empty">Suche bei eBay und AliExpress …</div>`;
+  const m=P.markt;if(!m)return "";
+  if(!(m.dienste||[]).length)return kopf+`<div class="panel empty">Für die Live-Suche bei eBay und AliExpress die Schlüssel unter Einstellungen → Preisvergleich eintragen.</div>`;
+  const pa=k=>(typeof pvPausch==="function")?pvPausch(k):0;
+  const L=[...(m.ebay||[]).map(x=>Object.assign({},x,{shop:"eBay",k:"ebay"})),...(m.ali||[]).map(x=>Object.assign({},x,{shop:"AliExpress",k:"ali"}))].map(x=>{
+    const bek=x.versand!==null&&x.versand!==undefined,p=bek?0:pa(x.k),preis=Math.round((x.preis+p)*100)/100;
+    const o={shop:x.shop,preis,normal:0,gew:x.gew||1000,stueck:x.stueck||1,url:x.url,titel:x.titel,versand:bek?x.versand:(p||null),geschaetzt:!bek&&p>0,markt:true};o.pk=pk(o);return o}).filter(gewOk).sort((a,b)=>P.sort==="preis"?a.preis-b.preis:a.pk-b.pk);
+  if(!L.length)return kopf+`<div class="panel empty">Bei ${(m.dienste||[]).map(k=>k==="ebay"?"eBay":"AliExpress").join(" und ")} nichts Passendes gefunden.${(m.fehler||[]).length?` <span style="color:var(--bad)">${esc(m.fehler.join("; "))}</span>`:""}</div>`;
+  return kopf+`<div class="pvgm">${L.slice(0,12).map((o,i)=>`<a class="pvgmr${i===0?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener"><span class="pvgmt"><i class="pvgsh ${o.shop==="eBay"?"eb":"al"}">${esc(o.shop)}</i>${esc(o.titel)}</span>
+    <span class="plop"><b>${eur(o.preis)}</b><small>${(typeof pvVersandText==="function")?pvVersandText(o):""}</small></span><span class="plok">${eur(o.pk)}/kg${o.stueck>1?`<small>${o.stueck} × ${kgT(o.gew)}</small>`:o.gew!==1000?`<small>${kgT(o.gew)}</small>`:""}</span></a>`).join("")}</div>
+    ${(m.fehler||[]).length?`<div class="hint" style="color:var(--bad)">${esc(m.fehler.join("; "))}</div>`:""}`}
+let mT=0;function marktSuchen(){clearTimeout(mT);const q=P.q.trim();if(!S.srv||!window.SRV||wds(q).length===0||q.length<3){P.markt=null;P.marktQ="";return}
+  if(q===P.marktQ)return;mT=setTimeout(()=>{P.marktQ=q;P.marktLaeuft=true;P.markt=null;teil();
+    SRV.req("GET","/api/preise/suche?q="+encodeURIComponent(q)).then(d=>{if(P.marktQ!==q)return;P.markt=d||{}}).catch(x=>{if(P.marktQ===q)P.markt={dienste:["ebay"],ebay:[],ali:[],fehler:[x.message||String(x)]}}).finally(()=>{P.marktLaeuft=false;if(P.marktQ===q)teil()})},650)}
+/* Startansicht: Bestpreise je Material (1-kg-Spulen) */
+function bestHTML(){const sek=["PLA","PETG","ABS","ASA","TPU","PLA+"];let h="";
+  for(const mat of sek){const L=[];for(const g of P.idx){if(g.mat!==mat||g.refill||g.buendel)continue;const o=g.o.filter(o=>o.gew>=750&&o.gew<=1250).sort((a,b)=>a.pk-b.pk);if(o.length)L.push({g,o:[o[0]]})}
+    if(!L.length)continue;L.sort((a,b)=>a.o[0].pk-b.o[0].pk);const marken=new Set();for(let i=0;i<L.length;i++){const k=nz(L[i].g.marke);if(marken.has(k)){L.splice(i--,1)}else marken.add(k)}
+    h+=`<div class="plmk">${esc(mat)} · günstigste 1-kg-Spule je Marke</div><div class="pvgb">${L.slice(0,4).map(({g,o})=>`<a class="pvgbk" href="${esc(o[0].url)}" target="_blank" rel="noopener" title="${esc(o[0].titel)}">${window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):""}<span><b>${eur(o[0].pk)}/kg</b><small>${esc(g.marke)} ${esc(g.name)} · ${esc(g.farbe)}</small><small>${esc(o[0].shop)}</small></span></a>`).join("")}</div>`}
+  return h}
+function listeHTML(){if(P.fehler)return `<div class="panel empty">${esc(P.fehler)}</div>`;if(!P.idx)return `<div class="panel empty">Preise werden geladen …</div>`;
+  const leer=!wds(P.q).length&&!P.mat&&!P.marke&&P.art==="alle"&&P.gew==="alle";
+  if(leer)return `<div class="hint">Tipp: Marke, Material oder Farbe eingeben – z. B. „PETG schwarz“, „Sunlu PLA Matt“ oder „ASA weiß“.</div>`+bestHTML();
+  const A=auswahl();const n=A.length;
+  return marktHTML()+`<div class="plmk">Shops · ${n} ${n===1?"Sorte":"Sorten"}</div>`+(n?`<div class="pllist">${A.slice(0,P.mehr).map(gKarte).join("")}</div>${n>P.mehr?`<button class="btn ghost" data-pvg="mehr">Weitere ${Math.min(40,n-P.mehr)} von ${n-P.mehr} zeigen</button>`:""}`:`<div class="panel empty">Kein Shop führt das so. Weniger Wörter oder einen anderen Filter probieren.</div>`)}
+function teil(){const el=document.getElementById("pvgL");if(el)el.innerHTML=listeHTML()}
+function laden(){if(P.idx||P.laden)return;if(!(window.LGN&&LGN.preise)){setTimeout(laden,300);return}
+  P.laden=LGN.preise().then(d=>{P.d=d;P.idx=indexBauen(d);P.lager=lagerKeys();P.laden=null;if(S.tab==="preise")render()}).catch(x=>{P.laden=null;P.fehler="Preise nicht erreichbar: "+(x.message||x);if(S.tab==="preise")render()})}
+window.addEventListener("sl-shoppreise",()=>{if(P.d&&window.LGN){LGN.preise().then(d=>{P.d=d;P.idx=indexBauen(d);if(S.tab==="preise")teil()}).catch(()=>{})}});
+function renderSeite(m){laden();const d=P.d;const shops=d?new Set(d.z.map(z=>z[0])).size:0;const marken=P.idx?[...new Set(P.idx.map(g=>g.marke))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"})):[];
+  const mats=P.idx?Object.entries(P.idx.reduce((a,g)=>(a[g.mat]=(a[g.mat]||0)+1,a),{})).sort((a,b)=>b[1]-a[1]).slice(0,7).map(x=>x[0]):[];
+  const st=d&&d.stand?new Date(d.stand):null;const stand=st&&!isNaN(st)?st.toLocaleDateString("de-DE",{day:"numeric",month:"long"}):"–";
+  const chip=(k,v,t,an)=>`<button type="button" class="chip${an?" on":""}" data-pvg="${k}" data-v="${esc(v)}">${esc(t)}</button>`;
+  m.innerHTML=`<div class="stack pvg">
+    <div class="row"><h1>Preisvergleich</h1><span class="dim">alle Shops · €/kg inkl. Versand, wo bekannt</span></div>
+    <div class="plkpis"><div><b>${d?d.z.length.toLocaleString("de-DE"):"–"}</b><span>Angebote</span></div><div><b>${shops||"–"}</b><span>Shops${S.srv?" + eBay/AliExpress":""}</span></div><div><b>${marken.length||"–"}</b><span>Marken</span></div><div><b>${esc(stand)}</b><span>Stand Shoppreise</span></div></div>
+    <div class="plbar"><input type="search" id="pvgq" placeholder="z. B. PETG schwarz, Sunlu PLA Matt …" value="${esc(P.q)}" autocomplete="off" spellcheck="false">
+      <select id="pvgm" aria-label="Marke"><option value="">Alle Marken</option>${marken.map(x=>`<option${x===P.marke?" selected":""}>${esc(x)}</option>`).join("")}</select>
+      <select id="pvgs" aria-label="Sortierung"><option value="pk"${P.sort==="pk"?" selected":""}>Preis je kg</option><option value="preis"${P.sort==="preis"?" selected":""}>Preis</option></select></div>
+    <div class="pvgf"><span class="lgtg">${chip("mat","","Alle",!P.mat)}${mats.map(x=>chip("mat",x,x,P.mat===x)).join("")}</span>
+      <span class="lgtg">${chip("gew","alle","Jedes Gewicht",P.gew==="alle")}${chip("gew","1","1 kg",P.gew==="1")}${chip("gew","klein","unter 1 kg",P.gew==="klein")}${chip("gew","gross","über 1 kg",P.gew==="gross")}</span>
+      <span class="lgtg">${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","nur Spule",P.art==="spule")}${chip("art","refill","nur Refill",P.art==="refill")}</span></div>
+    <div id="pvgL">${listeHTML()}</div></div>`;
+  marktSuchen()}
+document.addEventListener("click",ev=>{const b=ev.target.closest("[data-pvg]");if(!b||S.tab!=="preise")return;const k=b.dataset.pvg;
+  if(k==="mehr"){P.mehr+=40;teil();return}P[k]=b.dataset.v;P.mehr=40;render()});
+document.addEventListener("change",ev=>{const t=ev.target;if(!t||S.tab!=="preise")return;if(t.id==="pvgm"){P.marke=t.value;P.mehr=40;render()}if(t.id==="pvgs"){P.sort=t.value;render()}});
+let qT=0;document.addEventListener("input",ev=>{if(!ev.target||ev.target.id!=="pvgq")return;P.q=ev.target.value;P.mehr=40;clearTimeout(qT);qT=setTimeout(()=>{teil();marktSuchen()},180)});
+window.PVG={render:renderSeite,_P:P};
+})();
+</script>
+<style>
+.pvg .pvgf{display:flex;flex-direction:column;gap:6px}.pvg .pvgf .lgtg{display:flex;flex-wrap:wrap;gap:6px}
+.pvg .chip{cursor:pointer}.pvg .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pvg .plbar select{flex:0 0 auto;max-width:180px}
+.pvgl{color:var(--accent);font-weight:600}
+.pvgb{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.pvgbk{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);text-decoration:none;color:var(--fg);min-width:0}
+.pvgbk:first-child{border-color:var(--accent);background:var(--accent-soft)}.pvgbk:first-child b{color:var(--accent)}
+.pvgbk span{display:flex;flex-direction:column;min-width:0}.pvgbk b{font-size:16px;font-variant-numeric:tabular-nums}.pvgbk small{font-size:12px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pvgbk .lgsp,.pvgbk svg{flex:none}
+.pvgm{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-s);background:var(--glass);overflow:hidden}
+.pvgmr{display:grid;grid-template-columns:minmax(0,1fr) auto 84px;gap:10px;align-items:center;padding:9px 12px;text-decoration:none;color:var(--fg)}
+.pvgmr+.pvgmr{border-top:1px solid var(--line)}.pvgmr.best{background:var(--accent-soft)}.pvgmr.best .plop b{color:var(--accent)}
+.pvgmt{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pvgsh{font-style:normal;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:6px;color:#fff;vertical-align:1px}.pvgsh.eb{background:#3665f3}.pvgsh.al{background:#e62e04}
+.pvgmr .plok{display:flex;flex-direction:column;align-items:flex-end}.pvgmr .plok small{font-size:10.5px;color:var(--fg-3)}
+</style>
+
 
 <script>/* ===== Einstellungen: Übersicht mit Bereichen (Kacheln), Suche, je Bereich nur dessen Abschnitte =====
    Abschnitte werden an ihrer Überschrift erkannt (robust gegen später eingefügte Abschnitte); Karten aus dem
