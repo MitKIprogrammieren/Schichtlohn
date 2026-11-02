@@ -4660,6 +4660,10 @@ const FXDEFS=`<linearGradient id="lgFxSilk" x1="0" y1="0" x2="1" y2="1"><stop of
 <pattern id="lgFxCf" width="2.8" height="2.8" patternUnits="userSpaceOnUse" patternTransform="rotate(32)"><path d="M.1 .5h1.1M1.3 1.75h.8" stroke="#000" stroke-opacity=".26" stroke-width=".3"/><path d="M.6 1.15h.6" stroke="#fff" stroke-opacity=".1" stroke-width=".25"/></pattern>
 <pattern id="lgFxGf" width="2.8" height="2.8" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)"><path d="M.1 .5h1.1M1.3 1.75h.8" stroke="#fff" stroke-opacity=".3" stroke-width=".26"/><path d="M.6 1.15h.5" stroke="#000" stroke-opacity=".08" stroke-width=".25"/></pattern>
 <pattern id="lgFxChk" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#c9cdd3"/><rect width="1.5" height="1.5" fill="#868c94"/><rect x="1.5" y="1.5" width="1.5" height="1.5" fill="#868c94"/></pattern>
+<pattern id="lgFxMarmor" width="27" height="19" patternUnits="userSpaceOnUse" patternTransform="rotate(23)"><path d="M-1 4.2c3.1-2.3 5.2 1.9 8.4.4s4.6-3.6 7.9-1.5 4.9 2.6 8.1.9 3.2-1.6 4.6-.8M-1 13.4c2.6 1.2 4.4-1.7 7.3-.9s3.9 3 7 2.1 4.2-3.3 6.7-2.7 3.9 1.9 7 .6" fill="none" stroke="#000" stroke-opacity=".3" stroke-width=".34" stroke-linecap="round"/><path d="M7.4 4.6c.6 1.4 1.9 2.1 1.6 3.9M17.8 2.8c-1 1.8-.3 3.4-1.6 4.6M12 14.8c1.1-.9 2.4-.6 3.2-1.8" fill="none" stroke="#000" stroke-opacity=".2" stroke-width=".22" stroke-linecap="round"/><path d="M3 8.6c2.2-.9 3.8.5 6 .1s3.2-1.8 5.4-1.1M15.5 17c1.8-.7 3.3.3 5-.4" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width=".28" stroke-linecap="round"/></pattern>
+<pattern id="lgFxHolz" width="5.2" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(4)"><rect x=".3" width="1.1" height="20" fill="#3b220f" fill-opacity=".16"/><rect x="2.6" width=".5" height="20" fill="#3b220f" fill-opacity=".24"/><rect x="3.6" width="1.3" height="20" fill="#fff3df" fill-opacity=".1"/><path d="M1.9 0c.5 5 -.4 9 .2 14s-.3 4 .1 6" fill="none" stroke="#3b220f" stroke-opacity=".3" stroke-width=".22"/></pattern>
+<pattern id="lgFxSchaum" width="2.4" height="2.2" patternUnits="userSpaceOnUse"><circle cx=".6" cy=".6" r=".34" fill="#000" fill-opacity=".2"/><circle cx="1.8" cy="1.6" r=".26" fill="#000" fill-opacity=".16"/><circle cx="1.75" cy=".45" r=".16" fill="#fff" fill-opacity=".22"/><circle cx=".5" cy="1.7" r=".14" fill="#fff" fill-opacity=".18"/></pattern>
+<linearGradient id="lgFxGlanz" x1="0" y1="0" x2="1" y2=".6"><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".44" stop-color="#fff" stop-opacity=".55"/><stop offset=".52" stop-color="#fff" stop-opacity="0"/><stop offset=".64" stop-color="#fff" stop-opacity=".22"/><stop offset=".72" stop-color="#fff" stop-opacity="0"/></linearGradient>
 <pattern id="lgFxGlit" width="3.2" height="3.2" patternUnits="userSpaceOnUse"><circle cx=".7" cy=".8" r=".32" fill="#fff" fill-opacity=".95"/><circle cx="2.3" cy="2.2" r=".22" fill="#fff" fill-opacity=".75"/><circle cx="2.6" cy=".5" r=".16" fill="#ffe9a8" fill-opacity=".85"/></pattern>
 `;
 const NEUDEFS=`<linearGradient id="lgNSh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".65" stop-color="#000" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
@@ -4703,17 +4707,30 @@ function spMarkeArt(h){const cfg=S.cfg||{},m=String(h||"").trim().toLowerCase(),
   if(m&&z[m]&&SP_TYPEN.some(t=>t[0]===z[m]))return z[m];return /bambu/.test(m)?(cfg.spuleBambu||"klar"):(cfg.spuleFremd||"dunkel")}
 window.SP_TYPEN=SP_TYPEN;window.spMarkeArt=spMarkeArt;
 function spMasse(g){g=Math.min(g>0?g:1000,20000);return {d:g<=1000?.45+.55*Math.sqrt(g/1000):1+.15*Math.log10(g/1000),w:g<1000?.75+.25*Math.sqrt(g/1000):1+Math.pow(g/1000-1,.6)*.35}}
+let SPV_N=0;
+/* Farben für Farbverlauf/Mehrfarbig: aus den AMS-Farben der Sorte, sonst Nachbarfarbtöne */
+function spFarben(c,e,n){const l=[c.toLowerCase()];const am=(e&&Array.isArray(e.ams_farben))?e.ams_farben:[];
+  for(const x of am){if(l.length>=n)break;const h=String(x).toLowerCase();if(/^#[0-9a-f]{6}$/.test(h)&&!l.some(y=>spAbst(y,h)<60))l.push(h)}
+  const [hh,ss,ll]=spHsl(c);const st=n===2?150:[55,115];for(let i=l.length;i<n;i++){const dh=Array.isArray(st)?st[i-1]:st;l.push(spAusHsl((hh+dh)%360,Math.max(ss,.55),Math.min(.62,Math.max(ll,.42))))}return l}
+function spAbst(a,b){const p=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16));const A=p(a),B=p(b);return Math.hypot(A[0]-B[0],A[1]-B[1],A[2]-B[2])}
+function spHsl(h){const [r,g,b]=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;if(mx===mn)return [0,0,l];
+  const d=mx-mn,s=l>.5?d/(2-mx-mn):d/(mx+mn);let hu=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;return [hu*60,s,l]}
+function spAusHsl(h,s,l){const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return "#"+[f(0),f(8),f(4)].map(v=>Math.round(v*255).toString(16).padStart(2,"0")).join("")}
 function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMasse(inf.gewicht),cfg=S.cfg||{};
+  const effAn=cfg.spuleEffekte!=="aus"&&!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let vDef="",grund=c;if(f.farben){const id="lgV"+(++SPV_N),fs=f.farben;
+    const stops=f.multi?fs.map((x,i)=>`<stop offset="${(i/fs.length).toFixed(3)}" stop-color="${x}"/><stop offset="${((i+1)/fs.length).toFixed(3)}" stop-color="${x}"/>`).join(""):fs.concat([fs[0]]).map((x,i,a)=>`<stop offset="${(i/(a.length-1)).toFixed(3)}" stop-color="${x}"/>`).join("");
+    vDef=`<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"${f.multi?"":' spreadMethod="repeat"'}>${stops}${!f.multi&&effAn?'<animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="1 1" dur="7s" repeatCount="indefinite"/>':""}</linearGradient>`;grund=`url(#${id})`}
   const ans=["frontal","liegend"].includes(cfg.spuleAnsicht)?cfg.spuleAnsicht:"stehend",o=ans==="liegend"?"y":"x";
   const n2=v=>(+v).toFixed(2);
-  const col=sh=>(f.trans?sh.replace("FILL","url(#lgFxChk)"):"")+sh.replace("FILL",c).replace("/>",f.trans?' fill-opacity=".58"/>':"/>");
-  const fx=sh=>[f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")").replace("<path ",`<path class="lgfx-${u.slice(4).toLowerCase()}" `).replace("<circle ",`<circle class="lgfx-${u.slice(4).toLowerCase()}" `)).join("");
-  const glanz=f.matt?"":`stroke="#fff" stroke-opacity="${f.seide||f.metal||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal?1.2:.8}" fill="none" stroke-linecap="round"`;
+  const col=sh=>(f.trans?sh.replace("FILL","url(#lgFxChk)"):"")+sh.replace("FILL",grund).replace("/>",f.trans?' fill-opacity=".58"/>':"/>");
+  const fx=sh=>[f.marmor&&"lgFxMarmor",f.holz&&"lgFxHolz",f.schaum&&"lgFxSchaum",f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.glanz&&"lgFxGlanz",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")").replace("<path ",`<path class="lgfx-${u.slice(4).toLowerCase()}" `).replace("<circle ",`<circle class="lgfx-${u.slice(4).toLowerCase()}" `)).join("");
+  const glanz=f.matt||f.schaum?"":`stroke="#fff" stroke-opacity="${f.seide||f.metal||f.glanz||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal||f.glanz?1.2:.8}" fill="none" stroke-linecap="round"`;
   const anim=cfg.spuleAnimation||"druck",dreht=anim==="immer"||(anim==="druck"&&aktiv);
   /* Effekte: Leuchtfilament glimmt, Glitzer/Galaxy funkelt, Seide und Metallic schimmern (abschaltbar, ruht bei „Bewegung reduzieren“) */
-  const eff=cfg.spuleEffekte!=="aus",efK=eff?[f.leucht&&" lgef-leucht",f.glitzer&&" lgef-glitzer",(f.seide||f.metal)&&" lgef-schimmer"].filter(Boolean).join(""):"";
+  const eff=cfg.spuleEffekte!=="aus",efK=eff?[f.leucht&&" lgef-leucht",f.glitzer&&" lgef-glitzer",(f.seide||f.metal||f.glanz)&&" lgef-schimmer"].filter(Boolean).join(""):"";
   const funkeln=eff&&f.glitzer?`<i class="lgstern" style="left:66%;top:30%"></i><i class="lgstern lgk" style="left:73%;top:47%;animation-delay:-.9s"></i><i class="lgstern" style="left:62%;top:62%;animation-delay:-1.7s"></i><i class="lgstern lgk" style="left:70%;top:72%;animation-delay:-2.4s"></i><i class="lgstern lgk" style="left:30%;top:36%;animation-delay:-.4s"></i>`:"";
-  const wrap=b=>`<span class="${cls} lgspool lgneu${dreht?" lgakt":""}${anim==="immer"&&!aktiv?" lglangsam":""}${efK}"${eff&&f.leucht?` style="--lgglow:${c}"`:""} role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg>${funkeln}</span>`;
+  const wrap=b=>`<span class="${cls} lgspool lgneu${dreht?" lgakt":""}${anim==="immer"&&!aktiv?" lglangsam":""}${efK}"${eff&&f.leucht?` style="--lgglow:${c}"`:""} role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}${vDef}</defs>${b}</svg>${funkeln}</span>`;
   /* Bausteine entlang der Achse (o="x": stehend, o="y": liegend) */
   const bandD=(x0,x1,F)=>o==="x"?`M${n2(x0)} ${n2(-F)}H${n2(x1)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x1)} ${n2(F)}H${n2(x0)}Z`:`M${n2(-F)} ${n2(x0)}V${n2(x1)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x1)}V${n2(x0)}Z`;
   const winds=(x0,x1,F)=>{let p="";for(let x=x0+1.1;x<x1-.2;x+=1.05)p+=o==="x"?`M${n2(x)} ${n2(-F)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x)} ${n2(F)}`:`M${n2(-F)} ${n2(x)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x)}`;return p?`<path d="${p}" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".35"/>`:""};
@@ -4759,16 +4776,22 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   return wrap(`<g transform="translate(22 ${n2(41-s*bh/2)}) scale(${n2(s)}) rotate(-16) translate(${n2(-D/2)} 0)" stroke-linejoin="round">${hinten}${barrel}${rueck}<g transform="scale(${K} 1)">${vorne}</g>${art==="refill"?"":hl}${faden}</g>`)}
 const spool=(hex,cls="lgsw",bes,e)=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
   const fl=(bes||[]).map(x=>String(x).toLowerCase());const has=re=>fl.some(x=>re.test(x));
-  const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/),leucht=has(/^(leuchtend|glow|nachleuchtend)$/);
+  const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/),leucht=has(/^(leuchtend|glow|nachleuchtend)$/),
+    marmor=has(/^(marmor|marble)$/),holz=has(/^(holz|wood)$/),verlauf=has(/^(farbverlauf|gradient|regenbogen|rainbow)$/),multi=has(/^(mehrfarbig|multicolor|dual ?color|tri ?color|zweifarbig|dreifarbig)$/),
+    glanz=has(/^(glänzend|glossy|glanz)$/),schaum=has(/^(schäumend|lw|aero)$/);
+  const farben=(verlauf||multi)?spFarben(c,e,multi&&has(/^(tri ?color|dreifarbig)$/)?3:multi?2:3):null;
   if(S.cfg&&S.cfg.lagerFarbe==="quadrat"){const lay=[];
     if(seide)lay.push("linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 62%)");
     if(metal)lay.push("linear-gradient(180deg,rgba(255,255,255,.35),rgba(0,0,0,.15) 50%,rgba(255,255,255,.25))");
     if(cf)lay.push("repeating-linear-gradient(35deg,rgba(0,0,0,.28) 0 1px,transparent 1px 4px)");
     if(gf)lay.push("repeating-linear-gradient(35deg,rgba(255,255,255,.35) 0 1px,transparent 1px 4px)");
     if(glitzer)lay.push("radial-gradient(circle,rgba(255,255,255,.9) 0 .8px,transparent 1.3px) 0 0/6px 6px");
+    if(marmor)lay.push("linear-gradient(125deg,transparent 30%,rgba(0,0,0,.3) 33%,transparent 36%,transparent 62%,rgba(255,255,255,.35) 64%,transparent 67%)");
+    if(holz)lay.push("repeating-linear-gradient(172deg,rgba(59,34,15,.28) 0 1px,transparent 1px 4px)");
+    if(farben){const fs=farben;lay.push(multi?`linear-gradient(135deg,${fs.map((x,i)=>`${x} ${Math.round(i*100/fs.length)}% ${Math.round((i+1)*100/fs.length)}%`).join(",")})`:`linear-gradient(135deg,${fs.join(",")})`)}
     if(trans){const ca=c+"99";return `<span class="${cls}" style="background:${lay.concat(["linear-gradient("+ca+","+ca+")","conic-gradient(#cfd3d8 25%,#8d939b 0 50%,#cfd3d8 0 75%,#8d939b 0) 0 0/8px 8px"]).join(",")}"></span>`}
     return `<span class="${cls}" style="background:${lay.concat([c]).join(",")}"></span>`}
-  if(((S.cfg&&S.cfg.lagerFarbe)||"spule")==="spule")return spoolNeu(c,cls,{trans,matt,seide,cf,gf,glitzer,metal,leucht},spoolInfo(e));
+  if(((S.cfg&&S.cfg.lagerFarbe)||"spule")==="spule")return spoolNeu(c,cls,{trans,matt,seide,cf,gf,glitzer,metal,leucht,marmor,holz,verlauf,multi,glanz,schaum,farben},spoolInfo(e));
   const ov=[];if(seide)ov.push("url(#lgFxSilk)");if(metal)ov.push("url(#lgFxMetal)");if(cf)ov.push("url(#lgFxCf)");if(gf)ov.push("url(#lgFxGf)");if(glitzer)ov.push("url(#lgFxGlit)");
   const BAND="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z";
   const lay=(shape)=>ov.map(u=>shape.replace("FILL",u)).join("");
@@ -7223,9 +7246,9 @@ body.rx-einfach #mbar{display:none!important}
 @keyframes lgFunkel{0%,60%,100%{opacity:0;transform:scale(.2) rotate(-10deg)}72%{opacity:1;transform:scale(1) rotate(8deg)}84%{opacity:0;transform:scale(.35) rotate(20deg)}}
 .lgef-glitzer .lgfx-glit{animation:lgGlitzer 1.6s steps(2,jump-none) infinite}
 @keyframes lgGlitzer{0%,100%{opacity:1}50%{opacity:.45}}
-.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal{animation:lgSchimmer 3.6s ease-in-out infinite}
+.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal,.lgef-schimmer .lgfx-glanz{animation:lgSchimmer 3.6s ease-in-out infinite}
 @keyframes lgSchimmer{0%,100%{opacity:.35}50%{opacity:1}}
-@media (prefers-reduced-motion:reduce){.lgef-leucht svg,.lgstern,.lgef-glitzer .lgfx-glit,.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal{animation:none}.lgstern{display:none}.lgef-leucht svg{filter:drop-shadow(0 0 2.5px var(--lgglow))}}
+@media (prefers-reduced-motion:reduce){.lgef-leucht svg,.lgstern,.lgef-glitzer .lgfx-glit,.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal,.lgef-schimmer .lgfx-glanz{animation:none}.lgstern{display:none}.lgef-leucht svg{filter:drop-shadow(0 0 2.5px var(--lgglow))}}
 </style>
 </body>
 </html>
