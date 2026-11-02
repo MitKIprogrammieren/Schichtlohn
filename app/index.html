@@ -513,7 +513,7 @@ const SRV=window.SRV=(()=>{
       document.getElementById("dr_lan_t").innerHTML=c?drLanText:"";document.getElementById("dr_ip").placeholder=c?"leer = nur Cloud":"192.168.1.50"})}
   const drLanText=`<b>Zusätzlich übers Heimnetz</b> <span class="chip">optional</span><div class="hint">Der Drucker bleibt über die Cloud verbunden. Mit der IP holt der Server außerdem die Druckdatei vom Drucker – dann werden übersprungene Teile und Abbrüche genau abgebucht.</div>`;
   function bambuKonto(){try{const v=JSON.parse(localStorage.getItem("schichtlohn_bambu")||"null");return v&&v.token?v:null}catch(e){return null}}
-  const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t};
+  const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t;if((!m||!m.offsetParent)&&window.toast&&t)toast(String(t).replace(/<[^>]+>/g,""))};
   const feld=()=>({u:norm((document.getElementById("srv_url")||{}).value),t:((document.getElementById("srv_tok")||{}).value||"").trim()});
   async function test(u,t){const d=await req("GET","/",undefined,u,t);if(!d||d.dienst!=="schichtlohn-server")throw new Error("Unter dieser Adresse läuft kein SchichtLohn-Server");if(!d.zugang)throw new Error(d.token?"Schlüssel fehlt oder ist falsch":"Kein Zugang");return d}
   document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;if(!/^srv[A-Z]/.test(a))return;
@@ -6593,27 +6593,126 @@ window.LGN={render,onStates,_G:G,besOf,spool,_book:BOOK,_lokPush:()=>{lokPush(EN
 })();
 </script>
 
-<script>/* Einstellungen in Gruppen ordnen (nach den Überschriften der Bereiche, robust gegen später eingefügte Bereiche) */
-(()=>{const GR=[
-  ["Kalkulation",["Kosten und Preis","Drucker","Materialien"]],
-  ["Verkauf und Angebote",["Verkaufskanäle","Absender für Angebote"]],
-  ["Lager und Ansicht",["Design","Lager","Funktionen","Reiter"]],
-  ["Verbindungen",["SchichtLohn-Server","Home Assistant verbinden","Bambu-Cloud","Preisvergleich","Creality-Cloud","Sync zwischen Geräten"]],
-  ["Daten",["Daten und Sicherung"]]];
-  const titel=e=>{const h=e.querySelector&&e.querySelector("h2");return h?h.textContent.trim():""};
-  function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
-    const kids=[...st.children].filter(e=>!e.classList.contains("eg-h"));const kopf=kids.find(e=>e.querySelector&&e.querySelector("h1"))||kids[0];if(!kopf)return;kids.splice(kids.indexOf(kopf),1);const versteckt=[];
-    const soll=[kopf],genutzt=new Set([kopf]);
-    const ohneVerkauf=typeof rxEinfach==="function"&&rxEinfach(); /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
-    GR.forEach(([name,liste])=>{const teile=[];liste.forEach(t=>{const e=kids.find(k=>!genutzt.has(k)&&titel(k)===t);if(e){teile.push(e);genutzt.add(e)}});
-      const weg=ohneVerkauf&&name==="Verkauf und Angebote";teile.forEach(e=>{e.hidden=weg});if(weg){versteckt.push(...teile);return}
-      if(teile.length){let h=st.querySelector(`.eg-h[data-g="${name}"]`);if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g=name;h.textContent=name}soll.push(h,...teile)}});
-    const rest=kids.filter(k=>!genutzt.has(k));if(rest.length){let h=st.querySelector('.eg-h[data-g="Weitere"]');if(!h){h=document.createElement("div");h.className="eg-h";h.dataset.g="Weitere";h.textContent="Weitere"}soll.push(h,...rest)}
-    soll.push(...versteckt);const ist=[...st.children];if(ist.length===soll.length&&ist.every((e,i)=>e===soll[i]))return;
-    st.querySelectorAll(".eg-h").forEach(h=>{if(!soll.includes(h))h.remove()});soll.forEach(e=>st.appendChild(e))}
-  const css=document.createElement("style");css.textContent=".eg-h{margin:14px 2px -4px;font:700 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}#main>.stack>.row+.eg-h{margin-top:2px}";document.head.appendChild(css);
-  let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ordnen,0)}).observe(m,{childList:true,subtree:true});
-  window.__einOrdnen=ordnen;ordnen()})();</script>
+<script>/* ===== Einstellungen: Übersicht mit Bereichen (Kacheln), Suche, je Bereich nur dessen Abschnitte =====
+   Abschnitte werden an ihrer Überschrift erkannt (robust gegen später eingefügte Abschnitte); Karten aus dem
+   SchichtLohn-Server-Abschnitt (Drucker, Meldungen, Waage …) wandern in den passenden Bereich. */
+(()=>{
+const IC={dr:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
+  la:'<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
+  ka:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M16 15v2"/>',
+  me:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+  au:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/><path d="M12 21a3 3 0 0 1 0-6h1.5a2 2 0 0 0 0-4"/>',
+  sy:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'};
+const B=[
+  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Drucker aus Home Assistant","Filamentpreis je AMS-Fach","Bambu-Cloud","Creality-Cloud"],karten:["Bambu-Drucker","Druckprotokoll"]},
+  {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Lager","Materialien","Preisvergleich"],karten:["Waage","Filament-Datenbank"]},
+  {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
+  {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
+  {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter","Funktionen"],karten:[]},
+  {k:"sys",t:"System",ic:"sy",abschnitte:["SchichtLohn-Server","Home Assistant verbinden","Sync zwischen Geräten","Daten und Sicherung"],karten:[]}];
+const svg=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+let akt=null,suche="";try{akt=sessionStorage.getItem("sl_einst_bereich")||null}catch(e){}
+const titel=e=>{const h=e.querySelector&&(e.querySelector(":scope>.sec-title h2, :scope>h2")||e.querySelector("h2"));return h?h.textContent.trim():""};
+const kTitel=k=>{const h=k.querySelector(":scope>.srvh h3, :scope>summary h3");return h?h.textContent.trim():""};
+function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:2}).format(v);
+  try{switch(b.k){
+    case "drucker":{const l=(window.__einDR||[]);if(!S.srv)return (c.printers||[]).length+" Drucker im Rechner";if(!l.length)return "wird geprüft …";const on=l.filter(d=>d.online).length;return `${on} verbunden${l.length>on?` · ${l.length-on} offline`:""}`}
+    case "lager":return "Waage, Datenbank, Preise";
+    case "kalk":return `Strom ${n(c.kwh||0)} €/kWh · ${n(c.rate||0)} €/h`;
+    case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":""].filter(Boolean).join(" · ")||"Handy · Telegram";
+    case "aus":return "Design, Reiter, Funktionen";
+    case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
+function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
+  const kopf=[...st.children].find(e=>e.classList.contains("row")&&e.querySelector("h1"));if(!kopf)return;
+  const fa=kopf.querySelector("[data-act=foldAll]");if(fa)fa.hidden=true;
+  /* Abschnitte einsammeln */
+  /* alle direkten Kinder außer Kopf und Übersicht – auch Hüllen, in denen mehrere Abschnitte nebeneinander stehen */
+  const secs=[...st.children].filter(e=>e!==kopf&&!e.classList.contains("eb-ov")&&!e.classList.contains("ebk-hulle")&&!e.classList.contains("eg-h"));
+  const zu={};secs.forEach(e=>{const t=titel(e);const b=B.find(x=>x.abschnitte.includes(t));e.dataset.eb=b?b.k:"sys"});
+  /* Karten aus dem Server-Abschnitt in eigene Hüllen je Bereich */
+  const srv=document.getElementById("srvsec");
+  B.forEach(b=>{if(!b.karten.length)return;let h=st.querySelector(`:scope>.ebk-hulle[data-eb="${b.k}"]`);
+    const karten=srv?[...srv.querySelectorAll(".srvk")].filter(k=>b.karten.includes(kTitel(k))):[];
+    if(!h&&!karten.length)return;if(!h){h=document.createElement("section");h.className="panel pad stack ebk-hulle ebk";h.dataset.eb=b.k;h.innerHTML='<div class="srvgrid"></div>';st.appendChild(h)}
+    const g=h.querySelector(".srvgrid");karten.forEach(k=>{if(k.parentElement!==g){k.classList.add("weit");g.appendChild(k)}});h.hidden=!g.children.length});
+  /* Übersicht */
+  let ov=st.querySelector(":scope>.eb-ov");if(!ov){ov=document.createElement("div");ov.className="eb-ov";kopf.after(ov)}
+  const sichtbar=b=>[...st.querySelectorAll(`:scope>[data-eb="${b.k}"]`)].some(e=>!e.hidden||e.classList.contains("ebk-hulle"));
+  let html;if(!akt){html=`<label class="eb-such">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}<input type="search" id="eb_q" placeholder="Einstellung suchen …" value="${esc(suche)}" autocomplete="off"></label>
+      ${suche?"":`<div class="eb-kacheln">${B.filter(sichtbar).map(b=>`<button type="button" class="eb-k" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><b>${b.t}</b><small>${esc(status(b))}</small></button>`).join("")}</div>`}`}
+  else{const b=B.find(x=>x.k===akt);html=`<button type="button" class="eb-zur" data-act="ebZurueck">${svg('<path d="m15 18-6-6 6-6"/>')}Einstellungen</button><h2 class="eb-titel">${b?b.t:""}</h2>`}
+  if(ov.dataset.h!==html){ov.dataset.h=html;ov.innerHTML=html}
+  /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
+  const ohneVerkauf=typeof rxEinfach==="function"&&rxEinfach();secs.forEach(e=>{if(["Verkaufskanäle","Zahlungsarten","Absender für Angebote"].includes(titel(e)))e.hidden=ohneVerkauf});
+  const q=suche.trim().toLowerCase();
+  [...st.children].forEach(e=>{if(e===kopf||e===ov||!e.dataset.eb)return;
+    let zeigen=akt?e.dataset.eb===akt:!!q&&e.textContent.toLowerCase().includes(q);
+    if(e.classList.contains("ebk-hulle")&&!e.querySelector(".srvk"))zeigen=false;e.classList.toggle("eb-weg",!zeigen)});
+  st.classList.toggle("eb-detail",!!akt||!!q);
+  const inp=document.getElementById("eb_q");if(inp&&ordnen.fokus){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);ordnen.fokus=false}}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act=ebOeffnen],[data-act=ebZurueck]");if(!b)return;
+  akt=b.dataset.act==="ebOeffnen"?b.dataset.k:null;suche="";try{akt?sessionStorage.setItem("sl_einst_bereich",akt):sessionStorage.removeItem("sl_einst_bereich")}catch(x){}ordnen();scrollTo(0,0)});
+document.addEventListener("input",e=>{if(e.target&&e.target.id==="eb_q"){suche=e.target.value;ordnen.fokus=true;ordnen()}});
+document.addEventListener("click",e=>{const t=e.target.closest("[data-tab]");if(t&&t.dataset.tab==="einstellungen"&&S.tab==="einstellungen"){akt=null;suche="";try{sessionStorage.removeItem("sl_einst_bereich")}catch(x){}}},true);
+/* Druckerstatus für die Kachel */
+async function drStatus(){if(!(S.srv&&window.SRV))return;try{const d=await SRV.req("GET","/api/drucker");window.__einDR=d.drucker||[];if(S.tab==="einstellungen"&&!akt)ordnen()}catch(e){}}
+let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(()=>{ordnen();if(S.tab==="einstellungen"&&!window.__einDRt){window.__einDRt=1;drStatus();setTimeout(()=>{window.__einDRt=0},30000)}},0)}).observe(m,{childList:true,subtree:true});
+window.__einOrdnen=ordnen;ordnen()})();</script>
+<style>
+.eb-ov{display:flex;flex-direction:column;gap:12px}
+.eb-such{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:var(--r-s);padding:0 12px;background:var(--panel,var(--glass))}
+.eb-such svg{width:18px;height:18px;color:var(--fg-3);flex:none}.eb-such input{border:0!important;background:none!important;box-shadow:none!important;padding:10px 0;flex:1;min-width:0}
+.eb-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.eb-k{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--glass));color:var(--fg);font:inherit;cursor:pointer}
+.eb-k:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.eb-k b{font-size:15px}.eb-k small{font-size:12.5px;color:var(--fg-3)}
+.eb-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);margin-bottom:4px}.eb-ic svg{width:19px;height:19px}
+.eb-zur{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;border:0;background:none;color:var(--accent);font:600 14px/1 var(--f-body);cursor:pointer;padding:4px 0}.eb-zur svg{width:18px;height:18px}
+.eb-titel{margin:0;font-size:22px}
+#main>.stack>.eb-weg{display:none!important}
+#main>.stack:not(.eb-detail)>[data-eb]{display:none!important}
+/* im Bereich: Abschnitte immer offen, ohne Klapp-Pfeil */
+.eb-detail .fold.zu>:not(.sec-title){display:revert!important}.eb-detail .fold.zu>.sec-title>:not(h2){display:revert!important}
+.eb-detail .fold>.sec-title .chev{display:none}.eb-detail .fold>.sec-title{cursor:default}
+.ebk-hulle{padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
+@media (max-width:420px){.eb-kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-k{padding:12px}}
+.ebk .srvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ebk .srvk{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--glass,rgba(127,127,127,.04));display:flex;flex-direction:column;gap:10px;min-width:0}
+.ebk .srvk.weit{grid-column:1/-1}
+.ebk .srvk.srvok{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.ebk .srvh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:32px}
+.ebk .srvh h3{margin:0;font-size:14px;font-weight:600;color:var(--fg)}
+.ebk .srvh .sp{display:none}
+.ebk .srvh>h3,.ebk .srvh>.srvst{flex:1 1 150px;min-width:0}
+.ebk a.btn{text-decoration:none}
+.ebk .srvbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ebk .srvbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--fg) 5%,transparent);color:var(--fg);font:600 13px/1 var(--f-body);text-decoration:none;cursor:pointer;white-space:nowrap}
+.ebk .srvbtn:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line));color:var(--accent)}
+.ebk .srvbtn svg{width:15px;height:15px;flex:none}
+.ebk .srvst{display:flex;flex-direction:column;gap:2px}.ebk .srvst small{color:var(--fg-3);font-size:12px}
+.ebk .srvi{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.ebk .srvi svg{width:17px;height:17px}
+.ebk .srvk p{margin:0;color:var(--fg-3);font-size:12.5px;line-height:1.5}
+.ebk .srvk code{font-size:12px}
+.ebk .srvcopy{display:flex;gap:8px;align-items:center}
+.ebk .srvcopy input,.ebk .srvcopy code{flex:1 1 auto;min-width:0}
+.ebk .srvcopy code{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken,rgba(127,127,127,.08));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ebk .srvdr{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.ebk .srvdrt{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}.ebk .srvdrt small{color:var(--fg-3);font-size:12px}
+.ebk .srvdot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--fg-3)}.ebk .srvdot.ok{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}.ebk .srvdot.err{background:var(--bad)}.ebk .srvdot.warte{background:var(--warn,#e3a008)}
+.ebk .srvsw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--fg-2)}
+.ebk .srvsw input{position:absolute;opacity:0;width:0;height:0}
+.ebk .srvsw i{width:34px;height:20px;border-radius:999px;background:var(--line-2,rgba(127,127,127,.35));position:relative;transition:background .15s}
+.ebk .srvsw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.ebk .srvsw input:checked+i{background:var(--accent)}.ebk .srvsw input:checked+i::after{transform:translateX(14px)}
+.ebk .srvhandys{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ebk .srvhy{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;cursor:pointer;color:var(--fg-2)}
+.ebk .srvhy input{width:14px;height:14px;accent-color:var(--accent);margin:0}
+.ebk .srvhy:has(input:checked){border-color:var(--accent);color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ebk details.srvum>summary{list-style:none;cursor:pointer}.ebk details.srvum>summary::-webkit-details-marker{display:none}
+.ebk .srvpf{color:var(--fg-3);font-size:18px;transition:transform .15s}.ebk details[open] .srvpf{transform:rotate(90deg)}
+@media (max-width:760px){.ebk .srvgrid{grid-template-columns:1fr}}
+</style>
 <style>/* Rechner: Einfach-Modus */
 .rx{display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto}
 .rx-seg{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--glass,rgba(127,127,127,.06));max-width:640px;margin:0 auto 12px}
