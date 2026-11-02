@@ -1202,7 +1202,7 @@ function renderSettings(m){
 </div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe">${[["spule","Spule mit Füllstand"],["rolle","Filamentrolle (klassisch)"],["quadrat","Farbquadrat"]].map(([v,t])=>`<option value="${v}"${(S.cfg.lagerFarbe||"spule")===v?" selected":""}>${t}</option>`).join("")}</select></label>
-      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:40px auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`${window.LGN&&LGN.spool?`<span data-spic="${esc(m)}">${LGN.spool("#4f8cff","spvor",[],{hersteller:m,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}})}</span>`:""}<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
+      ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Effekte (Leuchten, Funkeln, Schimmern)</span><select id="spuleEffekte">${[["an","Ein"],["aus","Aus"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleEffekte||"an")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:40px auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`${window.LGN&&LGN.spool?`<span data-spic="${esc(m)}">${LGN.spool("#4f8cff","spvor",[],{hersteller:m,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}})}</span>`:""}<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
       ${(()=>{if(!window.LGN||!LGN.marken||!window.LAGER||!LAGER.logoSlug)return "";const m=LGN.marken();if(!m.length)return "";const lg=S.cfg.logos||{};
         return `<details class="field lgx"><summary>Logos der Marken (${m.length})</summary><div class="lglogos">${m.map(b=>{const sl=LAGER.logoSlug(b);const u=lg[sl],ud=lg[sl+"-dunkel"];
           return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
@@ -1658,7 +1658,7 @@ document.addEventListener("change",e=>{
   if(t.id==="lagerFarbe"){S.cfg.lagerFarbe=t.value;saveCfgSoon();toast("Gespeichert");if(typeof render==="function")render();return}
   if(t.dataset&&t.dataset.spmarke){const m0=t.dataset.spmarke,m=m0.trim().toLowerCase();S.cfg.spuleMarken=Object.assign({},S.cfg.spuleMarken||{},{[m]:t.value});saveCfgSoon();toast("Gespeichert");
     const ic=[...document.querySelectorAll("[data-spic]")].find(x=>x.dataset.spic===m0);if(ic&&window.LGN&&LGN.spool)ic.innerHTML=LGN.spool("#4f8cff","spvor",[],{hersteller:m0,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}});return}
-  if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"||t.id==="spuleAnimation"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
+  if(t.id==="spuleBambu"||t.id==="spuleFremd"||t.id==="spuleAnsicht"||t.id==="spuleAnimation"||t.id==="spuleEffekte"){S.cfg[t.id]=t.value;saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="startTab"){S.cfg.startTab=t.value;LS.set("starttab",t.value);saveCfgSoon();toast("Gespeichert");return}
   if(t.id==="ordFilter"){S.ordFilter=t.value;renderOrders($("#main"));return}
   if(t.dataset.act==="ordStatus"){const o=S.orders.find(x=>x.id===t.dataset.id);if(o){o.status=t.value;t.className="st-"+t.value;Store.saveItem("o",o);if(S.quote.id===o.id)S.quote.status=o.status;toast(`Status: ${statusName(o.status)}`)}return}
@@ -4707,10 +4707,13 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   const ans=["frontal","liegend"].includes(cfg.spuleAnsicht)?cfg.spuleAnsicht:"stehend",o=ans==="liegend"?"y":"x";
   const n2=v=>(+v).toFixed(2);
   const col=sh=>(f.trans?sh.replace("FILL","url(#lgFxChk)"):"")+sh.replace("FILL",c).replace("/>",f.trans?' fill-opacity=".58"/>':"/>");
-  const fx=sh=>[f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")")).join("");
+  const fx=sh=>[f.seide&&"lgFxSilk",f.metal&&"lgFxMetal",f.cf&&"lgFxCf",f.gf&&"lgFxGf",f.glitzer&&"lgFxGlit"].filter(Boolean).map(u=>sh.replace("FILL","url(#"+u+")").replace("<path ",`<path class="lgfx-${u.slice(4).toLowerCase()}" `).replace("<circle ",`<circle class="lgfx-${u.slice(4).toLowerCase()}" `)).join("");
   const glanz=f.matt?"":`stroke="#fff" stroke-opacity="${f.seide||f.metal||art==="klar"?".85":".5"}" stroke-width="${f.seide||f.metal?1.2:.8}" fill="none" stroke-linecap="round"`;
   const anim=cfg.spuleAnimation||"druck",dreht=anim==="immer"||(anim==="druck"&&aktiv);
-  const wrap=b=>`<span class="${cls} lgspool lgneu${dreht?" lgakt":""}${anim==="immer"&&!aktiv?" lglangsam":""}" role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg></span>`;
+  /* Effekte: Leuchtfilament glimmt, Glitzer/Galaxy funkelt, Seide und Metallic schimmern (abschaltbar, ruht bei „Bewegung reduzieren“) */
+  const eff=cfg.spuleEffekte!=="aus",efK=eff?[f.leucht&&" lgef-leucht",f.glitzer&&" lgef-glitzer",(f.seide||f.metal)&&" lgef-schimmer"].filter(Boolean).join(""):"";
+  const funkeln=eff&&f.glitzer?`<i class="lgstern" style="left:66%;top:30%"></i><i class="lgstern lgk" style="left:73%;top:47%;animation-delay:-.9s"></i><i class="lgstern" style="left:62%;top:62%;animation-delay:-1.7s"></i><i class="lgstern lgk" style="left:70%;top:72%;animation-delay:-2.4s"></i><i class="lgstern lgk" style="left:30%;top:36%;animation-delay:-.4s"></i>`:"";
+  const wrap=b=>`<span class="${cls} lgspool lgneu${dreht?" lgakt":""}${anim==="immer"&&!aktiv?" lglangsam":""}${efK}"${eff&&f.leucht?` style="--lgglow:${c}"`:""} role="img" aria-label="Filamentfarbe${aktiv?", druckt gerade":""}"><svg viewBox="0 0 44 44" aria-hidden="true"><defs>${FXDEFS}${NEUDEFS}</defs>${b}</svg>${funkeln}</span>`;
   /* Bausteine entlang der Achse (o="x": stehend, o="y": liegend) */
   const bandD=(x0,x1,F)=>o==="x"?`M${n2(x0)} ${n2(-F)}H${n2(x1)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x1)} ${n2(F)}H${n2(x0)}Z`:`M${n2(-F)} ${n2(x0)}V${n2(x1)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x1)}V${n2(x0)}Z`;
   const winds=(x0,x1,F)=>{let p="";for(let x=x0+1.1;x<x1-.2;x+=1.05)p+=o==="x"?`M${n2(x)} ${n2(-F)}A${n2(F*K)} ${n2(F)} 0 0 1 ${n2(x)} ${n2(F)}`:`M${n2(-F)} ${n2(x)}A${n2(F)} ${n2(F*k)} 0 0 0 ${n2(F)} ${n2(x)}`;return p?`<path d="${p}" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".35"/>`:""};
@@ -4756,7 +4759,7 @@ function spoolNeu(c,cls,f,inf){const K=.54,k=.5,{pct,art,aktiv}=inf,{d,w}=spMass
   return wrap(`<g transform="translate(22 ${n2(41-s*bh/2)}) scale(${n2(s)}) rotate(-16) translate(${n2(-D/2)} 0)" stroke-linejoin="round">${hinten}${barrel}${rueck}<g transform="scale(${K} 1)">${vorne}</g>${art==="refill"?"":hl}${faden}</g>`)}
 const spool=(hex,cls="lgsw",bes,e)=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#9e9e9e";
   const fl=(bes||[]).map(x=>String(x).toLowerCase());const has=re=>fl.some(x=>re.test(x));
-  const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/);
+  const trans=has(/^(transparent|klar|translucent)$/),matt=has(/^matte?$/),seide=has(/^(seide|silk)$/),cf=has(/^cf$/),gf=has(/^gf$/),glitzer=has(/^(glitzer|sparkle|galaxy)$/),metal=has(/^(metallic|metall)$/),leucht=has(/^(leuchtend|glow|nachleuchtend)$/);
   if(S.cfg&&S.cfg.lagerFarbe==="quadrat"){const lay=[];
     if(seide)lay.push("linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 62%)");
     if(metal)lay.push("linear-gradient(180deg,rgba(255,255,255,.35),rgba(0,0,0,.15) 50%,rgba(255,255,255,.25))");
@@ -4765,7 +4768,7 @@ const spool=(hex,cls="lgsw",bes,e)=>{const c=/^#[0-9a-f]{6}$/i.test(String(hex||
     if(glitzer)lay.push("radial-gradient(circle,rgba(255,255,255,.9) 0 .8px,transparent 1.3px) 0 0/6px 6px");
     if(trans){const ca=c+"99";return `<span class="${cls}" style="background:${lay.concat(["linear-gradient("+ca+","+ca+")","conic-gradient(#cfd3d8 25%,#8d939b 0 50%,#cfd3d8 0 75%,#8d939b 0) 0 0/8px 8px"]).join(",")}"></span>`}
     return `<span class="${cls}" style="background:${lay.concat([c]).join(",")}"></span>`}
-  if(((S.cfg&&S.cfg.lagerFarbe)||"spule")==="spule")return spoolNeu(c,cls,{trans,matt,seide,cf,gf,glitzer,metal},spoolInfo(e));
+  if(((S.cfg&&S.cfg.lagerFarbe)||"spule")==="spule")return spoolNeu(c,cls,{trans,matt,seide,cf,gf,glitzer,metal,leucht},spoolInfo(e));
   const ov=[];if(seide)ov.push("url(#lgFxSilk)");if(metal)ov.push("url(#lgFxMetal)");if(cf)ov.push("url(#lgFxCf)");if(gf)ov.push("url(#lgFxGf)");if(glitzer)ov.push("url(#lgFxGlit)");
   const BAND="M18 6.4H27A8.3 15.6 0 0 1 27 37.6H18Z";
   const lay=(shape)=>ov.map(u=>shape.replace("FILL",u)).join("");
@@ -7208,6 +7211,21 @@ body.rx-einfach #mbar{display:none!important}
 .lgtop .lgknopf .lgekbtn{display:inline-flex;align-items:center}.lgtop .lgknopf .lgekbtn b{background:var(--bad);color:#fff;border-radius:999px;font-size:10px;line-height:16px;padding:0 6px}
 }
 @media (max-width:620px){.lgtop .lgbestw>.lgknopf{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}.lgtop .lgbestw>.lgknopf .lgekbtn{margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 10px;font-size:14px}.lgtop .lgbestw>.lgknopf .lgekbtn svg{width:15px;height:15px}.lgtop .lgbestw>.lgknopf .lgekbtn b{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;line-height:17px}}
+</style>
+<style>
+/* Spulen-Effekte: Leuchtfilament glimmt, Glitzer/Galaxy funkelt, Seide und Metallic schimmern */
+.lgspool{position:relative}
+.lgef-leucht svg{animation:lgGlimm 3.2s ease-in-out infinite;will-change:filter}
+@keyframes lgGlimm{0%,100%{filter:drop-shadow(0 0 1.5px var(--lgglow)) drop-shadow(0 0 3px color-mix(in srgb,var(--lgglow) 55%,transparent))}50%{filter:drop-shadow(0 0 3px var(--lgglow)) drop-shadow(0 0 8px color-mix(in srgb,var(--lgglow) 80%,transparent)) brightness(1.12)}}
+.lgstern{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;pointer-events:none;opacity:0;animation:lgFunkel 3s ease-in-out infinite;
+  background:radial-gradient(circle,#fff 0 30%,#fff6d6 55%);clip-path:polygon(50% 0,58% 42%,100% 50%,58% 58%,50% 100%,42% 58%,0 50%,42% 42%)}
+.lgstern.lgk{width:6px;height:6px;margin:-3px 0 0 -3px;animation-duration:2.3s}
+@keyframes lgFunkel{0%,60%,100%{opacity:0;transform:scale(.2) rotate(-10deg)}72%{opacity:1;transform:scale(1) rotate(8deg)}84%{opacity:0;transform:scale(.35) rotate(20deg)}}
+.lgef-glitzer .lgfx-glit{animation:lgGlitzer 1.6s steps(2,jump-none) infinite}
+@keyframes lgGlitzer{0%,100%{opacity:1}50%{opacity:.45}}
+.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal{animation:lgSchimmer 3.6s ease-in-out infinite}
+@keyframes lgSchimmer{0%,100%{opacity:.35}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.lgef-leucht svg,.lgstern,.lgef-glitzer .lgfx-glit,.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal{animation:none}.lgstern{display:none}.lgef-leucht svg{filter:drop-shadow(0 0 2.5px var(--lgglow))}}
 </style>
 </body>
 </html>
