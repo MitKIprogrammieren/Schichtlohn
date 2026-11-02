@@ -708,7 +708,7 @@ function roundPrice(p,mode){
 /* ---------- Rendering ---------- */
 const TABNAMES={lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
 function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
-function render(){try{designAnwenden()}catch(e){}
+function render(){if(window.WACHE)WACHE.Z.render++;try{designAnwenden()}catch(e){}
   const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
   if(hid.includes(S.tab)){const f=$$("#tabs button").find(b=>!b.hidden);S.tab=f?f.dataset.tab:"einstellungen"}
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
@@ -1752,8 +1752,20 @@ $("#backupIn").addEventListener("change",async e=>{const f=e.target.files[0];e.t
 
 /* ---------- Start ---------- */
 function startTabPref(){try{if(new URLSearchParams(location.search).get("rolle"))return "lager"}catch(e){}const st=(S.cfg&&S.cfg.startTab)||LS.get("starttab")||"lager";return st==="last"?(LS.get("lasttab")||"lager"):st}
+/* ---------- Absturz-Wächter: lädt iOS die Seite nach einem Absturz neu, merken wir das, melden es dem Server
+   (zur Fehlersuche, steht im Server-Protokoll) und öffnen beim zweiten Mal hintereinander sicherheitshalber das Lager ---------- */
+const WACHE=window.WACHE=(()=>{const K="schichtlohn_lauf",Z={draw:0,render:0};let vor=null;try{vor=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
+  const jetzt=Date.now(),beginn=jetzt;const absturz=!!(vor&&!vor.ok&&jetzt-vor.t<15000);let serie=0;
+  try{const a=JSON.parse(localStorage.getItem("schichtlohn_absturz")||"null");serie=absturz?((a&&jetzt-a.t<120000?a.serie:0)+1):0;
+    if(absturz)localStorage.setItem("schichtlohn_absturz",JSON.stringify({t:jetzt,serie,vor}));if(absturz&&serie>=2)LS.set("lasttab","lager")}catch(e){}
+  const puls=()=>{try{localStorage.setItem(K,JSON.stringify({t:Date.now(),start:beginn,ok:false,tab:S.tab,z:Z,img:document.images.length,knoten:document.getElementsByTagName("*").length}))}catch(e){}};
+  setInterval(puls,2000);addEventListener("pagehide",()=>{try{localStorage.setItem(K,JSON.stringify({t:Date.now(),ok:true}))}catch(e){}});
+  function melden(){if(!absturz||!window.__SL_SRV)return;const v=vor||{};const q=new URLSearchParams({serie,tab:v.tab||"",img:v.img||0,knoten:v.knoten||0,draw:(v.z||{}).draw||0,render:(v.z||{}).render||0,sek:Math.round(((v.t||0)-(v.start||v.t||0))/1000)});
+    try{fetch((window.__SL_BASE||"")+"/api/absturz?"+q).catch(()=>{})}catch(e){}}
+  setTimeout(melden,3000);return {Z,puls,absturz,serie}})();
 async function start(){
   S.cfg=defaultCfg();S.quote=newQuote();S.tab=startTabPref();render();setSync("busy");
+  if(WACHE.absturz&&WACHE.serie>=2)setTimeout(()=>{if(window.toast)toast("SchichtLohn ist eben mehrmals abgestürzt – zur Sicherheit ist das Lager geöffnet.")},1500);
   await Store.init();
   try{
     const d=await Store.load();
@@ -4849,7 +4861,7 @@ function decorate(){
     img.onload=()=>{if(!img.naturalWidth||!img.naturalHeight||(!img.dataset.own&&img.naturalWidth<=16)){next();return}ok=true;window.logoGroesse(img);nm.remove();const fertig=()=>{img.style.visibility="";LF.set(ck,{src:img.src,css:img.style.cssText,el:img})};if(img.dataset.clean){fertig();return}if(img.dataset.own==="1"&&L().opaque){const op=L().opaque(img);if(op&&L().cleanLogo(img))return}if(img.dataset.own==="m"){img.style.filter=L().darkUI()?"grayscale(1) invert(1) contrast(3) brightness(1.4)":"grayscale(1) contrast(3) brightness(.8)";img.style.mixBlendMode=L().darkUI()?"screen":"multiply"}else if(img.dataset.own==="d"||(img.dataset.own==="1"&&L().bunt&&L().bunt(img)))img.style.filter="";else if(img.dataset.own)img.style.filter=L().darkUI()?"brightness(0) invert(1)":"brightness(0)";else img.style.borderRadius="4px";fertig()};
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500);setTimeout(()=>{if(img.isConnected&&!(img.complete&&img.naturalWidth>0)){img.remove();if(!nm.isConnected)head.appendChild(nm);showName()}},6000)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="",lastBest="",lastKopf="";
-function draw(ms=40){const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
+function draw(ms=40){if(window.WACHE)WACHE.Z.draw++;const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
   const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb&&p[0]!==lastBest){lastBest=p[0];bb.innerHTML=p[0];fitTop()}/* Kopf mit den Auswahlfeldern nur neu aufbauen, wenn er sich wirklich ändert und gerade kein Feld darin benutzt wird – sonst klappt ein offenes Auswahlmenü weg (Waage/Drucker melden alle paar Sekunden neue Werte) */const ae2=document.activeElement,fo=ae2&&(hb.contains(ae2)&&/^(SELECT|INPUT)$/.test(ae2.tagName)||ae2.matches&&ae2.matches("[data-lgsort]"));if((p[1]||"")===lastKopf)lastHead=hd;else if(!fo){lastHead=hd;lastKopf=p[1]||"";hb.innerHTML=lastKopf}}
   if(h===lastHTML)return;
   {const af=document.activeElement;if(af&&af.tagName==="SELECT"&&box.contains(af)){draw(1500);return}}
