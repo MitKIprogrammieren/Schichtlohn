@@ -346,18 +346,20 @@ const SRV=window.SRV=(()=>{
   /* Live-Meldungen */
   const hoerer=new Set();let es=null,esOk=false;
   function ereignisse(){if(es||!url())return;const t=token();es=new EventSource(url()+"/api/ereignisse"+(t?"?token="+encodeURIComponent(t):""));
-    es.onopen=()=>{if(!esOk){esOk=true}else hoerer.forEach(f=>{try{f({typ:"neu"})}catch(e){}})};
+    es.onopen=()=>{if(!esOk){esOk=true;return}const j=Date.now();if(j-(ereignisse.neuT||0)<20000)return;ereignisse.neuT=j;hoerer.forEach(f=>{try{f({typ:"neu"})}catch(e){}})};
     es.onmessage=m=>{let ev;try{ev=JSON.parse(m.data)}catch(e){return}hoerer.forEach(f=>{try{f(ev)}catch(e){console.warn(e)}})};
     es.onerror=()=>{}}
   const on=f=>{hoerer.add(f);ereignisse();return ()=>hoerer.delete(f)};
   /* Listen (gleiches Format wie die To-do-Listen in HA) */
   const liste=async name=>((await req("GET","/api/listen/"+encodeURIComponent(name)))||{}).items||[];
   const svc=(service,data,name)=>req("POST","/api/listen/"+encodeURIComponent(name),{service,data:data||{}});
-  function sub(name,cb){let lauf=0;const holen=async()=>{const n=++lauf;try{const it=await liste(name);if(n===lauf)cb(it)}catch(e){console.warn("Server",e)}};
+  function sub(name,cb){let lauf=0,zuletzt=null;const holen=async()=>{const n=++lauf;try{const it=await liste(name);if(n!==lauf)return;
+      /* nach einer kurzen Verbindungsunterbrechung nichts neu zeichnen, wenn sich nichts geändert hat */
+      const sig=JSON.stringify(it);if(sig===zuletzt)return;zuletzt=sig;cb(it)}catch(e){console.warn("Server",e)}};
     const ab=on(ev=>{if(ev.typ==="neu"||(ev.typ==="liste"&&ev.name===name))holen()});return holen().then(()=>ab)}
   /* Daten (cfg, portfolio, orders) */
   let cfgBasis=null;const kopie=v=>v==null?v:JSON.parse(JSON.stringify(v));
-  async function get(k){try{const w=((await req("GET","/api/daten/"+encodeURIComponent(k)))||{}).wert;if(k==="cfg")cfgBasis=kopie(w)||{};return w}catch(e){if(e.status===404){if(k==="cfg")cfgBasis={};return null}throw e}}
+  const geholt={};async function get(k){try{const w=((await req("GET","/api/daten/"+encodeURIComponent(k)))||{}).wert;geholt[k]=JSON.stringify(w);if(k==="cfg")cfgBasis=kopie(w)||{};return w}catch(e){if(e.status===404){if(k==="cfg")cfgBasis={};return null}throw e}}
   /* Einstellungen speichern: nur was auf diesem Gerät geändert wurde, auf den aktuellen Server-Stand legen.
      So überschreibt ein Gerät mit älterem Stand nicht die Einstellungen, die inzwischen ein anderes Gerät gemacht hat. */
   async function cfgSpeichern(){const neu=cfgOhneLokal();const basis=cfgBasis;const jetzt=(await get("cfg"))||{};
@@ -380,9 +382,10 @@ const SRV=window.SRV=(()=>{
     catch(e){S.srv=false;S.srvFehler=e.message||String(e)}}
   /* Zustände im Format von Home Assistant (Drucker, AMS-Fächer, Feuchte, Waage) */
   const zst={};let zstT=null;
-  async function zstLaden(){try{const l=await req("GET","/api/states");if(Array.isArray(l)){Object.keys(zst).forEach(k=>delete zst[k]);l.forEach(z=>{zst[z.entity_id]=z});zstNeu()}}catch(e){}}
+  let zstSig="";async function zstLaden(){try{const l=await req("GET","/api/states");if(Array.isArray(l)){const sig=JSON.stringify(l);if(sig===zstSig)return;zstSig=sig;Object.keys(zst).forEach(k=>delete zst[k]);l.forEach(z=>{zst[z.entity_id]=z});zstNeu()}}catch(e){}}
   function zstNeu(){zstNeu.v=(zstNeu.v||0)+1;clearTimeout(zstT);zstT=setTimeout(()=>{try{window.dispatchEvent(new Event("sl-zustand"))}catch(e){}},250)}
-  let nlT={};function nachladen(k){clearTimeout(nlT[k]);nlT[k]=setTimeout(async()=>{try{const w=await get(k);if(w==null)return;
+  let nlT={};function nachladen(k){clearTimeout(nlT[k]);nlT[k]=setTimeout(async()=>{try{const vorher=geholt[k];const w=await get(k);if(w==null)return;
+      if(vorher!==undefined&&geholt[k]===vorher)return; /* unverändert seit dem letzten Abruf: nichts neu zeichnen */
       if(k==="cfg"){const keep=S.cfg&&S.cfg.lagerLokal;S.cfg=Object.assign({},w);if(keep)S.cfg.lagerLokal=keep}else if(k==="portfolio")S.portfolio=w;else S.orders=w;
       const ae=document.activeElement;const tippt=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);if(!tippt&&!document.getElementById("modal")&&window.render)window.render()}catch(e){}},300)}
   const cfgOhneLokal=()=>{const c=Object.assign({},S.cfg||{});delete c.lagerLokal;return c};

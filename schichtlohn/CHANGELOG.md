@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.3.3 – 02.11.2026
+- Behoben: Die App (vor allem auf dem iPhone über Tailscale) zeichnete sich ständig komplett neu, wenn die Verbindung zum Server kurz abriss. Der Server meldet sich jetzt öfter, damit die Verbindung offen bleibt, und die App zeichnet nur noch neu, wenn sich wirklich etwas geändert hat.
+
 ## 3.3.2 – 02.11.2026
 - Neu: „Spooly-Import entfernen“ unter Einstellungen → SchichtLohn-Server → Druckprotokoll nimmt alle aus Spooly übernommenen Drucke wieder heraus.
 - Der Spooly-Import nimmt nur noch die Druckliste aus Spooly an und meldet bei einer falschen Datei, was darin war.

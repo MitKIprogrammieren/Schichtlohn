@@ -68,7 +68,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.3.2"
+VERSION = "3.3.3"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -2524,7 +2524,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             while True:
                 try:
-                    ev = q.get(timeout=25)
+                    ev = q.get(timeout=10)  # öfter ein Lebenszeichen, damit Tailscale & Co. die Verbindung nicht trennen
                     self.wfile.write(("data: " + json.dumps(ev, ensure_ascii=False) + "\n\n").encode("utf-8"))
                 except queue.Empty:
                     self.wfile.write(b": ping\n\n")
