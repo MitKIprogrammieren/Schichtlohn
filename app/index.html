@@ -2311,14 +2311,18 @@ function liveInfo(){return list.map(p=>{const s=snapshot(p);const r=st(p.roles.r
   const pre=p.roles.status.split(".")[1].replace(/_(druckstatus|print_status)$/,"");
   const err=["druckfehler","hms_fehler","print_error","hms_errors"].some(k=>String((st("binary_sensor."+pre+"_"+k)||{}).state)==="on");
   return {key:p.dev,name:p.name,status:s.status,progress:s.progress,remaining:s.remaining*(u==="h"?60:u==="s"?1/60:1),end:s.end,
-    weight:s.weight,laenge:p.roles.laenge?num(val(p.roles.laenge)):0,task:s.task,err,serial:(pre.split("_")[1]||"").toUpperCase()}})}
+    weight:s.weight,laenge:p.roles.laenge?num(val(p.roles.laenge)):0,task:s.task,err,pre,serial:(pre.split("_")[1]||"").toUpperCase()}})}
 async function liveCovers(sel){for(const p of list){const el=document.querySelector(sel+`[data-lc="${CSS.escape(p.dev)}"]`);if(!el||el.dataset.done)continue;el.dataset.done=1;
   const sn=(p.roles.status.split(".")[1].split("_")[1]||"").toUpperCase();
   const cloud=async()=>{if(!window.JOBS||!JOBS.coverFor)return [];const c=await JOBS.coverFor(sn);return c?[c]:[]};
   const haOk=p.cover&&!BAD.has(String((st(p.cover)||{}).state||"unavailable").toLowerCase());
   (haOk?coverSrc(p):Promise.resolve([])).then(async u=>tryImg(u.concat(await cloud()),el)).catch(()=>{})}}
 window.HAP={panelHTML,liveInfo,liveCovers,partExtra,orderHint,settingsHTML,init,savedConn,connectSaved,syncOrders,_printers:()=>list,_reload:reload,
-  mapAms,kwhFor,cfgMap,coverThumb,async ensure(){await loadRegistry(false);list=printers();autoMap(list);return list},
+  mapAms,kwhFor,cfgMap,coverThumb,
+  /* Kamera aus Home Assistant: Live-Strom und Einzelbild (der Zugangsschlüssel im Bild-Link wechselt, deshalb jedes Mal frisch lesen) */
+  kamera(pre){const id="camera."+pre+"_kamera";const pic=()=>((st(id)||{}).attributes||{}).entity_picture||"";if(!pic())return null;const base=isWS()?window.__hass.__base:"";
+    return {live:()=>base+pic().replace("/api/camera_proxy/","/api/camera_proxy_stream/"),bild:()=>{const u=pic();return u?base+u+(u.includes("?")?"&":"?")+"t="+Date.now():""}}},
+  async ensure(){await loadRegistry(false);list=printers();autoMap(list);return list},
   bySerial(sn){sn=String(sn||"").toLowerCase();return sn?list.find(p=>p.roles.status.toLowerCase().includes("_"+sn+"_"))||null:null}};
 })();
 </script>
@@ -2337,7 +2341,7 @@ function quelle(){
     for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_druckstatus$/);if(!m)continue;const pre=m[1];const a=z[id].attributes||{};
       const v=k=>(z["sensor."+pre+"_"+k]||{}).state;
       l.push({key:pre,name:a.drucker_name||pre.split("_")[0].toUpperCase(),status:String(z[id].state||"").toLowerCase(),progress:num(v("druckfortschritt")),
-        remaining:num(v("verbleibende_zeit")),end:null,weight:0,laenge:0,task:v("aktuelle_aufgabe")||"",err:false,serial:(pre.split("_")[1]||"").toUpperCase()})}
+        remaining:num(v("verbleibende_zeit")),end:null,weight:0,laenge:0,task:v("aktuelle_aufgabe")||"",err:false,pre,serial:(pre.split("_")[1]||"").toUpperCase()})}
     l.sort((a,b)=>(AUS.has(a.status)?1:0)-(AUS.has(b.status)?1:0)||a.name.localeCompare(b.name));
     return {art:"srv",l}}
   return {art:"",l:[]}}
@@ -2353,22 +2357,65 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
     <div class="dl-mitte"><div class="dl-name"><i class="dl-punkt"></i>${esc(d.name)}</div>
       <div class="dl-info">${esc(info)}${lauf&&d.task?` <span class="dl-task" title="${esc(d.task)}">· ${esc(d.task)}</span>`:""}</div>
       ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
-    ${fil?`<div class="dl-fil">${fil}</div>`:""}</div>`}
+    ${fil?`<div class="dl-fil">${fil}</div>`:""}
+    ${k!=="aus"&&d.pre?`<button type="button" class="btn icon dl-kbtn" data-dk="${esc(d.key)}" aria-pressed="${OFFEN.has(d.key)}" aria-label="Kamera ${esc(d.name)}" title="Kamera">${ICON_KAM}</button>`:""}</div>
+    ${k!=="aus"&&d.pre&&OFFEN.has(d.key)?`<div class="dl-kam" data-kam="${esc(d.key)}" data-pre="${esc(d.pre)}"><img alt="Kamera ${esc(d.name)}" data-dkv="${esc(d.key)}"><span class="dl-klade">Kamera wird verbunden …</span></div>`:""}`}
+const ICON_KAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>';
 const ICON_AUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5M12 20h.01"/></svg>';
 function html(){const q=quelle();if(!q.l.length)return `<div id="dlive" hidden></div>`;
   const n={druckt:0,bereit:0,aus:0};let aktiv=0;
   for(const d of q.l){const k=art(d);if(k==="druckt"||k==="pause"){n.druckt++;aktiv+=d.weight}else if(k==="aus")n.aus++;else n.bereit++}
   const kachel=(t,v)=>`<div class="dl-k"><span>${t}</span><b class="num">${v}</b></div>`;
   return `<section class="panel dlive" id="dlive" aria-label="Drucker jetzt"><div class="dl-ks">${kachel("Drucken",n.druckt)}${kachel("Bereit",n.bereit)}${kachel("Offline",n.aus)}${q.art==="ha"?kachel("Filament aktiv",gr(aktiv)):""}</div>
-    <div class="dl-liste">${q.l.map(zeile).join("")}</div></section>`}
-function after(){if(window.HAP&&S.backend==="ha"){if(!HAP._printers().length&&!after.l){after.l=1;HAP.ensure().then(()=>{after.l=0;letzt="";neu()}).catch(()=>{after.l=0})}HAP.liveCovers("#dlive ")}
+    <div class="dl-liste">${q.l.map(zeile).join("")}</div>
+    ${OFFEN.size?`<div class="dl-kmod"><span>Kamerabild</span><div class="jseg" role="group" aria-label="Kamerabild">${MODI.map(([v,t])=>`<button type="button" data-dkm="${v}" aria-pressed="${modus()===v}">${t}</button>`).join("")}</div></div>`:""}</section>`}
+/* ---- Kamera: Live-Strom oder Einzelbilder im eingestellten Takt ---- */
+const OFFEN=new Set(),KM="sl_kamera_modus",MODI=[["live","Live"],["1","1 s"],["2","2 s"],["5","5 s"]];
+const modus=()=>{try{const v=localStorage.getItem(KM);return MODI.some(m=>m[0]===v)?v:"live"}catch(e){return "live"}};
+function kQuelle(pre){
+  if(S.srv&&window.SRV&&SRV.url()){const b=SRV.url()+"/api/kamera/"+encodeURIComponent(pre),t=SRV.token()?"token="+encodeURIComponent(SRV.token()):"";
+    return {live:()=>b+"/live"+(t?"?"+t:""),bild:()=>b+".jpg?"+(t?t+"&":"")+"t="+Date.now()}}
+  return window.HAP&&HAP.kamera?HAP.kamera(pre):null}
+const LAUF=new Set();
+function kStop(box){if(!box)return;LAUF.delete(box);clearInterval(box._t);clearTimeout(box._w);box._t=box._w=0;const img=box.querySelector("img");if(img){img.onload=img.onerror=null;if(img.getAttribute("src"))img.src="data:,"}}
+function kStart(box){kStop(box);LAUF.add(box);const img=box.querySelector("img"),q=kQuelle(box.dataset.pre);
+  const fertig=()=>box.classList.add("ok");
+  if(!q){box.classList.add("fehl");box.querySelector(".dl-klade").textContent="Keine Kamera gefunden";return}
+  const takt=ms=>{const lade=()=>{if(!box.isConnected){kStop(box);return}if(document.hidden)return;const u=q.bild();if(!u)return;const n=new Image();n.onload=()=>{img.src=n.src;fertig()};n.src=u};lade();box._t=setInterval(lade,ms)};
+  const m=modus();if(m!=="live")return takt(+m*1000);
+  /* Live: fortlaufender Bildstrom; klappt er nicht, ersatzweise jede Sekunde ein Bild */
+  const ersatz=()=>{if(box._t)return;img.onload=img.onerror=null;clearTimeout(box._w);takt(1000)};
+  img.onload=fertig;img.onerror=ersatz;img.src=q.live();
+  box._w=setTimeout(()=>{if(!img.naturalWidth)ersatz()},9000);
+  box._t=setInterval(()=>{if(!box.isConnected)return kStop(box);if(!document.hidden)img.src=q.live()},540000)}
+function kAlle(){document.querySelectorAll("#dlive .dl-kam").forEach(kStart)}
+let voll=null;
+function kVoll(key){const box=document.querySelector(`#dlive .dl-kam[data-kam="${CSS.escape(key)}"]`);if(!box)return;kZu();kStop(box);
+  const el=document.createElement("div");el.className="jlb dl-voll";el.setAttribute("role","dialog");el.setAttribute("aria-modal","true");el.dataset.dkz="1";
+  el.innerHTML=`<div class="jlb-in"><div class="dl-kam" data-pre="${esc(box.dataset.pre)}"><img alt="${esc(box.querySelector("img").alt)}"><span class="dl-klade">Kamera wird verbunden …</span></div><button class="btn icon jlb-x" data-dkz="1" aria-label="Schließen">${ICON.x}</button></div>`;
+  document.body.appendChild(el);voll={el,key};kStart(el.querySelector(".dl-kam"));el.querySelector(".jlb-x").focus()}
+function kZu(){if(!voll)return;const v=voll;voll=null;kStop(v.el.querySelector(".dl-kam"));v.el.remove();
+  const box=document.querySelector(`#dlive .dl-kam[data-kam="${CSS.escape(v.key)}"]`);if(box)kStart(box)}
+document.addEventListener("click",e=>{const t=e.target.closest("[data-dk],[data-dkm],[data-dkv],[data-dkz]");if(!t)return;
+  if(t.dataset.dkz){e.preventDefault();return kZu()}
+  if(t.dataset.dkv){e.preventDefault();return kVoll(t.dataset.dkv)}
+  if(t.dataset.dkm){try{localStorage.setItem(KM,t.dataset.dkm)}catch(x){}document.querySelectorAll("[data-dkm]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.dkm===t.dataset.dkm)));kAlle();return}
+  const k=t.dataset.dk;if(OFFEN.has(k))OFFEN.delete(k);else OFFEN.add(k);letzt="";neu(true)});
+/* Kameras, deren Block weggezeichnet wurde (Reiterwechsel, neue Ansicht), sauber beenden */
+setInterval(()=>{LAUF.forEach(b=>{if(!b.isConnected)kStop(b)})},4000);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&voll){e.preventDefault();kZu()}});
+/* Im Hintergrund keinen Live-Strom offen halten */
+document.addEventListener("visibilitychange",()=>{if(document.hidden)document.querySelectorAll(".dl-kam").forEach(kStop);else{kAlle();if(voll)kStart(voll.el.querySelector(".dl-kam"))}});
+function after(){LAUF.forEach(b=>{if(!b.isConnected)kStop(b)});document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(b=>{if(!LAUF.has(b))kStart(b)});
+  if(window.HAP&&S.backend==="ha"){if(!HAP._printers().length&&!after.l){after.l=1;HAP.ensure().then(()=>{after.l=0;letzt="";neu()}).catch(()=>{after.l=0})}HAP.liveCovers("#dlive ")}
   else if(window.JOBS&&JOBS.coverFor)document.querySelectorAll("#dlive [data-lc]").forEach(async el=>{if(el.dataset.done)return;el.dataset.done=1;
     const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
 /* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */
 let tm=null,letzt="";
-function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("dlive");if(!alt)return;
+function neu(){if(S.tab!=="drucke"){document.querySelectorAll("#dlive .dl-kam").forEach(kStop);return}const alt=document.getElementById("dlive");if(!alt)return;
   const h=html();if(h===letzt)return;letzt=h;const bilder={};alt.querySelectorAll("[data-lc]").forEach(el=>{if(el.style.backgroundImage)bilder[el.dataset.lc]=el.style.backgroundImage});
-  alt.outerHTML=h;document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
+  const kams={};alt.querySelectorAll(".dl-kam[data-kam]").forEach(el=>{kams[el.dataset.kam]=el});
+  alt.outerHTML=h;document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){el.replaceWith(a);delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
 const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
 window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
 /* Online-Version mit eigener HA-Verbindung: Zustände alle 30 s holen, solange der Reiter offen ist */
@@ -2382,6 +2429,12 @@ window.DLIVE={html,after};
 .dl-k{background:var(--sunken);border-radius:var(--r-s);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
 .dl-k span{font-size:12px;color:var(--fg-2)}.dl-k b{font-size:20px;font-weight:600}
 .dl-liste{display:flex;flex-direction:column}
+.dl-kbtn{flex:none;width:34px;height:34px;color:var(--fg-3)}.dl-kbtn[aria-pressed="true"]{color:var(--accent,var(--fg));background:var(--sunken)}
+.dl-kam{position:relative;margin:0 0 6px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
+.dl-kam img{display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s}.dl-kam.ok img{opacity:1}
+.dl-klade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:13px;pointer-events:none}.dl-kam.ok .dl-klade{display:none}
+.dl-kmod{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--fg-3);border-top:1px solid var(--line);padding-top:8px}
+.dl-voll .jlb-in{width:min(1200px,100%)}.dl-voll .dl-kam{aspect-ratio:16/9;width:100%;cursor:zoom-out;margin:0}
 .dl-z{display:flex;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid var(--line)}
 .dl-bild{width:44px;height:44px;flex:none;border-radius:8px;background:var(--sunken) center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--fg-3)}
 .dl-bild svg{width:20px;height:20px}

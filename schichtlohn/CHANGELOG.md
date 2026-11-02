@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.6.0 – 02.11.2026
+- Neu: Druckerkameras in „Druckaufträge“ → „Drucker jetzt“. Das Kamerasymbol neben einem Drucker öffnet das Live-Bild, ein Tipp aufs Bild zeigt es im Vollbild. Die Bilder kommen über Home Assistant, damit gehen sie auch unterwegs über Tailscale.
+- Unten im Block stellst du ein, wie oft das Bild kommt: Live, jede Sekunde, alle 2 oder alle 5 Sekunden. Klappt der Live-Strom nicht, kommt automatisch jede Sekunde ein neues Bild.
+
 ## 3.5.0 – 02.11.2026
 - Neu: Reiter „Preisvergleich“. Such nach Marke, Material oder Farbe (z. B. „PETG schwarz“) und sieh alle Shops nebeneinander – nach Preis je kg sortiert, die günstigste Spule markiert, Sorten aus deinem Lager gekennzeichnet.
 - eBay und AliExpress werden dabei live mitgesucht (mit Versand, wenn der Händler ihn nennt, sonst mit deiner Pauschale).

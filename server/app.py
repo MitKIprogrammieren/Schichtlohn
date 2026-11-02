@@ -69,7 +69,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.5.0"
+VERSION = "3.6.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -2493,6 +2493,17 @@ class Handler(BaseHTTPRequestHandler):
             b = self._json_rumpf()
             neu = [x for x in (b.get("drucke") or []) if isinstance(x, dict) and x.get("id")]
             return self._json(200, drucke_importieren(neu))
+        if len(teile) >= 2 and teile[0] == "kamera" and methode == "GET":
+            # Druckerkamera über Home Assistant: Einzelbild (…/<präfix>.jpg) oder Live-Bild (…/<präfix>/live, MJPEG)
+            pre = re.sub(r"[^a-z0-9_]", "", teile[1].lower().removesuffix(".jpg"))
+            if not pre:
+                raise Fehler(400, "Drucker fehlt")
+            if len(teile) == 3 and teile[2] == "live":
+                return self._kamera_live(pre)
+            bild = kamera_foto(pre)
+            if not bild:
+                return self._senden(404, b"", "image/jpeg", "no-store")
+            return self._senden(200, bild, "image/jpeg" if bild[:1] == b"\xff" else "image/png", "no-store")
         if teile == ["drucke", "entfernen"] and methode == "POST":
             b = self._json_rumpf()
             ids, herkunft = set(b.get("ids") or []), str(b.get("herkunft") or "")
@@ -2590,6 +2601,40 @@ class Handler(BaseHTTPRequestHandler):
             except RuntimeError as ex:
                 raise Fehler(502, str(ex))
         raise Fehler(404, "Unbekannter Pfad")
+
+    def _kamera_live(self, pre, dauer=600):
+        """Live-Bild der Kamera aus Home Assistant durchreichen (höchstens 10 Minuten am Stück, dann lädt die App neu)."""
+        import urllib.request
+        url, token = ha_cfg()
+        if not (url and token):
+            raise Fehler(503, "Kamera braucht Home Assistant")
+        try:
+            r = urllib.request.urlopen(urllib.request.Request(f"{url}/api/camera_proxy_stream/camera.{pre}_kamera",
+                                                              headers={"Authorization": "Bearer " + token}), timeout=15)
+        except Exception as ex:
+            raise Fehler(502, f"Kamera nicht erreichbar: {ex}")
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", r.headers.get("Content-Type") or "multipart/x-mixed-replace;boundary=frame")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        self.close_connection = True
+        ende = time.time() + dauer
+        try:
+            while time.time() < ende:
+                stueck = r.read1(65536) if hasattr(r, "read1") else r.read(65536)
+                if not stueck:
+                    break
+                self.wfile.write(stueck)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            try:
+                r.close()
+            except Exception:
+                pass
 
     def _sse(self):
         self.send_response(200)
