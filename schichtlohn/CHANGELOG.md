@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.5.0 – 02.11.2026
+- Neu: Reiter „Preisvergleich“. Such nach Marke, Material oder Farbe (z. B. „PETG schwarz“) und sieh alle Shops nebeneinander – nach Preis je kg sortiert, die günstigste Spule markiert, Sorten aus deinem Lager gekennzeichnet.
+- eBay und AliExpress werden dabei live mitgesucht (mit Versand, wenn der Händler ihn nennt, sonst mit deiner Pauschale).
+- Startseite mit den günstigsten 1-kg-Spulen je Material und Marke. Filter für Material, Gewicht, Spule/Refill und Marke.
+
 ## 3.4.0 – 02.11.2026
 - Neu: Der Server liest jetzt alle Druckdateien aus dem Speicher deiner Drucker (auch aus Unterordnern) und legt von jeder eine Kopie auf dem Server ab. Zeitraffer und Protokolldateien bleiben auf dem Drucker.
 - Neu: Drucke ohne Gramm (z. B. aus Spooly) werden mit der passenden Druckdatei ergänzt – Gramm je Filament und Druckzeit laut Datei, bei abgebrochenen Drucken anteilig. Drucke ohne Bild bekommen das Vorschaubild aus der Datei.
