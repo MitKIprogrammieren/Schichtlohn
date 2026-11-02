@@ -5040,7 +5040,7 @@ function decorate(){
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500);setTimeout(()=>{if(img.isConnected&&!(img.complete&&img.naturalWidth>0)){img.remove();if(!nm.isConnected)head.appendChild(nm);showName()}},6000)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="",lastBest="",lastKopf="";
 function draw(ms=40){if(window.WACHE)WACHE.Z.draw++;const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
-  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb&&p[0]!==lastBest){lastBest=p[0];bb.innerHTML=p[0];fitTop()}/* Kopf mit den Auswahlfeldern nur neu aufbauen, wenn er sich wirklich ändert und gerade kein Feld darin benutzt wird – sonst klappt ein offenes Auswahlmenü weg (Waage/Drucker melden alle paar Sekunden neue Werte) */const ae2=document.activeElement,fo=ae2&&(hb.contains(ae2)&&/^(SELECT|INPUT)$/.test(ae2.tagName)||ae2.matches&&ae2.matches("[data-lgsort]"));if((p[1]||"")===lastKopf)lastHead=hd;else if(!fo){lastHead=hd;lastKopf=p[1]||"";hb.innerHTML=lastKopf}}
+  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb&&p[0]!==lastBest){lastBest=p[0];bb.innerHTML=p[0];const kn=bb.querySelector(".lgbest .lgknopf");if(kn)bb.appendChild(kn);fitTop()}/* Kopf mit den Auswahlfeldern nur neu aufbauen, wenn er sich wirklich ändert und gerade kein Feld darin benutzt wird – sonst klappt ein offenes Auswahlmenü weg (Waage/Drucker melden alle paar Sekunden neue Werte) */const ae2=document.activeElement,fo=ae2&&(hb.contains(ae2)&&/^(SELECT|INPUT)$/.test(ae2.tagName)||ae2.matches&&ae2.matches("[data-lgsort]"));if((p[1]||"")===lastKopf)lastHead=hd;else if(!fo){lastHead=hd;lastKopf=p[1]||"";hb.innerHTML=lastKopf}}
   if(h===lastHTML)return;
   {const af=document.activeElement;if(af&&af.tagName==="SELECT"&&box.contains(af)){draw(1500);return}}
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
@@ -7183,5 +7183,31 @@ body.rx-einfach #mbar{display:none!important}
 .lgtop .dcard.kompakt.lgbest .lgmon::after{content:"›";margin-left:auto;color:var(--fg-3);font-size:16px;line-height:1}
 .lgtop .dcard.kompakt.lgbest .lgmon:hover{border-color:var(--line-2)}
 .lgekr{align-items:flex-start}.lgeka{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.lgeka a.btn{text-decoration:none}</style>
+<style>
+/* Lager-Kopf als eine ruhige Leiste: Bestand, AMS-Feuchte und Waage nebeneinander, Knöpfe als Zeile darunter */
+@media (min-width:621px){
+.lgtop[data-n]{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--glass);overflow:hidden}
+.lgtop .dcard.kompakt{border:0;border-radius:0;background:none;padding:12px 18px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;align-content:flex-start;flex-wrap:nowrap;gap:8px;flex:1 1 0;min-width:0;position:relative}
+.lgtop .dcard.kompakt+.dcard.kompakt,.lgtop .lstat>.dcard.kompakt{border-left:1px solid var(--line)}
+.lgtop .dcard.kompakt.lgbest{flex:2.2 1 0}
+.lgtop .dcard.kompakt .di{display:none}
+.lgtop .dcard.kompakt .dt{gap:8px;padding-right:0;min-height:20px;flex:none}
+.lgtop .dcard .dn{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-3)}
+.lgtop .dcard.kompakt .dt .ds{font-size:10.5px}
+.lgtop[data-n] .dcard.kompakt .dvs,.lgtop[data-n] .dcard.kompakt.lgbest .dvs{position:static;transform:none;margin:0;width:100%;display:flex;grid-template-columns:none;flex-wrap:wrap;justify-content:flex-start;gap:6px 26px}
+.lgtop .dcard .dv span{font-size:11px}
+.lgtop .dcard .dv b{font-size:17px;font-weight:650}
+.lgtop .dcard.kompakt.lgbest .lgmon{grid-column:auto;display:block;width:auto;padding:0;border:0;background:none}
+.lgtop .dcard.kompakt.lgbest .lgmon::after{content:none}
+.lgtop .dcard.kompakt.lgbest .lgmon span{font-size:11px}.lgtop .dcard.kompakt.lgbest .lgmon b{font-size:17px}
+.lgbest .lgstat{top:8px;right:8px}
+.lgtop>.lgknopf,.lgtop .lgbestw>.lgknopf{order:99;flex:1 1 100%;display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:6px 10px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--fg) 3%,transparent)}
+.lgtop .lgknopf .lgekbtn{margin:0!important;border:0;background:none;height:28px;padding:0 10px;font-size:12.5px;color:var(--fg-2);gap:6px}
+.lgtop .lgknopf .lgekbtn:hover{background:var(--sunken);color:var(--fg)}
+.lgtop .lgknopf .lgekbtn svg{width:14px;height:14px}
+.lgtop .lgknopf .lgekbtn{display:inline-flex;align-items:center}.lgtop .lgknopf .lgekbtn b{background:var(--bad);color:#fff;border-radius:999px;font-size:10px;line-height:16px;padding:0 6px}
+}
+@media (max-width:620px){.lgtop .lgbestw>.lgknopf{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}.lgtop .lgbestw>.lgknopf .lgekbtn{margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 10px;font-size:14px}.lgtop .lgbestw>.lgknopf .lgekbtn svg{width:15px;height:15px}.lgtop .lgbestw>.lgknopf .lgekbtn b{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;line-height:17px}}
+</style>
 </body>
 </html>
