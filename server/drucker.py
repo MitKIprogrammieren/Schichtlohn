@@ -15,6 +15,7 @@ und dem Lager übergeben (Rückruf abbuchen).
 """
 import ftplib
 import io
+import os
 import json
 import re
 import socket
@@ -207,6 +208,7 @@ def datei_kopf(daten, platte=None):
 _LIST_RE = re.compile(r"^[-d][rwx-]{9}\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\w{3})\s+(\d{1,2})\s+(\d{1,2}:\d{2}|\d{4})\s+(.+)$")
 _MONATE = {m: i + 1 for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
 SPEICHER_ORDNER = ("/", "/cache", "/model", "/sdcard")
+SPEICHER_OHNE = {"timelapse", "logger", "corelogger", "ipcam", "recorder", "log", "logs", "image", "images", "verify_job", "system"}
 SPEICHER_MAX_MB = 80
 
 
@@ -225,7 +227,7 @@ def _list_zeit(mon, tag, rest):
         return 0
 
 
-def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
+def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=3000, ziel=None):
     """Druckdateien (.3mf) im Speicher des Druckers auflisten und auswerten.
     bekannt: {pfad: eintrag} aus dem letzten Lauf – unveränderte Dateien (gleiche Größe) werden nicht neu geladen.
     → [{pfad, titel, groesse, zeit, platte, minuten, gramm, filamente, bild (Bytes oder None, nur bei neu geladenen)}]"""
@@ -238,8 +240,13 @@ def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
     try:
         ftp.login("bblp", code)
         ftp.prot_p()
-        dateien, gesehen = [], set()
-        for ordner in SPEICHER_ORDNER:
+        dateien, gesehen, besucht = [], set(), set()
+        offen = [(o, 0) for o in SPEICHER_ORDNER]
+        while offen:  # alle Ordner bis zwei Ebenen tief (Bambu Studio legt Dateien je nach Firmware in Unterordner)
+            ordner, tiefe = offen.pop(0)
+            if ordner in besucht:
+                continue
+            besucht.add(ordner)
             zeilen = []
             try:
                 ftp.dir(ordner, zeilen.append)
@@ -247,9 +254,13 @@ def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
                 continue
             for z in zeilen:
                 m = _LIST_RE.match(z.strip())
-                if not m or z.startswith("d"):
+                if not m:
                     continue
                 name = m.group(5).strip()
+                if z.startswith("d"):
+                    if tiefe < 2 and name not in (".", "..") and name.lower() not in SPEICHER_OHNE:
+                        offen.append((ordner.rstrip("/") + "/" + name, tiefe + 1))
+                    continue
                 if not name.lower().endswith(".3mf") or name in gesehen:
                     continue
                 gesehen.add(name)
@@ -260,8 +271,10 @@ def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
         for d in dateien[:max_dateien]:
             titel = re.sub(r"(\.gcode)?\.3mf$", "", d["name"], flags=re.I)
             alt = bekannt.get(d["pfad"])
-            if alt and alt.get("groesse") == d["groesse"]:
-                out.append(dict(alt, zeit=d["zeit"] or alt.get("zeit", 0), bild=None))
+            kopie = os.path.join(ziel, d["name"]) if ziel else None
+            gesichert = bool(kopie and os.path.exists(kopie) and os.path.getsize(kopie) == d["groesse"])
+            if alt and alt.get("groesse") == d["groesse"] and (gesichert or not ziel):
+                out.append(dict(alt, zeit=d["zeit"] or alt.get("zeit", 0), bild=None, gesichert=gesichert))
                 continue
             e = {"pfad": d["pfad"], "titel": titel, "groesse": d["groesse"], "zeit": d["zeit"], "platte": None, "minuten": 0,
                  "gramm": 0, "filamente": [], "bild": None, "fehler": ""}
@@ -272,6 +285,12 @@ def speicher_lesen(ip, code, bekannt=None, timeout=25, max_dateien=60):
             puffer = io.BytesIO()
             try:
                 ftp.retrbinary("RETR " + d["pfad"], puffer.write)
+                if kopie:  # Kopie der Druckdatei auf dem Server ablegen
+                    os.makedirs(ziel, exist_ok=True)
+                    with open(kopie + ".neu", "wb") as f:
+                        f.write(puffer.getvalue())
+                    os.replace(kopie + ".neu", kopie)
+                    e["gesichert"] = True
                 m = re.search(r"plate_(\d+)", d["name"])
                 e.update(datei_kopf(puffer.getvalue(), int(m.group(1)) if m else None))
             except ftplib.all_errors as ex:

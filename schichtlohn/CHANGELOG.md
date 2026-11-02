@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.4.0 – 02.11.2026
+- Neu: Der Server liest jetzt alle Druckdateien aus dem Speicher deiner Drucker (auch aus Unterordnern) und legt von jeder eine Kopie auf dem Server ab. Zeitraffer und Protokolldateien bleiben auf dem Drucker.
+- Neu: Drucke ohne Gramm (z. B. aus Spooly) werden mit der passenden Druckdatei ergänzt – Gramm je Filament und Druckzeit laut Datei, bei abgebrochenen Drucken anteilig. Drucke ohne Bild bekommen das Vorschaubild aus der Datei.
+
 ## 3.3.3 – 02.11.2026
 - Behoben: Die App (vor allem auf dem iPhone über Tailscale) zeichnete sich ständig komplett neu, wenn die Verbindung zum Server kurz abriss. Der Server meldet sich jetzt öfter, damit die Verbindung offen bleibt, und die App zeichnet nur noch neu, wenn sich wirklich etwas geändert hat.
 

@@ -49,7 +49,7 @@ import threading
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import drucker as drucker_mod
 import preise as preise_mod
@@ -68,7 +68,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.3.3"
+VERSION = "3.4.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1673,6 +1673,7 @@ DRUCKE_MAX = 1000
 SPEICHER_KEY = "_druckerspeicher"
 SPEICHER_ALLE_H = 6
 DRUCKBILDER = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "druckbilder")
+DRUCKDATEIEN = os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "druckdateien")
 SPEICHER_STAND = {"laeuft": False}
 _speicher_lock = threading.Lock()
 
@@ -1717,6 +1718,65 @@ def druck_merken(dr, name, erg, vorschau=None):
     melden({"typ": "drucke"})
 
 
+def _norm_titel(t):
+    return re.sub(r"[^a-z0-9äöüß]+", "", re.sub(r"(\.gcode)?\.3mf$", "", str(t or "").lower()))
+
+
+def drucke_ergaenzen():
+    """Drucke ohne Gramm oder ohne Bild mit der passenden Druckdatei aus dem Druckerspeicher ergänzen
+    (gleicher Name, am liebsten vom selben Drucker). Gramm und Zeit laut Datei, bei Abbruch anteilig."""
+    sp, _ = daten_lesen(SPEICHER_KEY)
+    idx = {}
+    for serial, v in (sp if isinstance(sp, dict) else {}).items():
+        for f in v.get("dateien") or []:
+            if not f.get("fehler"):
+                idx.setdefault(_norm_titel(f.get("titel")), []).append((serial.upper(), f))
+    if not idx:
+        return 0
+    n = 0
+    with _db_lock:
+        liste, _ = daten_lesen(DRUCKE_KEY)
+        liste = [x for x in (liste if isinstance(liste, list) else []) if isinstance(x, dict)]
+        for x in liste:
+            kand = idx.get(_norm_titel(x.get("titel")))
+            if not kand or (x.get("gramm") and x.get("bild")):
+                continue
+            serial, f = next(((s_, f_) for s_, f_ in kand if s_ == str(x.get("serial") or "").upper()), kand[0])
+            geaendert = False
+            if not x.get("gramm") and f.get("gramm"):
+                anteil = (x.get("fortschritt") or 100) / 100 if x.get("abgebrochen") else 1.0
+                x["filamente"] = [{"gramm": round(m.get("gramm", 0) * anteil, 2), "farbe": m.get("farbe") or "", "typ": m.get("typ") or "",
+                                   "name": m.get("typ") or "", "ort": "", "fid": m.get("fid") or ""} for m in f.get("filamente") or []]
+                x["gramm"] = round(sum(m["gramm"] for m in x["filamente"]) or f["gramm"] * anteil, 2)
+                x["gramm_quelle"] = "Druckdatei"
+                geaendert = True
+            if not x.get("minuten") and f.get("minuten"):
+                x["minuten"] = f["minuten"]
+                geaendert = True
+            if not x.get("bild") and f.get("bild_id"):
+                x["bild"] = f["bild_id"]
+                geaendert = True
+            if geaendert:
+                x["datei"] = f.get("pfad") or ""
+                n += 1
+        if n:
+            daten_schreiben(DRUCKE_KEY, liste)
+    if n:
+        melden({"typ": "drucke"})
+        print(f"Druckprotokoll: {n} Drucke mit Druckdateien ergänzt", flush=True)
+    return n
+
+
+def archiv_info():
+    anzahl, groesse = 0, 0
+    for wurzel, _, dateien in os.walk(DRUCKDATEIEN):
+        for d in dateien:
+            if d.lower().endswith(".3mf"):
+                anzahl += 1
+                groesse += os.path.getsize(os.path.join(wurzel, d))
+    return {"anzahl": anzahl, "mb": round(groesse / 1048576)}
+
+
 def drucke_importieren(neu):
     alt, _ = daten_lesen(DRUCKE_KEY)
     liste = [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
@@ -1726,7 +1786,8 @@ def drucke_importieren(neu):
     liste.sort(key=lambda x: str(x.get("ende") or x.get("start") or ""), reverse=True)
     daten_schreiben(DRUCKE_KEY, liste[:max(DRUCKE_MAX, len(neu) + 500)])
     melden({"typ": "drucke"})
-    return {"ok": True, "uebernommen": len(neu), "neu": len(liste) - vorher, "gesamt": len(liste)}
+    ergaenzt = drucke_ergaenzen()
+    return {"ok": True, "uebernommen": len(neu), "neu": len(liste) - vorher, "gesamt": len(liste), "ergaenzt": ergaenzt}
 
 
 def speicher_abrufen(anlass="automatisch"):
@@ -1751,7 +1812,7 @@ def speicher_abrufen(anlass="automatisch"):
                 continue
             bekannt = {x["pfad"]: x for x in vorher.get("dateien") or [] if isinstance(x, dict) and x.get("pfad")}
             try:
-                liste = drucker_mod.speicher_lesen(d["ip"], d["code"], bekannt)
+                liste = drucker_mod.speicher_lesen(d["ip"], d["code"], bekannt, ziel=os.path.join(DRUCKDATEIEN, re.sub(r"[^A-Z0-9]", "", serial)))
                 for e in liste:
                     bild = e.pop("bild", None)
                     if bild:
@@ -1764,6 +1825,7 @@ def speicher_abrufen(anlass="automatisch"):
                                "dateien": vorher.get("dateien") or []}
                 print(f"Druckerspeicher {name}: {ex}", flush=True)
         daten_schreiben(SPEICHER_KEY, neu)
+        drucke_ergaenzen()
         return neu
     finally:
         SPEICHER_STAND["laeuft"] = False
@@ -2419,7 +2481,7 @@ class Handler(BaseHTTPRequestHandler):
             w, _ = daten_lesen(DRUCKE_KEY)
             sp, _ = daten_lesen(SPEICHER_KEY)
             return self._json(200, {"drucke": w if isinstance(w, list) else [], "speicher": sp if isinstance(sp, dict) else {},
-                                    "laeuft": SPEICHER_STAND["laeuft"]})
+                                    "laeuft": SPEICHER_STAND["laeuft"], "archiv": archiv_info()})
         if teile == ["drucke", "import"] and methode == "POST":
             # Drucke aus einer anderen App übernehmen (z. B. Spooly): gleiche id ersetzt, sonst dazu
             b = self._json_rumpf()
@@ -2440,6 +2502,22 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if len(teile) == 4 and teile[:2] == ["drucke", "datei"] and methode == "GET":
+            serial = re.sub(r"[^A-Z0-9]", "", teile[2].upper())
+            name = os.path.basename(unquote(teile[3]))
+            pf = os.path.join(DRUCKDATEIEN, serial, name)
+            if not serial or not name.lower().endswith(".3mf") or not os.path.exists(pf):
+                raise Fehler(404, "Druckdatei nicht gesichert")
+            with open(pf, "rb") as f:
+                daten = f.read()
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "application/vnd.ms-package.3dmanufacturing-3dmodel+xml")
+            self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(name))
+            self.send_header("Content-Length", str(len(daten)))
+            self.end_headers()
+            self.wfile.write(daten)
+            return
         if len(teile) == 3 and teile[:2] == ["drucke", "bild"] and methode == "GET":
             bid = re.sub(r"[^0-9a-f]", "", teile[2])[:16]
             pf = os.path.join(DRUCKBILDER, bid + ".png")
