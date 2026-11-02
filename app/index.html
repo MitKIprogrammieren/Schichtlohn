@@ -2463,17 +2463,17 @@ function kQuelle(pre){
     return {live:()=>b+"/live"+(t?"?"+t:""),bild:()=>b+".jpg?"+(t?t+"&":"")+"t="+Date.now()}}
   return window.HAP&&HAP.kamera?HAP.kamera(pre):null}
 const LAUF=new Set();
-function kStop(box){if(!box)return;LAUF.delete(box);clearInterval(box._t);clearTimeout(box._w);box._t=box._w=0;const img=box.querySelector("img");if(img){img.onload=img.onerror=null;if(img.getAttribute("src"))img.src="data:,"}}
+function kStop(box){if(!box)return;LAUF.delete(box);clearInterval(box._t);clearInterval(box._r);clearTimeout(box._w);box._t=box._r=box._w=0;const img=box.querySelector("img");if(img){img.onload=img.onerror=null;if(img.getAttribute("src"))img.src="data:,"}}
 function kStart(box){kStop(box);LAUF.add(box);const img=box.querySelector("img"),q=kQuelle(box.dataset.pre);
   const fertig=()=>box.classList.add("ok");
   if(!q){box.classList.add("fehl");box.querySelector(".dl-klade").textContent="Keine Kamera gefunden";return}
   const takt=ms=>{const lade=()=>{if(!box.isConnected){kStop(box);return}if(document.hidden)return;const u=q.bild();if(!u)return;const n=new Image();n.onload=()=>{img.src=n.src;fertig()};n.src=u};lade();box._t=setInterval(lade,ms)};
   const m=modus();if(m!=="live")return takt(+m*1000);
   /* Live: fortlaufender Bildstrom; klappt er nicht, ersatzweise jede Sekunde ein Bild */
-  const ersatz=()=>{if(box._t)return;img.onload=img.onerror=null;clearTimeout(box._w);takt(1000)};
+  const ersatz=()=>{if(box._t)return;img.onload=img.onerror=null;clearTimeout(box._w);clearInterval(box._r);box._r=0;takt(1000)};
   img.onload=fertig;img.onerror=ersatz;img.src=q.live();
   box._w=setTimeout(()=>{if(!img.naturalWidth)ersatz()},9000);
-  box._t=setInterval(()=>{if(!box.isConnected)return kStop(box);if(!document.hidden)img.src=q.live()},540000)}
+  box._r=setInterval(()=>{if(!box.isConnected)return kStop(box);if(!document.hidden)img.src=q.live()},540000)}
 function kAlle(){document.querySelectorAll("#dlive .dl-kam").forEach(kStart)}
 let voll=null;
 function kVoll(key){const box=document.querySelector(`#dlive .dl-kam[data-kam="${CSS.escape(key)}"]`);if(!box)return;kZu();kStop(box);
@@ -2516,11 +2516,11 @@ window.DLIVE={html,after};
 .dl-k span{font-size:12px;color:var(--fg-2)}.dl-k b{font-size:20px;font-weight:600}
 .dl-liste{display:flex;flex-direction:column}
 .dl-kbtn{flex:none;width:34px;height:34px;color:var(--fg-3)}.dl-kbtn[aria-pressed="true"]{color:var(--accent,var(--fg));background:var(--sunken)}
-.dl-kam{position:relative;margin:0 0 6px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
+.dl-kam{position:relative;margin:0 0 6px;width:100%;max-width:560px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
 .dl-kam img{display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s}.dl-kam.ok img{opacity:1}
 .dl-klade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:13px;pointer-events:none}.dl-kam.ok .dl-klade{display:none}
 .dl-kmod{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--fg-3);border-top:1px solid var(--line);padding-top:8px}
-.dl-voll .jlb-in{width:min(1200px,100%)}.dl-voll .dl-kam{aspect-ratio:16/9;width:100%;cursor:zoom-out;margin:0}
+.dl-voll .jlb-in{width:min(1100px,100%,calc((100vh - 80px)*16/9))}.dl-voll .dl-kam{aspect-ratio:16/9;width:100%;max-width:none;max-height:calc(100vh - 80px);cursor:zoom-out;margin:0}
 .dl-z{display:flex;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid var(--line)}
 .dl-bild{width:44px;height:44px;flex:none;border-radius:8px;background:var(--sunken) center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--fg-3)}
 .dl-bild svg{width:20px;height:20px}

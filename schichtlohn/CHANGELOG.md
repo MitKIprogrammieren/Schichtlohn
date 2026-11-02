@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.6.2 – 02.11.2026
+- Kamera: Das Live-Bild lädt jetzt zuverlässig. Bisher blieb es bei manchen Druckern (z. B. H2C) schwarz.
+- Das Kamerabild ist am großen Bildschirm nicht mehr so riesig, auch im Vollbild passt es ins Fenster.
+
 ## 3.6.1 – 02.11.2026
 - Neu: „Zuletzt abgebucht“ unter Druckaufträge. Dort siehst du nach jedem Druck, was von welcher Spule abgezogen wurde und wie viel noch da ist. Nicht zugeordnete Reste kannst du direkt zuordnen.
 - Nach einer Abbuchung kommt in der App eine deutliche Meldung mit Spule, Gramm und Restbestand. Öffnest du die App später, siehst du, wie viele Abbuchungen seitdem dazugekommen sind.

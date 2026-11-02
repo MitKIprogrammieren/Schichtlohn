@@ -69,7 +69,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.6.1"
+VERSION = "3.6.2"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -2606,39 +2606,38 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(502, str(ex))
         raise Fehler(404, "Unbekannter Pfad")
 
-    def _kamera_live(self, pre, dauer=600):
-        """Live-Bild der Kamera aus Home Assistant durchreichen (höchstens 10 Minuten am Stück, dann lädt die App neu)."""
-        import urllib.request
+    def _kamera_live(self, pre, dauer=600, takt=0.25):
+        """Live-Bild als MJPEG: holt so schnell wie möglich Einzelbilder aus Home Assistant
+        (der HA-Live-Strom der Bambu-Kameras startet oft zu langsam). Höchstens 10 Minuten am Stück."""
         url, token = ha_cfg()
         if not (url and token):
             raise Fehler(503, "Kamera braucht Home Assistant")
-        try:
-            r = urllib.request.urlopen(urllib.request.Request(f"{url}/api/camera_proxy_stream/camera.{pre}_kamera",
-                                                              headers={"Authorization": "Bearer " + token}), timeout=15)
-        except Exception as ex:
-            raise Fehler(502, f"Kamera nicht erreichbar: {ex}")
+        erstes = kamera_foto(pre)
+        if not erstes:
+            raise Fehler(404, "Kein Kamerabild")
         self.send_response(200)
         self._cors()
-        self.send_header("Content-Type", r.headers.get("Content-Type") or "multipart/x-mixed-replace;boundary=frame")
+        self.send_header("Content-Type", "multipart/x-mixed-replace;boundary=frame")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
         self.close_connection = True
-        ende = time.time() + dauer
+        ende, bild = time.time() + dauer, erstes
         try:
             while time.time() < ende:
-                stueck = r.read1(65536) if hasattr(r, "read1") else r.read(65536)
-                if not stueck:
-                    break
-                self.wfile.write(stueck)
-                self.wfile.flush()
+                t0 = time.time()
+                if bild:
+                    art = b"image/jpeg" if bild[:1] == b"\xff" else b"image/png"
+                    self.wfile.write(b"--frame\r\nContent-Type: " + art + b"\r\nContent-Length: " + str(len(bild)).encode() + b"\r\n\r\n" + bild + b"\r\n")
+                    self.wfile.flush()
+                warte = takt - (time.time() - t0)
+                if warte > 0:
+                    time.sleep(warte)
+                bild = kamera_foto(pre)
+                if not bild:
+                    time.sleep(1)
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
-        finally:
-            try:
-                r.close()
-            except Exception:
-                pass
 
     def _sse(self):
         self.send_response(200)
