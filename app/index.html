@@ -374,7 +374,7 @@ const SRV=window.SRV=(()=>{
       if(!d.zugang)throw new Error("Der Server verlangt einen Schlüssel (Einstellungen → SchichtLohn-Server)");S.srv=true;S.srvInfo=d;S.srvFehler="";try{setTimeout(()=>window.dispatchEvent(new Event("sl-srv-bereit")),0)}catch(x){}
       on(ev=>{if(ev.typ==="daten"&&ev.quelle!==id&&["cfg","portfolio","orders"].includes(ev.name))nachladen(ev.name);if(ev.typ==="daten"&&ev.name==="shoppreise_eigen")try{window.dispatchEvent(new Event("sl-ep-neu"))}catch(x){}if(ev.typ==="filamentdb"&&window.__fdbNeu)window.__fdbNeu();
         if(ev.typ==="zustand"&&ev.z){zst[ev.z.entity_id]=ev.z;zstNeu()}if(ev.typ==="neu"){zstLaden();["cfg","portfolio","orders"].forEach(nachladen)}
-        if(ev.typ==="abbuchung"&&window.toast)toast("🖨 "+String(ev.text||"").slice(0,180));
+        if(ev.typ==="abbuchung")try{window.dispatchEvent(new CustomEvent("sl-abbuchung",{detail:ev}))}catch(x){if(window.toast)toast("🖨 "+String(ev.text||"").slice(0,180))}
         if(ev.typ==="preise"&&!ev.laeuft)try{window.dispatchEvent(new Event("sl-preise"))}catch(x){}
         if(ev.typ==="drucke")try{window.dispatchEvent(new CustomEvent("sl-drucke",{detail:ev}))}catch(x){}});
       zstLaden();
@@ -2327,6 +2327,92 @@ window.HAP={panelHTML,liveInfo,liveCovers,partExtra,orderHint,settingsHTML,init,
 })();
 </script>
 <script>
+/* ===== Zuletzt abgebucht: was nach den Drucken vom Lager abgezogen wurde ===== */
+(function(){
+"use strict";
+const KG="sl_ab_gesehen";let gesehen=(()=>{try{return localStorage.getItem(KG)||""}catch(e){return ""}})(),alle=false,letzt="",markT=null;
+const zeitMs=z=>Date.parse(String(z||"").replace(/([+-]\d\d)(\d\d)$/,"$1:$2"));
+const gfmt=g=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).format(Math.abs(g));
+const rest=g=>g>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).format(g/1000)+" kg":Math.round(g)+" g";
+const ICON_OK='<svg class="ab-ok" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="abgebucht"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const book=()=>window.LGN&&LGN._book;
+/* Abbuchungen und nicht zugeordnete Reste zu Drucken bündeln (gleicher Drucker, höchstens 2 Minuten auseinander) */
+function gruppen(){const B=book();if(!B||!B.ready())return null;
+  const l=B.verbrauch().map(d=>({art:"ab",t:zeitMs(d.zeit),d})).concat((B.offeneListe?B.offeneListe():[]).map(o=>({art:"offen",t:zeitMs(o.zeit),d:o}))).filter(x=>!isNaN(x.t)).sort((a,b)=>b.t-a.t);
+  const g=[];for(const x of l){const dr=x.d.drucker||"";const k=x.d.korrektur_von?"k":"";
+    let z=g.find(y=>y.drucker===dr&&Math.abs(y.t-x.t)<120000&&y.k===k);if(!z){z={t:x.t,drucker:dr,k,posten:[],aufgabe:"",anlass:""};g.push(z)}
+    z.posten.push(x);if(!z.aufgabe)z.aufgabe=x.d.aufgabe||x.d.task||"";if(!z.anlass)z.anlass=x.d.anlass||""}
+  return g}
+function tag(t){const d=new Date(t),h=new Date();h.setHours(0,0,0,0);const dt=(h-new Date(d).setHours(0,0,0,0))/864e5;
+  return dt===0?"heute":dt===1?"gestern":d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})}
+function anlassTxt(a){a=String(a||"").replace(/\s*\(von Hand zugeordnet\)/,"");return a||"Druck"}
+function block(z,neuAb){const B=book();const knapp=[];
+  const zeilen=z.posten.map(x=>{const d=x.d;
+    if(x.art==="offen")return `<div class="ab-warn"><span>⚠ ${gfmt(d.gramm)} g nicht zugeordnet${d.ort?" ("+esc(d.ort)+")":""}</span><button type="button" class="btn sm" data-act="lgOzu" data-uid="${esc(d.uid)}">Zuordnen</button></div>`;
+    const b=d.uid&&B.bestand?B.bestand(d.uid):null;const g=Number(d.gramm)||0;
+    if(b&&!d.korrektur_von&&!knapp.some(k=>k.uid===d.uid)){if(b.g<=0)knapp.push({uid:d.uid,t:`${d.sorte}: aufgebraucht`});else if(b.g<b.gewicht*.25)knapp.push({uid:d.uid,t:`${d.sorte}: nur noch ${Math.round(b.g)} g`})}
+    return `<div class="ab-p">${ICON_OK}<i style="background:${esc(d.hex||"#999")}"></i><span class="n" title="${esc(d.sorte||"")}">${esc(d.sorte||"?")}</span><span class="g num">${g>=0?"−":"+"}${gfmt(g)} g</span><span class="r">${b?"noch "+rest(b.g):""}</span></div>`}).join("");
+  const neu=neuAb&&z.t>neuAb;const zt=new Date(z.t);
+  const sub=[z.drucker,z.k?"Korrektur":anlassTxt(z.anlass)].filter(Boolean).join(" · ");
+  return `<div class="ab-d"><div class="ab-zeit"><b class="num">${zt.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</b>${tag(z.t)}</div><div class="ab-r">
+    <div class="ab-titel"><span>${esc(z.aufgabe||(z.k?"Verbrauch angepasst":"Druck"))}</span>${neu?'<b class="ab-neu">neu</b>':""}</div>
+    <div class="ab-sub">${esc(sub)}</div>${zeilen}${knapp.map(k=>`<div class="ab-knapp">${esc(k.t)}</div>`).join("")}</div></div>`}
+function html(){const g=gruppen();if(!g)return `<section class="panel ab" id="abu" data-warte="1"><div class="ab-kopf"><h3>Zuletzt abgebucht</h3><span>wird geladen …</span></div></section>`;
+  if(!g.length)return `<section class="panel ab" id="abu"><div class="ab-kopf"><h3>Zuletzt abgebucht</h3></div><div class="ab-leer">Noch nichts abgebucht. Nach dem nächsten Druck steht hier, was von welcher Spule abgezogen wurde.</div></section>`;
+  const h0=new Date();h0.setHours(0,0,0,0);let heute=0;g.forEach(z=>{if(z.t>=h0)z.posten.forEach(x=>{if(x.art==="ab")heute+=Number(x.d.gramm)||0})});
+  const max=alle?40:4;const neuAb=zeitMs(gesehen)||0;
+  return `<section class="panel ab" id="abu" aria-label="Zuletzt abgebucht"><div class="ab-kopf"><h3>Zuletzt abgebucht</h3><span>${heute>0?"heute "+gfmt(heute)+" g":""}</span></div>
+    ${g.slice(0,max).map(z=>block(z,neuAb)).join("")}
+    ${g.length>4?`<button type="button" class="ab-mehr" data-abm="1">${alle?"Weniger anzeigen":"Alle Abbuchungen anzeigen ("+Math.min(g.length,40)+") ›"}</button>`:""}</section>`}
+/* Gesehen merken: wer den Reiter ein paar Sekunden offen hat, hat die neuen Einträge gesehen (das „neu“ bleibt bis zum nächsten Öffnen) */
+function merken(){clearTimeout(markT);markT=setTimeout(()=>{if(S.tab!=="drucke"||document.hidden)return;const g=gruppen();if(!g||!g.length)return;
+  const n=new Date(g[0].t).toISOString();if(n!==gesehen)try{localStorage.setItem(KG,n)}catch(e){}},4000)}
+function after(){merken();if(document.querySelector("#abu[data-warte]")){const B=book();if(B)B.start();warte()}}
+let wt=null;function warte(){if(wt)return;let n=0;wt=setInterval(()=>{n++;const B=book();if(B&&B.ready()||n>40){clearInterval(wt);wt=null;neu()}},300)}
+function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;alt.outerHTML=h}
+document.addEventListener("click",e=>{if(e.target.closest("[data-abm]")){alle=!alle;letzt="";neu()}});
+/* Lageränderungen (auch von anderen Geräten) übernehmen */
+setInterval(()=>{if(S.tab==="drucke"&&!document.hidden)neu()},5000);
+/* Meldung, sobald der Server etwas abbucht */
+let tt=null;
+function meldung(html,ms){let el=document.getElementById("abtoast");if(!el){el=document.createElement("div");el.id="abtoast";el.className="ab-toast";el.setAttribute("role","status");el.addEventListener("click",()=>{el.remove();if(S.tab!=="drucke"){S.tab="drucke";try{LS.set("lasttab","drucke")}catch(x){}render()}setTimeout(()=>{const a=document.getElementById("abu");if(a)a.scrollIntoView({behavior:"smooth",block:"start"})},150)});document.body.appendChild(el)}
+  el.innerHTML=html;clearTimeout(tt);tt=setTimeout(()=>el.remove(),ms||9000)}
+window.addEventListener("sl-abbuchung",e=>{const ev=e.detail||{};const p=Array.isArray(ev.posten)?ev.posten:[];const of=Array.isArray(ev.offen)?ev.offen:[];
+  const kopf=[ev.drucker,ev.aufgabe].filter(Boolean).map(esc).join(" · ");
+  const zeilen=p.map(x=>`${gfmt(x.gramm)} g ${esc(x.sorte)}${x.bestand!=null?", noch "+rest(x.bestand):""}`).concat(of.map(x=>`⚠ ${gfmt(x.gramm)} g nicht zugeordnet${x.ort?" ("+esc(x.ort)+")":""}`));
+  meldung(`<span class="ab-ti">${of.length&&!p.length?"⚠":"✓"}</span><div><b>${p.length?"Abgebucht":of.length?"Nicht abgebucht":"Druck fertig"}</b>${kopf?" · "+kopf:""}<br>${zeilen.length?zeilen.join("<br>"):esc(String(ev.text||"").slice(0,160))}</div>`,12000);
+  setTimeout(()=>{letzt="";neu()},2500);setTimeout(()=>{letzt="";neu()},8000)});
+/* Beim Öffnen: Hinweis auf neue Abbuchungen seit dem letzten Besuch */
+let begruesst=false;
+const pruefe=setInterval(()=>{const B=book();if(!B)return;if(!B.ready()){B.start();return}clearInterval(pruefe);if(begruesst)return;begruesst=true;
+  const g=gruppen()||[];const ab=zeitMs(gesehen);if(!ab){if(g.length)try{localStorage.setItem(KG,new Date(g[0].t).toISOString());gesehen=new Date(g[0].t).toISOString()}catch(e){}return}
+  const neu=g.filter(z=>z.t>ab&&!z.k);if(!neu.length||S.tab==="drucke")return;const sum=neu.reduce((a,z)=>a+z.posten.reduce((b,x)=>b+(x.art==="ab"?Number(x.d.gramm)||0:0),0),0);
+  meldung(`<span class="ab-ti">✓</span><div><b>${neu.length===1?"1 neue Abbuchung":neu.length+" neue Abbuchungen"}</b> seit deinem letzten Besuch<br>zusammen ${gfmt(sum)} g · antippen zum Ansehen</div>`,9000)},1500);
+window.ABU={html,after};
+})();
+</script>
+<style>
+.ab{padding:12px 14px;display:flex;flex-direction:column}
+.ab-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px}
+.ab-kopf h3{margin:0;font-size:15px}.ab-kopf span{font-size:13px;color:var(--fg-3)}
+.ab-leer{font-size:13px;color:var(--fg-3);padding:6px 0 2px}
+.ab-d{display:flex;gap:12px;padding:9px 2px;border-top:1px solid var(--line)}
+.ab-r{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.ab-zeit{flex:none;width:46px;font-size:12.5px;color:var(--fg-3);padding-top:1px}.ab-zeit b{display:block;color:var(--fg);font-size:14px}
+.ab-titel{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;min-width:0}.ab-titel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-neu{font-size:11px;font-weight:600;color:var(--good);border:1px solid var(--good);border-radius:99px;padding:0 6px;flex:none}
+.ab-sub{font-size:12.5px;color:var(--fg-3)}
+.ab-p{display:flex;align-items:center;gap:8px;font-size:13.5px;min-width:0}
+.ab-p i{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.15)}
+.ab-p .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-p .g{font-weight:600}.ab-p .r{color:var(--fg-3);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
+.ab-ok{color:var(--good);flex:none}
+.ab-warn{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--warn,#b45309);background:color-mix(in srgb,var(--warn,#f59e0b) 12%,transparent);border-radius:8px;padding:6px 8px}
+.ab-knapp{font-size:12.5px;color:var(--warn,#b45309)}
+.ab-mehr{margin-top:6px;align-self:center;font:inherit;font-size:13px;background:none;border:0;color:var(--fg-2);cursor:pointer;padding:6px}
+.ab-toast{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;background:#1d2b22;color:#fff;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.45;display:flex;gap:10px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.25);width:min(390px,92vw);cursor:pointer;animation:jlbIn .2s ease-out}
+.ab-toast b{color:#7ee2a0}.ab-ti{padding-top:1px}
+</style>
+<script>
 /* ===== Drucker jetzt: kurze Live-Übersicht oben im Reiter „Druckaufträge“ ===== */
 (function(){
 "use strict";
@@ -2834,7 +2920,7 @@ function render(m){
     <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
       <div class="jseg" role="group" aria-label="Ansicht">${[["liste","Liste"],["kacheln","Kacheln"]].map(([v,t])=>`<button type="button" data-act="jobAnsicht" data-v="${v}" aria-pressed="${ansicht()===v}">${t}</button>`).join("")}</div></div>
     ${sources}
-    ${window.DLIVE?DLIVE.html():""}
+    ${window.DLIVE?DLIVE.html():""}${window.ABU?ABU.html():""}
     ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
@@ -2844,7 +2930,7 @@ function render(m){
       <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
     ${body}${bar}
   </div>`;
-  if(window.DLIVE)DLIVE.after();
+  if(window.DLIVE)DLIVE.after();if(window.ABU)ABU.after();
 }
 function redraw(){if(S.tab!=="drucke")return;const q=$("#job_q");const foc=q&&document.activeElement===q,pos=q?q.selectionStart:0;render();if(foc){const n=$("#job_q");n.focus();n.setSelectionRange(pos,pos)}}
 
@@ -5890,6 +5976,8 @@ const BOOK={ready:()=>!!G.loaded&&(lokal()||srv()||!!window.__hass),start:()=>{s
     if(!hexOk(hex||""))return l.length===1?l[0]:null;let best=null,bd=1e15;l.forEach(e=>{const d=Math.min(...[e.hex,...e.ams_farben].map(x=>dist(x,hex)));if(d<bd){bd=d;best=e}});return bd<=TOL?best:null},
   abbuchen,write:(e,p)=>write(e,p),log:(e,o,g0)=>logVerbrauch(e,Object.assign({},o,{auto:true}),g0),
   /* Abbuchungen aus der Verbrauchsliste (für „Verbrauch anpassen“ in Druckaufträge) */
+  offeneListe:()=>{try{return offen()}catch(x){return []}},
+  bestand(uid){const e=entries().find(x=>x.uid===uid);if(!e)return null;const sp=Math.max(0,e.spulen);const r=e.reste.slice(0,sp);return {g:sp>0?(sp-r.length)*e.gewicht+r.reduce((a,b)=>a+b,0):0,gewicht:e.gewicht}},
   verbrauch:()=>(G.meta||[]).map(i=>{const d=desc(i);return d.typ==="verbrauch"?Object.assign({},d,{_uid:i.uid}):null}).filter(Boolean),
   metaOk:()=>!!G.metaOk,
   /* Nachträglich korrigieren: diff > 0 bucht mehr ab, diff < 0 bucht zurück. Eigener Eintrag „Korrektur“ in der Verbrauchsliste, gleiche Zeit wie die Abbuchung. */

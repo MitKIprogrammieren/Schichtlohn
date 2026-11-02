@@ -69,7 +69,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.6.0"
+VERSION = "3.6.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1495,6 +1495,7 @@ def druck_abbuchen(druckername, erg):
     zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     dt = time.strftime("%d.%m.%Y %H:%M")
     bericht, offen, knapp = [], [], []
+    app_posten, app_offen = [], []  # für die Meldung in der App
     for po in erg["posten"]:
         g = float(po.get("gramm") or 0)
         if g <= 0.05:
@@ -1524,9 +1525,11 @@ def druck_abbuchen(druckername, erg):
                                              "description": json.dumps(log, ensure_ascii=False)})
             bericht.append(f"{it['summary']}: −{_gram(g)} g ({po.get('ort')}), Bestand {int(round(bestand))} g")
             kurz.append(f"{_gram(g)} g {it['summary']}, noch {int(round(bestand))} g")
+            app_posten.append({"sorte": it["summary"], "hex": d.get("hex") or "", "gramm": round(g, 1), "bestand": int(round(bestand))})
         else:
             kurz.append(f"{_gram(g)} g nicht zugeordnet ({po.get('ort')})")
             offen.append(f"{po.get('ort')} ({_gram(g)} g): {grund}")
+            app_offen.append({"gramm": round(g, 1), "ort": po.get("ort") or ""})
             merk = {"typ": "offen", "v": 1, "gramm": round(g, 1), "drucker": druckername, "ort": po.get("ort") or "", "fid": po.get("fid") or "",
                     "farbe": po.get("col") or "", "name": po.get("name") or "", "material": po.get("material") or "", "grund": grund,
                     "anlass": erg["anlass"], "zeit": zeit}
@@ -1554,7 +1557,8 @@ def druck_abbuchen(druckername, erg):
     anteil = erg.get("anteil", 1)
     text = f"{druckername}, {erg['anlass']}{' (%d %%)' % round(anteil * 100) if anteil < 1 else ''}. " + ". ".join(teile)
     print(text, flush=True)
-    melden({"typ": "abbuchung", "drucker": druckername, "text": text})
+    melden({"typ": "abbuchung", "drucker": druckername, "text": text, "aufgabe": erg.get("aufgabe") or "", "anlass": erg["anlass"],
+            "posten": app_posten, "offen": app_offen})
     if fertig:
         fertig_melden(druckername, erg, kurz)
     else:

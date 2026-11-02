@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.6.1 – 02.11.2026
+- Neu: „Zuletzt abgebucht“ unter Druckaufträge. Dort siehst du nach jedem Druck, was von welcher Spule abgezogen wurde und wie viel noch da ist. Nicht zugeordnete Reste kannst du direkt zuordnen.
+- Nach einer Abbuchung kommt in der App eine deutliche Meldung mit Spule, Gramm und Restbestand. Öffnest du die App später, siehst du, wie viele Abbuchungen seitdem dazugekommen sind.
+
 ## 3.6.0 – 02.11.2026
 - Neu: Druckerkameras in „Druckaufträge“ → „Drucker jetzt“. Das Kamerasymbol neben einem Drucker öffnet das Live-Bild, ein Tipp aufs Bild zeigt es im Vollbild. Die Bilder kommen über Home Assistant, damit gehen sie auch unterwegs über Tailscale.
 - Unten im Block stellst du ein, wie oft das Bild kommt: Live, jede Sekunde, alle 2 oder alle 5 Sekunden. Klappt der Live-Strom nicht, kommt automatisch jede Sekunde ein neues Bild.
