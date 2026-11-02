@@ -3955,14 +3955,14 @@ window.LAGER={render,_L:L,status,stateMap,matBadge,logoUrls,logoSlug,darkUI,guar
 #main .fold>.sec-title h2{display:flex;align-items:center;gap:8px}
 #main .fold>.sec-title:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fold>.sec-title .chev{width:16px;height:16px;flex:none;color:var(--fg-3);transition:transform .15s}
-.fold.zu>.sec-title .chev{transform:rotate(-90deg)}
-.fold.zu>:not(.sec-title){display:none!important}
-.fold.zu>.sec-title>:not(h2){display:none!important}
-.fold.zu>.sec-title{margin-bottom:0!important;min-height:0}
-.panel.pad.fold.zu{padding-top:12px;padding-bottom:12px}
-.panel.pad.fold.zu.stack{gap:0}
-[data-skin="bambu"] .panel.pad.fold.zu{padding-top:16px;padding-bottom:0}
-[data-skin="bambu"] .panel.pad.fold.zu>.sec-title:first-child{margin-bottom:0!important;border-bottom:0;border-radius:var(--r)}
+.fold.zu:not(.eb-detail *)>.sec-title .chev{transform:rotate(-90deg)}
+.fold.zu:not(.eb-detail *)>:not(.sec-title){display:none!important}
+.fold.zu:not(.eb-detail *)>.sec-title>:not(h2){display:none!important}
+.fold.zu:not(.eb-detail *)>.sec-title{margin-bottom:0!important;min-height:0}
+.panel.pad.fold.zu:not(.eb-detail *){padding-top:12px;padding-bottom:12px}
+.panel.pad.fold.zu:not(.eb-detail *).stack{gap:0}
+[data-skin="bambu"] .panel.pad.fold.zu:not(.eb-detail *){padding-top:16px;padding-bottom:0}
+[data-skin="bambu"] .panel.pad.fold.zu:not(.eb-detail *)>.sec-title:first-child{margin-bottom:0!important;border-bottom:0;border-radius:var(--r)}
 </style>
 <script>
 /* ===== Einstellungen: Abschnitte einklappbar, Zustand je Gerät gemerkt ===== */
@@ -6803,7 +6803,7 @@ window.__einOrdnen=ordnen;ordnen()})();</script>
 #main>.stack>.eb-weg{display:none!important}
 #main>.stack:not(.eb-detail)>[data-eb]{display:none!important}
 /* im Bereich: Abschnitte immer offen, ohne Klapp-Pfeil */
-.eb-detail .fold.zu>:not(.sec-title){display:revert!important}.eb-detail .fold.zu>.sec-title>:not(h2){display:revert!important}
+
 .eb-detail .fold>.sec-title .chev{display:none}.eb-detail .fold>.sec-title{cursor:default}
 .ebk-hulle{padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
 @media (max-width:420px){.eb-kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-k{padding:12px}}
@@ -6873,8 +6873,8 @@ body.rx-einfach #mbar{display:none!important}
 [data-skin="bambu"] #main .panel.pad{padding:14px 16px}
 [data-skin="bambu"] #main .panel.pad>:is(h2,.row,.sec-title):first-child{margin:0 0 10px;padding:0;min-height:0;background:none;border:0;border-radius:0}
 [data-skin="bambu"] #main .panel.pad>h2:first-child,[data-skin="bambu"] #main .panel>:is(.row,.sec-title):first-child h2{font:700 12px/1.5 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
-[data-skin="bambu"] #main .panel.pad.fold.zu{padding:14px 16px}
-[data-skin="bambu"] #main .panel.pad.fold.zu>.sec-title:first-child{margin-bottom:0!important}
+[data-skin="bambu"] #main .panel.pad.fold.zu:not(.eb-detail *){padding:14px 16px}
+[data-skin="bambu"] #main .panel.pad.fold.zu:not(.eb-detail *)>.sec-title:first-child{margin-bottom:0!important}
 [data-skin="bambu"] #main .fold>.sec-title .chev{color:var(--accent)}
 [data-skin="bambu"] #main .seg{border-radius:10px}
 [data-skin="bambu"] #main .seg button{border-radius:8px}
