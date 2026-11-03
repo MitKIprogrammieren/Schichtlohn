@@ -1964,6 +1964,35 @@ def archiv_info():
     return {"anzahl": anzahl, "mb": round(groesse / 1048576)}
 
 
+def archiv_liste():
+    """Alle gesicherten Druckdateien mit den Angaben aus dem Druckerspeicher (Titel, Zeit, Gramm, Bild) – auch die,
+    die auf dem Drucker längst gelöscht sind."""
+    sp, _ = daten_lesen(SPEICHER_KEY)
+    sp = sp if isinstance(sp, dict) else {}
+    out = []
+    if not os.path.isdir(DRUCKDATEIEN):
+        return out
+    for serial in sorted(os.listdir(DRUCKDATEIEN)):
+        ordner = os.path.join(DRUCKDATEIEN, serial)
+        if not os.path.isdir(ordner):
+            continue
+        info = sp.get(serial) or {}
+        meta = {os.path.basename(f.get("pfad") or ""): f for f in info.get("dateien") or [] if isinstance(f, dict)}
+        for name in os.listdir(ordner):
+            if not name.lower().endswith(".3mf"):
+                continue
+            pf = os.path.join(ordner, name)
+            m = meta.get(name) or {}
+            st = os.stat(pf)
+            out.append({"serial": serial, "drucker": info.get("drucker") or serial, "name": name,
+                        "titel": m.get("titel") or re.sub(r"(\.gcode)?\.3mf$", "", name, flags=re.I),
+                        "groesse": st.st_size, "zeit": m.get("zeit") or st.st_mtime, "minuten": m.get("minuten") or 0,
+                        "gramm": m.get("gramm") or 0, "filamente": m.get("filamente") or [], "bild_id": m.get("bild_id") or "",
+                        "auf_drucker": bool(m)})
+    out.sort(key=lambda x: -(x["zeit"] or 0))
+    return out
+
+
 def drucke_importieren(neu):
     alt, _ = daten_lesen(DRUCKE_KEY)
     liste = [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
@@ -2792,6 +2821,17 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile == ["drucke", "archiv"] and methode == "GET":
+            return self._json(200, {"dateien": archiv_liste(), "archiv": archiv_info()})
+        if teile == ["drucke", "datei", "loeschen"] and methode == "POST":
+            k = self._json_rumpf()
+            serial = re.sub(r"[^A-Z0-9]", "", str(k.get("serial") or "").upper())
+            name = os.path.basename(str(k.get("name") or ""))
+            pf = os.path.join(DRUCKDATEIEN, serial, name)
+            if not serial or not name.lower().endswith(".3mf") or not os.path.exists(pf):
+                raise Fehler(404, "Druckdatei nicht gesichert")
+            os.remove(pf)
+            return self._json(200, {"ok": True, "archiv": archiv_info()})
         if len(teile) == 4 and teile[:2] == ["drucke", "datei"] and methode == "GET":
             serial = re.sub(r"[^A-Z0-9]", "", teile[2].upper())
             name = os.path.basename(unquote(teile[3]))

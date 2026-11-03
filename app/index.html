@@ -2491,6 +2491,8 @@ function zustaende(){const h=window.__hass&&window.__hass.states;const z=window.
 /* Zugeklappte AMS je Drucker (pro Gerät gemerkt) */
 const ZK="sl_ams_zu";const ZU=new Set((()=>{try{return JSON.parse(localStorage.getItem(ZK)||"[]")}catch(e){return []}})());
 const zuMerken=()=>{try{localStorage.setItem(ZK,JSON.stringify([...ZU]))}catch(e){}};
+/* Eingeklappt-Merker am Druckernamen festmachen: die Kennung wechselt je nach Quelle (Home Assistant: Geräte-ID, Server: Sensor-Präfix) */
+const zk=d=>"n:"+String(d.name||d.key||"").trim().toLowerCase();
 const PFEIL='<svg class="dl-pf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 function amsDaten(pre){const Z=zustaende(),re=new RegExp("^sensor\\."+pre.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"_(?:ams_(\\d+)_slot_(\\d+)|externalspool(\\d*)_externe_spule)$");
   const gr={};let n=0;for(const id of Object.keys(Z)){const m=id.match(re);if(!m)continue;const a=(Z[id]||{}).attributes||{};
@@ -2554,10 +2556,10 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],
   catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}});
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.rl){e.preventDefault();e.target.click()}});
 function unten(d,lauf){rollenHolen();const A=amsDaten(d.pre),kam=OFFEN.has(d.key);if(!A.namen.length&&!kam)return "";
-  const zu=ZU.has(d.key)&&A.namen.length>0;
+  const zu=(ZU.has(zk(d))||ZU.has(d.key))&&A.namen.length>0;
   const kamH=kam?`<div class="dl-kam" data-kam="${esc(d.key)}" data-pre="${esc(d.pre)}"><img alt="Kamera ${esc(d.name)}" data-dkv="${esc(d.key)}"><span class="dl-klade">Kamera wird verbunden …</span><span class="dl-live">${modus()==="live"?"Live":"alle "+modus()+" s"}</span></div>`:"";
   const einh=A.namen.reduce((s,g)=>s+(g==="AMS HT"?A.gr[g].l.length:1),0)-(A.gr.Extern?1:0);
-  const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b><span>${einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
+  const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(zk(d))}" data-dzalt="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b><span>${einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
   const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${esc(g)}${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:""}</div><div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div></div>`}).join("")}</div>`;
   return `<div class="dl-unten">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamH}</div></div>`}
 const ICON_KAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>';
@@ -2597,7 +2599,7 @@ function kVoll(key){const box=document.querySelector(`#dlive .dl-kam[data-kam="$
 function kZu(){if(!voll)return;const v=voll;voll=null;kStop(v.el.querySelector(".dl-kam"));v.el.remove();
   const box=document.querySelector(`#dlive .dl-kam[data-kam="${CSS.escape(v.key)}"]`);if(box)kStart(box)}
 document.addEventListener("click",e=>{const t=e.target.closest("[data-dk],[data-dkm],[data-dkv],[data-dkz],[data-dz]");if(!t)return;
-  if(t.dataset.dz){const k=t.dataset.dz;if(ZU.has(k))ZU.delete(k);else ZU.add(k);zuMerken();letzt="";neu();return}
+  if(t.dataset.dz){const k=t.dataset.dz,alt=t.dataset.dzalt;if(ZU.has(k)||(alt&&ZU.has(alt))){ZU.delete(k);if(alt)ZU.delete(alt)}else ZU.add(k);zuMerken();letzt="";neu();return}
   if(t.dataset.dkz){e.preventDefault();return kZu()}
   if(t.dataset.dkv){e.preventDefault();return kVoll(t.dataset.dkv)}
   if(t.dataset.dkm){try{localStorage.setItem(KM,t.dataset.dkm)}catch(x){}document.querySelectorAll("[data-dkm]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.dkm===t.dataset.dkm)));kAlle();return}
@@ -2885,7 +2887,7 @@ function fromSpeicher(serial,dr,f){const t=f.zeit?new Date(f.zeit*1000):null;
 async function loadSrv(force){
   if(!(S.srv&&window.SRV)||J.srvLoading)return;if(!force&&J.srvAt&&Date.now()-J.srvAt<60000)return;
   J.srvLoading=true;J.srvErr="";redraw();
-  try{const d=await SRV.req("GET","/api/drucke");J.srv=(d.drucke||[]).map(fromSrv);J.speicherInfo=d.speicher||{};J.srvLaeuft=!!d.laeuft;
+  try{const d=await SRV.req("GET","/api/drucke");J.srv=(d.drucke||[]).map(fromSrv);J.speicherInfo=d.speicher||{};J.srvLaeuft=!!d.laeuft;J.speicherAnz=(d.archiv&&d.archiv.anzahl)||0;
     J.speicher=[];for(const [sn,x] of Object.entries(d.speicher||{}))(x.dateien||[]).forEach(f=>{if(!f.fehler)J.speicher.push(fromSpeicher(sn,x.drucker||sn,f))});J.srvAt=Date.now()}
   catch(e){J.srvErr=e.status===404?"Braucht Server-Version 3.3":String(e&&e.message||e)}
   J.srvLoading=false;redraw();
@@ -3027,7 +3029,7 @@ function render(m){
   const printers=[...new Set(list.map(j=>j.printer).filter(Boolean))].sort();
   const sources=`<div class="jsrc">
     ${isHa?`<span class="chip">${J.haLoading?"Druckprotokoll lädt…":J.haErr?`<span class="bad">Druckprotokoll: ${esc(J.haErr)}</span>`:`Druckprotokoll HA · ${J.ha.length}`}</span>`:(S.srv?"":`<span class="chip" title="Das Druckprotokoll schreibt Home Assistant bei jedem Druckende">Druckprotokoll: nur mit Home Assistant</span>`)}
-    ${S.srv?`<span class="chip" title="Jeder Druck, den der SchichtLohn-Server enden sieht, plus Importe aus Spooly">${J.srvLoading&&!J.srv.length?"Druckprotokoll lädt…":J.srvErr?`<span class="bad">Druckprotokoll: ${esc(J.srvErr)}</span>`:`Druckprotokoll · ${J.srv.length}`}</span>${J.speicher.length?`<span class="chip" title="Druckdateien im Speicher der Drucker">${J.srvLaeuft?"Druckerspeicher wird gelesen…":`Druckerspeicher · ${J.speicher.length}`}</span>`:""}`:""}
+    ${S.srv?`<span class="chip" title="Jeder Druck, den der SchichtLohn-Server enden sieht, plus Importe aus Spooly">${J.srvLoading&&!J.srv.length?"Druckprotokoll lädt…":J.srvErr?`<span class="bad">Druckprotokoll: ${esc(J.srvErr)}</span>`:`Druckprotokoll · ${J.srv.length}`}</span>${J.speicher.length?`<span class="chip" title="Druckdateien im Speicher der Drucker">${J.srvLaeuft?"Druckerspeicher wird gelesen…":`Druckerspeicher · ${J.speicher.length}`}</span>`:""}<button type="button" class="btn sm dmk" data-dm="auf" title="Alle gesicherten Druckdateien (.3mf) auf dem Server">${window.DMGR?DMGR.ICON:""} Dateien${J.speicherAnz?` · ${J.speicherAnz}`:""}</button>`:""}
     ${a?`<span class="chip cl">${J.cloudLoading?"Bambu-Cloud lädt…":J.cloudErr?`<span class="bad">Bambu-Cloud: ${esc(J.cloudErr)}</span>`:`Bambu-Cloud · ${J.cloud.length}`}</span>`:`<button class="btn sm" data-act="bbLogin">${ICON.link} Bambu-Cloud verbinden</button>`}
     ${window.CRE?CRE.chipHTML():""}
   </div>`;
@@ -7441,6 +7443,81 @@ body.rx-einfach #mbar{display:none!important}
 .lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal,.lgef-schimmer .lgfx-glanz{animation:lgSchimmer 3.6s ease-in-out infinite;animation-delay:var(--lgd,0ms)}
 @keyframes lgSchimmer{0%,100%{opacity:.35}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.lgef-leucht svg,.lgstern,.lgef-glitzer .lgfx-glit,.lgef-schimmer .lgfx-silk,.lgef-schimmer .lgfx-metal,.lgef-schimmer .lgfx-glanz{animation:none}.lgstern{display:none}.lgef-leucht svg{filter:drop-shadow(0 0 2.5px var(--lgglow))}}
+</style>
+<script>
+/* ===== Druckdateien: alle .3mf, die der Server aus dem Speicher der Drucker gesichert hat ===== */
+(function(){
+"use strict";
+const ICON='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const I_LADEN='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>';
+const I_WEG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+const D={l:null,info:null,q:"",dr:"",sort:"neu",n:120,fehler:"",weg:""};
+const mb=b=>b>=1073741824?(b/1073741824).toLocaleString("de-DE",{maximumFractionDigits:1})+" GB":b>=1048576?(b/1048576).toLocaleString("de-DE",{maximumFractionDigits:1})+" MB":Math.max(1,Math.round(b/1024))+" KB";
+const datum=t=>t?new Date(t*1000).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
+const dauer=m=>m>=60?Math.floor(m/60)+" h"+(m%60?" "+String(m%60).padStart(2,"0")+" min":""):m+" min";
+const tok=()=>SRV.token()?"?token="+encodeURIComponent(SRV.token()):"";
+const datUrl=f=>SRV.url()+"/api/drucke/datei/"+encodeURIComponent(f.serial)+"/"+encodeURIComponent(f.name)+tok();
+const bildUrl=id=>id?SRV.url()+"/api/drucke/bild/"+encodeURIComponent(id)+tok():"";
+function gefiltert(){let l=(D.l||[]).slice();const q=D.q.trim().toLowerCase();
+  if(D.dr)l=l.filter(f=>f.serial===D.dr);
+  if(q)l=l.filter(f=>(f.titel+" "+f.name+" "+f.drucker+" "+(f.filamente||[]).map(m=>m.typ).join(" ")).toLowerCase().includes(q));
+  if(D.sort==="gross")l.sort((a,b)=>b.groesse-a.groesse);else if(D.sort==="name")l.sort((a,b)=>a.titel.localeCompare(b.titel,"de",{numeric:true}));else if(D.sort==="alt")l.sort((a,b)=>a.zeit-b.zeit);
+  return l}
+function zeile(f){const mats=(f.filamente||[]).slice(0,8);const k=f.serial+"/"+f.name;
+  const sub=[f.drucker,datum(f.zeit),f.minuten?dauer(f.minuten):"",f.gramm?N0.format(Math.round(f.gramm))+" g":""].filter(Boolean).join(" · ");
+  return `<div class="dm-z">
+    <div class="dm-b">${f.bild_id?`<img src="${esc(bildUrl(f.bild_id))}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON}</div>
+    <div class="dm-t"><b title="${esc(f.name)}">${esc(f.titel)}</b><span>${esc(sub)}</span>
+      <div class="dm-m">${mats.map(m=>`<i style="background:${esc(m.farbe||"#888")}" title="${esc((m.typ||"")+" · "+N1.format(m.gramm||0)+" g")}"></i>`).join("")}${f.auf_drucker?"":`<em>nicht mehr auf dem Drucker</em>`}</div></div>
+    <div class="dm-r"><small class="num">${mb(f.groesse)}</small><div>
+      <a class="btn icon ghost sm" href="${esc(datUrl(f))}" download="${esc(f.name)}" title="Herunterladen" aria-label="${esc(f.titel)} herunterladen">${I_LADEN}</a>
+      <button type="button" class="btn icon ghost sm dm-weg${D.weg===k?" sicher":""}" data-dm="weg" data-k="${esc(k)}" title="${D.weg===k?"Nochmal tippen zum Löschen":"Vom Server löschen"}" aria-label="${esc(f.titel)} löschen">${D.weg===k?"Löschen?":I_WEG}</button></div></div></div>`}
+function inhalt(){
+  if(D.fehler)return `<p class="hint" style="color:var(--bad)">${esc(D.fehler)}</p>`;
+  if(!D.l)return `<p class="hint">Dateien werden geladen …</p>`;
+  if(!D.l.length)return `<p class="hint">Noch keine Druckdateien gesichert. Der Server liest den Speicher der Drucker alle paar Stunden und sichert jede neue .3mf.</p>`;
+  const l=gefiltert(),dr=[...new Map(D.l.map(f=>[f.serial,f.drucker])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  const summe=l.reduce((a,f)=>a+f.groesse,0);
+  return `<div class="dm-k"><input type="search" id="dm_q" placeholder="Datei, Drucker oder Material suchen" value="${esc(D.q)}" aria-label="Suchen">
+    <div class="dm-f"><select id="dm_dr" aria-label="Drucker"><option value="">Alle Drucker</option>${dr.map(([s,n])=>`<option value="${esc(s)}"${D.dr===s?" selected":""}>${esc(n)} (${D.l.filter(f=>f.serial===s).length})</option>`).join("")}</select>
+    <select id="dm_sort" aria-label="Sortierung">${[["neu","Neueste zuerst"],["alt","Älteste zuerst"],["gross","Größte zuerst"],["name","Name A–Z"]].map(([v,t])=>`<option value="${v}"${D.sort===v?" selected":""}>${t}</option>`).join("")}</select></div>
+    <div class="dm-s"><span>${N0.format(l.length)} ${l.length===1?"Datei":"Dateien"} · ${mb(summe)}</span><span>gespeichert auf dem SchichtLohn-Server</span></div></div>
+    <div class="dm-l" id="dm_l">${l.slice(0,D.n).map(zeile).join("")}${l.length>D.n?`<button type="button" class="btn ghost sm" data-dm="mehr" style="align-self:center;margin:8px 0">Weitere ${N0.format(Math.min(120,l.length-D.n))} anzeigen</button>`:""}${!l.length?`<p class="hint">Nichts gefunden.</p>`:""}</div>`}
+function neu(){const el=document.getElementById("dm_in");if(!el)return;const fo=document.activeElement&&document.activeElement.id==="dm_q",pos=fo?document.activeElement.selectionStart:0;
+  el.innerHTML=inhalt();if(fo){const q=document.getElementById("dm_q");q.focus();try{q.setSelectionRange(pos,pos)}catch(e){}}}
+async function laden(){D.fehler="";try{const d=await SRV.req("GET","/api/drucke/archiv");D.l=d.dateien||[];D.info=d.archiv}catch(e){D.fehler=e.status===404?"Braucht Server-Version 3.8.3 – bitte den SchichtLohn-Server aktualisieren.":String(e&&e.message||e)}neu()}
+function auf(){D.n=120;D.weg="";modal("Druckdateien",`<div id="dm_in">${inhalt()}</div>`);const m=document.querySelector("#modal .modal");if(m)m.classList.add("plwide","dm");laden()}
+document.addEventListener("click",async e=>{const t=e.target.closest&&e.target.closest("[data-dm]");if(!t)return;const a=t.dataset.dm;
+  if(a==="auf"){e.preventDefault();auf();return}
+  if(a==="mehr"){D.n+=120;neu();return}
+  if(a==="weg"){const k=t.dataset.k;if(D.weg!==k){D.weg=k;neu();clearTimeout(D.wt);D.wt=setTimeout(()=>{if(D.weg===k){D.weg="";neu()}},4000);return}
+    D.weg="";const i=k.indexOf("/"),serial=k.slice(0,i),name=k.slice(i+1);
+    try{await SRV.req("POST","/api/drucke/datei/loeschen",{serial,name});D.l=D.l.filter(f=>!(f.serial===serial&&f.name===name));toast("Datei gelöscht")}catch(x){toast("Löschen ging nicht: "+(x&&x.message||x))}neu()}});
+document.addEventListener("input",e=>{if(e.target.id==="dm_q"){D.q=e.target.value;D.n=120;neu()}});
+document.addEventListener("change",e=>{if(e.target.id==="dm_dr"){D.dr=e.target.value;D.n=120;neu()}else if(e.target.id==="dm_sort"){D.sort=e.target.value;neu()}});
+window.DMGR={ICON,auf};
+})();
+</script>
+<style>
+.dmk svg{vertical-align:-3px}
+.modal.dm .mb{gap:10px}
+.dm-k{display:flex;flex-direction:column;gap:8px;position:sticky;top:-16px;background:var(--solid);padding:4px 0 8px;z-index:2;border-bottom:1px solid var(--line)}
+.dm-f{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dm-s{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--fg-3)}
+.dm-l{display:flex;flex-direction:column}
+.dm-z{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.dm-b{width:52px;height:52px;border-radius:10px;background:var(--bg-2,rgba(255,255,255,.04));display:grid;place-items:center;overflow:hidden;color:var(--fg-3)}
+.dm-b img{width:100%;height:100%;object-fit:contain}
+.dm-t{min-width:0;display:flex;flex-direction:column;gap:2px}
+.dm-t b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-t span{font-size:12.5px;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-m{display:flex;align-items:center;gap:4px;min-height:12px}
+.dm-m i{width:10px;height:10px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
+.dm-m em{font-style:normal;font-size:11px;color:var(--fg-3);margin-left:4px}
+.dm-r{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.dm-r small{font-size:11.5px;color:var(--fg-3)}
+.dm-r>div{display:flex;gap:2px}
+.dm-weg.sicher{color:var(--bad);width:auto;padding:0 8px;font-size:12px}
 </style>
 </body>
 </html>
