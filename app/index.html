@@ -2391,7 +2391,9 @@ function block(z,neuAb){const B=book();const knapp=[];
     if(b&&!d.korrektur_von&&!knapp.some(k=>k.uid===d.uid)){if(b.g<=0)knapp.push({uid:d.uid,t:`${d.sorte}: aufgebraucht`});else if(b.g<b.gewicht*.25)knapp.push({uid:d.uid,t:`${d.sorte}: nur noch ${Math.round(b.g)} g`})}
     return `<div class="ab-p">${ICON_OK}<i style="background:${esc(d.hex||"#999")}"></i><span class="n" title="${esc(d.sorte||"")}">${esc(d.sorte||"?")}</span><span class="g num">${g>=0?"−":"+"}${gfmt(g)} g</span><span class="r">${b?"noch "+rest(b.g):""}</span></div>`}).join("");
   const neu=neuAb&&z.t>neuAb;const zt=new Date(z.t);
-  const sub=[z.drucker,z.k?"Korrektur":anlassTxt(z.anlass)].filter(Boolean).join(" · ");
+  /* Abgebrochen/übersprungen: abgebucht wird nur der gedruckte Teil – die Menge laut Datei steht daneben */
+  const ab=z.posten.filter(x=>x.art==="ab"),gAb=ab.reduce((a,x)=>a+(Number(x.d.gramm)||0),0),gDat=ab.reduce((a,x)=>a+(Number(x.d.gramm_datei)||Number(x.d.gramm)||0),0);
+  const sub=[z.drucker,z.k?"Korrektur":anlassTxt(z.anlass),!z.k&&gDat>gAb+.05?`${gfmt(gAb)} von ${gfmt(gDat)} g`:""].filter(Boolean).join(" · ");
   return `<div class="ab-d"><div class="ab-zeit"><b class="num">${zt.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</b>${tag(z.t)}</div><div class="ab-r">
     <div class="ab-titel"><span>${esc(z.aufgabe||(z.k?"Verbrauch angepasst":"Druck"))}</span>${neu?'<b class="ab-neu">neu</b>':""}</div>
     <div class="ab-sub">${esc(sub)}</div>${zeilen}${knapp.map(k=>`<div class="ab-knapp">${esc(k.t)}</div>`).join("")}</div></div>`}
@@ -2717,7 +2719,7 @@ window.DLIVE={html,after};
 .job .sw{display:inline-flex;gap:3px;vertical-align:-2px}
 .job .sw i{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
 .job .right{text-align:right;font-size:13px;color:var(--fg-2);white-space:nowrap}
-.job .right b{display:block;font-size:15px;color:var(--fg)}.jinfo{min-width:0}
+.job .right b{display:block;font-size:15px;color:var(--fg)}.job .right small{display:block;font-size:11px;color:var(--fg-3)}.jinfo{min-width:0}
 /* Handy: Bild links mit Auswahl-Häkchen darauf, Titel bis zwei Zeilen, Gewicht und Zeit darunter; Filter als ruhiges Raster */
 nav.tabs .tabico{display:none}
 @media (max-width:620px){
@@ -2873,7 +2875,7 @@ function fromSrv(d){
   if(!mats.length&&num(d.gramm)>0)mats.push({g:r2(num(d.gramm)),type:"",color:"",filament_id:"",name:""});
   return {key:"s:"+d.id,src:"srv",herkunft:d.herkunft||"server",task:String(d.task||""),title:d.titel||"Druck",printer:d.drucker||"",serial:String(d.serial||"").toUpperCase(),
     start:d.start||"",end:d.ende||"",minutes:num(d.minuten)>0&&num(d.minuten)<20000?Math.round(num(d.minuten)):0,failed,progress:num(d.fortschritt),
-    grams:r2(mats.reduce((a,m)=>a+m.g,0)),mats,cover:d.bild?srvBild(d.bild):(d.bild_url||"")};
+    grams:r2(mats.reduce((a,m)=>a+m.g,0)),gramsFull:r2(num(d.gramm_datei)),mats,cover:d.bild?srvBild(d.bild):(d.bild_url||"")};
 }
 /* Druckdateien im Speicher der Drucker: Druck geplant/gesendet, Gramm und Zeit laut Datei */
 function fromSpeicher(serial,dr,f){const t=f.zeit?new Date(f.zeit*1000):null;
@@ -3043,7 +3045,7 @@ function render(m){
         <div class="jkb">${j.cover?`<img src="${esc(j.cover)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON.cube}
           <span class="jkd">${esc(j.printer||"?")}</span>${j.failed?`<span class="jkx">abgebrochen${j.progress?` ${N0.format(j.progress)} %`:""}</span>`:""}
           <span class="jks">${j.mats.slice(0,6).map(m=>`<i style="background:${esc(m.color||"#888")}"></i>`).join("")}</span><span class="jkh${sel?" an":""}" aria-hidden="true">${sel?"✓":""}</span>${j.cover?`<button type="button" class="jkz" data-act="jobBild" data-key="${esc(j.key)}" title="Groß anzeigen" aria-label="Bild groß anzeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m20 20-5-5M10.5 8v5M8 10.5h5"/></svg></button>`:""}</div>
-        <div class="jkt"><b title="${esc(j.title)}">${esc(j.title)}</b><div><span>${j.minutes?dur(j.minutes):"–"}</span><span class="num">${g(j.grams)}</span></div>
+        <div class="jkt"><b title="${esc(j.title)}">${esc(j.title)}</b><div><span>${j.minutes?dur(j.minutes):"–"}</span><span class="num">${j.gramsFull>j.grams?`${N0.format(Math.round(j.grams))} <small>von ${g(j.gramsFull)}</small>`:g(j.grams)}</span></div>
           ${u?`<small>${esc(u)}</small>`:j.done?`<small>übernommen</small>`:j.src==="srv"&&j.herkunft==="spooly"?`<small>Spooly</small>`:j.src==="speicher"?`<small>Druckerspeicher</small>`:""}</div></div>`;continue}
       html+=`<div class="job${sel?" sel":""}${u||j.done?" used":""}" data-act="jobToggle" data-key="${esc(j.key)}" tabindex="0" role="checkbox" aria-checked="${sel}">
         <input type="checkbox" ${sel?"checked":""} aria-label="${esc(j.title)} auswählen" tabindex="-1">
@@ -3055,7 +3057,7 @@ function render(m){
             ${j.skip?`<span class="chip warn">${j.skip} Teil${j.skip>1?"e":""} übersprungen</span>`:""}${j.korr?`<span class="chip">angepasst</span>`:""}
             ${j.src==="ha"?`<span class="chip">Protokoll</span>`:""}${j.src==="srv"?`<span class="chip">${j.herkunft==="spooly"?"Spooly":"Protokoll"}</span>`:""}${j.src==="speicher"?`<span class="chip" title="Datei im Druckerspeicher – Gramm und Zeit laut Datei">Druckerspeicher</span>`:""}${j.src==="cloud"||j.cloud?`<span class="chip cl">Cloud</span>`:""}${j.src==="creality"?`<span class="chip cl">Creality</span>${window.CRE&&CRE.istGebucht(j.key)?`<span class="chip">im Lager abgebucht</span>`:""}`:""}
             ${u?`<span class="chip">${esc(u)}</span>`:j.done?`<span class="chip">übernommen</span>`:""}</div></div>
-        <div class="right"><b class="num">${g(j.grams)}</b>${j.minutes?dur(j.minutes):"–"}</div></div>`}
+        <div class="right"><b class="num">${g(j.grams)}</b>${j.gramsFull>j.grams?`<small class="num">von ${g(j.gramsFull)}</small>`:""}${j.minutes?dur(j.minutes):"–"}</div></div>`}
     body=`<div${kach?' class="jkg"':""}>${html}</div>${vis.length>400?`<div class="hint">Die ersten 400 von ${vis.length} werden gezeigt. Grenze mit Suche oder Drucker ein.</div>`:""}
       ${a&&(J.more||J.alle)&&J.src!=="ha"?`<div class="row" style="margin-top:8px"><span class="sp"></span>${J.alle?`<span class="hint">Lade die ganze Druckhistorie … ${J.cloud.length}${J.total?" von "+J.total:""}</span>`:`<button class="btn ghost sm" data-act="jobMore">100 ältere laden</button><button class="btn sm" data-act="jobAlle">Alle laden${J.total>J.cloud.length?` (noch ${J.total-J.cloud.length})`:""}</button>`}<span class="sp"></span></div>`:""}`}
   const selJ=list.filter(j=>J.sel.has(j.key));

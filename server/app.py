@@ -1686,6 +1686,9 @@ def druck_abbuchen(druckername, erg):
                    "task": erg.get("task") or "", "aufgabe": erg.get("aufgabe") or ""}
             if rolle is not None:
                 log["rolle_g"] = rolle
+            gd = float(po.get("gramm_datei") or 0)
+            if gd > g + 0.05:  # abgebrochen oder Teile übersprungen: Gesamtmenge laut Datei mitschreiben
+                log["gramm_datei"] = round(gd, 1)
             if erg.get("uebersprungen"):
                 log["uebersprungen"] = erg["uebersprungen"]
                 log["skip_genau"] = bool(erg.get("skip_genau"))
@@ -1889,10 +1892,13 @@ def druck_merken(dr, name, erg, vorschau=None):
                "abgebrochen": erg.get("anlass") != "Druck fertig", "fortschritt": round((erg.get("anteil") or 1) * 100),
                "quelle": erg.get("quelle") or "", "uebersprungen": erg.get("uebersprungen") or 0,
                "filamente": [{"gramm": po.get("gramm") or 0, "farbe": po.get("col") or "", "typ": po.get("material") or "",
-                              "name": po.get("name") or "", "ort": po.get("ort") or "", "fid": po.get("fid") or ""}
+                              "name": po.get("name") or "", "ort": po.get("ort") or "", "fid": po.get("fid") or "",
+                              **({"gramm_datei": po["gramm_datei"]} if (po.get("gramm_datei") or 0) > (po.get("gramm") or 0) + 0.05 else {})}
                              for po in erg.get("posten") or [] if (po.get("gramm") or 0) > 0],
                "bild": _bild_speichern(did, vorschau), "bild_url": erg.get("bild") or ""}
     eintrag["gramm"] = round(sum(f["gramm"] for f in eintrag["filamente"]), 2)
+    if any(f.get("gramm_datei") for f in eintrag["filamente"]):
+        eintrag["gramm_datei"] = round(sum(f.get("gramm_datei") or f["gramm"] for f in eintrag["filamente"]), 2)
     alt, _ = daten_lesen(DRUCKE_KEY)
     liste = [eintrag] + [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
     daten_schreiben(DRUCKE_KEY, liste[:DRUCKE_MAX])

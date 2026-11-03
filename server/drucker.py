@@ -897,7 +897,7 @@ class Drucker:
             out = []
             for fi, f in zuordnen(datei, fl):
                 fk = faktoren.get(fi["id"], anteil) if faktoren else anteil
-                out.append({"gramm": round(fi["gramm"] * fk, 2), "gramm_voll": round(fi["gramm"] * anteil, 2), "ort": f["ort"] if f else "Druckdatei",
+                out.append({"gramm": round(fi["gramm"] * fk, 2), "gramm_voll": round(fi["gramm"] * anteil, 2), "gramm_datei": round(fi["gramm"], 2), "ort": f["ort"] if f else "Druckdatei",
                             "fid": (f["fid"] if f and f["fid"] else fi["fid"]), "col": (f["farbe"] if f and f["farbe"] else fi["farbe"]),
                             "name": f["name"] if f else "", "material": (f["typ"] if f else fi["typ"])})
             return out, "Druckdatei"
@@ -915,7 +915,7 @@ class Drucker:
                         if g <= 0:
                             continue
                         f = nach_global.get(_int(m.get("ams"), -1))
-                        out.append({"gramm": round(g * anteil, 2), "ort": f["ort"] if f else "AMS",
+                        out.append({"gramm": round(g * anteil, 2), "gramm_datei": round(g, 2), "ort": f["ort"] if f else "AMS",
                                     "fid": (f["fid"] if f and f["fid"] else str(m.get("filamentId") or "")),
                                     "col": (f["farbe"] if f and f["farbe"] else _farbe(m.get("sourceColor") or m.get("targetColor"))),
                                     "name": f["name"] if f else "", "material": f["typ"] if f else str(m.get("filamentType") or "")})
