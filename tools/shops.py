@@ -10,7 +10,7 @@ import os
 import re
 import sys
 
-MATERIALIEN = ["PLA+", "PLA", "PETG", "PCTG", "PET", "ABS", "ASA", "TPU", "TPE", "PA12", "PA6", "PA", "PC", "PP", "PVA", "HIPS", "PVB", "PPS", "PEEK", "PEI", "PPA", "NYLON"]
+MATERIALIEN = ["PLA+", "PLA", "PETG", "PCTG", "PET", "ABS", "ASA", "TPU", "TPE", "PA12", "PA6", "PA", "PC", "PP", "PVA", "HIPS", "PVB", "PPS", "PEEK", "PEI", "PPA", "NYLON", "CPE", "PHA", "PMMA", "POM", "PVC", "HDPE", "PEKK", "PVDF"]
 EAN = re.compile(r"^\d{13}$")
 
 
@@ -30,6 +30,9 @@ def gewicht(*texte):
         if mn:
             n = int(mn.group(1))
         m = re.search(r"(\d+(?:\.\d+)?)\s*kg\b", t)
+        mx = re.search(r"kg\s*[x×]\s*(\d{1,3})\b", t)  # Anycubic: „1 kg × 50“
+        if m and mx and n == 1:
+            n = int(mx.group(1))
         if m:
             return int(round(float(m.group(1)) * 1000)) * n
         m = re.search(r"(\d{2,4})\s*g\b", t)
@@ -51,7 +54,11 @@ def material(t):
 def ist_filament(titel, typ=""):
     t = (titel + " " + typ).lower()
     if any(w in t for w in ("protection", "versicherung", "adapter", "platine", "düse", "nozzle", "druckplatte", "bauplatte", "swatch",
-                            "farbplättchen", "gutschein", "gift card", "dryer", "trockner", "bundle", "combo", "box", "set ", "duo", "trio")):
+                            "farbplättchen", "gutschein", "gift card", "dryer", "trockner", "bundle", "combo", "box", "set ", "duo", "trio",
+                            "plate", "platte", "sheet", "filament hub", "schneider", "cutter", "leerrolle", "masterspool",
+                            "beutel", "bags", "klebestift", "sensor", "schläuche", "schlauch")):
+        return False
+    if ("resin" in t or "harz" in t) and "filament" not in t:  # Harz für SLA-Drucker („ABS-Like Resin“)
         return False
     return bool(material(titel)) or "filament" in t
 
@@ -95,6 +102,8 @@ def shopify(shop, cfg, daten):
         opts = [o.get("name", "").lower() for o in p.get("options") or []]
         for v in p.get("variants") or []:
             vt = v.get("title") or ""
+            if re.search(r"resin|harz", vt, re.I):
+                continue
             werte = [v.get("option1"), v.get("option2"), v.get("option3")]
             if shop == "sunlu":  # nur Ware aus dem EU-Lager
                 if "europe" not in vt.lower() and "-eu-" not in (v.get("sku") or "").lower():
@@ -144,7 +153,7 @@ def woo(shop, cfg, daten):
         else:
             attr = str(va or "")
         farbe = ""
-        m = re.search(r"Farbe[^:]*:\s*([^,]+)", attr)
+        m = re.search(r"(?:Farbe|Colou?r)[^:]*:\s*([^,]+)", attr)
         if m:
             farbe = m.group(1)
         if not farbe:  # Filamentworld: „… – PLA Filament – Turkey Egg – 1.75 mm …“
@@ -242,6 +251,8 @@ def seiten(shop, cfg, daten):
                 continue
             p["preis"] = round(p["preis"] / kurse[cur], 2)
         name = p.get("name") or ""
+        if re.search(r"\d+\s*x\s+\w+\s+\d+\s*x", name, re.I):  # Mischpakete „5x hvid 5x sort“
+            continue
         if not ist_filament(name) or re.search(r"2[.,]85|\b3[.,]00?\s*mm", name + " " + p["url"]):
             continue
         gw = gewicht(_gw(name))
@@ -263,6 +274,15 @@ def seiten(shop, cfg, daten):
     return out
 
 
+DA_FARBEN = {"sort": "Schwarz", "hvid": "Weiß", "rød": "Rot", "blå": "Blau", "grøn": "Grün", "gul": "Gelb", "grå": "Grau", "lilla": "Lila",
+             "brun": "Braun", "sølv": "Silber", "guld": "Gold", "lyserød": "Rosa", "mørkegrå": "Dunkelgrau", "lysegrå": "Hellgrau",
+             "mørkeblå": "Dunkelblau", "lyseblå": "Hellblau", "mørkegrøn": "Dunkelgrün", "lysegrøn": "Hellgrün", "klar": "Transparent", "natur": "Natur"}
+
+
+def da_farbe(f):
+    return " ".join(DA_FARBEN.get(w.lower(), w) for w in str(f or "").split())
+
+
 def alle(roh, shops):
     zeilen = []
     for k, cfg in shops.items():
@@ -272,6 +292,11 @@ def alle(roh, shops):
         daten = json.load(open(pfad, encoding="utf-8"))
         f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl, "seiten": seiten}[cfg["art"]]
         z = f(k, cfg, daten)
+        if cfg.get("nur_mit_material"):  # Hersteller- und Händlershops mit viel Zubehör: nur eindeutige Filamente
+            z = [x for x in z if x["material"]]
+        if cfg.get("sprache") == "da":
+            for x in z:
+                x["farbe"] = da_farbe(x["farbe"])
         for x in z:
             x["shopname"] = cfg["name"]
         zeilen += z
