@@ -3,6 +3,11 @@ name: Shopdaten roh holen
 # Zum Prüfen: holt die Produktlisten und Logos der Herstellershops und legt sie im Zweig „shopdaten“ ab.
 on:
   workflow_dispatch:
+    inputs:
+      shops:
+        description: "Nur diese Shops (Komma-getrennt, leer = alle)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -12,8 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/shops_roh.py tools/shops.json /tmp/roh
-      - run: python3 tools/logos_holen.py tools/logo_quellen.json /tmp/roh/logos
+      - env:
+          NUR: ${{ inputs.shops }}
+        run: python3 tools/shops_roh.py tools/shops.json /tmp/roh "$NUR"
+      - if: ${{ inputs.shops == '' }}
+        run: python3 tools/logos_holen.py tools/logo_quellen.json /tmp/roh/logos
       - name: In den Zweig shopdaten legen
         run: |
           cd /tmp/roh
