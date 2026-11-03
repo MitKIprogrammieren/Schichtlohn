@@ -409,7 +409,9 @@ const SRV=window.SRV=(()=>{
     wg:SVG('<path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/>'),
     db:SVG('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>'),
     app:SVG('<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>'),
-    um:SVG('<path d="M4 12h13"/><path d="m13 7 5 5-5 5"/><path d="M20 4v16"/>')};
+    um:SVG('<path d="M4 12h13"/><path d="m13 7 5 5-5 5"/><path d="M20 4v16"/>'),
+    zg:SVG('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+    cl:SVG('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>')};
   const karte=(ic,titel,rechts,inhalt,klasse="")=>`<div class="srvk ${klasse}"><div class="srvh"><span class="srvi">${ic}</span><h3>${titel}</h3><span class="sp"></span>${rechts||""}</div>${inhalt}</div>`;
   function html(){const u=url(),t=token();const I=S.srvInfo||{};
     const wo=I.ha_app?"läuft als Home-Assistant-App":window.__SL_SRV?"läuft auf diesem Server":esc(u);
@@ -430,6 +432,8 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
+        ${karte(IC.zg,"Zugang",`<span class="chip" id="srv_zgchip">…</span>`,`<div id="srv_zugang"><p>wird geprüft …</p></div>`)}
+        ${karte(IC.cl,"Claude",`<span class="chip" id="srv_mcpchip">…</span>`,`<div id="srv_mcp"><p>wird geprüft …</p></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
         ${karte(IC.app,"Druckprotokoll",`<button class="btn sm" data-act="srvSpeicher" title="Druckdateien aller Drucker mit IP-Adresse jetzt auslesen">Druckerspeicher lesen</button>`,`<p id="srv_druckinfo">wird geprüft …</p><div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn sm" style="cursor:pointer">Spooly-Datei importieren<input type="file" id="srv_spooly" accept=".json,application/json" hidden></label><button class="btn sm ghost" data-act="srvSpoolyWeg" title="Alle aus Spooly übernommenen Drucke wieder entfernen">Spooly-Import entfernen</button><span id="srv_spooly_msg" class="hint" style="align-self:center"></span></div><div class="hint">Der Server schreibt jeden Druck mit, den er enden sieht – egal ob aus Bambu Studio oder über die Cloud gestartet. Ältere Drucke kannst du aus Spooly übernehmen: auf spooly.eu die Druckaufträge als Datei sichern und hier auswählen.</div>`)}
         ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb" title="Neueste Filament-Datenbank auf den Server holen">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
@@ -454,8 +458,34 @@ const SRV=window.SRV=(()=>{
     try{if(!window.SPOOLY)throw new Error("Der Reiter „Druckaufträge“ ist ausgeschaltet – unter Einstellungen → Reiter einschalten.");if(!S.srv)throw new Error("Keine Verbindung zum SchichtLohn-Server"+(S.srvFehler?": "+S.srvFehler:"")+".");
       const r=await SPOOLY.importieren(f);zeig(`✓ ${r.uebernommen.toLocaleString("de-DE")} Drucke aus Spooly übernommen (${r.neu.toLocaleString("de-DE")} neu). Du findest sie unter „Druckaufträge“.`);druckInfo()}
     catch(x){console.error("Spooly-Import",x);zeig(`<span style="color:var(--bad)">Import fehlgeschlagen: ${esc(x&&x.message||String(x))}</span>`)}});
-  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();druckInfo();drLaden()},50)});
-  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();druckInfo();drLaden()}},1500);
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();druckInfo();drLaden();zugangInfo();mcpInfo()},50)});
+  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();druckInfo();drLaden()}const z=document.getElementById("srv_zugang");if(z&&z.textContent==="wird geprüft …"){zugangInfo();mcpInfo()}},1500);
+  /* Zugang: App-Schlüssel des Servers setzen, erzeugen, ausschalten (wird auf dem Server gespeichert, gilt für alle Geräte) */
+  const zgChip=(t,farbe)=>{const c=document.getElementById("srv_zgchip");if(c){c.textContent=t;c.style.color=farbe}};
+  async function zugangInfo(neu){const el=document.getElementById("srv_zugang");if(!el)return;let d;
+    try{d=await req("GET","/api/zugang")}catch(e){el.innerHTML=`<p>Braucht Server-Version 3.7.1 (${esc(e.message||e)}).</p>`;zgChip("–","");return}
+    if(d.quelle==="umgebung"){zgChip("geschützt","var(--good)");el.innerHTML=`<p>Der Schlüssel ist in der Konfiguration eingetragen – ${(S.srvInfo||{}).ha_app?"in Home Assistant bei der App „SchichtLohn-Server“ (Feld <code>token</code>)":"als <code>TOKEN</code> in der docker-compose.yml"} – und wird dort geändert.</p>`;return}
+    if(neu){zgChip("geschützt","var(--good)");el.innerHTML=`<p>Neuer Schlüssel – jetzt kopieren und auf den anderen Geräten eintragen. Er wird nur dieses eine Mal ganz angezeigt.</p>
+      <div class="srvcopy"><code id="srv_zgneu">${esc(neu)}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_zgneu">Kopieren</button></div>
+      <div class="hint">Wo eintragen: SchichtLohn auf iPhone und Mac fragt beim nächsten Öffnen danach (Einstellungen → SchichtLohn-Server → Schlüssel). Waage: als Token. Dieses Gerät ist schon angemeldet.</div>`;return}
+    if(!d.aktiv){zgChip("offen","var(--warn)");el.innerHTML=`<p>Kein Schlüssel: Jeder im Heimnetz kann SchichtLohn öffnen und ändern.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-act="srvZgErz">Schlüssel erzeugen</button><button class="btn sm ghost" data-act="srvZgEigen">Eigenen eintragen</button></div>
+      <div id="srv_zgform" hidden class="srvcopy" style="margin-top:8px"><input type="text" id="srv_zgin" placeholder="mindestens 8 Zeichen" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvZgSetzen">Speichern</button></div>`;return}
+    zgChip("geschützt","var(--good)");const seit=d.seit?new Date(d.seit).toLocaleDateString("de-DE"):"";
+    el.innerHTML=`<p>Schlüssel aktiv${seit?" seit "+esc(seit):""}. Dieses Gerät ist angemeldet.</p>
+      <div class="srvcopy"><code id="srv_zgwert">${esc(d.maske)}</code><button class="btn sm ghost" data-act="srvZgAnz">Anzeigen</button></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvZgNeu">Neu erzeugen</button><button class="btn sm ghost" data-act="srvZgAus">Ausschalten</button></div>`}
+  async function zugangAendern(body){const d=await req("POST","/api/zugang",body);lss(K_TOK,d.token||"");
+    if(es){try{es.close()}catch(x){}es=null;esOk=false}ereignisse();if(S.srvInfo)S.srvInfo.token=!!d.token;return d}
+  /* Claude (MCP): Adresse mit eigenem Schlüssel; unter Home Assistant die direkte Adresse im Heimnetz, nicht die Ingress-Adresse */
+  async function mcpInfo(){const el=document.getElementById("srv_mcp");if(!el)return;let d;
+    try{d=await req("GET","/api/mcp")}catch(e){el.innerHTML=`<p>Braucht Server-Version 3.7.0 (${esc(e.message||e)}).</p>`;return}
+    const I=S.srvInfo||{};const basis=I.ha_app?`http://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname)?location.hostname:"IP-VON-HOME-ASSISTANT"}:8093`:url().replace(/\/api\/hassio_ingress\/.*$/,"");
+    const c=document.getElementById("srv_mcpchip");if(c)c.textContent=(d.werkzeuge||[]).length+" Werkzeuge";
+    el.innerHTML=`<p>Mit dieser Adresse arbeitet Claude direkt mit deinem Lager: suchen, Sorten anlegen und ändern, Verbrauch buchen, Drucker und Druckprotokoll abfragen.</p>
+      <div class="srvcopy"><code id="srv_mcpadr" style="word-break:break-all">${esc(basis+d.pfad)}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_mcpadr">Kopieren</button></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm ghost" data-act="srvMcpNeu">Neue Adresse</button></div>
+      <div class="hint">In Claude: Einstellungen → Konnektoren → Eigenen Konnektor hinzufügen. Für claude.ai und das Handy muss die Adresse aus dem Internet erreichbar sein (z. B. über Tailscale Funnel). Wer die Adresse kennt, kann dein Lager ändern.</div>`}
   /* App von der Synology */
   async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
       el.innerHTML=(d.vorhanden?`Stand ${esc(d.stand)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server.")+esc(autoText(d.auto))}
@@ -548,6 +578,14 @@ const SRV=window.SRV=(()=>{
         if(!n){msg(r.geraete&&r.geraete.length?"Alle Drucker aus der Cloud sind schon eingetragen.":"In der Bambu-Cloud sind keine Drucker gebunden.");return}
         einstSpeichern({drucker:l},`✓ ${n} Drucker aus der Bambu-Cloud übernommen (Verbindung über die Cloud). Unter „Bearbeiten“ kannst du auf Heimnetz umstellen – IP eintragen, der Zugangscode ist schon da.`)}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
+    if(a==="srvZgErz"){b.disabled=true;try{const d=await zugangAendern({aktion:"erzeugen"});zugangInfo(d.token)}catch(x){toast("Fehler: "+(x.message||x));b.disabled=false}return}
+    if(a==="srvZgEigen"){const f=document.getElementById("srv_zgform");if(f){f.hidden=false;const i=document.getElementById("srv_zgin");if(i)i.focus()}return}
+    if(a==="srvZgSetzen"){const v=((document.getElementById("srv_zgin")||{}).value||"").trim();if(v.length<8){toast("Der Schlüssel braucht mindestens 8 Zeichen");return}
+      try{const d=await zugangAendern({aktion:"setzen",token:v});zugangInfo(d.token)}catch(x){toast("Fehler: "+(x.message||x))}return}
+    if(a==="srvZgAnz"){try{const d=await req("GET","/api/zugang?voll=1");const el=document.getElementById("srv_zgwert");if(el&&d.token){el.textContent=d.token;b.textContent="Kopieren";b.dataset.act="srvKopie";b.dataset.ziel="srv_zgwert"}}catch(x){toast("Fehler: "+(x.message||x))}return}
+    if(a==="srvZgNeu"){confirmBox("Neuen Schlüssel erzeugen? Der alte gilt danach nicht mehr – alle anderen Geräte (iPhone, Mac, Waage) brauchen den neuen.","Neu erzeugen",async()=>{try{const d=await zugangAendern({aktion:"erzeugen"});zugangInfo(d.token)}catch(x){toast("Fehler: "+(x.message||x))}});return}
+    if(a==="srvZgAus"){confirmBox("Schlüssel ausschalten? Danach kann jeder im Heimnetz SchichtLohn öffnen und ändern.","Ausschalten",async()=>{try{await zugangAendern({aktion:"aus"});zugangInfo()}catch(x){toast("Fehler: "+(x.message||x))}});return}
+    if(a==="srvMcpNeu"){confirmBox("Neue Claude-Adresse erzeugen? Die alte funktioniert danach nicht mehr, der Konnektor in Claude muss die neue bekommen.","Neue Adresse",async()=>{try{await req("POST","/api/mcp",{neu:true});mcpInfo()}catch(x){toast("Fehler: "+(x.message||x))}});return}
     if(a==="srvKopie"){const el=document.getElementById(b.dataset.ziel);const tx=el?el.textContent:"";try{await navigator.clipboard.writeText(tx);toast("Kopiert: "+tx)}catch(x){toast(tx)}return}
     if(a==="srvUmzug"){const q=((document.getElementById("srv_umzug")||{}).value||"").trim();if(!q){toast("Adresse des alten Servers fehlt");return}
       confirmBox(`Alles von ${q} hierher holen? Was auf diesem Server liegt, wird ersetzt.`,"Daten holen",async()=>{msg("Hole die Daten …");

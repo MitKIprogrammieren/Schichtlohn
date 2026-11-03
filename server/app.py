@@ -70,10 +70,39 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.7.0"
+VERSION = "3.7.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
-TOKEN = os.environ.get("TOKEN", "").strip()
+TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
+ZUGANG_KEY = "_zugang"   # in der App gesetzter Schlüssel, falls keiner aus der Umgebung kommt
+_zugang_cache = {"t": None}
+
+
+def token_aktuell():
+    """Gültiger App-Schlüssel: der aus der Umgebung hat Vorrang, sonst der in der App gesetzte, sonst keiner."""
+    if TOKEN_UMGEBUNG:
+        return TOKEN_UMGEBUNG
+    if _zugang_cache["t"] is None:
+        try:
+            w, _ = daten_lesen(ZUGANG_KEY)
+        except Exception:
+            w = None
+        _zugang_cache["t"] = str((w or {}).get("token") or "") if isinstance(w, dict) else ""
+    return _zugang_cache["t"]
+
+
+def zugang_setzen(token):
+    if token:
+        daten_schreiben(ZUGANG_KEY, {"token": token, "seit": time.strftime("%Y-%m-%dT%H:%M:%S")}, "zugang")
+    else:
+        daten_schreiben(ZUGANG_KEY, {"token": "", "seit": time.strftime("%Y-%m-%dT%H:%M:%S")}, "zugang")
+    _zugang_cache["t"] = token or ""
+
+
+def zugang_erzeugen():
+    import secrets
+    abc = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"  # ohne leicht verwechselbare Zeichen
+    return "-".join("".join(secrets.choice(abc) for _ in range(4)) for _ in range(4))
 MAX_BILD = 15 * 1024 * 1024
 MAX_JSON = 32 * 1024 * 1024
 MAX_SEITE = int(os.environ.get("MAX_SEITE", "1600"))
@@ -1597,6 +1626,8 @@ def umzug(quelle, token=""):
         liste_ersetzen(name, items)
         out["listen"][name] = len(items)
     for k, w in (s.get("daten") or {}).items():
+        if k == ZUGANG_KEY:  # der neue Server behält seinen eigenen App-Schlüssel
+            continue
         if k == EINST_KEY and isinstance(w, dict) and HA_APP:
             w.setdefault("ha", {})
         daten_schreiben(k, w, "umzug")
@@ -2224,13 +2255,15 @@ class Handler(BaseHTTPRequestHandler):
         return u.path.rstrip("/") or "/", parse_qs(u.query)
 
     def _darf(self, q):
-        if not TOKEN:
+        tok = token_aktuell()
+        if not tok:
             return True
         t = self.headers.get("X-Token") or (q.get("token") or [""])[0]
         a = self.headers.get("Authorization") or ""
         if a.lower().startswith("bearer "):
             t = t or a[7:].strip()
-        return t == TOKEN
+        import hmac
+        return hmac.compare_digest(str(t or ""), tok)
 
     def _senden(self, code, body, typ, cache="no-cache"):
         if isinstance(body, str):
@@ -2308,7 +2341,7 @@ class Handler(BaseHTTPRequestHandler):
         pfad, q = self._pfad()
         if pfad in ("/", "/status") and methode == "GET":
             return self._json(200, {"ok": True, "dienst": "schichtlohn-server", "version": VERSION, "datenbank": True,
-                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(TOKEN), "zugang": self._darf(q), "app": web.app_info(WEB).get("vorhanden", False), "drucker": len(BAMBU.drucker), "ha_app": HA_APP})
+                                    "etikett": OCR_AN, "lernen": os.path.exists(MERKMAL_MODELL), "filamentdb": fdb_info().get("stand"), "lesemodell": ("standard" if os.environ.get("LESEMODELL") == "standard" or not os.path.exists(os.path.join(MODELLE, "ocr_rec.onnx")) else "genau" if os.environ.get("LESEMODELL") == "genau" else "auto (Foto schnell, Ausschnitt genau)"), "token": bool(token_aktuell()), "token_quelle": "umgebung" if TOKEN_UMGEBUNG else ("app" if token_aktuell() else ""), "zugang": self._darf(q), "app": web.app_info(WEB).get("vorhanden", False), "drucker": len(BAMBU.drucker), "ha_app": HA_APP})
         if pfad == "/lesen" and methode == "POST":
             t0 = time.time()
             print(f"Foto empfangen ({self.headers.get('Content-Length') or self.headers.get('Transfer-Encoding') or '?'} Byte) …", flush=True)
@@ -2332,6 +2365,31 @@ class Handler(BaseHTTPRequestHandler):
         if not self._darf(q):
             raise Fehler(401, "Falscher oder fehlender Schlüssel")
         teile = [unquote(x) for x in pfad.split("/")[2:]]
+        if teile == ["zugang"] and methode == "GET":
+            w, _ = daten_lesen(ZUGANG_KEY)
+            tok = token_aktuell()
+            return self._json(200, {"quelle": "umgebung" if TOKEN_UMGEBUNG else ("app" if tok else ""), "aktiv": bool(tok),
+                                    "seit": (w or {}).get("seit") if isinstance(w, dict) and not TOKEN_UMGEBUNG and tok else None,
+                                    "maske": (tok[:4] + "-••••-••••-••••") if tok and not TOKEN_UMGEBUNG else "",
+                                    "token": tok if tok and not TOKEN_UMGEBUNG and (q.get("voll") or [""])[0] == "1" else None})
+        if teile == ["zugang"] and methode == "POST":
+            if TOKEN_UMGEBUNG:
+                raise Fehler(409, "Der Schlüssel ist in der Konfiguration eingetragen (Home Assistant: Feld token, sonst TOKEN in docker-compose) und wird dort geändert")
+            b = self._json_rumpf()
+            aktion = b.get("aktion")
+            if aktion == "erzeugen":
+                neu = zugang_erzeugen()
+            elif aktion == "setzen":
+                neu = str(b.get("token") or "").strip()
+                if len(neu) < 8 or len(neu) > 200 or not re.fullmatch(r"[\w.\-~+=]+", neu):
+                    raise Fehler(400, "Der Schlüssel braucht mindestens 8 Zeichen (Buchstaben, Ziffern, - . _ ~ + =)")
+            elif aktion == "aus":
+                neu = ""
+            else:
+                raise Fehler(400, "aktion: erzeugen, setzen oder aus")
+            zugang_setzen(neu)
+            print("Zugang: Schlüssel " + ("geändert" if neu else "ausgeschaltet"), flush=True)
+            return self._json(200, {"ok": True, "aktiv": bool(neu), "token": neu or None})
         if teile == ["mcp"] and methode in ("GET", "POST"):
             neu = methode == "POST" and bool(self._json_rumpf().get("neu"))
             return self._json(200, {"pfad": "/mcp/" + mcp_schluessel(neu), "neu": neu,
@@ -2698,7 +2756,7 @@ class Handler(BaseHTTPRequestHandler):
     def _mcp(self, methode, pfad, q):
         import hmac
         teil = pfad[5:]
-        ok = (bool(teil) and hmac.compare_digest(teil, mcp_schluessel())) or (bool(TOKEN) and self._darf(q))
+        ok = (bool(teil) and hmac.compare_digest(teil, mcp_schluessel())) or (bool(token_aktuell()) and self._darf(q))
         if not ok:
             raise Fehler(401, "MCP: Adresse mit Schlüssel verwenden (in SchichtLohn unter Einstellungen → SchichtLohn-Server)")
         if methode != "POST":  # kein Ereignisstrom: Antworten kommen direkt auf den POST
@@ -2752,7 +2810,7 @@ class Server(ThreadingHTTPServer):
 
 if __name__ == "__main__":
     db()
-    print(f"SchichtLohn-Server {VERSION} · Port {PORT} · Datenbank {DB_PFAD} · Schlüssel {'an' if TOKEN else 'aus'}", flush=True)
+    print(f"SchichtLohn-Server {VERSION} · Port {PORT} · Datenbank {DB_PFAD} · Schlüssel {'an' if token_aktuell() else 'aus'}", flush=True)
     if OCR_AN:
         threading.Thread(target=ocr, daemon=True).start()  # Modell im Hintergrund laden
     # Als Hauptprozess im Container reagiert Python nicht von selbst auf „Stopp“ (SIGTERM) – sauber beenden

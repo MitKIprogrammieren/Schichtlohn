@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.7.1 – 03.11.2026
+- Neu in den Einstellungen unter „SchichtLohn-Server“: die Karte „Zugang“. Dort erzeugst du einen Schlüssel für den Server, trägst einen eigenen ein oder schaltest ihn wieder aus – ohne Umweg über Home Assistant. Der Schlüssel bleibt bei Updates erhalten und wird nur auf Knopfdruck neu erzeugt.
+- Neu: die Karte „Claude“ mit der Adresse zum Kopieren, mit der Claude direkt mit deinem Lager arbeitet.
+- Beim Umzug von einem anderen Server behält der neue Server seinen eigenen Schlüssel.
+
 ## 3.7.0 – 03.11.2026
 - Neu: Claude kann direkt mit SchichtLohn arbeiten. Über eine eigene Adresse fragt Claude dein Lager, die Drucker, das Druckprotokoll und den Verbrauch ab, legt Sorten an, ändert Druckwerte, Preise oder Bestand und bucht Verbrauch ab. Löschen geht nur in der App.
 - Die Adresse enthält einen geheimen Schlüssel. Wer sie kennt, kann das Lager ändern – also nicht weitergeben.
