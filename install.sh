@@ -1,7 +1,7 @@
 #!/bin/sh
 # SchichtLohn-Installer – Synology (Container Manager), Raspberry Pi oder jeder Linux-Rechner mit Docker.
 #
-#   curl -fsSL https://schichtlohn.pages.dev/install.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/install.sh | sudo sh
 #
 # Legt einen Ordner „schichtlohn“ an (Synology: im Freigabeordner „docker“, sonst /opt/schichtlohn), schreibt docker-compose.yml,
 # startet den SchichtLohn-Server (auf Wunsch mit Tailscale für den Zugriff von unterwegs und Tailscale Funnel nur für die
