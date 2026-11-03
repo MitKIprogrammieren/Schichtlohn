@@ -174,6 +174,56 @@ def wix(shop, cfg, daten):
     return out
 
 
+def _gw(t):
+    """„1.000 g“ → „1000 g“, damit gewicht() die Tausenderpunkte nicht falsch liest."""
+    return re.sub(r"(\d)\.(\d{3})\b", r"\1\2", str(t or ""))
+
+
+def plenty(shop, cfg, daten):
+    """3D Prima: je Ausführung Name, Hersteller, Farbe, Gewicht, Preis (deutsch), EAN."""
+    out = []
+    for p in daten:
+        if p.get("fehler") or not p.get("preis") or (p.get("waehrung") or "EUR") != "EUR" or p.get("verkaufbar") is False:
+            continue
+        name, var = p.get("name") or "", p.get("variante") or ""
+        if not ist_filament(name):
+            continue
+        if re.search(r"2[.,]85|3[.,]0?\s*mm|\b3\s*mm", (p.get("dicke") or "") + " " + var):
+            continue
+        gw = gewicht(_gw(p.get("gewicht")), _gw(var), _gw(name))
+        if gw and gw < 200:
+            continue
+        marke = p.get("marke") or name.split()[0]
+        titel = name + (" – " + p["farbe"] if p.get("farbe") else "")
+        out.append(zeile(shop, marke, titel, p.get("farbe") or "", gw, "refill" in (name + " " + var).lower(),
+                         float(p["preis"]), float(p["normal"]) if p.get("normal") else None, p.get("url") or "", p.get("ean") or "", str(p.get("id") or "")))
+    return out
+
+
+def jtl(shop, cfg, daten):
+    """iGo3D: ein Produkt mit allen Farben zum selben Preis → eine Zeile je Farbe."""
+    out = []
+    for p in daten:
+        if p.get("fehler") or not p.get("preis") or (p.get("waehrung") or "EUR") != "EUR":
+            continue
+        name = p.get("name") or ""
+        if not ist_filament(name) or re.search(r"2[.,]85\s*mm|\b3[.,]00?\s*mm", name):
+            continue
+        gw = gewicht(_gw(name))
+        if gw and gw < 200:
+            continue
+        marke = p.get("marke") or ""
+        if not marke:  # Händler mit vielen Marken: Marke = Titelanfang bis zum Material
+            m = material(name)
+            marke = re.split(rf"\s+{re.escape(m)}\b", name, maxsplit=1, flags=re.I)[0].strip() if m else name.split()[0]
+        refill = bool(re.search(r"refill|ohne spule", name, re.I))
+        farben = p.get("farben") or [""]
+        for f in farben:
+            out.append(zeile(shop, marke, name + (" – " + f if f else ""), f, gw, refill, float(p["preis"]),
+                             float(p["normal"]) if p.get("normal") else None, p["url"], p.get("ean") if len(farben) == 1 else ""))
+    return out
+
+
 def alle(roh, shops):
     zeilen = []
     for k, cfg in shops.items():
@@ -181,7 +231,7 @@ def alle(roh, shops):
         if not os.path.exists(pfad):
             continue
         daten = json.load(open(pfad, encoding="utf-8"))
-        f = {"shopify": shopify, "woo": woo, "wix": wix}[cfg["art"]]
+        f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl}[cfg["art"]]
         z = f(k, cfg, daten)
         for x in z:
             x["shopname"] = cfg["name"]
