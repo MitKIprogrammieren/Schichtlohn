@@ -1972,6 +1972,10 @@ def archiv_liste():
     out = []
     if not os.path.isdir(DRUCKDATEIEN):
         return out
+    namen = {str(d.get("serial") or "").upper(): d.get("name") or drucker_mod.MODELL_NAMEN.get(drucker_mod.modell_aus_serie(d.get("serial")), "")
+             for d in einstellungen().get("drucker") or []}
+    for s_ in os.listdir(DRUCKDATEIEN):
+        namen.setdefault(s_, drucker_mod.MODELL_NAMEN.get(drucker_mod.modell_aus_serie(s_), ""))
     for serial in sorted(os.listdir(DRUCKDATEIEN)):
         ordner = os.path.join(DRUCKDATEIEN, serial)
         if not os.path.isdir(ordner):
@@ -1984,13 +1988,104 @@ def archiv_liste():
             pf = os.path.join(ordner, name)
             m = meta.get(name) or {}
             st = os.stat(pf)
-            out.append({"serial": serial, "drucker": info.get("drucker") or serial, "name": name,
+            out.append({"serial": serial, "drucker": info.get("drucker") or namen.get(serial) or serial, "name": name,
                         "titel": m.get("titel") or re.sub(r"(\.gcode)?\.3mf$", "", name, flags=re.I),
                         "groesse": st.st_size, "zeit": m.get("zeit") or st.st_mtime, "minuten": m.get("minuten") or 0,
                         "gramm": m.get("gramm") or 0, "filamente": m.get("filamente") or [], "bild_id": m.get("bild_id") or "",
                         "auf_drucker": bool(m)})
     out.sort(key=lambda x: -(x["zeit"] or 0))
     return out
+
+
+_MODELL_IDS = {}  # printer_model_id aus den 3MF → Modell, gelernt aus dem Archiv (jede Datei liegt im Ordner des Druckers, der sie gedruckt hat)
+
+
+def modell_ids_lernen():
+    if _MODELL_IDS.get("_fertig"):
+        return _MODELL_IDS
+    if os.path.isdir(DRUCKDATEIEN):
+        for serial in os.listdir(DRUCKDATEIEN):
+            ordner = os.path.join(DRUCKDATEIEN, serial)
+            if not os.path.isdir(ordner):
+                continue
+            m = drucker_mod.modell_aus_serie(serial)
+            for name in sorted(os.listdir(ordner))[:12]:
+                try:
+                    with open(os.path.join(ordner, name), "rb") as f:
+                        mid = drucker_mod.modell_id(f.read())
+                except OSError:
+                    continue
+                if mid:
+                    _MODELL_IDS.setdefault(mid, set()).add(m)
+    _MODELL_IDS["_fertig"] = True
+    return _MODELL_IDS
+
+
+def archiv_datei(serial, name):
+    serial = re.sub(r"[^A-Z0-9]", "", str(serial or "").upper())
+    name = os.path.basename(str(name or ""))
+    pf = os.path.join(DRUCKDATEIEN, serial, name)
+    if not serial or not name.lower().endswith(".3mf") or not os.path.exists(pf):
+        raise Fehler(404, "Druckdatei nicht gesichert")
+    with open(pf, "rb") as f:
+        return serial, name, f.read()
+
+
+def senden_pruefen(serial, name):
+    """Für den Dialog „An Drucker senden“: Platten der Datei, passende Drucker und Vorschlag, welches Fach welches Filament druckt."""
+    serial, name, daten = archiv_datei(serial, name)
+    mid, platten = drucker_mod.datei_platten(daten)
+    ids = modell_ids_lernen()
+    herkunft = drucker_mod.modell_aus_serie(serial)
+    erlaubt = set(ids.get(mid) or ()) or {herkunft}
+    drucker = []
+    for dr in BAMBU.drucker.values():
+        modell = drucker_mod.modell_aus_serie(dr.serial, dr.d.get("modell") or "")
+        fl = drucker_mod.faecher(dr.p)
+        vorschlag = {}
+        for pl in platten:
+            z = []
+            for fi, f in drucker_mod.zuordnen([x for x in pl["filamente"] if x["gramm"] > 0], fl):
+                ok = bool(f) and (not fi["typ"] or f["typ"].upper() == fi["typ"].upper())
+                z.append({"id": fi["id"], "typ": fi["typ"], "farbe": fi["farbe"], "gramm": fi["gramm"],
+                          "fach": f["global"] if f else None, "ort": f["ort"] if f else "", "fach_typ": f["typ"] if f else "",
+                          "fach_farbe": f["farbe"] if f else "", "fach_name": f["name"] if f else "", "ok": ok})
+            vorschlag[pl["platte"]] = z
+        drucker.append({"serial": dr.serial, "name": dr.info()["name"] or dr.serial, "modell": modell, "online": dr.online,
+                        "status": str(dr.p.get("gcode_state") or ""), "lan": bool(dr.d.get("ip") and dr.d.get("code")),
+                        "passt": modell in erlaubt, "faecher": [{"global": f["global"], "ort": f["ort"], "typ": f["typ"], "farbe": f["farbe"],
+                                                                  "name": f["name"]} for f in fl if not f["leer"]],
+                        "vorschlag": vorschlag})
+    drucker.sort(key=lambda d: (not d["passt"], d["serial"] != serial, d["name"]))
+    return {"name": name, "serial": serial, "modell_id": mid, "platten": platten, "drucker": drucker}
+
+
+def senden(k):
+    serial, name, daten = archiv_datei(k.get("serial"), k.get("name"))
+    dr = BAMBU.drucker.get(str(k.get("ziel") or "").strip())
+    if not dr:
+        raise Fehler(404, "Drucker nicht gefunden")
+    if not (dr.d.get("ip") and dr.d.get("code")):
+        raise Fehler(409, "Für diesen Drucker fehlen IP-Adresse und Zugangscode (Heimnetz) – ohne die kann SchichtLohn keine Datei hochladen")
+    mid = drucker_mod.modell_id(daten)
+    erlaubt = set(modell_ids_lernen().get(mid) or ()) or {drucker_mod.modell_aus_serie(serial)}
+    if drucker_mod.modell_aus_serie(dr.serial, dr.d.get("modell") or "") not in erlaubt and not k.get("trotzdem"):
+        raise Fehler(409, "Die Datei ist für ein anderes Druckermodell geslict")
+    starten = bool(k.get("starten"))
+    if starten and str(dr.p.get("gcode_state") or "").upper() in drucker_mod.LAUFEND:
+        raise Fehler(409, "Der Drucker druckt gerade")
+    ziel = name if name.lower().endswith(".gcode.3mf") else re.sub(r"\.3mf$", ".gcode.3mf", name, flags=re.I)
+    ok, text = drucker_mod.hochladen(dr.d["ip"], dr.d["code"], ziel, daten)
+    if not ok:
+        raise Fehler(502, text)
+    if not starten:
+        return {"ok": True, "hochgeladen": ziel, "gestartet": False}
+    zu = {int(a): (None if b is None else int(b)) for a, b in (k.get("zuordnung") or {}).items()}
+    try:
+        dr.druck_starten(ziel, int(k.get("platte") or 1), zu, bool(k.get("zeitraffer")), k.get("kalibrieren", True) is not False)
+    except RuntimeError as e:
+        raise Fehler(409, f"Hochgeladen, aber nicht gestartet: {e}")
+    return {"ok": True, "hochgeladen": ziel, "gestartet": True}
 
 
 def drucke_importieren(neu):
@@ -2821,6 +2916,11 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile == ["drucke", "senden", "pruefen"] and methode == "POST":
+            k = self._json_rumpf()
+            return self._json(200, senden_pruefen(k.get("serial"), k.get("name")))
+        if teile == ["drucke", "senden"] and methode == "POST":
+            return self._json(200, senden(self._json_rumpf()))
         if teile == ["drucke", "archiv"] and methode == "GET":
             return self._json(200, {"dateien": archiv_liste(), "archiv": archiv_info()})
         if teile == ["drucke", "datei", "loeschen"] and methode == "POST":

@@ -476,6 +476,60 @@ def platte_aus(p):
     return None
 
 
+def datei_platten(daten):
+    """3MF-Inhalt → (printer_model_id, [{platte, minuten, gramm, filamente[{id, fid, typ, farbe, gramm}]}]) aller Platten mit G-Code."""
+    with zipfile.ZipFile(io.BytesIO(daten)) as z:
+        root = ET.fromstring(z.read("Metadata/slice_info.config"))
+        namen = set(z.namelist())
+    modell, out = "", []
+    for pl in root.findall("plate"):
+        meta = {m.get("key"): m.get("value") for m in pl.findall("metadata")}
+        idx = _int(meta.get("index"), 0)
+        modell = modell or meta.get("printer_model_id") or ""
+        if not idx or f"Metadata/plate_{idx}.gcode" not in namen:
+            continue
+        fil = [{"id": _int(f.get("id"), 0), "fid": f.get("tray_info_idx") or "", "typ": f.get("type") or "",
+                "farbe": _farbe(f.get("color")), "gramm": float(f.get("used_g") or 0)} for f in pl.findall("filament")]
+        out.append({"platte": idx, "minuten": round(_int(meta.get("prediction"), 0) / 60), "gramm": round(float(meta.get("weight") or 0), 2),
+                    "filamente": fil, "duese": meta.get("nozzle_diameters") or ""})
+    return modell, out
+
+
+def modell_id(daten):
+    """Nur die printer_model_id aus der 3MF (für den Abgleich Datei ↔ Drucker)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(daten)) as z:
+            root = ET.fromstring(z.read("Metadata/slice_info.config"))
+        for pl in root.findall("plate"):
+            for m in pl.findall("metadata"):
+                if m.get("key") == "printer_model_id" and m.get("value"):
+                    return m.get("value")
+    except Exception:
+        pass
+    return ""
+
+
+def hochladen(ip, code, name, daten, timeout=60):
+    """Druckdatei per FTPS ins Hauptverzeichnis des Druckers legen (dort erwartet ihn der Startbefehl). → (ok, text)"""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ftp = _FTPS(context=ctx, timeout=timeout)
+    try:
+        ftp.connect(ip, 990)
+        ftp.login("bblp", code)
+        ftp.prot_p()
+        ftp.storbinary("STOR /" + name, io.BytesIO(daten))
+        return True, "hochgeladen"
+    except ftplib.all_errors as e:
+        return False, f"Hochladen ging nicht: {e}"
+    finally:
+        try:
+            ftp.close()
+        except Exception:
+            pass
+
+
 def zuordnen(filamente, faecher_liste):
     """Filament aus der Druckdatei → Fach im AMS (gleiche Bambu-ID, gleiches Material, nächste Farbe)."""
     belegt = [f for f in faecher_liste if not f["leer"]]
@@ -747,6 +801,41 @@ class Drucker:
             self._offline()
             self.stop.wait(warten)
             warten = min(warten * 2, 120)
+
+    def druck_starten(self, name, platte, zuordnung, zeitraffer=False, kalibrieren=True):
+        """Startbefehl wie Bambu Studio (LAN): Datei liegt im Hauptverzeichnis. zuordnung = {filament_id (1-basiert): fach_global}"""
+        if not (self.client and self.online):
+            raise RuntimeError("Drucker ist nicht verbunden")
+        if str(self.p.get("gcode_state") or "").upper() in LAUFEND:
+            raise RuntimeError("Drucker druckt gerade")
+        n = max(zuordnung) if zuordnung else 0
+        mapping, mapping2 = [], []
+        for i in range(1, n + 1):
+            g = zuordnung.get(i)
+            if g is None:
+                mapping.append(-1)
+                mapping2.append({"ams_id": 255, "slot_id": 255})
+            elif g >= 254:  # externe Spule
+                mapping.append(g)
+                mapping2.append({"ams_id": 255 if g == 254 else 254, "slot_id": 0})
+            elif g >= 128:  # AMS HT: eigene ID, ein Fach
+                mapping.append(g)
+                mapping2.append({"ams_id": g, "slot_id": 0})
+            else:
+                mapping.append(g)
+                mapping2.append({"ams_id": g // 4, "slot_id": g % 4})
+        nutzt_ams = any(m >= 0 and m < 254 for m in mapping)
+        titel = re.sub(r"(\.gcode)?\.3mf$", "", name, flags=re.I)
+        befehl = {"print": {"sequence_id": str(int(time.time()) % 100000), "command": "project_file", "param": f"Metadata/plate_{int(platte)}.gcode",
+                            "project_id": "0", "profile_id": "0", "task_id": "0", "subtask_id": "0", "subtask_name": titel,
+                            "file": name, "url": f"ftp:///{name}", "md5": "", "timelapse": bool(zeitraffer), "bed_type": "auto",
+                            "bed_levelling": bool(kalibrieren), "bed_leveling": bool(kalibrieren), "auto_bed_leveling": 1 if kalibrieren else 0,
+                            "flow_cali": False, "vibration_cali": bool(kalibrieren), "layer_inspect": False,
+                            "ams_mapping": mapping, "ams_mapping2": mapping2, "use_ams": nutzt_ams, "cfg": "0",
+                            "extrude_cali_flag": 0, "nozzle_offset_cali": 2}}
+        self.client.publish(f"device/{self.serial}/request", json.dumps(befehl))
+        self.wirt.log(f"Drucker {self.serial}: Druck gestartet: {name} Platte {platte}, AMS {mapping}")
+        return befehl["print"]
 
     def _pushall(self):
         try:

@@ -7451,7 +7451,8 @@ body.rx-einfach #mbar{display:none!important}
 const ICON='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
 const I_LADEN='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>';
 const I_WEG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
-const D={l:null,info:null,q:"",dr:"",sort:"neu",n:120,fehler:"",weg:""};
+const I_DRUCK='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg>';
+const D={l:null,info:null,q:"",dr:"",sort:"neu",n:120,fehler:"",weg:"",se:null};
 const mb=b=>b>=1073741824?(b/1073741824).toLocaleString("de-DE",{maximumFractionDigits:1})+" GB":b>=1048576?(b/1048576).toLocaleString("de-DE",{maximumFractionDigits:1})+" MB":Math.max(1,Math.round(b/1024))+" KB";
 const datum=t=>t?new Date(t*1000).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
 const dauer=m=>m>=60?Math.floor(m/60)+" h"+(m%60?" "+String(m%60).padStart(2,"0")+" min":""):m+" min";
@@ -7470,6 +7471,7 @@ function zeile(f){const mats=(f.filamente||[]).slice(0,8);const k=f.serial+"/"+f
     <div class="dm-t"><b title="${esc(f.name)}">${esc(f.titel)}</b><span>${esc(sub)}</span>
       <div class="dm-m">${mats.map(m=>`<i style="background:${esc(m.farbe||"#888")}" title="${esc((m.typ||"")+" · "+N1.format(m.gramm||0)+" g")}"></i>`).join("")}${f.auf_drucker?"":`<em>nicht mehr auf dem Drucker</em>`}</div></div>
     <div class="dm-r"><small class="num">${mb(f.groesse)}</small><div>
+      <button type="button" class="btn icon ghost sm" data-dm="send" data-k="${esc(k)}" title="An Drucker senden" aria-label="${esc(f.titel)} an Drucker senden">${I_DRUCK}</button>
       <a class="btn icon ghost sm" href="${esc(datUrl(f))}" download="${esc(f.name)}" title="Herunterladen" aria-label="${esc(f.titel)} herunterladen">${I_LADEN}</a>
       <button type="button" class="btn icon ghost sm dm-weg${D.weg===k?" sicher":""}" data-dm="weg" data-k="${esc(k)}" title="${D.weg===k?"Nochmal tippen zum Löschen":"Vom Server löschen"}" aria-label="${esc(f.titel)} löschen">${D.weg===k?"Löschen?":I_WEG}</button></div></div></div>`}
 function inhalt(){
@@ -7483,18 +7485,65 @@ function inhalt(){
     <select id="dm_sort" aria-label="Sortierung">${[["neu","Neueste zuerst"],["alt","Älteste zuerst"],["gross","Größte zuerst"],["name","Name A–Z"]].map(([v,t])=>`<option value="${v}"${D.sort===v?" selected":""}>${t}</option>`).join("")}</select></div>
     <div class="dm-s"><span>${N0.format(l.length)} ${l.length===1?"Datei":"Dateien"} · ${mb(summe)}</span><span>gespeichert auf dem SchichtLohn-Server</span></div></div>
     <div class="dm-l" id="dm_l">${l.slice(0,D.n).map(zeile).join("")}${l.length>D.n?`<button type="button" class="btn ghost sm" data-dm="mehr" style="align-self:center;margin:8px 0">Weitere ${N0.format(Math.min(120,l.length-D.n))} anzeigen</button>`:""}${!l.length?`<p class="hint">Nichts gefunden.</p>`:""}</div>`}
+/* ---- An Drucker senden ---- */
+const LAUF=new Set(["RUNNING","PAUSE","PREPARE","SLICING"]);
+function seDr(){const x=D.se;return x&&x.d?x.d.drucker.find(d=>d.serial===x.ziel):null}
+function seVorschlag(){const x=D.se,d=seDr();if(!d)return [];const v=(d.vorschlag||{})[x.platte]||[];
+  return v.map(z=>{const g=x.zu[z.id]!==undefined?x.zu[z.id]:z.fach;const f=d.faecher.find(f=>f.global===g);
+    return Object.assign({},z,{fach:g,f,ok:!!f&&(!z.typ||String(f.typ).toUpperCase()===String(z.typ).toUpperCase())})})}
+function seHtml(){const x=D.se;
+  if(x.fehler&&!x.d)return `<p class="hint" style="color:var(--bad)">${esc(x.fehler)}</p><button type="button" class="btn ghost" data-dm="zurueck">Zurück</button>`;
+  if(!x.d)return `<p class="hint">Datei wird geprüft …</p>`;
+  const d=seDr(),pl=x.d.platten.find(p=>p.platte===x.platte)||x.d.platten[0];const v=seVorschlag();
+  const druckt=d&&LAUF.has(String(d.status).toUpperCase());const alleOk=v.length&&v.every(z=>z.ok);
+  const sw=c=>`<i class="dm-sw" style="background:${esc(c||"#888")}"></i>`;
+  return `<button type="button" class="dm-zur" data-dm="zurueck">‹ Alle Dateien</button>
+  <div class="dm-sk"><b>${esc(x.f.titel)}</b><span>${esc(x.f.drucker)} · ${esc(x.f.name)}</span></div>
+  <label class="dm-lab">Drucker<select id="dm_ziel">${x.d.drucker.map(o=>`<option value="${esc(o.serial)}"${o.serial===x.ziel?" selected":""}${o.passt&&o.lan?"":" disabled"}>${esc(o.name)}${!o.passt?" – anderes Modell":!o.lan?" – kein Heimnetz-Zugang":!o.online?" – offline":LAUF.has(String(o.status).toUpperCase())?" – druckt gerade":""}</option>`).join("")}</select></label>
+  ${x.d.platten.length>1?`<label class="dm-lab">Platte<select id="dm_pl">${x.d.platten.map(p=>`<option value="${p.platte}"${p.platte===x.platte?" selected":""}>Platte ${p.platte} · ${p.minuten>=60?Math.floor(p.minuten/60)+" h "+(p.minuten%60)+" min":p.minuten+" min"} · ${N0.format(Math.round(p.gramm))} g</option>`).join("")}</select></label>`:pl?`<div class="dm-s"><span>Platte ${pl.platte} · ${pl.minuten>=60?Math.floor(pl.minuten/60)+" h "+(pl.minuten%60)+" min":pl.minuten+" min"} · ${N0.format(Math.round(pl.gramm))} g</span></div>`:""}
+  ${d?`<div class="dm-zt">Filamente → AMS-Fächer</div>
+  <div class="dm-zl">${v.map(z=>`<div class="dm-zz${z.ok?"":" bad"}">
+     <span class="dm-zd">${sw(z.farbe)}<b>${esc(z.typ||"Filament")}</b><small>${N1.format(z.gramm)} g</small></span><span class="dm-pf">→</span>
+     <select data-dmzu="${z.id}" aria-label="Fach für Filament ${z.id}"><option value="">– kein Fach –</option>${d.faecher.map(f=>`<option value="${f.global}"${f.global===z.fach?" selected":""}>${esc(f.ort)} · ${esc(f.name||f.typ)}</option>`).join("")}</select>
+     ${z.f?`<span class="dm-zf">${sw(z.f.farbe)}${z.ok?"":`<em>${z.f?"anderes Material":"leer"}</em>`}</span>`:`<span class="dm-zf"><em>kein Fach</em></span>`}</div>`).join("")}</div>
+  ${!alleOk?`<p class="dm-warn">Nicht jedes Filament hat ein passendes Fach. Fächer wählen oder erst die Spulen einlegen.</p>`:""}
+  <div class="dm-opt"><label><input type="checkbox" id="dm_kal"${x.kal?" checked":""}> Bett vorher vermessen</label><label><input type="checkbox" id="dm_zr"${x.zr?" checked":""}> Zeitraffer</label></div>`:`<p class="hint">Kein passender Drucker mit Heimnetz-Zugang verbunden.</p>`}
+  ${x.fehler?`<p class="dm-warn">${esc(x.fehler)}</p>`:""}${x.ok?`<p class="dm-ok">${esc(x.ok)}</p>`:""}
+  <div class="dm-btn"><button type="button" class="btn" data-dm="hoch"${d&&!x.laeuft?"":" disabled"}>Nur hochladen</button>
+    <button type="button" class="btn pri${x.sicher?" sicher":""}" data-dm="start"${d&&d.online&&!druckt&&alleOk&&!x.laeuft?"":" disabled"}>${x.laeuft?"Wird gesendet …":x.sicher?"Wirklich starten?":"Hochladen und starten"}</button></div>
+  <p class="hint" style="margin:0">Nur hochladen: Die Datei liegt danach im Speicher des Druckers, gestartet wird am Drucker oder im Bambu Handy.</p>`}
+async function seAuf(k){const f=D.l.find(x=>x.serial+"/"+x.name===k);if(!f)return;
+  D.se={f,d:null,ziel:"",platte:1,zu:{},kal:true,zr:false,fehler:"",ok:"",sicher:false,laeuft:false};neu();
+  try{const d=await SRV.req("POST","/api/drucke/senden/pruefen",{serial:f.serial,name:f.name});D.se.d=d;
+    const z=d.drucker.find(o=>o.passt&&o.lan&&o.serial===f.serial)||d.drucker.find(o=>o.passt&&o.lan&&o.online&&!LAUF.has(String(o.status).toUpperCase()))||d.drucker.find(o=>o.passt&&o.lan);
+    D.se.ziel=z?z.serial:"";D.se.platte=(d.platten[0]||{}).platte||1}
+  catch(e){D.se.fehler=e.status===404?"Braucht Server-Version 3.8.3 – bitte den SchichtLohn-Server aktualisieren.":String(e&&e.message||e)}neu()}
+async function seSenden(starten){const x=D.se;if(starten&&!x.sicher){x.sicher=true;neu();clearTimeout(x.st);x.st=setTimeout(()=>{if(D.se===x&&x.sicher){x.sicher=false;neu()}},5000);return}
+  x.sicher=false;x.laeuft=true;x.fehler="";x.ok="";neu();
+  const zu={};seVorschlag().forEach(z=>{zu[z.id]=z.fach==null||z.fach===""?null:Number(z.fach)});
+  try{const r=await SRV.req("POST","/api/drucke/senden",{serial:x.f.serial,name:x.f.name,ziel:x.ziel,starten,platte:x.platte,zuordnung:zu,zeitraffer:x.zr,kalibrieren:x.kal});
+    const dn=(seDr()||{}).name||"Drucker";x.ok=r.gestartet?`Druck auf ${dn} gestartet.`:`Auf ${dn} hochgeladen – am Drucker unter Dateien starten.`;toast(x.ok)}
+  catch(e){x.fehler=String(e&&e.message||e)}x.laeuft=false;neu()}
 function neu(){const el=document.getElementById("dm_in");if(!el)return;const fo=document.activeElement&&document.activeElement.id==="dm_q",pos=fo?document.activeElement.selectionStart:0;
-  el.innerHTML=inhalt();if(fo){const q=document.getElementById("dm_q");q.focus();try{q.setSelectionRange(pos,pos)}catch(e){}}}
+  el.innerHTML=D.se?seHtml():inhalt();if(fo){const q=document.getElementById("dm_q");q.focus();try{q.setSelectionRange(pos,pos)}catch(e){}}}
 async function laden(){D.fehler="";try{const d=await SRV.req("GET","/api/drucke/archiv");D.l=d.dateien||[];D.info=d.archiv}catch(e){D.fehler=e.status===404?"Braucht Server-Version 3.8.3 – bitte den SchichtLohn-Server aktualisieren.":String(e&&e.message||e)}neu()}
-function auf(){D.n=120;D.weg="";modal("Druckdateien",`<div id="dm_in">${inhalt()}</div>`);const m=document.querySelector("#modal .modal");if(m)m.classList.add("plwide","dm");laden()}
+function auf(){D.n=120;D.weg="";D.se=null;modal("Druckdateien",`<div id="dm_in">${inhalt()}</div>`);const m=document.querySelector("#modal .modal");if(m)m.classList.add("plwide","dm");laden()}
 document.addEventListener("click",async e=>{const t=e.target.closest&&e.target.closest("[data-dm]");if(!t)return;const a=t.dataset.dm;
   if(a==="auf"){e.preventDefault();auf();return}
   if(a==="mehr"){D.n+=120;neu();return}
+  if(a==="send"){seAuf(t.dataset.k);return}
+  if(a==="zurueck"){D.se=null;neu();return}
+  if(a==="hoch"){seSenden(false);return}
+  if(a==="start"){seSenden(true);return}
   if(a==="weg"){const k=t.dataset.k;if(D.weg!==k){D.weg=k;neu();clearTimeout(D.wt);D.wt=setTimeout(()=>{if(D.weg===k){D.weg="";neu()}},4000);return}
     D.weg="";const i=k.indexOf("/"),serial=k.slice(0,i),name=k.slice(i+1);
     try{await SRV.req("POST","/api/drucke/datei/loeschen",{serial,name});D.l=D.l.filter(f=>!(f.serial===serial&&f.name===name));toast("Datei gelöscht")}catch(x){toast("Löschen ging nicht: "+(x&&x.message||x))}neu()}});
 document.addEventListener("input",e=>{if(e.target.id==="dm_q"){D.q=e.target.value;D.n=120;neu()}});
-document.addEventListener("change",e=>{if(e.target.id==="dm_dr"){D.dr=e.target.value;D.n=120;neu()}else if(e.target.id==="dm_sort"){D.sort=e.target.value;neu()}});
+document.addEventListener("change",e=>{const x=D.se;
+  if(x){if(e.target.id==="dm_ziel"){x.ziel=e.target.value;x.zu={};x.ok="";x.fehler="";neu();return}if(e.target.id==="dm_pl"){x.platte=Number(e.target.value);x.zu={};neu();return}
+    if(e.target.dataset&&e.target.dataset.dmzu){x.zu[e.target.dataset.dmzu]=e.target.value===""?null:Number(e.target.value);neu();return}
+    if(e.target.id==="dm_kal"){x.kal=e.target.checked;return}if(e.target.id==="dm_zr"){x.zr=e.target.checked;return}}
+  if(e.target.id==="dm_dr"){D.dr=e.target.value;D.n=120;neu()}else if(e.target.id==="dm_sort"){D.sort=e.target.value;neu()}});
 window.DMGR={ICON,auf};
 })();
 </script>
@@ -7518,6 +7567,21 @@ window.DMGR={ICON,auf};
 .dm-r small{font-size:11.5px;color:var(--fg-3)}
 .dm-r>div{display:flex;gap:2px}
 .dm-weg.sicher{color:var(--bad);width:auto;padding:0 8px;font-size:12px}
+.dm-zur{background:none;border:0;color:var(--fg-2);font:inherit;font-size:13px;padding:0;cursor:pointer;align-self:flex-start}
+.dm-sk{display:flex;flex-direction:column;gap:2px}.dm-sk b{font-size:16px}.dm-sk span{font-size:12px;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-lab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg-2)}
+.dm-zt{font-size:12px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.dm-zl{display:flex;flex-direction:column;gap:6px}
+.dm-zz{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.3fr) auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.dm-zz.bad{border-color:color-mix(in srgb,var(--bad) 60%,transparent)}
+.dm-zd{display:flex;align-items:center;gap:6px;min-width:0}.dm-zd b{font-weight:600;font-size:13px}.dm-zd small{color:var(--fg-3);font-size:11.5px}
+.dm-pf{color:var(--fg-3)}.dm-zz select{min-width:0;font-size:13px}
+.dm-zf{display:flex;align-items:center;gap:4px}.dm-zf em{font-style:normal;font-size:11px;color:var(--bad)}
+.dm-sw{width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,255,255,.3);flex:none;display:inline-block}
+.dm-warn{margin:0;color:var(--bad);font-size:13px}.dm-ok{margin:0;color:var(--ok,#30c46c);font-size:13px}
+.dm-opt{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}.dm-opt label{display:flex;gap:6px;align-items:center}
+.dm-btn{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dm-btn .sicher{background:var(--bad);border-color:var(--bad)}.dm-btn .btn:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </body>
 </html>
