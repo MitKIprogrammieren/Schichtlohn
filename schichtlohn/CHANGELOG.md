@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.8.1 – 03.11.2026
+- Neu: Installer für Synology und andere Server mit Docker. Ein Befehl richtet SchichtLohn ein, fragt nach Tailscale, Preisquellen (Shops, eBay, AliExpress – jede einzeln wählbar) und Zugangsschlüssel und kann die Daten vom bisherigen Server übernehmen.
+- Beim Übernehmen kannst du wählen: alles inklusive Zugänge oder nur Lager, Drucke und Preise – dann bleiben eBay-, AliExpress- und Claude-Schlüssel beim alten Server.
+
 ## 3.8.0 – 03.11.2026
 - Neu: Jede Rolle im AMS hat ihre eigene Grammzahl. Unter jeder Spule in „Drucker jetzt“ steht, wie viel auf genau dieser Rolle ist – auch wenn mehrere Rollen derselben Sorte im AMS stecken.
 - Ein Tipp aufs Fach öffnet die Rolle: Gramm von der Waage übernehmen (Leerspule wird abgezogen), „Volle Rolle“ oder Gramm von Hand eintragen. Dort steht auch, was seit dem Eintragen von dieser Rolle abgebucht wurde, mit Druckdatei und Zeit.

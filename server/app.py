@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.8.0"
+VERSION = "3.8.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1741,8 +1741,10 @@ def abdruecke_export():
     return [{"uid": u, "vek": base64.b64encode(b).decode(), "zeit": z} for u, b, z in db().execute("SELECT uid, vek, zeit FROM abdruecke")]
 
 
-def umzug(quelle, token=""):
-    """Alles von einem anderen SchichtLohn-Server (z. B. der Synology) übernehmen."""
+def umzug(quelle, token="", nur_daten=False):
+    """Alles von einem anderen SchichtLohn-Server (z. B. der Synology) übernehmen.
+    nur_daten: Lager, Drucke, Preise und App-Einstellungen, aber keine Zugänge (Server-Einstellungen mit eBay/AliExpress/Bambu/
+    Telegram/Home Assistant/Druckercodes) und keine Claude-Adresse – z. B. für einen Freund, der mit deinem Lager startet."""
     import base64
     import urllib.request
     quelle = quelle.rstrip("/")
@@ -1766,6 +1768,9 @@ def umzug(quelle, token=""):
         out["listen"][name] = len(items)
     for k, w in (s.get("daten") or {}).items():
         if k == ZUGANG_KEY:  # der neue Server behält seinen eigenen App-Schlüssel
+            continue
+        if nur_daten and k in (EINST_KEY, MCP_KEY):
+            out.setdefault("ausgelassen", []).append(k)
             continue
         if k == EINST_KEY and isinstance(w, dict) and HA_APP:
             w.setdefault("ha", {})
@@ -2854,7 +2859,32 @@ class Handler(BaseHTTPRequestHandler):
             b = self._json_rumpf()
             if not b.get("quelle"):
                 raise Fehler(400, "Adresse des alten Servers fehlt")
-            return self._json(200, umzug(str(b["quelle"]), str(b.get("token") or "")))
+            return self._json(200, umzug(str(b["quelle"]), str(b.get("token") or ""), bool(b.get("nur_daten"))))
+        if teile == ["einrichten"] and methode == "POST":
+            # Für den Installer: Preisquellen, Zugänge für eBay/AliExpress und Schlüssel in einem Schritt
+            b = self._json_rumpf()
+            out = {"ok": True}
+            pq = b.get("preise") if isinstance(b.get("preise"), dict) else {}
+            if "shop" in pq:
+                cfg, _ = daten_lesen("cfg")
+                cfg = cfg if isinstance(cfg, dict) else {}
+                aus = set(cfg.get("fnAus") or [])
+                (aus.discard if pq.get("shop") else aus.add)("preisliste")
+                cfg["fnAus"] = sorted(aus)
+                daten_schreiben("cfg", cfg, "einrichten")
+            zug = {k: {kk: str(v) for kk, v in (pq.get(k) or {}).items() if kk in ("id", "secret", "key", "tracking") and v} for k in ("ebay", "ali")}
+            if any(zug.values()):
+                einstellungen_setzen({"preise": zug})
+            if b.get("schluessel") == "erzeugen" and not TOKEN_UMGEBUNG and not token_aktuell():
+                out["token"] = zugang_erzeugen()
+                zugang_setzen(out["token"])
+            out["mcp"] = "/mcp/" + mcp_schluessel()
+            e = einstellungen()
+            cfg, _ = daten_lesen("cfg")
+            out["preise"] = {"shop": "preisliste" not in ((cfg or {}).get("fnAus") or []) if isinstance(cfg, dict) else True,
+                             "ebay": bool(e["preise"]["ebay"].get("id") and e["preise"]["ebay"].get("secret")),
+                             "ali": bool(e["preise"]["ali"].get("key") and e["preise"]["ali"].get("secret"))}
+            return self._json(200, out)
         if teile == ["app"] and methode == "GET":
             return self._json(200, dict(web.app_info(WEB), auto=AUTO))
         if teile == ["app", "aktualisieren"] and methode == "POST":
