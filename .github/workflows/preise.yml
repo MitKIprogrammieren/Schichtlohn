@@ -18,7 +18,7 @@ jobs:
         run: python3 tools/shops_roh.py tools/shops.json /tmp/roh
       - name: 3DJake auffrischen (Preise, neue Farben)
         run: python3 tools/jake.py tools/haendler/3djake.jsonl 2500
-        timeout-minutes: 90
+        timeout-minutes: 240
         continue-on-error: true
       - name: Vereinheitlichen und preise.json bauen
         run: |

@@ -58,6 +58,8 @@ def ist_filament(titel, typ=""):
                             "plate", "platte", "sheet", "filament hub", "schneider", "cutter", "leerrolle", "masterspool",
                             "beutel", "bags", "klebestift", "sensor", "schläuche", "schlauch")):
         return False
+    if re.search(r"\+\s*\d+\s*kg\b", t):  # Drucker mit Filament-Beigabe („Centauri 2 + 4 kg PLA“)
+        return False
     if ("resin" in t or "harz" in t) and "filament" not in t:  # Harz für SLA-Drucker („ABS-Like Resin“)
         return False
     return bool(material(titel)) or "filament" in t
