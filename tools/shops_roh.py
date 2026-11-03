@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Holt die Produktlisten der Shops (Shopify: /products.json, WooCommerce: Store-API, Plentymarkets: /rest/io, JTL: Kategorieseiten) roh nach <ziel>/<shop>.json.
+"""Holt die Produktlisten der Shops (Shopify: /products.json, WooCommerce: Store-API, Plentymarkets: /rest/io, JTL: Kategorieseiten, sonst Produktseiten aus der Sitemap) roh nach <ziel>/<shop>.json.
 Läuft in GitHub Actions (normales Internet). Aufruf: shops_roh.py tools/shops.json <ziel> [shop1,shop2 – nur diese]"""
 import json, os, sys, time, urllib.request
 
@@ -189,6 +189,96 @@ def jtl(basis, kategorien):
     return out
 
 
+def _sitemap_urls(url, tiefe=0):
+    """Alle <loc> einer Sitemap, Sitemap-Indizes werden aufgelöst."""
+    import re
+    try:
+        t = _text(url, accept="application/xml,text/xml,*/*")
+    except Exception as e:
+        print(f"  Sitemap {url}: {e}")
+        return []
+    locs = [u.strip() for u in re.findall(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)", t)]
+    if "<sitemapindex" in t and tiefe < 2:
+        alle = []
+        for u in locs:
+            alle += _sitemap_urls(u, tiefe + 1)
+            time.sleep(0.5)
+        return alle
+    return locs
+
+
+def _ld_produkte(h, url):
+    """Produkte aus ld+json (Product, ProductGroup mit hasVariant), sonst aus den Meta-Angaben."""
+    import html as H, re
+    out = []
+
+    def offer(o):
+        if isinstance(o, list):
+            o = o[0] if o else {}
+        if not isinstance(o, dict):
+            return None, None
+        if o.get("@type") == "AggregateOffer":
+            return o.get("lowPrice") or o.get("price"), o.get("priceCurrency")
+        return o.get("price"), o.get("priceCurrency") or (o.get("priceSpecification") or {}).get("priceCurrency")
+
+    def marke(x):
+        b = x.get("brand")
+        return (b.get("name") if isinstance(b, dict) else b) or ""
+
+    def prod(x, eltern=None):
+        pr, cur = offer(x.get("offers"))
+        if pr in (None, ""):
+            return
+        out.append({"name": H.unescape(x.get("name") or (eltern or {}).get("name") or ""), "marke": marke(x) or marke(eltern or {}),
+                    "farbe": x.get("color") or "", "ean": str(x.get("gtin13") or x.get("gtin") or ""), "sku": str(x.get("sku") or ""),
+                    "preis": float(str(pr).replace(",", ".")), "waehrung": cur or "", "url": url})
+
+    for b in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', h, re.S):
+        try:
+            d = json.loads(b.strip())
+        except Exception:
+            continue
+        for x in (d if isinstance(d, list) else d.get("@graph", [d])):
+            if not isinstance(x, dict):
+                continue
+            ty = x.get("@type")
+            ty = ty if isinstance(ty, list) else [ty]
+            if "ProductGroup" in ty:
+                for v in x.get("hasVariant") or []:
+                    prod(v, x)
+            elif "Product" in ty:
+                prod(x)
+    if not out:
+        m = dict(re.findall(r'<meta[^>]+property="([^"]+)"[^>]+content="([^"]*)"', h))
+        if m.get("product:price:amount"):
+            out.append({"name": H.unescape((m.get("og:title") or "").split("|")[0].strip()), "marke": "", "farbe": "", "ean": "", "sku": "",
+                        "preis": float(m["product:price:amount"]), "waehrung": m.get("product:price:currency") or "", "url": url})
+    return out
+
+
+def seiten(cfg):
+    """Shops ohne Schnittstelle: Produktseiten aus der Sitemap (gefiltert), Daten aus ld+json bzw. Meta-Angaben."""
+    import re
+    urls = []
+    for sm in cfg["sitemaps"]:
+        urls += _sitemap_urls(sm)
+    mu = re.compile(cfg.get("muster") or ".")
+    au = re.compile(cfg["ohne"]) if cfg.get("ohne") else None
+    urls = list(dict.fromkeys(u for u in urls if mu.search(u) and not (au and au.search(u))))
+    for a, b in (cfg.get("ersetzen") or {}).items():
+        urls = [u.replace(a, b) for u in urls]
+    urls = urls[: int(cfg.get("max") or 1500)]
+    print(f"  {len(urls)} Seiten")
+    out = []
+    for u in urls:
+        try:
+            out += _ld_produkte(_text(u), u)
+        except Exception as e:
+            out.append({"url": u, "fehler": str(e)})
+        time.sleep(float(cfg.get("pause") or 0.8))
+    return out
+
+
 def main():
     shops = json.load(open(sys.argv[1], encoding="utf-8"))
     ziel = sys.argv[2]
@@ -200,7 +290,8 @@ def main():
         try:
             daten = (shopify(s["basis"], s.get("waehrung", "")) if s["art"] == "shopify" else woo(s["basis"]) if s["art"] == "woo"
                      else plenty(s["basis"], s.get("pfad") or "/de/filament-resin/filament/") if s["art"] == "plenty"
-                     else jtl(s["basis"], s.get("kategorien") or []) if s["art"] == "jtl" else wix(s["basis"]))
+                     else jtl(s["basis"], s.get("kategorien") or []) if s["art"] == "jtl"
+                     else seiten(s) if s["art"] == "seiten" else wix(s["basis"]))
             json.dump(daten, open(os.path.join(ziel, k + ".json"), "w", encoding="utf-8"), ensure_ascii=False)
             print(f"{k}: {len(daten)} Produkte")
         except Exception as e:

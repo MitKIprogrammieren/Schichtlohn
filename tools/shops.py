@@ -147,6 +147,10 @@ def woo(shop, cfg, daten):
         m = re.search(r"Farbe[^:]*:\s*([^,]+)", attr)
         if m:
             farbe = m.group(1)
+        if not farbe:  # Filamentworld: „… – PLA Filament – Turkey Egg – 1.75 mm …“
+            m = re.search(r"Filament\s+–\s+([^–]+?)\s+–", html.unescape(name))
+            if m:
+                farbe = m.group(1)
         if not farbe:  # CR3D: „PLA Hellrosa“ → Farbe = alles nach dem Material
             m = material(name)
             rest = re.sub(rf"^.*?\b{re.escape(m)}\b[-\w]*\s*", "", html.unescape(name), flags=re.I) if m else ""
@@ -154,7 +158,8 @@ def woo(shop, cfg, daten):
         gw = gewicht(attr, name)
         if re.search(r"2[.,]85\s*mm", attr + name) or (gw and gw < 200):
             continue
-        out.append(zeile(shop, cfg["marke"], name + (" – " + attr if attr else ""), farbe, gw, "refill" in (name + attr).lower(),
+        marke = cfg["marke"] or re.split(r"\s+(?:&#8211;|–|-)\s+", html.unescape(name))[0].split()[0]  # Filamentworld: „Fillamentum – Extrafill – PLA …“
+        out.append(zeile(shop, marke, name + (" – " + attr if attr else ""), farbe, gw, "refill" in (name + attr).lower(),
                          preis, normal, p.get("permalink") or "", "", p.get("sku") or ""))
     return out
 
@@ -224,6 +229,40 @@ def jtl(shop, cfg, daten):
     return out
 
 
+def seiten(shop, cfg, daten):
+    """Produktseiten (ld+json): Preis in EUR, andere Währungen über den festen Kurs aus shops.json (z. B. DKK)."""
+    out = []
+    kurse = cfg.get("kurs") or {}
+    for p in daten:
+        if p.get("fehler") or not p.get("preis"):
+            continue
+        cur = p.get("waehrung") or "EUR"
+        if cur != "EUR":
+            if cur not in kurse:
+                continue
+            p["preis"] = round(p["preis"] / kurse[cur], 2)
+        name = p.get("name") or ""
+        if not ist_filament(name) or re.search(r"2[.,]85|\b3[.,]00?\s*mm", name + " " + p["url"]):
+            continue
+        gw = gewicht(_gw(name))
+        if not gw:  # colorFabb: „PLA/PHA STANDARDSCHWARZ 1.75 / 750“ bzw. …-1-75-750
+            m = re.search(r"/\s*(\d{3,4})\s*$", name) or re.search(r"-1-75-(\d{3,4})\b", p["url"])
+            gw = int(m.group(1)) if m else None
+        if gw and gw < 200:
+            continue
+        farbe = p.get("farbe") or ""
+        if not farbe and cfg.get("farbe_nach_material"):
+            m = material(name)
+            farbe = re.sub(r"\s*\d[.,]\d+\s*(/\s*\d+)?\s*$", "", re.sub(rf"^.*?\b{re.escape(m)}\b(/[A-Z]+)?\s*", "", name, flags=re.I)).strip().title() if m else ""
+        marke = cfg.get("marke") or p.get("marke") or ""
+        if not marke:
+            m = material(name)
+            marke = re.split(rf"\s+{re.escape(m)}\b", name, maxsplit=1, flags=re.I)[0].strip() if m else name.split()[0]
+        out.append(zeile(shop, marke, name, farbe, gw, bool(re.search(r"refill|ohne spule", name, re.I)), round(p["preis"], 2), None,
+                         p["url"], p.get("ean") or "", p.get("sku") or ""))
+    return out
+
+
 def alle(roh, shops):
     zeilen = []
     for k, cfg in shops.items():
@@ -231,7 +270,7 @@ def alle(roh, shops):
         if not os.path.exists(pfad):
             continue
         daten = json.load(open(pfad, encoding="utf-8"))
-        f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl}[cfg["art"]]
+        f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl, "seiten": seiten}[cfg["art"]]
         z = f(k, cfg, daten)
         for x in z:
             x["shopname"] = cfg["name"]

@@ -9,5 +9,14 @@
   "nobufil":       {"name": "Nobufil",        "marke": "Nobufil",        "art": "wix",     "basis": "https://www.nobufil.com"},
   "3dprima":       {"name": "3D Prima",       "marke": "",               "art": "plenty",  "basis": "https://www.3dprima.com", "pfad": "/de/filament-resin/filament/"},
   "igo3d":         {"name": "iGo3D",          "marke": "",               "art": "jtl",     "basis": "https://www.igo3d.com",
-                    "kategorien": ["pla-filamente", "petg-filament", "abs-filamente", "asa-filamente", "flex-filamente", "pa-filament", "pc-filamente", "pp-filamente", "pe-filament", "support-filamente"]}
+                    "kategorien": ["pla-filamente", "petg-filament", "abs-filamente", "asa-filamente", "flex-filamente", "pa-filament", "pc-filamente", "pp-filamente", "pe-filament", "support-filamente"]},
+  "elegoo":        {"name": "Elegoo",         "marke": "Elegoo",         "art": "shopify", "basis": "https://eu.elegoo.com"},
+  "anycubic":      {"name": "Anycubic",       "marke": "Anycubic",       "art": "shopify", "basis": "https://de.anycubic.com"},
+  "azurefilm":     {"name": "AzureFilm",      "marke": "AzureFilm",      "art": "woo",     "basis": "https://azurefilm.com"},
+  "filamentworld": {"name": "Filamentworld",  "marke": "",               "art": "woo",     "basis": "https://www.filamentworld.de"},
+  "colorfabb":     {"name": "colorFabb",      "marke": "colorFabb",      "art": "seiten",  "basis": "https://colorfabb.com",
+                    "sitemaps": ["https://colorfabb.com/media/colorfabb_com/products.xml"], "muster": "-1-75", "farbe_nach_material": true, "ersetzen": {"https://colorfabb.com/": "https://colorfabb.com/de/"}},
+  "3do":           {"name": "3DO",            "marke": "",               "art": "seiten",  "basis": "https://3do.dk",
+                    "sitemaps": ["https://3do.dk/sitemap.xml"], "muster": "^https://3do\\.dk/[a-z-]*(pla|petg|asa|abs|tpu|nylon|pa|pc|filament)[a-z-]*/", "ohne": "/(da|en)/",
+                    "ersetzen": {"https://3do.dk/": "https://3do.dk/de/"}, "kurs": {"DKK": 7.46}}
 }
