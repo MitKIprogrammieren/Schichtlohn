@@ -54,6 +54,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import drucker as drucker_mod
 import preise as preise_mod
+import mcp as mcp_mod
 import produktbilder
 import web
 
@@ -69,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.6.2"
+VERSION = "3.7.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN = os.environ.get("TOKEN", "").strip()
@@ -1849,6 +1850,27 @@ def speicher_auto():
 
 
 BAMBU = drucker_mod.Bambu(_Wirt())
+
+
+# ---------------------------------------------------------------- MCP-Anbindung für Claude (server/mcp.py)
+# Adresse: /mcp/<schlüssel>. Der Schlüssel steckt in der Adresse, weil claude.ai bei eigenen Konnektoren keine Kopfzeilen setzen kann;
+# er wird beim ersten Abruf erzeugt und lässt sich über POST /api/mcp {"neu": true} erneuern (alte Adresse geht dann nicht mehr).
+MCP_KEY = "_mcp"
+
+
+def mcp_schluessel(neu=False):
+    import secrets
+    w, _ = daten_lesen(MCP_KEY)
+    if neu or not isinstance(w, dict) or not w.get("schluessel"):
+        w = {"schluessel": secrets.token_urlsafe(24), "seit": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        daten_schreiben(MCP_KEY, w, "mcp")
+    return w["schluessel"]
+
+
+mcp_mod.W = type("McpWirt", (), {})()
+for _n, _v in {"liste_lesen": liste_lesen, "liste_aendern": liste_aendern, "abbuchen_rechnen": abbuchen_rechnen, "zustaende_liste": zustaende_liste,
+               "daten_lesen": daten_lesen, "_desc": _desc, "_zahl": _zahl, "_gram": _gram, "ENT": ENT, "META": META, "DRUCKE_KEY": DRUCKE_KEY}.items():
+    setattr(mcp_mod.W, _n, staticmethod(_v) if callable(_v) else _v)
 BILDER = produktbilder.Bilder(os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "produktbilder"),
                               lambda: (einstellungen().get("preise") or {}).get("ali") or {})
 
@@ -2297,6 +2319,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(400, "Das Bild ließ sich nicht auswerten: " + str(e))
             r["ms"] = int((time.time() - t0) * 1000)
             return self._json(200, r)
+        if pfad == "/mcp" or pfad.startswith("/mcp/"):
+            return self._mcp(methode, pfad, q)
         if pfad == "/filamentdb.json" and methode == "GET":
             return self._datei(fdb_pfad(), "application/json; charset=utf-8")
         if self._web(methode):
@@ -2308,6 +2332,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._darf(q):
             raise Fehler(401, "Falscher oder fehlender Schlüssel")
         teile = [unquote(x) for x in pfad.split("/")[2:]]
+        if teile == ["mcp"] and methode in ("GET", "POST"):
+            neu = methode == "POST" and bool(self._json_rumpf().get("neu"))
+            return self._json(200, {"pfad": "/mcp/" + mcp_schluessel(neu), "neu": neu,
+                                    "werkzeuge": [w[0] for w in mcp_mod.WERKZEUGE]})
         if teile[0] == "listen" and len(teile) == 2:
             name = teile[1]
             if methode == "GET":
@@ -2666,6 +2694,32 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             with _hoerer_lock:
                 _hoerer.discard(q)
+
+    def _mcp(self, methode, pfad, q):
+        import hmac
+        teil = pfad[5:]
+        ok = (bool(teil) and hmac.compare_digest(teil, mcp_schluessel())) or (bool(TOKEN) and self._darf(q))
+        if not ok:
+            raise Fehler(401, "MCP: Adresse mit Schlüssel verwenden (in SchichtLohn unter Einstellungen → SchichtLohn-Server)")
+        if methode != "POST":  # kein Ereignisstrom: Antworten kommen direkt auf den POST
+            self.send_response(405)
+            self._cors()
+            self.send_header("Allow", "POST")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        b = self._json_rumpf()
+        if isinstance(b, list):
+            antwort = [x for x in (mcp_mod.bearbeiten(m, VERSION) for m in b) if x is not None]
+        else:
+            antwort = mcp_mod.bearbeiten(b, VERSION)
+        if not antwort:
+            self.send_response(202)
+            self._cors()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        return self._json(200, antwort)
 
     def _los(self, methode):
         try:

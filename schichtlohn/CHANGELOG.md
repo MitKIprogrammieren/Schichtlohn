@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.7.0 – 03.11.2026
+- Neu: Claude kann direkt mit SchichtLohn arbeiten. Über eine eigene Adresse fragt Claude dein Lager, die Drucker, das Druckprotokoll und den Verbrauch ab, legt Sorten an, ändert Druckwerte, Preise oder Bestand und bucht Verbrauch ab. Löschen geht nur in der App.
+- Die Adresse enthält einen geheimen Schlüssel. Wer sie kennt, kann das Lager ändern – also nicht weitergeben.
+
 ## 3.6.2 – 02.11.2026
 - Kamera: Das Live-Bild lädt jetzt zuverlässig. Bisher blieb es bei manchen Druckern (z. B. H2C) schwarz.
 - Das Kamerabild ist am großen Bildschirm nicht mehr so riesig, auch im Vollbild passt es ins Fenster.
