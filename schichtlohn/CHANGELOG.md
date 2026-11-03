@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.8.0 – 03.11.2026
+- Neu: Jede Rolle im AMS hat ihre eigene Grammzahl. Unter jeder Spule in „Drucker jetzt“ steht, wie viel auf genau dieser Rolle ist – auch wenn mehrere Rollen derselben Sorte im AMS stecken.
+- Ein Tipp aufs Fach öffnet die Rolle: Gramm von der Waage übernehmen (Leerspule wird abgezogen), „Volle Rolle“ oder Gramm von Hand eintragen. Dort steht auch, was seit dem Eintragen von dieser Rolle abgebucht wurde, mit Druckdatei und Zeit.
+- Nach dem Druck zieht SchichtLohn genau von der Rolle im benutzten Fach ab. Läuft sie leer und das AMS wechselt auf dieselbe Sorte in einem anderen Fach, wird der Rest dort abgebucht.
+- Verbrauch: Unten stehen jetzt die einzelnen Drucke mit Dateiname, Zeit, Drucker, Fach und Sorte – abgebrochene und von Hand zugeordnete sind markiert.
+
 ## 3.7.1 – 03.11.2026
 - Neu in den Einstellungen unter „SchichtLohn-Server“: die Karte „Zugang“. Dort erzeugst du einen Schlüssel für den Server, trägst einen eigenen ein oder schaltest ihn wieder aus – ohne Umweg über Home Assistant. Der Schlüssel bleibt bei Updates erhalten und wird nur auf Knopfdruck neu erzeugt.
 - Neu: die Karte „Claude“ mit der Adresse zum Kopieren, mit der Claude direkt mit deinem Lager arbeitet.

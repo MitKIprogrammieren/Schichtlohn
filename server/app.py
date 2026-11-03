@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.7.1"
+VERSION = "3.8.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1272,6 +1272,143 @@ def abbuchen_rechnen(d, gramm):
     return neu, bestand
 
 
+
+# ---------------------------------------------------------------- Rolle je AMS-Fach
+# Jede Sorte kann je Fach eine eigene Rolle führen: faecher = {"<Drucker>|<Ort>": {"g": Gramm, "seit": …, "quelle": "voll"|"gramm"|"waage"}}.
+# Die Rolle im Fach ist eine der Spulen der Sorte; ist sie angebrochen, steht ihr Gewicht auch in „reste“.
+# Nach einem Druck zieht der Server genau von der Rolle im benutzten Fach ab, sonst wie bisher von der leersten angebrochenen.
+
+def fach_key(drucker, ort):
+    return f"{drucker}|{ort}"
+
+
+def _reste_liste(d):
+    gw = _zahl(d.get("gewicht"), 1000) or 1000
+    rq = d.get("reste") if isinstance(d.get("reste"), list) else ([d["rest"]] if d.get("rest") not in (None, "") else [])
+    return [int(round(x)) for x in (_zahl(r) for r in rq) if 0 < x < gw], gw
+
+
+def _naechster(liste, wert):
+    if not liste:
+        return None
+    i = min(range(len(liste)), key=lambda k: abs(liste[k] - wert))
+    return i if abs(liste[i] - wert) <= 3 else None
+
+
+def _ohne_fachrollen(d, gramm):
+    """Wie abbuchen_rechnen, aber die Rollen, die gerade in einem Fach stecken, bleiben unberührt."""
+    reste, gw = _reste_liste(d)
+    fach = [float(v["g"]) for v in (d.get("faecher") or {}).values() if isinstance(v, dict) and v.get("g") is not None and float(v["g"]) < gw]
+    gesperrt = []
+    for r in fach:
+        i = _naechster(reste, r)
+        if i is not None:
+            gesperrt.append(reste.pop(i))
+    sp = int(_zahl(d.get("spulen"), 1))
+    frei = max(0, sp - len(gesperrt) - sum(1 for v in (d.get("faecher") or {}).values() if isinstance(v, dict) and v.get("g") is not None and float(v["g"]) >= gw))
+    if frei <= 0:  # alle Spulen stecken in Fächern: von der ersten Fachrolle abbuchen, damit ihr Wert mitläuft
+        k = next((k for k, v in (d.get("faecher") or {}).items() if isinstance(v, dict) and v.get("g") is not None), None)
+        if k:
+            neu, bestand, _ = rolle_abbuchen(d, gramm, *k.split("|", 1), tiefe=4)
+            return neu, bestand
+        return abbuchen_rechnen(d, gramm)
+    tmp = dict(d, reste=reste, spulen=frei)
+    neu, _ = abbuchen_rechnen(tmp, gramm)
+    neu["spulen"] = int(neu["spulen"]) + (sp - frei)
+    neu["reste"] = list(neu.get("reste") or []) + [int(x) for x in gesperrt]
+    neu["refills"] = min(int(_zahl(d.get("refills"), 0)), neu["spulen"])
+    return neu, abbuchen_rechnen(neu, 0)[1]
+
+
+def rolle_abbuchen(d, gramm, drucker, ort, tiefe=0):
+    """→ (neue Daten, Bestand, Rest der Rolle im Fach oder None)."""
+    key = fach_key(drucker, ort)
+    f = (d.get("faecher") or {}).get(key) if isinstance(d.get("faecher"), dict) else None
+    if not f or f.get("g") is None or int(_zahl(d.get("spulen"), 1)) <= 0:
+        neu, bestand = _ohne_fachrollen(d, gramm)
+        return neu, bestand, None
+    reste, gw = _reste_liste(d)
+    r = float(f["g"])
+    nr = r - gramm
+    neu = {k: v for k, v in d.items() if k != "rest"}
+    faecher = dict(d.get("faecher") or {})
+    i = _naechster(reste, r) if r < gw else None
+    if nr > 2:
+        if i is not None:
+            reste[i] = int(round(nr))
+        else:
+            reste.append(int(round(nr)))
+        faecher[key] = dict(f, g=round(nr, 1), zuletzt=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        neu.update({"v": 2, "reste": reste, "faecher": faecher})
+        return neu, abbuchen_rechnen(neu, 0)[1], round(nr, 1)
+    # Rolle leer: aus den Resten und der Spulenzahl nehmen, was übrig bleibt normal abbuchen
+    if i is not None:
+        reste.pop(i)
+    faecher.pop(key, None)
+    neu.update({"v": 2, "reste": reste, "faecher": faecher, "spulen": max(0, int(_zahl(d.get("spulen"), 1)) - 1)})
+    neu["refills"] = min(int(_zahl(neu.get("refills"), 0)), neu["spulen"])
+    uebrig = -nr if nr < 0 else 0
+    if uebrig > 0.5:
+        # Das AMS wechselt bei leerer Rolle auf dieselbe Sorte in einem anderen Fach – den Rest dort abbuchen (gleicher Drucker zuerst)
+        andere = sorted((k for k, v in faecher.items() if isinstance(v, dict) and v.get("g") is not None), key=lambda k: (not k.startswith(drucker + "|"), k))
+        if andere and tiefe < 4:
+            dr2, ort2 = andere[0].split("|", 1)
+            neu, bestand, _ = rolle_abbuchen(neu, uebrig, dr2, ort2, tiefe + 1)
+            return neu, bestand, 0
+        neu, bestand = _ohne_fachrollen(neu, uebrig)
+        return neu, bestand, 0
+    return neu, abbuchen_rechnen(neu, 0)[1], 0
+
+
+def rolle_setzen(d, drucker, ort, aktion, gramm=None, quelle=""):
+    """Rolle eines Fachs setzen: aktion voll | gramm | entfernen → neue Daten."""
+    key = fach_key(drucker, ort)
+    reste, gw = _reste_liste(d)
+    faecher = dict(d.get("faecher") or {}) if isinstance(d.get("faecher"), dict) else {}
+    alt = faecher.get(key)
+    neu = {k: v for k, v in d.items() if k != "rest"}
+    if aktion == "entfernen":
+        faecher.pop(key, None)
+    else:
+        g = gw if aktion == "voll" else float(gramm)
+        if g >= gw - 1:
+            g = gw
+        sp = int(_zahl(d.get("spulen"), 1))
+        if g < gw:
+            i = _naechster(reste, float(alt["g"])) if alt and alt.get("g") is not None and float(alt["g"]) < gw else None
+            if i is not None:          # dieselbe Rolle neu gewogen
+                reste[i] = int(round(g))
+            elif sp > len(reste):      # eine volle Spule ist jetzt diese angebrochene Rolle
+                reste.append(int(round(g)))
+            elif reste:                # alle Spulen schon angebrochen: die passendste ersetzen
+                j = min(range(len(reste)), key=lambda k: abs(reste[k] - g))
+                reste[j] = int(round(g))
+            else:
+                reste.append(int(round(g)))
+                neu["spulen"] = max(sp, 1)
+        faecher[key] = {"g": round(g, 1), "seit": time.strftime("%Y-%m-%dT%H:%M:%S"), "quelle": quelle or aktion}
+    neu.update({"v": 2, "reste": reste, "faecher": faecher})
+    return neu
+
+
+def rollen_liste():
+    """Alle belegten Fächer mit Sorte (wie bei der Abbuchung zugeordnet) und Rolle, falls bekannt."""
+    out = []
+    sorten = {it["uid"]: (it, _desc(it)) for it in liste_lesen(ENT) if it["status"] != "completed"}
+    for eid, f in sorted(faecher_sammeln().items()):
+        if f["leer"] or not f["fid"]:
+            continue
+        ort = fach_ort(eid)
+        treffer, _ = sorte_fuer(f["fid"], f["col"])
+        x = {"drucker": f["drucker"], "ort": ort, "key": fach_key(f["drucker"], ort)}
+        if treffer:
+            it, d = treffer
+            r = (d.get("faecher") or {}).get(x["key"]) if isinstance(d.get("faecher"), dict) else None
+            x.update({"uid": it["uid"], "sorte": it["summary"], "gewicht": _zahl(d.get("gewicht"), 1000) or 1000, "leer_g": _zahl(d.get("leer_g")) or None,
+                      "rolle": r, "gleiche": [{"key": k, "g": v.get("g")} for k, v in (d.get("faecher") or {}).items() if k != x["key"] and isinstance(v, dict)]})
+        out.append(x)
+    return out
+
 def _gram(g):
     return ("%.1f" % g).replace(".", ",")
 
@@ -1534,7 +1671,7 @@ def druck_abbuchen(druckername, erg):
         if treffer:
             it, d = treffer
             vorher = abbuchen_rechnen(d, 0)[1]
-            neu, bestand = abbuchen_rechnen(d, g)
+            neu, bestand, rolle = rolle_abbuchen(d, g, druckername, po.get("ort") or "")
             liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
             gw = _zahl(d.get("gewicht"), 1000) or 1000
             if bestand <= 0 < vorher:
@@ -1547,6 +1684,8 @@ def druck_abbuchen(druckername, erg):
                    "gramm": round(g, 1), "preis": preis or None, "kosten": round(g / 1000 * preis, 2) if preis else None,
                    "anlass": erg["anlass"], "quelle": "SchichtLohn-Server · " + erg.get("quelle", ""),
                    "task": erg.get("task") or "", "aufgabe": erg.get("aufgabe") or ""}
+            if rolle is not None:
+                log["rolle_g"] = rolle
             if erg.get("uebersprungen"):
                 log["uebersprungen"] = erg["uebersprungen"]
                 log["skip_genau"] = bool(erg.get("skip_genau"))
@@ -2365,6 +2504,39 @@ class Handler(BaseHTTPRequestHandler):
         if not self._darf(q):
             raise Fehler(401, "Falscher oder fehlender Schlüssel")
         teile = [unquote(x) for x in pfad.split("/")[2:]]
+        if teile == ["rollen"] and methode == "GET":
+            return self._json(200, {"rollen": rollen_liste()})
+        if teile == ["rolle"] and methode == "POST":
+            b = self._json_rumpf()
+            dr, ort, aktion = str(b.get("drucker") or ""), str(b.get("ort") or ""), str(b.get("aktion") or "")
+            if aktion not in ("voll", "gramm", "entfernen") or not dr or not ort:
+                raise Fehler(400, "drucker, ort und aktion (voll, gramm, entfernen) fehlen")
+            ziel = next((r for r in rollen_liste() if r["drucker"] == dr and r["ort"] == ort), None)
+            if not ziel or not ziel.get("uid"):
+                raise Fehler(404, "Diesem Fach ist keine Sorte mit Bestand zugeordnet – erst in SchichtLohn zuordnen")
+            it = next(i for i in liste_lesen(ENT) if i["uid"] == ziel["uid"])
+            d = _desc(it)
+            if aktion == "gramm":
+                try:
+                    g = float(str(b.get("g")).replace(",", "."))
+                except (TypeError, ValueError):
+                    raise Fehler(400, "g muss eine Zahl sein")
+                if not 0 <= g <= 20000:
+                    raise Fehler(400, "g zwischen 0 und 20000")
+            else:
+                g = None
+            neu = rolle_setzen(d, dr, ort, aktion, g, str(b.get("quelle") or ""))
+            # Fach ist jetzt dieser Sorte zugeordnet: bei anderen Sorten den Eintrag für dieses Fach entfernen
+            key = fach_key(dr, ort)
+            for i2 in liste_lesen(ENT):
+                if i2["uid"] == it["uid"]:
+                    continue
+                d2 = _desc(i2)
+                if isinstance(d2.get("faecher"), dict) and key in d2["faecher"]:
+                    d2 = dict(d2, faecher={k: v for k, v in d2["faecher"].items() if k != key})
+                    liste_aendern(ENT, "update_item", {"item": i2["uid"], "description": json.dumps(d2, ensure_ascii=False)})
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+            return self._json(200, {"ok": True, "sorte": it["summary"], "rolle": (neu.get("faecher") or {}).get(key), "bestand_g": abbuchen_rechnen(neu, 0)[1]})
         if teile == ["zugang"] and methode == "GET":
             w, _ = daten_lesen(ZUGANG_KEY)
             tok = token_aktuell()
