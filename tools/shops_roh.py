@@ -61,7 +61,7 @@ def wix(basis):
 
 
 def _text(url, opener=None, accept="text/html"):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": accept, "Accept-Language": "de-DE,de;q=0.9"})
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": accept, "Accept-Language": "de-DE,de;q=0.9", "Accept-Encoding": "gzip"})
     with (opener.open(req, timeout=60) if opener else urllib.request.urlopen(req, timeout=60)) as r:
         roh = r.read()
     if url.endswith(".gz") or roh[:2] == b"\x1f\x8b":
@@ -88,15 +88,13 @@ def _plenty_seite(url, op):
 
 def plenty(basis, pfad="/de/filament-resin/filament/"):
     """Plentymarkets (3D Prima): Filament-Ausführungen aus der Sitemap, Daten über die Shop-Schnittstelle /rest/io/variations
-    (je Abruf 20 Ausführungen, deutlich leichter als die Produktseiten). Erst die deutsche Seite öffnen, damit die Sitzung
-    deutsche Preise (19 % MwSt.) liefert; sonst aus dem Nettopreis mit 19 % hochrechnen."""
+    (je Abruf 20 Ausführungen: Farbe, Gewicht, EAN, verkäuflich). Den Preis liest es von der deutschen Produktseite,
+    weil die Schnittstelle nicht die deutsche Preisliste liefert (Seiten komprimiert geladen)."""
     import http.cookiejar, re
     basis = basis.rstrip("/")
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-    try:  # deutsche Sitzung: Sprache über /de/, Lieferland Deutschland (Plenty-ID 1) → deutsche Preise mit 19 % MwSt.
+    try:  # Sitzung über die deutsche Seite öffnen
         _text(basis + pfad.rstrip("/").rsplit("/", 2)[0] + "/", op)
-        op.open(urllib.request.Request(basis + "/rest/io/shipping/country/1", data=b"", method="PUT",
-                                       headers={"User-Agent": UA, "Accept": "application/json", "X-Requested-With": "XMLHttpRequest"}), timeout=60).read()
     except Exception:
         pass
     idx = _text(basis + "/sitemap.xml", op, "application/xml")
@@ -126,8 +124,9 @@ def plenty(basis, pfad="/de/filament-resin/filament/"):
             preis = (pr.get("price") or {}).get("value")
             rrp = ((x.get("prices") or {}).get("rrp") or {}) or {}
             normal = ((rrp.get("price") or {}).get("value")) if isinstance(rrp, dict) else None
-            if mwst not in (19, 19.0):  # keine deutsche Sitzung: deutsche Preise weichen ab, also von der Produktseite lesen
-                preis, normal = _plenty_seite(urls.get(str(v.get("id")), ""), op)
+            # Die Schnittstelle liefert nicht die deutschen Preise (eigene Preisliste für Deutschland, z. B. 12,90 statt 14,90 €) –
+            # Preis daher immer von der deutschen Produktseite, nur Farbe, Gewicht und EAN aus der Schnittstelle.
+            preis, normal = _plenty_seite(urls.get(str(v.get("id")), ""), op)
             attr = {}
             for a in x.get("attributes") or []:
                 attr[(a.get("attribute") or {}).get("backendName", "").strip()] = ((a.get("value") or {}).get("names") or {}).get("name") or (a.get("value") or {}).get("backendName") or ""
