@@ -2536,7 +2536,8 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
       ${(R.gleiche||[]).map(x=>zeile("Gleiche Sorte, "+esc(x.key.replace("|"," · ")),x.g!=null?N0.format(Math.round(x.g))+" g":"?")).join("")}
       ${abH}
       <div class="dl-rbtn">${netto!=null?`<button class="btn pri" data-rla="waage" data-g="${netto}">Von der Waage: ${N0.format(netto)} g</button>`:""}<button class="btn" data-rla="voll">Volle Rolle (${N0.format(gw)} g)</button></div>
-      <div class="dl-rin"><input type="number" inputmode="decimal" min="0" max="${gw}" id="dl_rlg" placeholder="Gramm auf der Rolle (ohne Spule)"><button class="btn" data-rla="gramm">Speichern</button></div>
+      <label class="dl-rlab" for="dl_rlg">Oder von Hand: Gramm auf der Rolle, ohne Spule</label>
+      <div class="dl-rin"><span class="dl-rfeld"><input type="number" inputmode="decimal" min="0" max="${gw}" step="1" id="dl_rlg" placeholder="z. B. 640"><i>g</i></span><button class="btn" data-rla="gramm">Speichern</button></div>
       ${netto!=null?`<div class="hint">Waage zeigt ${N0.format(brutto)} g, abzüglich ${N0.format(leerG)} g Leerspule${R.leer_g?"":" (Standardwert – bei der Sorte als Leergewicht eintragbar)"}.</div>`:`<div class="hint">Mit der Filamentwaage geht es schneller: Rolle auflegen, dann steht hier „Von der Waage“.</div>`}
       <div class="hint" id="dl_rlmsg" role="status"></div></div>`;
   modal(`${esc(dr)} · ${esc(ortText||ort)}`,body,`${ro?`<button class="btn ghost" data-rla="entfernen">Rolle entfernen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
@@ -2650,7 +2651,9 @@ window.DLIVE={html,after};
 .dl-g{font-style:normal;font-size:11px;font-weight:600;color:var(--fg);margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap}.dl-g.q{color:var(--warn)}.dl-g.n{color:var(--fg-3);font-weight:500}
 .dl-sl.klick{cursor:pointer}.dl-sl.klick:hover{background:var(--glass-2,rgba(255,255,255,.06))}.dl-sl.klick:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .dl-rz{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--fg-2);padding:2px 0}.dl-rz b{color:var(--fg);font-variant-numeric:tabular-nums}
-.dl-rbtn{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.dl-rin{display:flex;gap:8px}.dl-rin input{flex:1;min-width:0}
+.dl-rbtn{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.dl-rlab{font-size:12.5px;color:var(--fg-2);margin-top:6px}
+.dl-rin{display:flex;gap:8px}.dl-rfeld{flex:1;min-width:0;position:relative;display:flex}.dl-rfeld input{flex:1;min-width:0;width:100%;padding-right:30px}
+.dl-rfeld i{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--fg-3);pointer-events:none}
 .dl-rab>div{display:flex;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px solid var(--line);color:var(--fg-2)}.dl-rab>div:first-child{border-top:0}
 .dl-rab .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}.dl-rab .n i{font-style:normal;color:var(--warn);font-size:11px}.dl-rab b{font-variant-numeric:tabular-nums;white-space:nowrap}
 .dl-sleer{display:block;width:30px;height:30px;margin:2px 0 5px;border-radius:50%;border:1.5px dashed var(--line-2)}
