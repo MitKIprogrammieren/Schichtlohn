@@ -21,6 +21,14 @@ Ein Container für die Synology mit einer Datenbank (SQLite) für Lager, Verbrau
 
 **Einrichten (Container Manager):**
 
+**Am schnellsten mit dem Installer** (Synology per SSH oder jeder Linux-Server mit Docker):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/install.sh | sudo sh
+```
+
+Er fragt nach Tailscale (optional mit Funnel für Claude), Preisquellen, Zugangsschlüssel und Datenübernahme vom bisherigen Server und legt `schichtlohn.sh` zum Aktualisieren/Neustarten an. Von Hand geht es so:
+
 1. In File Station den Ordner `docker/schichtlohn` anlegen (dort liegt die Datenbank `schichtlohn.db`, Hyper Backup kann sie mitsichern).
 2. Container Manager → Projekt → Erstellen, Name `schichtlohn`, „docker-compose.yml erstellen“, Inhalt aus [`server/docker-compose.yml`](server/docker-compose.yml) einfügen, fertigstellen.
 3. Prüfen: `http://<synology>:8093/` zeigt `{"ok": true, "dienst": "schichtlohn-server", …}`.
