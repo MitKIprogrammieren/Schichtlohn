@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.8.2 – 04.11.2026
+- Abgebrochene Drucke zeigen jetzt neben der abgebuchten Menge auch, wie viel die ganze Druckdatei gebraucht hätte – z. B. „34 von 46 g“ auf der Kachel und unter „Zuletzt abgebucht“. Gilt auch, wenn Teile übersprungen wurden. Abgebucht wird weiter nur, was wirklich gedruckt wurde.
+
 ## 3.8.1 – 03.11.2026
 - Neu: Installer für Synology und andere Server mit Docker. Ein Befehl richtet SchichtLohn ein, fragt nach Tailscale, Preisquellen (Shops, eBay, AliExpress – jede einzeln wählbar) und Zugangsschlüssel und kann die Daten vom bisherigen Server übernehmen.
 - Beim Übernehmen kannst du wählen: alles inklusive Zugänge oder nur Lager, Drucke und Preise – dann bleiben eBay-, AliExpress- und Claude-Schlüssel beim alten Server.
