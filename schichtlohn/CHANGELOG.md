@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.8.4 – 04.11.2026
+- Telegram-Meldungen einstellbar: bei welchen Prozenten der Fortschritt gemeldet wird (z. B. 50 %, 25/50/75 %, alle 10 % oder eigene Stufen), eine Meldung kurz vor Druckende (5–30 Minuten vorher), welche Ereignisse überhaupt gemeldet werden (Start, Pause, fertig, abgebrochen, Fehler) und ob das Kamerabild mitkommt. Zu finden unter Einstellungen → Meldungen → Telegram.
+
 ## 3.8.3 – 04.11.2026
 - Neu: Dateimanager. Unter Druckaufträge zeigt „Dateien“ alle Druckdateien, die SchichtLohn von den Druckern gesichert hat – mit Bild, Drucker, Datum, Druckzeit, Gramm und Farben. Suchen, nach Drucker filtern, sortieren, herunterladen oder löschen.
 - Neu: Druckdateien wieder an einen Drucker schicken – nur hochladen oder direkt starten. Vor dem Start wählst du Platte und AMS-Fächer; SchichtLohn schlägt die passenden Fächer vor und lässt nur Drucker zu, für die die Datei geslict ist.
