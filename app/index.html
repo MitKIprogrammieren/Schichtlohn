@@ -6408,7 +6408,7 @@ document.addEventListener("input",ev=>{if(ev.target&&ev.target.id==="plzq"){PL.w
 function plRow(z,d){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad,e,stand]=z;const tw=new Set();plN(titel+" "+farbe).forEach(w=>plVar(w).forEach(x=>tw.add(x)));const sd=stand?new Date(stand):null;
   return {shop,name:(d.shops[shop]||[shop])[0],m:plMarke(marke),matRaw:material,farbeRaw:farbe,key:plKey(titel),titel:titel+(sd&&!isNaN(sd)?" · übernommen am "+sd.toLocaleDateString("de-DE"):""),mat:plMat(material),kw:new Set([...plKws(shop==="3djake"?titel.replace(/^\S+\s/,""):titel),...plKws(farbe)]),tw,rf:plKern(farbe,marke),gew:gew||1000,refill:!!refill,preis,normal,url:/^https?:/.test(pfad)?pfad:(d.shops[shop]||[,""])[1]+pfad,ean:e}}
 function preiseLaden(){if(PL.d)return Promise.resolve(PL.d);if(PL.laden)return PL.laden;
-  PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json").then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null),
+  PL.laden=Promise.all([fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise.json?t="+Math.floor(Date.now()/36e5),{cache:"no-cache"}).then(r=>{if(!r.ok)throw new Error("Preise nicht erreichbar ("+r.status+")");return r.json()}).catch(err=>({fehler:err})),epLaden().catch(()=>null),
     fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/preise-stand.json?t="+Math.floor(Date.now()/36e5)).then(r=>r.ok?r.json():null).catch(()=>null)]).then(([d,ep,ps])=>{
     if(ps&&ps.geprueft&&!d.fehler)d.geprueft=ps.geprueft;
     if(d.fehler){if(!(ep&&ep.z.length))throw d.fehler;d={stand:new Date().toISOString().slice(0,10),shops:{},z:[]}}
