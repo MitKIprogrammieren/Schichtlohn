@@ -106,6 +106,8 @@ def shopify(shop, cfg, daten):
             vt = v.get("title") or ""
             if re.search(r"resin|harz", vt, re.I):
                 continue
+            if v.get("available") is False:  # ausverkauft
+                continue
             werte = [v.get("option1"), v.get("option2"), v.get("option3")]
             if shop == "sunlu":  # nur Ware aus dem EU-Lager
                 if "europe" not in vt.lower() and "-eu-" not in (v.get("sku") or "").lower():
@@ -145,6 +147,8 @@ def woo(shop, cfg, daten):
             continue
         pr = p.get("prices") or {}
         if pr.get("currency_code") != "EUR":
+            continue
+        if p.get("is_in_stock") is False or p.get("is_purchasable") is False:  # ausverkauft
             continue
         teil = 10 ** int(pr.get("currency_minor_unit") or 2)
         preis = int(pr.get("price") or 0) / teil or None
@@ -245,7 +249,7 @@ def seiten(shop, cfg, daten):
     out = []
     kurse = cfg.get("kurs") or {}
     for p in daten:
-        if p.get("fehler") or not p.get("preis"):
+        if p.get("fehler") or not p.get("preis") or re.search(r"OutOfStock|SoldOut|Discontinued", str(p.get("verfuegbar") or "")):
             continue
         cur = p.get("waehrung") or "EUR"
         if cur != "EUR":

@@ -6968,7 +6968,7 @@ window.LGN={render,onStates,_G:G,besOf,spool,preise:()=>{start();return preiseLa
 <script>
 /* ---------- Preisvergleich: alle Shops aus der Preisliste (täglich) + live eBay/AliExpress über den SchichtLohn-Server ---------- */
 (()=>{
-const P={q:"",mat:"",marke:"",gew:"alle",art:"alle",sort:"pk",mehr:40,d:null,laden:null,fehler:"",idx:null,markt:null,marktQ:"",marktLaeuft:false,lager:null};
+const P={q:"",mat:"",marke:"",gew:"einzel",art:"alle",sort:"pk",mehr:40,shopsAuf:false,d:null,laden:null,fehler:"",idx:null,markt:null,marktQ:"",marktLaeuft:false,lager:null};
 const nz=s=>String(s||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/gray/g,"grey").replace(/colour/g,"color");
 const wds=s=>nz(s).split(/[^a-z0-9+]+/).filter(Boolean);
 const DE_EN={schwarz:"black",weiss:"white",grau:"grey",rot:"red",blau:"blue",gruen:"green",gelb:"yellow",orange:"orange",lila:"purple",violett:"purple",rosa:"pink",pink:"pink",braun:"brown",beige:"beige",silber:"silver",gold:"gold",natur:"natural",tuerkis:"turquoise",kupfer:"copper",bronze:"bronze",oliv:"olive",mint:"mint",elfenbein:"ivory",hellgrau:"light grey",dunkelgrau:"dark grey",hellblau:"light blue",dunkelblau:"dark blue",dunkelgruen:"dark green",hellgruen:"light green",dunkelrot:"dark red",himmelblau:"sky blue",marineblau:"navy blue"};
@@ -6997,31 +6997,35 @@ function indexBauen(d){const G=new Map();
     const key=[nz(marke).replace(/[^a-z0-9]/g,""),mat,[...kw].sort().join(","),fk,ref].join("|");
     let g=G.get(key);if(!g){g={key,marke,mat,kw,fk,refill:!!ref,farbe:titelFall(farbe||fk),hay:"",o:[]};G.set(key,g)}
     const url=/^https?:/.test(pfad)?pfad:((d.shops[shop]||[,""])[1]||"")+pfad;
-    const o={shop:(d.shops[shop]||[shop])[0],preis:+preis,normal:+normal||+preis,gew:+gew||1000,stueck:1,url,titel};o.pk=pk(o);g.o.push(o);
+    const o={shop:(d.shops[shop]||[shop])[0],sk:shop,preis:+preis,normal:+normal||+preis,gew:+gew||1000,stueck:1,url,titel};o.pk=pk(o);g.o.push(o);
     if(String(farbe||"").length&&String(farbe).length<g.farbe.length)g.farbe=titelFall(farbe)}
   for(const g of G.values()){const w=new Set();[g.marke,g.mat,g.farbe,...g.o.map(o=>o.titel)].forEach(t=>wds(t).forEach(x=>{w.add(x);if(DE_EN[x])wds(DE_EN[x]).forEach(y=>w.add(y));if(EN_DE[x])w.add(EN_DE[x])}));
     g.kw.forEach(k=>{w.add(k);KW[k].forEach(x=>w.add(x));w.add(nz(KWL[k]))});g.hay=" "+[...w].join(" ")+" ";g.hex=farbHex(g.farbe);
-    g.name=[g.mat,...[...g.kw].map(k=>KWL[k])].join(" ");g.farbe=farbeDe(g.farbe);
+    g.name=[g.mat,...[...g.kw].map(k=>KWL[k])].join(" ");g.farbe=farbeDe(String(g.farbe).replace(/\s*\(?#[0-9a-f]{3,8}\)?/ig,"").trim()||g.farbe);
     g.buendel=g.fk==="?"||/\b(set|pack|bundle|mix|sample|probe|muster|farbwechsel\w*|sortiment|kit|combo)\b/i.test(g.farbe+" "+g.o.map(o=>o.titel).join(" "))||wds(g.farbe).every(w=>ALLKW.has(w)||STOP.has(w))}
   return [...G.values()]}
 function lagerKeys(){try{const L=(window.LGN&&LGN.sorten&&LGN.sorten())||[];const s=new Set();
   L.forEach(e=>{const kw=kwsVon([e.material,...(e.besonderheiten||[]),e.farbe].join(" "));s.add([nz(e.hersteller).replace(/[^a-z0-9]/g,""),matVon(e.material,""),[...kw].sort().join(","),farbeKey(e.farbe,e.hersteller,e.material)].join("|"))});return s}catch(x){return new Set()}}
 const imLager=g=>P.lager&&P.lager.has(g.key.split("|").slice(0,4).join("|"));
-const gewOk=o=>P.gew==="alle"||(P.gew==="1"?o.gew>=750&&o.gew<=1250:P.gew==="klein"?o.gew<750:o.gew>1250);
+const gewOk=o=>P.gew==="alle"||(P.gew==="einzel"?o.gew<=3000:P.gew==="1"?o.gew>=750&&o.gew<=1250:P.gew==="klein"?o.gew<750:o.gew>3000);
+/* Shops, die der Nutzer im Preisvergleich ausgeschaltet hat (gilt auf allen Geräten, cfg.pvShopsAus) */
+const shopAus=()=>new Set((S.cfg&&S.cfg.pvShopsAus)||[]);const shopOk=o=>!shopAus().has(o.sk);
 const MAT_W=w=>{const u=w.toUpperCase();return MATS.includes(u)?u:null};
 function passt(g,t){return t.every(w=>{const m=MAT_W(w);if(m)return g.mat===m||(m==="PLA"&&g.mat==="PLA+");return g.hay.includes(" "+w)||(DE_EN[w]&&g.hay.includes(" "+wds(DE_EN[w])[0]))||(EN_DE[w]&&g.hay.includes(" "+EN_DE[w]))})}
 function auswahl(){const t=wds(P.q).filter(w=>!STOP.has(w));const out=[];
   for(const g of P.idx){if(P.mat&&g.mat!==P.mat)continue;if(P.marke&&g.marke.toLowerCase()!==P.marke.toLowerCase())continue;if(P.art!=="alle"&&g.refill!==(P.art==="refill"))continue;
-    if(t.length&&!passt(g,t))continue;const best={};g.o.filter(gewOk).forEach(o=>{const a=best[o.shop];if(!a||o.pk<a.pk)best[o.shop]=o});
+    if(t.length&&!passt(g,t))continue;const best={};g.o.filter(o=>gewOk(o)&&shopOk(o)).forEach(o=>{const a=best[o.shop];if(!a||o.pk<a.pk)best[o.shop]=o});
     const o=Object.values(best).sort((a,b)=>P.sort==="preis"?a.preis-b.preis:a.pk-b.pk);if(!o.length)continue;out.push({g,o})}
   return out.sort((a,b)=>P.sort==="preis"?a.o[0].preis-b.o[0].preis:a.o[0].pk-b.o[0].pk)}
 const kgT=g=>g>=1000?(g/1000).toLocaleString("de-DE",{maximumFractionDigits:2})+" kg":g+" g";
-function oZeile(o,best,mehr){return `<a class="plo${best&&mehr?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${o.markt&&(typeof pvVersandText==="function")?" · "+pvVersandText(o):""}">
-  <span class="plon">${esc(o.shop)}${best&&mehr?`<i>günstigste</i>`:""}<small>${o.stueck>1?o.stueck+" × ":""}${kgT(o.gew)}</small></span>
-  <span class="plop">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b>${o.markt&&(typeof pvVersandText==="function")?`<small>${pvVersandText(o)}</small>`:""}</span><span class="plok">${eur(o.pk)}/kg</span><span class="ploa">›</span></a>`}
-function gKarte({g,o}){const sp=window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):"";
-  return `<div class="plz"><div class="pls">${sp}<div style="min-width:0"><b>${esc(g.marke)} ${esc(g.name)} · ${esc(g.farbe)}</b><small>${g.refill?"Refill · ":""}${o.length} ${o.length===1?"Shop":"Shops"}${imLager(g)?` · <span class="pvgl">im Lager</span>`:""}</small></div></div>
-    <div class="pla">${o.map((x,i)=>oZeile(x,i===0,o.length>1)).join("")}</div></div>`}
+function oZeile(o,best,mehr){const v=o.markt&&(typeof pvVersandText==="function")?pvVersandText(o):"";
+  return `<a class="pvo${best&&mehr?" best":""}" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}${v?" · "+v:""}">
+  <span class="pvo-s"><b>${esc(o.shop)}</b><small>${o.stueck>1?o.stueck+" × ":""}${kgT(o.gew)}${o.gew>3000?" · Großpackung":""}${v?" · "+esc(v):""}</small></span>
+  <span class="pvo-p">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b></span><span class="pvo-k">${eur(o.pk)}<small>/kg</small></span></a>`}
+function gKarte({g,o}){const sp=window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):"";const b=o[0];const tags=[g.refill?"Refill":"",imLager(g)?"im Lager":""].filter(Boolean);
+  return `<article class="pvk"><header class="pvk-k"><span class="pvk-sp">${sp}</span><div class="pvk-t"><b>${esc(g.marke)} ${esc(g.name)}</b><span>${esc(g.farbe)}${tags.map(t=>` <i class="pvtag${t==="im Lager"?" lg":""}">${t}</i>`).join("")}</span></div>
+    <div class="pvk-b"><b>${eur(b.pk)}</b><small>je kg · ${o.length} ${o.length===1?"Shop":"Shops"}</small></div></header>
+    <div class="pvk-o">${o.slice(0,P.offen===g.key?99:3).map((x,i)=>oZeile(x,i===0,o.length>1)).join("")}${o.length>3&&P.offen!==g.key?`<button type="button" class="pvk-m" data-pvg="offen" data-v="${esc(g.key)}">${o.length-3} weitere ${o.length-3===1?"Shop":"Shops"} ›</button>`:""}</div></article>`}
 /* eBay/AliExpress live */
 function marktHTML(){if(!wds(P.q).length)return "";
   const kopf=`<div class="plmk">Marktplätze · live</div>`;
@@ -7042,42 +7046,101 @@ let mT=0;function marktSuchen(){clearTimeout(mT);const q=P.q.trim();if(!S.srv||!
     SRV.req("GET","/api/preise/suche?q="+encodeURIComponent(q)).then(d=>{if(P.marktQ!==q)return;P.markt=d||{}}).catch(x=>{if(P.marktQ===q)P.markt={dienste:["ebay"],ebay:[],ali:[],fehler:[x.message||String(x)]}}).finally(()=>{P.marktLaeuft=false;if(P.marktQ===q)teil()})},650)}
 /* Startansicht: Bestpreise je Material (1-kg-Spulen) */
 function bestHTML(){const sek=["PLA","PETG","ABS","ASA","TPU","PLA+"];let h="";
-  for(const mat of sek){const L=[];for(const g of P.idx){if(g.mat!==mat||g.refill||g.buendel)continue;const o=g.o.filter(o=>o.gew>=750&&o.gew<=1250).sort((a,b)=>a.pk-b.pk);if(o.length)L.push({g,o:[o[0]]})}
+  for(const mat of sek){const L=[];for(const g of P.idx){if(g.mat!==mat||g.refill||g.buendel)continue;const o=g.o.filter(o=>o.gew>=750&&o.gew<=1250&&shopOk(o)).sort((a,b)=>a.pk-b.pk);if(o.length)L.push({g,o:[o[0]]})}
     if(!L.length)continue;L.sort((a,b)=>a.o[0].pk-b.o[0].pk);const marken=new Set();for(let i=0;i<L.length;i++){const k=nz(L[i].g.marke);if(marken.has(k)){L.splice(i--,1)}else marken.add(k)}
-    h+=`<div class="plmk">${esc(mat)} · günstigste 1-kg-Spule je Marke</div><div class="pvgb">${L.slice(0,4).map(({g,o})=>`<a class="pvgbk" href="${esc(o[0].url)}" target="_blank" rel="noopener" title="${esc(o[0].titel)}">${window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):""}<span><b>${eur(o[0].pk)}/kg</b><small>${esc(g.marke)} ${esc(g.name)} · ${esc(g.farbe)}</small><small>${esc(o[0].shop)}</small></span></a>`).join("")}</div>`}
-  return h}
+    h+=`<section class="pvb"><header><b>${esc(mat)}</b><span>günstigste 1-kg-Spule je Marke</span><button type="button" class="pvb-a" data-pvg="mat" data-v="${esc(mat)}">Alle ${esc(mat)} ›</button></header>
+      ${L.slice(0,4).map(({g,o},i)=>`<a class="pvb-z${i===0?" best":""}" href="${esc(o[0].url)}" target="_blank" rel="noopener" title="${esc(o[0].titel)}"><span class="pvk-sp">${window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):""}</span>
+        <span class="pvb-t"><b>${esc(g.marke)} ${esc(g.name)}</b><small>${esc(g.farbe)} · ${esc(o[0].shop)}</small></span><span class="pvo-k">${eur(o[0].pk)}<small>/kg</small></span></a>`).join("")}</section>`}
+  return `<div class="pvbs">${h}</div>`}
 function listeHTML(){if(P.fehler)return `<div class="panel empty">${esc(P.fehler)}</div>`;if(!P.idx)return `<div class="panel empty">Preise werden geladen …</div>`;
-  const leer=!wds(P.q).length&&!P.mat&&!P.marke&&P.art==="alle"&&P.gew==="alle";
-  if(leer)return `<div class="hint">Tipp: Marke, Material oder Farbe eingeben – z. B. „PETG schwarz“, „Sunlu PLA Matt“ oder „ASA weiß“.</div>`+bestHTML();
+  const leer=!wds(P.q).length&&!P.mat&&!P.marke&&P.art==="alle"&&P.gew==="einzel";
+  if(leer)return bestHTML();
   const A=auswahl();const n=A.length;
-  return marktHTML()+`<div class="plmk">Shops · ${n} ${n===1?"Sorte":"Sorten"}</div>`+(n?`<div class="pllist">${A.slice(0,P.mehr).map(gKarte).join("")}</div>${n>P.mehr?`<button class="btn ghost" data-pvg="mehr">Weitere ${Math.min(40,n-P.mehr)} von ${n-P.mehr} zeigen</button>`:""}`:`<div class="panel empty">Kein Shop führt das so. Weniger Wörter oder einen anderen Filter probieren.</div>`)}
+  return marktHTML()+`<div class="pvn">${N0.format(n)} ${n===1?"Sorte":"Sorten"} gefunden</div>`+(n?`<div class="pvl">${A.slice(0,P.mehr).map(gKarte).join("")}</div>${n>P.mehr?`<button class="btn ghost" data-pvg="mehr">Weitere ${Math.min(40,n-P.mehr)} von ${n-P.mehr} zeigen</button>`:""}`:`<div class="panel empty">Kein Shop führt das so. Weniger Wörter oder einen anderen Filter probieren.</div>`)}
 function teil(){const el=document.getElementById("pvgL");if(el)el.innerHTML=listeHTML()}
 function laden(){if(P.idx||P.laden)return;if(!(window.LGN&&LGN.preise)){setTimeout(laden,300);return}
   P.laden=LGN.preise().then(d=>{P.d=d;P.idx=indexBauen(d);P.lager=lagerKeys();P.laden=null;if(S.tab==="preise")render()}).catch(x=>{P.laden=null;P.fehler="Preise nicht erreichbar: "+(x.message||x);if(S.tab==="preise")render()})}
 window.addEventListener("sl-shoppreise",()=>{if(P.d&&window.LGN){LGN.preise().then(d=>{P.d=d;P.idx=indexBauen(d);if(S.tab==="preise")teil()}).catch(()=>{})}});
-function renderSeite(m){laden();const d=P.d;const shops=d?new Set(d.z.map(z=>z[0])).size:0;const marken=P.idx?[...new Set(P.idx.map(g=>g.marke))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"})):[];
-  const mats=P.idx?Object.entries(P.idx.reduce((a,g)=>(a[g.mat]=(a[g.mat]||0)+1,a),{})).sort((a,b)=>b[1]-a[1]).slice(0,7).map(x=>x[0]):[];
-  const st=d&&d.stand?new Date(d.stand):null;const stand=st&&!isNaN(st)?st.toLocaleDateString("de-DE",{day:"numeric",month:"long"}):"–";
-  const chip=(k,v,t,an)=>`<button type="button" class="chip${an?" on":""}" data-pvg="${k}" data-v="${esc(v)}">${esc(t)}</button>`;
+function shopsHTML(){const d=P.d;if(!d)return "";const aus=shopAus();const n={};d.z.forEach(z=>n[z[0]]=(n[z[0]]||0)+1);
+  const L=Object.keys(n).map(k=>({k,name:(d.shops[k]||[k])[0],n:n[k]})).sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  return `<div class="pvsh"><div class="pvsh-k"><b>Shops im Vergleich</b><span class="sp"></span><button type="button" class="btn ghost sm" data-pvg="shAlle" data-v="1">Alle an</button><button type="button" class="btn ghost sm" data-pvg="shAlle" data-v="0">Alle aus</button></div>
+    <div class="pvsh-l">${L.map(x=>`<button type="button" class="pvsh-c${aus.has(x.k)?"":" an"}" data-pvg="sh" data-v="${esc(x.k)}" aria-pressed="${!aus.has(x.k)}"><i></i>${esc(x.name)}<small>${N0.format(x.n)}</small></button>`).join("")}</div>
+    <div class="hint" style="margin:0">Ausgeschaltete Shops fehlen im Vergleich und bei den Bestpreisen. Die Auswahl gilt auf allen Geräten.</div></div>`}
+function renderSeite(m){laden();const d=P.d;const shops=d?new Set(d.z.map(z=>z[0])):new Set();const aus=shopAus();const an=[...shops].filter(k=>!aus.has(k)).length;
+  const marken=P.idx?[...new Set(P.idx.map(g=>g.marke))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"})):[];
+  const mats=P.idx?Object.entries(P.idx.reduce((a,g)=>(a[g.mat]=(a[g.mat]||0)+1,a),{})).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]):[];
+  const st=d&&d.stand?new Date(d.stand):null;const stand=st&&!isNaN(st)?st.toLocaleDateString("de-DE",{day:"numeric",month:"short"}):"–";
+  const chip=(k,v,t,on)=>`<button type="button" class="pvc${on?" on":""}" data-pvg="${k}" data-v="${esc(v)}">${esc(t)}</button>`;
   m.innerHTML=`<div class="stack pvg">
-    <div class="row"><h1>Preisvergleich</h1><span class="dim">alle Shops · €/kg inkl. Versand, wo bekannt</span></div>
-    <div class="plkpis"><div><b>${d?d.z.length.toLocaleString("de-DE"):"–"}</b><span>Angebote</span></div><div><b>${shops||"–"}</b><span>Shops${S.srv?" + eBay/AliExpress":""}</span></div><div><b>${marken.length||"–"}</b><span>Marken</span></div><div><b>${esc(stand)}</b><span>Stand Shoppreise</span></div></div>
-    <div class="plbar"><input type="search" id="pvgq" placeholder="z. B. PETG schwarz, Sunlu PLA Matt …" value="${esc(P.q)}" autocomplete="off" spellcheck="false">
-      <select id="pvgm" aria-label="Marke"><option value="">Alle Marken</option>${marken.map(x=>`<option${x===P.marke?" selected":""}>${esc(x)}</option>`).join("")}</select>
-      <select id="pvgs" aria-label="Sortierung"><option value="pk"${P.sort==="pk"?" selected":""}>Preis je kg</option><option value="preis"${P.sort==="preis"?" selected":""}>Preis</option></select></div>
-    <div class="pvgf"><span class="lgtg">${chip("mat","","Alle",!P.mat)}${mats.map(x=>chip("mat",x,x,P.mat===x)).join("")}</span>
-      <span class="lgtg">${chip("gew","alle","Jedes Gewicht",P.gew==="alle")}${chip("gew","1","1 kg",P.gew==="1")}${chip("gew","klein","unter 1 kg",P.gew==="klein")}${chip("gew","gross","über 1 kg",P.gew==="gross")}</span>
-      <span class="lgtg">${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","nur Spule",P.art==="spule")}${chip("art","refill","nur Refill",P.art==="refill")}</span></div>
+    <div class="pvh"><h1>Preisvergleich</h1><div class="pvh-m">${d?`<span><b>${N0.format(d.z.length)}</b> Angebote</span><span><b>${shops.size}</b> Shops${S.srv?" + eBay/AliExpress":""}</span><span><b>${marken.length}</b> Marken</span><span>Stand ${esc(stand)}</span>`:"Preise werden geladen …"}</div></div>
+    <div class="pvs"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" id="pvgq" placeholder="Suchen, z. B. PETG schwarz oder Sunlu PLA Matt" value="${esc(P.q)}" autocomplete="off" spellcheck="false"></div>
+    <div class="pvw"><select id="pvgm" aria-label="Marke"><option value="">Alle Marken</option>${marken.map(x=>`<option${x===P.marke?" selected":""}>${esc(x)}</option>`).join("")}</select>
+      <select id="pvgs" aria-label="Sortierung"><option value="pk"${P.sort==="pk"?" selected":""}>Günstigste je kg</option><option value="preis"${P.sort==="preis"?" selected":""}>Günstigster Preis</option></select>
+      <button type="button" class="pvw-sh${P.shopsAuf?" auf":""}${an<shops.size?" teil":""}" data-pvg="shopsAuf" data-v="1" aria-expanded="${P.shopsAuf}">Shops <b>${an}/${shops.size}</b></button></div>
+    ${P.shopsAuf?shopsHTML():""}
+    <div class="pvf"><div class="pvf-r"><span>Material</span>${chip("mat","","Alle",!P.mat)}${mats.map(x=>chip("mat",x,x,P.mat===x)).join("")}</div>
+      <div class="pvf-r"><span>Gewicht</span>${chip("gew","einzel","Einzelspule",P.gew==="einzel")}${chip("gew","1","1 kg",P.gew==="1")}${chip("gew","klein","unter 1 kg",P.gew==="klein")}${chip("gew","gross","Großpackung",P.gew==="gross")}${chip("gew","alle","Alle",P.gew==="alle")}</div>
+      <div class="pvf-r"><span>Art</span>${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","Spule",P.art==="spule")}${chip("art","refill","Refill",P.art==="refill")}</div></div>
     <div id="pvgL">${listeHTML()}</div></div>`;
   marktSuchen()}
 document.addEventListener("click",ev=>{const b=ev.target.closest("[data-pvg]");if(!b||S.tab!=="preise")return;const k=b.dataset.pvg;
-  if(k==="mehr"){P.mehr+=40;teil();return}P[k]=b.dataset.v;P.mehr=40;render()});
+  if(k==="mehr"){P.mehr+=40;teil();return}
+  if(k==="offen"){P.offen=b.dataset.v;teil();return}
+  if(k==="shopsAuf"){P.shopsAuf=!P.shopsAuf;render();return}
+  if(k==="sh"||k==="shAlle"){const aus=shopAus();if(k==="sh"){aus.has(b.dataset.v)?aus.delete(b.dataset.v):aus.add(b.dataset.v)}else if(b.dataset.v==="1")aus.clear();else new Set(P.d.z.map(z=>z[0])).forEach(x=>aus.add(x));
+    S.cfg.pvShopsAus=[...aus];saveCfgSoon();try{window.dispatchEvent(new Event("sl-shopwahl"))}catch(x){}render();return}
+  P[k]=b.dataset.v;P.mehr=40;render()});
 document.addEventListener("change",ev=>{const t=ev.target;if(!t||S.tab!=="preise")return;if(t.id==="pvgm"){P.marke=t.value;P.mehr=40;render()}if(t.id==="pvgs"){P.sort=t.value;render()}});
 let qT=0;document.addEventListener("input",ev=>{if(!ev.target||ev.target.id!=="pvgq")return;P.q=ev.target.value;P.mehr=40;clearTimeout(qT);qT=setTimeout(()=>{teil();marktSuchen()},180)});
 window.PVG={render:renderSeite,_P:P};
 })();
 </script>
 <style>
+.pvh{display:flex;flex-direction:column;gap:4px}.pvh h1{margin:0}
+.pvh-m{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-3)}.pvh-m b{color:var(--fg);font-variant-numeric:tabular-nums}
+.pvs{display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid var(--line-2);border-radius:14px;background:var(--sunken,rgba(0,0,0,.2));color:var(--fg-3)}
+.pvs input{flex:1;min-width:0;border:0;background:none;padding:13px 0;font-size:16px;color:var(--fg);outline:none;box-shadow:none}
+.pvs:focus-within{border-color:var(--accent)}
+.pvw{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}.pvw select{min-width:0}
+.pvw-sh{border:1px solid var(--line-2);background:var(--glass);border-radius:10px;padding:0 12px;color:var(--fg-2);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}
+.pvw-sh b{color:var(--fg);font-variant-numeric:tabular-nums}.pvw-sh.teil{border-color:var(--accent);color:var(--accent)}.pvw-sh.teil b{color:var(--accent)}.pvw-sh.auf{background:var(--sunken)}
+.pvsh{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--glass)}
+.pvsh-k{display:flex;align-items:center;gap:6px}.pvsh-l{display:flex;flex-wrap:wrap;gap:6px}
+.pvsh-c{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line-2);background:none;color:var(--fg-3);font:inherit;font-size:13px;cursor:pointer}
+.pvsh-c i{width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor}.pvsh-c small{font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}
+.pvsh-c.an{color:var(--fg);border-color:var(--accent)}.pvsh-c.an i{background:var(--accent);border-color:var(--accent)}
+.pvf{display:flex;flex-direction:column;gap:6px}
+.pvf-r{display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}.pvf-r::-webkit-scrollbar{display:none}
+.pvf-r>span{flex:none;width:62px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+.pvc{flex:none;padding:7px 12px;border-radius:999px;border:1px solid var(--line-2);background:none;color:var(--fg-2);font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.pvc.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff);font-weight:600}
+.pvn{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);margin:6px 2px 0}
+.pvl{display:flex;flex-direction:column;gap:10px}
+.pvk{border:1px solid var(--line);border-radius:16px;background:var(--glass);overflow:hidden}
+.pvk-k{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px}
+.pvk-sp{width:44px;height:44px;display:grid;place-items:center}.pvk-sp svg{width:44px;height:44px}
+.pvk-t{min-width:0;display:flex;flex-direction:column;gap:2px}.pvk-t b{font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pvk-t span{font-size:13px;color:var(--fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pvtag{font-style:normal;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--sunken);color:var(--fg-2);margin-left:4px}.pvtag.lg{background:var(--accent-soft);color:var(--accent)}
+.pvk-b{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}.pvk-b b{font-size:19px;color:var(--accent);font-variant-numeric:tabular-nums}.pvk-b small{font-size:11px;color:var(--fg-3);margin-top:3px;white-space:nowrap}
+.pvk-o{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.pvo{display:grid;grid-template-columns:minmax(0,1fr) auto 78px;gap:10px;align-items:center;padding:9px 14px;text-decoration:none;color:var(--fg)}
+.pvo+.pvo{border-top:1px solid var(--line)}.pvo:hover{background:var(--sunken)}
+.pvo.best{background:var(--accent-soft)}
+.pvo-s{min-width:0;display:flex;flex-direction:column;gap:1px}.pvo-s b{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pvo-s small{font-size:12px;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pvo-p{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;font-variant-numeric:tabular-nums}.pvo-p b{font-size:14px}.pvo-p s{font-size:11px;color:var(--fg-3)}
+.pvo-k{text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--fg-2)}.pvo-k small{font-size:11px;font-weight:500;color:var(--fg-3)}
+.pvo.best .pvo-k{color:var(--accent)}
+.pvk-m{border:0;border-top:1px solid var(--line);background:none;color:var(--fg-2);font:inherit;font-size:13px;padding:9px;cursor:pointer}
+.pvbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.pvb{border:1px solid var(--line);border-radius:16px;background:var(--glass);overflow:hidden}
+.pvb header{display:flex;align-items:baseline;gap:8px;padding:12px 14px 8px}.pvb header b{font-size:16px}.pvb header span{font-size:12px;color:var(--fg-3)}
+.pvb-a{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.pvb-z{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--line);text-decoration:none;color:var(--fg)}
+.pvb-z .pvk-sp,.pvb-z .pvk-sp svg{width:36px;height:36px}.pvb-z.best{background:var(--accent-soft)}.pvb-z.best .pvo-k{color:var(--accent)}
+.pvb-t{min-width:0;display:flex;flex-direction:column}.pvb-t b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pvb-t small{font-size:12px;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:520px){.pvw{grid-template-columns:1fr 1fr}.pvw-sh{grid-column:1/-1;padding:10px 12px;text-align:left}.pvbs{grid-template-columns:1fr}}
 .pvg .pvgf{display:flex;flex-direction:column;gap:6px}.pvg .pvgf .lgtg{display:flex;flex-wrap:wrap;gap:6px}
 .pvg .chip{cursor:pointer}.pvg .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pvg .plbar select{flex:0 0 auto;max-width:180px}

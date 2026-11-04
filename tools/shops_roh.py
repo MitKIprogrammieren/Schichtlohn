@@ -221,6 +221,10 @@ def _ld_produkte(h, url):
             return o.get("lowPrice") or o.get("price"), o.get("priceCurrency")
         return o.get("price"), o.get("priceCurrency") or (o.get("priceSpecification") or {}).get("priceCurrency")
 
+    def verf(o):
+        o = o[0] if isinstance(o, list) and o else o
+        return str((o or {}).get("availability") or "") if isinstance(o, dict) else ""
+
     def marke(x):
         b = x.get("brand")
         return (b.get("name") if isinstance(b, dict) else b) or ""
@@ -231,7 +235,7 @@ def _ld_produkte(h, url):
             return
         out.append({"name": H.unescape(x.get("name") or (eltern or {}).get("name") or ""), "marke": marke(x) or marke(eltern or {}),
                     "farbe": x.get("color") or "", "ean": str(x.get("gtin13") or x.get("gtin") or ""), "sku": str(x.get("sku") or ""),
-                    "preis": float(str(pr).replace(",", ".")), "waehrung": cur or "", "url": url})
+                    "preis": float(str(pr).replace(",", ".")), "waehrung": cur or "", "url": url, "verfuegbar": verf(x.get("offers"))})
 
     for b in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', h, re.S):
         try:
