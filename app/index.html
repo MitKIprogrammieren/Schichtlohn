@@ -2484,6 +2484,7 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
       <div class="dl-info">${esc(info)}${lauf&&d.task?` <span class="dl-task" title="${esc(d.task)}">· ${esc(d.task)}</span>`:""}</div>
       ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
     ${fil?`<div class="dl-fil">${fil}</div>`:""}
+    ${window.SRV&&S.srv?`<button type="button" class="btn icon dl-nabtn${lauf?" lauf":""}" data-na="${esc(d.name)}" aria-label="Notaus ${esc(d.name)}" title="Notaus">${window.NOTAUS?NOTAUS.ICON:""}</button>`:""}
     ${k!=="aus"&&d.pre?`<button type="button" class="btn icon dl-kbtn" data-dk="${esc(d.key)}" aria-pressed="${OFFEN.has(d.key)}" aria-label="Kamera ${esc(d.name)}" title="Kamera">${ICON_KAM}</button>`:""}</div>
     ${k!=="aus"&&d.pre?unten(d,lauf):""}`}
 /* AMS-Fächer des Druckers (Home Assistant oder SchichtLohn-Server, gleiche Namen): kleine Spulen wie im Lager, aktives Fach hervorgehoben */
@@ -7601,6 +7602,65 @@ window.DMGR={ICON,auf};
 .dm-opt{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}.dm-opt label{display:flex;gap:6px;align-items:center}
 .dm-btn{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .dm-btn .sicher{background:var(--bad);border-color:var(--bad)}.dm-btn .btn:disabled{opacity:.4;cursor:not-allowed}
+</style>
+<script>
+/* ===== Notaus je Drucker: Stopp (2× tippen) und Strom aus über die Steckdose in Home Assistant (3× tippen) ===== */
+(function(){
+"use strict";
+const ICON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>';
+const N={dr:"",d:null,fehler:"",tipp:{},msg:"",laeuft:""};let tt=null;
+const BRAUCHT={stopp:2,strom_aus:3};
+function html(){
+  if(N.fehler&&!N.d)return `<p class="hint" style="color:var(--bad)">${esc(N.fehler)}</p>`;
+  if(!N.d)return `<p class="hint">Wird geladen …</p>`;
+  const x=N.d.drucker.find(o=>o.name===N.dr)||{name:N.dr};const lauf=/RUNNING|PAUSE|PREPARE/i.test(x.status||"");
+  const knopf=(st,txt,cls)=>{const n=N.tipp[st]||0,soll=BRAUCHT[st]||1;const rest=soll-n;
+    return `<button type="button" class="btn na-k ${cls}${n?" scharf":""}" data-naa="${st}"${N.laeuft?" disabled":""}>${N.laeuft===st?"Wird ausgeführt …":n?`Noch ${rest}× tippen`:txt}${soll>1?`<small>${n?"":soll+"× tippen"}</small>`:""}${soll>1?`<span class="na-pkt">${Array.from({length:soll},(_,i)=>`<i${i<n?' class="an"':""}></i>`).join("")}</span>`:""}</button>`};
+  const sd=x.steckdose,an=x.zustand==="on";
+  return `<div class="na-kopf"><b>${esc(x.name)}</b><span>${x.online?(lauf?"druckt gerade":"verbunden, druckt nicht"):"nicht verbunden"}</span></div>
+    ${knopf("stopp","Druck stoppen","na-stopp")}
+    <p class="hint na-h">Bricht den Druck ab wie am Display. Heizungen gehen aus, die Lüfter laufen weiter.</p>
+    ${sd?knopf("strom_aus","Strom aus","na-strom"):`<div class="na-leer">Keine Steckdose zugeordnet – unten auswählen.</div>`}
+    ${sd?`<p class="hint na-h">Schaltet <b>${esc(sd)}</b> ab${x.zustand?` (gerade ${an?"an":"aus"})`:""}. Nur für den echten Notfall: Auch die Lüfter stoppen, eine heiße Düse kann verstopfen.</p>`:""}
+    ${sd&&x.zustand==="off"?`<button type="button" class="btn ghost" data-naa="strom_an">Strom wieder an</button>`:""}
+    ${N.msg?`<p class="na-msg">${esc(N.msg)}</p>`:""}
+    <label class="na-lab">Steckdose für ${esc(x.name)}<select id="na_sd"><option value="">– keine –</option>${N.d.schalter.map(o=>`<option value="${esc(o.entity_id)}"${o.entity_id===sd?" selected":""}>${esc(o.name)} (${esc(o.entity_id)})</option>`).join("")}</select></label>
+    ${x.vorschlag?`<p class="hint" style="margin:0">Vorschlag nach dem Namen – mit der Auswahl oben bestätigen oder ändern.</p>`:""}`}
+function neu(){const el=document.getElementById("na_in");if(el)el.innerHTML=html()}
+async function laden(){try{N.d=await SRV.req("GET","/api/drucker/steckdosen")}catch(e){N.fehler=e.status===404?"Braucht Server-Version 3.8.3 – bitte den SchichtLohn-Server aktualisieren.":String(e&&e.message||e)}neu()}
+function auf(name){N.dr=name;N.tipp={};N.msg="";N.laeuft="";N.fehler="";modal("Notaus",`<div id="na_in" class="na">${html()}</div>`);laden()}
+async function los(st){const x=(N.d&&N.d.drucker.find(o=>o.name===N.dr))||{};N.laeuft=st;neu();
+  try{const r=await SRV.req("POST","/api/drucker/notaus",{drucker:N.dr,stufe:st,steckdose:x.steckdose||""});
+    N.msg=st==="stopp"?"Stoppbefehl gesendet.":st==="strom_aus"?`Strom aus: ${r.steckdose}.`:`Strom wieder an: ${r.steckdose}.`;toast(N.msg);
+    if(st!=="stopp")x.zustand=st==="strom_aus"?"off":"on"}
+  catch(e){N.msg="Ging nicht: "+String(e&&e.message||e)}N.laeuft="";N.tipp={};neu();setTimeout(laden,2500)}
+document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-na],[data-naa]");if(!t)return;
+  if(t.dataset.na!=null){e.preventDefault();e.stopPropagation();auf(t.dataset.na);return}
+  const st=t.dataset.naa;const soll=BRAUCHT[st]||1;
+  for(const k of Object.keys(N.tipp))if(k!==st)N.tipp[k]=0;
+  N.tipp[st]=(N.tipp[st]||0)+1;clearTimeout(tt);
+  if(N.tipp[st]>=soll){los(st);return}
+  tt=setTimeout(()=>{N.tipp={};neu()},4000);neu()},true);
+document.addEventListener("change",async e=>{if(e.target.id!=="na_sd")return;const v=e.target.value;
+  try{await SRV.req("POST","/api/drucker/notaus",{drucker:N.dr,stufe:"zuordnen",steckdose:v});const x=N.d.drucker.find(o=>o.name===N.dr);if(x){x.steckdose=v;x.vorschlag=false;const s=N.d.schalter.find(o=>o.entity_id===v);x.zustand=s?s.zustand:null}N.msg=v?"Steckdose gespeichert.":"Steckdose entfernt."}
+  catch(x2){N.msg="Speichern ging nicht: "+String(x2&&x2.message||x2)}neu()});
+window.NOTAUS={ICON,auf};
+})();
+</script>
+<style>
+.dl-nabtn{flex:none;width:34px;height:34px;color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.dl-nabtn:not(.lauf){opacity:.55}
+.na{display:flex;flex-direction:column;gap:8px}
+.na-kopf{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.na-kopf b{font-size:17px}.na-kopf span{font-size:12.5px;color:var(--fg-3)}
+.na-k{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;min-height:64px;font-size:17px;font-weight:700;border-radius:14px}
+.na-k small{font-size:11.5px;font-weight:500;opacity:.8}
+.na-stopp{background:color-mix(in srgb,var(--warn,#f0a020) 18%,var(--solid));border-color:var(--warn,#f0a020);color:var(--warn,#f0a020)}
+.na-strom{background:color-mix(in srgb,var(--bad) 20%,var(--solid));border-color:var(--bad);color:var(--bad)}
+.na-k.scharf.na-stopp{background:var(--warn,#f0a020);color:#1a1a1a}.na-k.scharf.na-strom{background:var(--bad);color:#fff}
+.na-pkt{display:flex;gap:5px;margin-top:3px}.na-pkt i{width:7px;height:7px;border-radius:50%;border:1.5px solid currentColor}.na-pkt i.an{background:currentColor}
+.na-h{margin:0 0 6px}.na-leer{padding:14px;border:1px dashed var(--line-2);border-radius:14px;text-align:center;color:var(--fg-3);font-size:13px}
+.na-msg{margin:0;font-weight:600}
+.na-lab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg-2);margin-top:6px;padding-top:10px;border-top:1px solid var(--line)}
 </style>
 </body>
 </html>

@@ -837,6 +837,13 @@ class Drucker:
         self.wirt.log(f"Drucker {self.serial}: Druck gestartet: {name} Platte {platte}, AMS {mapping}")
         return befehl["print"]
 
+    def stoppen(self):
+        """Druck abbrechen wie am Display (Heizungen aus, Lüfter laufen weiter)."""
+        if not (self.client and self.online):
+            raise RuntimeError("Drucker ist nicht verbunden")
+        self.client.publish(f"device/{self.serial}/request", json.dumps({"print": {"sequence_id": str(int(time.time()) % 100000), "command": "stop", "param": ""}}))
+        self.wirt.log(f"Drucker {self.serial}: NOTAUS – Druck gestoppt")
+
     def fach_setzen(self, fach, fid, farbe, typ, tmin, tmax):
         """Filament eines AMS-Fachs festlegen (wie „Fach bearbeiten“ in Bambu Studio). fach = Eintrag aus faecher()."""
         if not (self.client and self.online):

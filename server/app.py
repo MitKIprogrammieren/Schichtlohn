@@ -2064,6 +2064,85 @@ def fach_belegen(k):
             "duese": [tmin, tmax], "eigene_id": bool(str(d.get("bambu_id") or "").strip())}
 
 
+STECKDOSEN_KEY = "_steckdosen"  # {seriennummer: switch.…} – Steckdose je Drucker für den Notaus
+
+
+def _dr_suchen(name):
+    name = str(name or "")
+    return next((d for d in BAMBU.drucker.values() if d.serial == name or (d.info().get("name") or "") == name), None)
+
+
+def steckdosen():
+    """Zuordnung, Vorschläge und alle Schalter aus Home Assistant für die Auswahl."""
+    zu, _ = daten_lesen(STECKDOSEN_KEY)
+    zu = zu if isinstance(zu, dict) else {}
+    schalter = []
+    try:
+        for st in ha_anfrage("/api/states", timeout=15) or []:
+            eid = st.get("entity_id", "")
+            if not eid.startswith("switch."):
+                continue
+            n = (st.get("attributes") or {}).get("friendly_name") or eid
+            if re.search(r"internetzugang|kamera|camera|auto off|button lock|led|outage|aufforderungston|bildsensor|permit join|wi-fi|synchronis|nachtlicht|einfrieren|umkehren", n, re.I):
+                continue
+            schalter.append({"entity_id": eid, "name": n, "zustand": st.get("state")})
+    except Exception as e:
+        return {"zuordnung": zu, "schalter": [], "fehler": str(e), "drucker": []}
+    ids = {x["entity_id"] for x in schalter}
+    drucker = []
+    for dr in BAMBU.drucker.values():
+        nm = dr.info().get("name") or dr.serial
+        vorschlag = "switch." + re.sub(r"[^a-z0-9]+", "_", nm.lower()).strip("_")
+        e = zu.get(dr.serial) or (vorschlag if vorschlag in ids else "")
+        zst = next((x["zustand"] for x in schalter if x["entity_id"] == e), None)
+        drucker.append({"serial": dr.serial, "name": nm, "steckdose": e, "vorschlag": not zu.get(dr.serial) and bool(e), "zustand": zst,
+                        "status": str(dr.p.get("gcode_state") or ""), "online": dr.online})
+    return {"zuordnung": zu, "schalter": sorted(schalter, key=lambda x: x["name"].lower()), "drucker": drucker}
+
+
+def notaus(k):
+    dr = _dr_suchen(k.get("drucker"))
+    stufe = k.get("stufe")
+    if stufe == "zuordnen":
+        zu, _ = daten_lesen(STECKDOSEN_KEY)
+        zu = zu if isinstance(zu, dict) else {}
+        if not dr:
+            raise Fehler(404, "Drucker nicht gefunden")
+        e = str(k.get("steckdose") or "")
+        if e and not re.match(r"^switch\.[a-z0-9_]+$", e):
+            raise Fehler(400, "Keine gültige Steckdose")
+        if e:
+            zu[dr.serial] = e
+        else:
+            zu.pop(dr.serial, None)
+        daten_schreiben(STECKDOSEN_KEY, zu)
+        return {"ok": True}
+    if stufe == "stopp":
+        if not dr:
+            raise Fehler(404, "Drucker nicht verbunden")
+        try:
+            dr.stoppen()
+        except RuntimeError as e:
+            raise Fehler(409, str(e))
+        return {"ok": True, "gestoppt": True}
+    if stufe in ("strom_aus", "strom_an"):
+        e = str(k.get("steckdose") or "")
+        if not e:
+            zu, _ = daten_lesen(STECKDOSEN_KEY)
+            e = (zu or {}).get(dr.serial if dr else "", "")
+        if not re.match(r"^switch\.[a-z0-9_]+$", e):
+            raise Fehler(409, "Diesem Drucker ist keine Steckdose zugeordnet")
+        if stufe == "strom_aus" and dr and dr.online:
+            try:
+                dr.stoppen()  # erst sauber stoppen, falls er noch reagiert
+            except Exception:
+                pass
+        ha_anfrage("/api/services/switch/" + ("turn_off" if stufe == "strom_aus" else "turn_on"), {"entity_id": e}, timeout=15)
+        print(f"NOTAUS: {e} {'aus' if stufe == 'strom_aus' else 'an'} ({k.get('drucker')})", flush=True)
+        return {"ok": True, "steckdose": e, "an": stufe == "strom_an"}
+    raise Fehler(400, "Unbekannte Stufe")
+
+
 def senden_pruefen(serial, name):
     """Für den Dialog „An Drucker senden“: Platten der Datei, passende Drucker und Vorschlag, welches Fach welches Filament druckt."""
     serial, name, daten = archiv_datei(serial, name)
@@ -2949,6 +3028,10 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile == ["drucker", "steckdosen"] and methode == "GET":
+            return self._json(200, steckdosen())
+        if teile == ["drucker", "notaus"] and methode == "POST":
+            return self._json(200, notaus(self._json_rumpf()))
         if teile == ["drucker", "fach"] and methode == "POST":
             return self._json(200, fach_belegen(self._json_rumpf()))
         if teile == ["drucke", "senden", "pruefen"] and methode == "POST":
