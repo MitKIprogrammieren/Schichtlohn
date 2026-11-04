@@ -1964,6 +1964,27 @@ def archiv_info():
     return {"anzahl": anzahl, "mb": round(groesse / 1048576)}
 
 
+_ARCHIV_KOPF = {}
+
+
+def _archiv_kopf(serial, name, pf, st):
+    """Angaben direkt aus der gesicherten 3MF (für Dateien, die nicht mehr im Speicher des Druckers stehen) – einmal gelesen, dann gemerkt."""
+    k = f"{serial}/{name}/{st.st_size}/{int(st.st_mtime)}"
+    if k in _ARCHIV_KOPF:
+        return _ARCHIV_KOPF[k]
+    m = {}
+    try:
+        with open(pf, "rb") as f:
+            kopf = drucker_mod.datei_kopf(f.read())
+        bid = _bild_speichern(_bild_id("archiv", serial, name, st.st_size), kopf.get("bild"))
+        m = {"minuten": kopf.get("minuten") or 0, "gramm": kopf.get("gramm") or 0, "filamente": kopf.get("filamente") or [], "bild_id": bid,
+             "zeit": st.st_mtime}
+    except Exception:
+        pass
+    _ARCHIV_KOPF[k] = m
+    return m
+
+
 def archiv_liste():
     """Alle gesicherten Druckdateien mit den Angaben aus dem Druckerspeicher (Titel, Zeit, Gramm, Bild) – auch die,
     die auf dem Drucker längst gelöscht sind."""
@@ -1986,13 +2007,13 @@ def archiv_liste():
             if not name.lower().endswith(".3mf"):
                 continue
             pf = os.path.join(ordner, name)
-            m = meta.get(name) or {}
             st = os.stat(pf)
+            m = meta.get(name) or _archiv_kopf(serial, name, pf, st)
             out.append({"serial": serial, "drucker": info.get("drucker") or namen.get(serial) or serial, "name": name,
                         "titel": m.get("titel") or re.sub(r"(\.gcode)?\.3mf$", "", name, flags=re.I),
                         "groesse": st.st_size, "zeit": m.get("zeit") or st.st_mtime, "minuten": m.get("minuten") or 0,
                         "gramm": m.get("gramm") or 0, "filamente": m.get("filamente") or [], "bild_id": m.get("bild_id") or "",
-                        "auf_drucker": bool(m)})
+                        "auf_drucker": name in meta})
     out.sort(key=lambda x: -(x["zeit"] or 0))
     return out
 
