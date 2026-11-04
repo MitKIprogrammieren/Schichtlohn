@@ -289,6 +289,63 @@ def da_farbe(f):
     return " ".join(DA_FARBEN.get(w.lower(), w) for w in str(f or "").split())
 
 
+_MARKE_MUELL = re.compile(r"\s+(?:" + "|".join(re.escape(m) for m in MATERIALIEN) + r"|PC[-/ ]?ABS|FILAMENT|SUPPORT|VALUE PACK|HIGH PERFORMANCE)\b.*$", re.I)
+
+
+def marken_vereinheitlichen(zeilen, fest=()):
+    """Gleiche Marke, eine Schreibweise: „ELEGOO“/„Elegoo“ zusammen, „Polymaker PolyMax Tough“ → „Polymaker“,
+    „Elegoo PLA+ Filament“ → „Elegoo“ (Händler wie iGo3D liefern nur den Titelanfang)."""
+    import collections
+    k = lambda m: re.sub(r"[^a-z0-9]", "", str(m).lower())
+    n = collections.Counter(z["marke"] for z in zeilen if z.get("marke"))
+    sauber = {}
+    fest_k = {k(m) for m in fest}
+    for m in fest:  # Marken der Herstellershops sind immer richtig geschrieben („Das Filament“)
+        sauber[k(m)] = m
+    for m, c in n.most_common():
+        if k(m) in fest_k:
+            continue
+        if len(m.split()) <= 2 and not _MARKE_MUELL.search(" " + m):
+            best = sauber.get(k(m))
+            if not best or (best.isupper() and not m.isupper()):
+                sauber[k(m)] = m
+    # Gleiches erstes Wort = eine Marke („Polymaker PolyMax“ → „Polymaker“, „Bambu“ → „Bambu Lab“, „Makerbot Method“ → „Makerbot“)
+    gruppen = collections.defaultdict(list)
+    for kk, m in sauber.items():
+        gruppen[k(m.split()[0])].append(m)
+    for g in gruppen.values():
+        if len(g) < 2:
+            continue
+        f = [m for m in g if k(m) in fest_k]
+        if f:  # Herstellershop gibt die Schreibweise vor
+            if len(f) == 1 and len(f[0].split()) == 1:
+                for m in g:
+                    sauber[k(m)] = f[0]
+            continue
+        zahl = lambda m: sum(c for x, c in n.items() if k(x) == k(m))
+        haupt = max(g, key=zahl)
+        zwei = {k(m) for m in g if len(m.split()) == 2}
+        if len(zwei) > 1:  # mehrere Produktlinien → nur das erste Wort
+            einzel = [m for m in g if len(m.split()) == 1]
+            haupt = einzel[0] if einzel else haupt.split()[0]
+        for m in g:
+            sauber[k(m)] = haupt
+    namen = sorted(set(sauber.values()), key=lambda m: -len(m))
+    def kanon(m):
+        m0 = re.sub(r"^original\s+", "", str(m).strip(), flags=re.I)
+        if k(m0) in sauber:
+            return sauber[k(m0)]
+        for c in namen:
+            if m0.lower().startswith(c.lower() + " "):
+                return c
+        kurz = _MARKE_MUELL.sub("", m0).strip()
+        return sauber.get(k(kurz), kurz or m)
+    for z in zeilen:
+        if z.get("marke"):
+            z["marke"] = kanon(z["marke"])
+    return zeilen
+
+
 def alle(roh, shops):
     zeilen = []
     for k, cfg in shops.items():
@@ -306,7 +363,7 @@ def alle(roh, shops):
         for x in z:
             x["shopname"] = cfg["name"]
         zeilen += z
-    return zeilen
+    return marken_vereinheitlichen(zeilen, [c["marke"] for c in shops.values() if c.get("marke")] + ["3DJAKE"])
 
 
 def main():

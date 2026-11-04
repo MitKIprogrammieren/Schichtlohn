@@ -7009,8 +7009,13 @@ function farbHex(f){const h=window.farbHex;if(!h)return "#888888";const t=String
 function pk(o){return Math.round(o.preis/(o.stueck||1)/((o.gew||1000)/1000)*100)/100}
 
 /* Zeilen aus preise.json (über das Lager geladen) zu Sorten bündeln */
-function indexBauen(d){const G=new Map();
-  for(const z of d.z){const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad]=z;if(!(preis>0))continue;
+/* Eine Marke, eine Schreibweise – auch für selbst übernommene Shoppreise („ColorFabb“ = „colorFabb“, „Elegoo PLA+ Filament“ = „Elegoo“) */
+function markenKanon(d){const k=m=>String(m||"").toLowerCase().replace(/[^a-z0-9]/g,"");const n=new Map();d.z.forEach(z=>{const m=String(z[1]||"").trim();if(m)n.set(m,(n.get(m)||0)+1)});
+  const best=new Map();for(const [m,c] of [...n].sort((a,b)=>b[1]-a[1])){if(m.split(/\s+/).length>2||/\b(filament|pla|petg|abs|asa|tpu|support)\b/i.test(m))continue;const kk=k(m);if(!best.has(kk))best.set(kk,m)}
+  const namen=[...new Set(best.values())].sort((a,b)=>b.length-a.length);const out=new Map();
+  for(const m of n.keys()){const m0=m.replace(/^original\s+/i,"");let c=best.get(k(m0));if(!c)c=namen.find(x=>m0.toLowerCase().startsWith(x.toLowerCase()+" "));out.set(m,c||m)}return out}
+function indexBauen(d){const G=new Map();const MK=markenKanon(d);
+  for(const z0 of d.z){const z=z0.slice();z[1]=MK.get(String(z[1]||"").trim())||z[1];const [shop,marke,titel,material,farbe,gew,refill,preis,normal,pfad]=z;if(!(preis>0))continue;
     const mat=matVon(material,titel),kw=kwsVon(titel+" "+farbe+" "+material);if(mat==="?")continue;
     const fk=farbeKey(farbe||titel,marke,material)||"?";const ref=refill?1:0;
     const key=[nz(marke).replace(/[^a-z0-9]/g,""),mat,[...kw].sort().join(","),fk,ref].join("|");
