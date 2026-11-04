@@ -7485,7 +7485,7 @@ function zeile(f){const mats=(f.filamente||[]).slice(0,8);const k=f.serial+"/"+f
   const sub=[f.drucker,datum(f.zeit),f.minuten?dauer(f.minuten):"",f.gramm?N0.format(Math.round(f.gramm))+" g":""].filter(Boolean).join(" · ");
   return `<div class="dm-z">
     <div class="dm-b">${f.bild_id?`<img src="${esc(bildUrl(f.bild_id))}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:ICON}</div>
-    <div class="dm-t"><b title="${esc(f.name)}">${esc(f.titel)}</b><span>${esc(sub)}</span>
+    <div class="dm-t"><b title="${esc(f.name)}">${esc(f.titel).replace(/([_-])/g,"$1<wbr>")}</b><span>${esc(sub)}</span>
       <div class="dm-m">${mats.map(m=>`<i style="background:${esc(m.farbe||"#888")}" title="${esc((m.typ||"")+" · "+N1.format(m.gramm||0)+" g")}"></i>`).join("")}${f.auf_drucker?"":`<em>nicht mehr auf dem Drucker</em>`}</div></div>
     <div class="dm-r"><small class="num">${mb(f.groesse)}</small><div>
       <button type="button" class="btn icon ghost sm" data-dm="send" data-k="${esc(k)}" title="An Drucker senden" aria-label="${esc(f.titel)} an Drucker senden">${I_DRUCK}</button>
@@ -7575,7 +7575,7 @@ window.DMGR={ICON,auf};
 .dm-b{width:52px;height:52px;border-radius:10px;background:var(--bg-2,rgba(255,255,255,.04));display:grid;place-items:center;overflow:hidden;color:var(--fg-3)}
 .dm-b img{width:100%;height:100%;object-fit:contain}
 .dm-t{min-width:0;display:flex;flex-direction:column;gap:2px}
-.dm-t b{font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;line-height:1.25}
+.dm-t b{font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;line-height:1.25}
 .dm-t span{font-size:12.5px;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dm-m{display:flex;align-items:center;gap:4px;min-height:12px}
 .dm-m i{width:10px;height:10px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
