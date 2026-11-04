@@ -248,6 +248,43 @@ const EUR=new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"});
 const eur=v=>EUR.format(r2(v||0));
 const N1=new Intl.NumberFormat("de-DE",{maximumFractionDigits:1});
 const N0=new Intl.NumberFormat("de-DE",{maximumFractionDigits:0});
+/* Nur ändern, was sich geändert hat: neues HTML in den bestehenden Aufbau einarbeiten (statt alles neu zu zeichnen).
+   So laufen Animationen weiter, Bilder und Logos bleiben stehen, Fokus und Scrollstelle bleiben erhalten. */
+const MORPH_KEY=n=>n.nodeType===1?(n.id||n.getAttribute("data-key")||n.getAttribute("data-uid")||n.getAttribute("data-gk")||n.getAttribute("data-lc")||n.getAttribute("data-kam")||""):"";
+function morphAttr(a,b,o){const keepCls=o.keepClass||[];
+  for(const at of [...a.attributes]){if(!b.hasAttribute(at.name)){if(o.skipAttr&&o.skipAttr(a,at.name))continue;if(at.name==="class"&&keepCls.length){const k=[...a.classList].filter(c=>keepCls.includes(c));if(k.length){a.className=k.join(" ");continue}}a.removeAttribute(at.name)}}
+  for(const at of [...b.attributes]){if(o.skipAttr&&o.skipAttr(a,at.name))continue;let v=at.value;
+    if(at.name==="class"&&keepCls.length){const k=[...a.classList].filter(c=>keepCls.includes(c)&&!b.classList.contains(c));if(k.length)v=(v+" "+k.join(" ")).trim()}
+    if(a.getAttribute(at.name)!==v)a.setAttribute(at.name,v)}
+  if(a.tagName==="INPUT"&&a!==document.activeElement){if(a.type==="checkbox"||a.type==="radio")a.checked=b.hasAttribute("checked");else if(a.value!==(b.getAttribute("value")||""))a.value=b.getAttribute("value")||""}
+  if(a.tagName==="SELECT"&&a!==document.activeElement){const sel=b.querySelector("option[selected]");if(sel)queueMicrotask(()=>{if(a.value!==sel.value)a.value=sel.value})}}
+function morphKinder(a,b,o){const alt=[...a.childNodes],neu=[...b.childNodes];const nachKey=new Map();alt.forEach(n=>{const k=MORPH_KEY(n);if(k)nachKey.set(k,n)});
+  let i=0;const benutzt=new Set();
+  for(const nb of neu){let na=null;const k=MORPH_KEY(nb);
+    if(k&&nachKey.has(k)&&!benutzt.has(nachKey.get(k))&&nachKey.get(k).tagName===nb.tagName)na=nachKey.get(k);
+    else{while(i<alt.length&&(benutzt.has(alt[i])||(o.keep&&alt[i].nodeType===1&&o.keep(alt[i]))))i++;
+      /* zuerst ein gleichartiges Element (gleiche Klasse) suchen – sonst wird z. B. ein neu erscheinender Block in den nachfolgenden hineingeschrieben */
+      if(nb.nodeType===1&&!k){const cls=nb.getAttribute("class")||"";const g=alt.find((c,j)=>j>=i&&!benutzt.has(c)&&c.nodeType===1&&c.tagName===nb.tagName&&!MORPH_KEY(c)&&(c.getAttribute("class")||"")===cls&&!(o.keep&&o.keep(c)));
+        if(g)na=g}
+      const c=alt[i];const spaeter=c&&c.nodeType===1&&neu.slice(neu.indexOf(nb)+1).some(x=>x.nodeType===1&&x.tagName===c.tagName&&(x.getAttribute("class")||"")===(c.getAttribute("class")||""));
+      if(!na&&!spaeter&&c&&c.nodeType===nb.nodeType&&(c.nodeType!==1||(c.tagName===nb.tagName&&!MORPH_KEY(c)===!k&&(!k||MORPH_KEY(c)===k))))na=c}
+    if(na){benutzt.add(na);if(na===alt[i])i++;morphKnoten(na,nb,o)}
+    else{na=nb.cloneNode(true)}
+    /* an die richtige Stelle (vor den nächsten noch nicht platzierten Knoten) */
+    benutzt.add(na);nb.__ziel=na}
+  /* Reihenfolge herstellen, Überzähliges entfernen (außer Behaltenes) */
+  let ref=a.firstChild;
+  for(const nb of neu){const na=nb.__ziel;delete nb.__ziel;while(ref&&o.keep&&ref.nodeType===1&&o.keep(ref)&&ref!==na)ref=ref.nextSibling;if(na!==ref)a.insertBefore(na,ref);else ref=ref.nextSibling}
+  for(const n of alt){if(!benutzt.has(n)&&n.parentNode===a&&!(o.keep&&n.nodeType===1&&o.keep(n)))a.removeChild(n)}}
+function morphKnoten(a,b,o){if(a.nodeType===3||a.nodeType===8){if(a.nodeValue!==b.nodeValue)a.nodeValue=b.nodeValue;return}
+  morphAttr(a,b,o);if(o.opaque&&o.opaque(a))return;if(a.tagName==="TEXTAREA"&&a===document.activeElement)return;morphKinder(a,b,o)}
+/* el bekommt den Inhalt html (wie innerHTML=) */
+window.slMorph=function(el,html,o){o=o||{};const t=document.createElement("template");t.innerHTML=html;if(o.prepare)o.prepare(t.content);
+  try{morphKinder(el,t.content,o)}catch(e){el.innerHTML="";el.appendChild(t.content)}};
+/* el wird durch html ersetzt (wie outerHTML=), behält aber seine Knoten */
+window.slMorphAussen=function(el,html,o){o=o||{};const t=document.createElement("template");t.innerHTML=html.trim();const nb=t.content.firstElementChild;
+  if(!nb||nb.tagName!==el.tagName||t.content.childElementCount!==1){el.outerHTML=html;return}try{morphKnoten(el,nb,o)}catch(e){el.outerHTML=html}};
+
 const g=v=>v>=1000?N1.format(v/1000)+" kg":N0.format(Math.round(v))+" g";
 const pct=v=>N1.format(v)+" %";
 const inV=v=>(v===null||v===undefined||v==="")?"":String(r2(num(v))).replace(".",",");
@@ -2427,7 +2464,7 @@ function merken(){clearTimeout(markT);markT=setTimeout(()=>{if(S.tab!=="drucke"|
   const n=new Date(g[0].t).toISOString();if(n!==gesehen)try{localStorage.setItem(KG,n)}catch(e){}},4000)}
 function after(){merken();if(document.querySelector("#abu[data-warte]")){const B=book();if(B)B.start();warte()}}
 let wt=null;function warte(){if(wt)return;let n=0;wt=setInterval(()=>{n++;const B=book();if(B&&B.ready()||n>40){clearInterval(wt);wt=null;neu()}},300)}
-function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;alt.outerHTML=h}
+function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;window.slMorphAussen(alt,h)}
 document.addEventListener("click",e=>{if(e.target.closest("[data-abm]")){alle=!alle;letzt="";neu()}});
 /* Lageränderungen (auch von anderen Geräten) übernehmen */
 setInterval(()=>{if(S.tab==="drucke"&&!document.hidden)neu()},5000);
@@ -2653,7 +2690,8 @@ let tm=null,letzt="";
 function neu(){if(S.tab!=="drucke"){document.querySelectorAll("#dlive .dl-kam").forEach(kStop);return}const alt=document.getElementById("dlive");if(!alt)return;
   const h=html();if(h===letzt)return;letzt=h;const bilder={};alt.querySelectorAll("[data-lc]").forEach(el=>{if(el.style.backgroundImage)bilder[el.dataset.lc]=el.style.backgroundImage});
   const kams={};alt.querySelectorAll(".dl-kam[data-kam]").forEach(el=>{kams[el.dataset.kam]=el});
-  alt.outerHTML=h;document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){el.replaceWith(a);delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
+  window.slMorphAussen(alt,h,{opaque:el=>el.classList.contains("dl-kam"),skipAttr:(el,at)=>(at==="style"||at==="data-done")&&el.hasAttribute("data-lc")&&el.dataset.done});
+  document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){if(a!==el){el.replaceWith(a)}delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
 const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
 window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
 /* Online-Version mit eigener HA-Verbindung: Zustände alle 30 s holen, solange der Reiter offen ist */
@@ -5274,10 +5312,10 @@ function decorate(){
     img.onerror=next;head.appendChild(img);next();setTimeout(()=>{if(!ok&&nm.isConnected)showName()},1500);setTimeout(()=>{if(img.isConnected&&!(img.complete&&img.naturalWidth>0)){img.remove();if(!nm.isConnected)head.appendChild(nm);showName()}},6000)})}
 let drawT=null,drawDue=0,lastHTML="",lastHead="",lastBest="",lastKopf="";
 function draw(ms=40){if(window.WACHE)WACHE.Z.draw++;const due=Date.now()+ms;if(drawT){if(due>=drawDue)return;clearTimeout(drawT)}drawDue=due;drawT=setTimeout(()=>{drawT=null;if(S.tab!=="lager")return;const box=$("#lgList");if(!box)return;const all=body(),cut=all.indexOf("\u0001"),hd=cut<0?"":all.slice(0,cut),h=cut<0?all:all.slice(cut+1);
-  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb&&p[0]!==lastBest){lastBest=p[0];bb.innerHTML=p[0];const kn=bb.querySelector(".lgbest .lgknopf");if(kn)bb.appendChild(kn);fitTop()}/* Kopf mit den Auswahlfeldern nur neu aufbauen, wenn er sich wirklich ändert und gerade kein Feld darin benutzt wird – sonst klappt ein offenes Auswahlmenü weg (Waage/Drucker melden alle paar Sekunden neue Werte) */const ae2=document.activeElement,fo=ae2&&(hb.contains(ae2)&&/^(SELECT|INPUT)$/.test(ae2.tagName)||ae2.matches&&ae2.matches("[data-lgsort]"));if((p[1]||"")===lastKopf)lastHead=hd;else if(!fo){lastHead=hd;lastKopf=p[1]||"";hb.innerHTML=lastKopf}}
+  const hb=$("#lgHead");if(hb&&hd!==lastHead){const p=hd.split("\u0002");const bb=$("#lgBest");if(bb&&p[0]!==lastBest){lastBest=p[0];window.slMorph(bb,p[0],{prepare:f=>{const kn=f.querySelector(".lgbest .lgknopf");if(kn)f.appendChild(kn)}});fitTop()}/* Kopf mit den Auswahlfeldern nur neu aufbauen, wenn er sich wirklich ändert und gerade kein Feld darin benutzt wird – sonst klappt ein offenes Auswahlmenü weg (Waage/Drucker melden alle paar Sekunden neue Werte) */const ae2=document.activeElement,fo=ae2&&(hb.contains(ae2)&&/^(SELECT|INPUT)$/.test(ae2.tagName)||ae2.matches&&ae2.matches("[data-lgsort]"));if((p[1]||"")===lastKopf)lastHead=hd;else if(!fo){lastHead=hd;lastKopf=p[1]||"";hb.innerHTML=lastKopf}}
   if(h===lastHTML)return;
   {const af=document.activeElement;if(af&&af.tagName==="SELECT"&&box.contains(af)){draw(1500);return}}
-  const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;box.innerHTML=h;decorate();
+  const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;if(box.firstChild)window.slMorph(box,h,{keep:n=>n.classList.contains("hlogo")||n.classList.contains("hmat")||n.classList.contains("hname-weg"),keepClass:["deco"],skipAttr:(el,at)=>at==="style"&&el.tagName==="IMG"});else box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
   if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
 /* Nach einer Auswahl im Lager-Kopf das Feld wieder freigeben, damit der Kopf (Zähler, Schildchen) gleich nachzieht */
@@ -7865,7 +7903,7 @@ function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
     ${sek("Zuletzt abgebucht",ab||(bereit?z("○","Noch nichts abgebucht",""):z("…","Wird geladen","")),lnk("drucke","Alle"))}
     ${ek.length?sek("Einkaufsliste",ekH||z("🛒",`${ek.length} ${ek.length===1?"Sorte":"Sorten"} fast leer`,""),lnk("","" + ek.length+" Sorten","lgEinkauf")):""}</div>`}
 let hT=0;function heuteRender(m){if(window.LGN&&LGN._book)LGN._book.start();m.innerHTML=heuteHTML();clearInterval(hT);
-  hT=setInterval(()=>{if(S.tab!=="heute"){clearInterval(hT);return}if(document.getElementById("modal")||document.getElementById("bs"))return;const el=document.querySelector(".heute");if(el){const h=heuteHTML();if(el.outerHTML.length!==h.length||el.outerHTML!==h)el.outerHTML=h}},5000)}
+  hT=setInterval(()=>{if(S.tab!=="heute"){clearInterval(hT);return}if(document.getElementById("modal")||document.getElementById("bs"))return;const el=document.querySelector(".heute");if(el){const h=heuteHTML();if(el.__h!==h){el.__h=h;window.slMorphAussen(el,h)}}},5000)}
 window.HEUTE={render:heuteRender};
 /* nach jedem Zeichnen: Leiste und Lager-Extras */
 const _r=window.render;if(typeof _r==="function"){window.render=function(){const x=_r.apply(this,arguments);try{navBauen();lagerExtras()}catch(e){}return x}}
