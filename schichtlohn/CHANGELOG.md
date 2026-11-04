@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.8.3 – 04.11.2026
+- Neu: Dateimanager. Unter Druckaufträge zeigt „Dateien“ alle Druckdateien, die SchichtLohn von den Druckern gesichert hat – mit Bild, Drucker, Datum, Druckzeit, Gramm und Farben. Suchen, nach Drucker filtern, sortieren, herunterladen oder löschen.
+- Neu: Druckdateien wieder an einen Drucker schicken – nur hochladen oder direkt starten. Vor dem Start wählst du Platte und AMS-Fächer; SchichtLohn schlägt die passenden Fächer vor und lässt nur Drucker zu, für die die Datei geslict ist.
+- Neu: Ein AMS-Fach antippen und unter „Im Drucker eintragen“ eine Sorte aus dem Lager wählen – der Drucker übernimmt Material, Farbe, Profil und Düsentemperatur wie bei „Fach bearbeiten“ in Bambu Studio.
+- Neu: Notaus je Drucker (roter Knopf in „Drucker jetzt“): Druck stoppen (2× tippen) oder Strom aus über die zugeordnete Steckdose in Home Assistant (3× tippen).
+- Eingeklappte AMS bleiben eingeklappt.
+
 ## 3.8.2 – 04.11.2026
 - Abgebrochene Drucke zeigen jetzt neben der abgebuchten Menge auch, wie viel die ganze Druckdatei gebraucht hätte – z. B. „34 von 46 g“ auf der Kachel und unter „Zuletzt abgebucht“. Gilt auch, wenn Teile übersprungen wurden. Abgebucht wird weiter nur, was wirklich gedruckt wurde.
 
