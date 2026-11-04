@@ -1179,11 +1179,12 @@ def html_esc(t):
     return str(t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def handy_meldung(titel, text, bild="", foto=None, aktionen=None, tag="", hinweis_id="filament_abbuchung"):
+def handy_meldung(titel, text, bild="", foto=None, aktionen=None, tag="", hinweis_id="filament_abbuchung", telegram=True):
     """aktionen: Knöpfe der Handy-App, z. B. [{"action": "URI", "title": "…", "uri": "/schichtlohn-app?…"}].
     tag: gleiche Kennung ersetzt eine ältere Meldung auf dem Handy statt eine weitere anzuhängen."""
     melden({"typ": "meldung", "titel": titel, "text": text})
-    im_hintergrund(telegram_senden, titel, text, bild, foto)
+    if telegram:
+        im_hintergrund(telegram_senden, titel, text, bild, foto)
     h = einstellungen()["ha"]
     roh = h.get("notify") or ""
     ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
@@ -1490,7 +1491,16 @@ def kamera_foto(pre):
 # Druckverlauf je Drucker → Telegram: Start (Vorschaubild), 25/50/75 % und Pause (Kamerabild), neue HMS-Fehler.
 # Ende und Abbruch meldet fertig_melden (mit Verbrauch).
 DRUCK_STAND = {}
-STUFEN = (25, 50, 75)
+STUFEN = (25, 50, 75)  # Vorgabe für die Prozent-Meldungen
+TG_EREIGNISSE = ("start", "stand", "vorende", "pause", "fertig", "abbruch", "fehler")
+
+
+def tg_stufen():
+    """Prozent-Stufen aus den Telegram-Einstellungen (leer = keine Prozent-Meldungen)."""
+    w = einstellungen()["telegram"].get("stufen")
+    if isinstance(w, list):
+        return tuple(sorted({int(x) for x in w if isinstance(x, (int, float)) and 0 < int(x) < 100}))
+    return STUFEN
 
 
 def druck_beobachten(dr):
@@ -1503,8 +1513,8 @@ def druck_beobachten(dr):
     hms = {"%s_%s" % (h.get("attr"), h.get("code")) for h in (p.get("hms") or []) if isinstance(h, dict)}
     alt = DRUCK_STAND.get(dr.serial)
     if alt is None:  # erster Blick nach dem Serverstart: nur merken, nichts nachmelden
-        DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in STUFEN if pct >= x}, "hms": hms,
-                                  "frei": st not in drucker_mod.LAUFEND}
+        DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in range(101) if pct >= x}, "hms": hms,
+                                  "frei": st not in drucker_mod.LAUFEND, "vorende": True}
         return
     meldungen = []
     codes = sorted(hms - alt["hms"])
@@ -1514,13 +1524,18 @@ def druck_beobachten(dr):
         alt["frei"] = True
     alt["job"] = job
     if st == "RUNNING" and alt["frei"]:
-        alt.update(frei=False, stufen={x for x in STUFEN if pct >= x})
+        alt.update(frei=False, stufen={x for x in range(101) if pct >= x}, vorende=False)
         meldungen.append("start")
     if st == "RUNNING":
-        neu = [x for x in STUFEN if pct >= x and x not in alt["stufen"]]
-        alt["stufen"].update(neu)
+        neu = [x for x in tg_stufen() if pct >= x and x not in alt["stufen"]]
+        alt["stufen"].update(x for x in range(101) if pct >= x)
         if neu and pct < 100:
             meldungen.append("stand")
+        vor = drucker_mod._int(einstellungen()["telegram"].get("vor_ende"), 0)
+        rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
+        if vor > 0 and not alt.get("vorende") and 0 < rest <= vor and pct >= 5:
+            alt["vorende"] = True
+            meldungen.append("vorende")
     if st == "PAUSE" and alt["st"] == "RUNNING":
         meldungen.append("pause")
     if codes:
@@ -1531,6 +1546,10 @@ def druck_beobachten(dr):
         meldungen.append("fertig" if st == "FINISH" else "abbruch")
     t = einstellungen()["telegram"]
     if not meldungen or not (t.get("token") and t.get("chat")) or t.get("aus") or t.get("druckverlauf") is False:
+        return
+    ev = t.get("ereignisse") if isinstance(t.get("ereignisse"), dict) else {}
+    meldungen = [m for m in meldungen if ev.get(m, True) is not False]
+    if not meldungen:
         return
     name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
     pre = dr.d.get("praefix") or drucker_mod.praefix(dr.d)
@@ -1558,6 +1577,10 @@ def _zeittext(p):
     return (" · noch %s" % _dauer(rest * 60) if rest else "") + (" · fertig ca. %s Uhr" % ende if ende else "")
 
 
+def tg_foto():
+    return einstellungen()["telegram"].get("foto", True) is not False
+
+
 def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=None):
     if art == "start":
         time.sleep(25)  # Name, Restzeit und Vorschaubild stehen erst kurz nach dem Start fest
@@ -1574,17 +1597,19 @@ def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=N
                 bild = ""
         telegram_senden(f"🟢 {name}: Druck gestartet", aufgabe + zeit, bild, foto)
     elif art == "stand":
-        telegram_senden(f"{name}: {pct} % gedruckt", aufgabe + zeit, "", kamera_foto(pre))
+        telegram_senden(f"{name}: {pct} % gedruckt", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
+    elif art == "vorende":
+        telegram_senden(f"⏰ {name}: gleich fertig", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
     elif art == "pause":
         telegram_senden(f"⏸️ {name}: Druck pausiert", aufgabe + " – der Drucker wartet, vielleicht ist das Filament leer.",
-                        "", kamera_foto(pre))
+                        "", kamera_foto(pre) if tg_foto() else None)
     elif art in ("fertig", "abbruch"):
         telegram_senden(("✅ %s: Druck fertig" if art == "fertig" else "❌ %s: Druck abgebrochen") % name, aufgabe,
-                        "", kamera_foto(pre))
+                        "", kamera_foto(pre) if tg_foto() else None)
     elif art == "fehler":
         nr = [c for c in codes if not c.startswith("ha_")]
         telegram_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + (" – HMS " + ", ".join(nr) if nr else "")
-                        + "\nDetails in der Bambu-App oder am Drucker.", "", kamera_foto(pre))
+                        + "\nDetails in der Bambu-App oder am Drucker.", "", kamera_foto(pre) if tg_foto() else None)
 
 
 # Ohne eigene Bambu-Verbindung (Cloud nicht angemeldet): Druckerwerte aus Home Assistant (ha-bambulab) lesen
@@ -1646,8 +1671,11 @@ def fertig_melden(druckername, erg, kurz):
     titel = f"{erg['anlass']}: {aufgabe}"
     kopf = " · ".join(x for x in (druckername, _dauer(erg.get("dauer")),
                                   ("%d %%" % round(erg.get("anteil", 1) * 100)) if erg.get("anteil", 1) < 1 else "") if x)
-    foto = kamera_foto(erg["praefix"]) if erg.get("praefix") else None
-    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "", foto)
+    tg = einstellungen()["telegram"]
+    ev = tg.get("ereignisse") if isinstance(tg.get("ereignisse"), dict) else {}
+    art = "fertig" if erg.get("anlass") == "Druck fertig" else "abbruch"
+    foto = kamera_foto(erg["praefix"]) if erg.get("praefix") and tg.get("foto", True) is not False else None
+    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "", foto, telegram=ev.get(art, True) is not False)
 
 
 def druck_abbuchen(druckername, erg):

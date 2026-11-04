@@ -510,10 +510,26 @@ const SRV=window.SRV=(()=>{
     handysLaden();telegramForm()}
   /* Telegram: Meldungen aufs Handy auch ohne Home Assistant */
   function telegramForm(){const box=document.getElementById("srv_tg");if(!box)return;const t=E.telegram||{};
+    const st=Array.isArray(t.stufen)?t.stufen:[25,50,75];const ev=t.ereignisse||{};const an=k=>ev[k]!==false;const vor=Number(t.vor_ende)||0;
+    const VOR=[["aus",[]],["50 %",[50]],["25 · 50 · 75 %",[25,50,75]],["alle 20 %",[20,40,60,80]],["alle 10 %",[10,20,30,40,50,60,70,80,90]]];
+    const gleich=(a,b)=>a.length===b.length&&a.every((x,i)=>x===b[i]);const eigen=!VOR.some(([,v])=>gleich(v,st));
+    const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
     box.innerHTML=t.token&&t.chat?`<p>Meldungen gehen an <b>${esc(t.chat_name||t.chat)}</b> – zusätzlich zu Home Assistant.</p>
+      <div class="tgs"><div class="tgs-k">Fortschritt melden bei</div><div class="tgr">${VOR.map(([n,v])=>ch(`data-tgst="${v.join(",")}"`,n,gleich(v,st))).join("")}${eigen?ch('data-tgst="eigen"',"eigene: "+st.join(" · ")+" %",true):""}</div>
+        <div class="tgr tgp">${[10,20,25,30,40,50,60,70,75,80,90].map(x=>ch(`data-tgx="${x}"`,x+" %",st.includes(x))).join("")}</div>
+        <div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[["aus",0],["5 min",5],["10 min",10],["15 min",15],["30 min",30]].map(([n,v])=>ch(`data-tgvor="${v}"`,v?n+" vorher":n,vor===v)).join("")}</div>
+        <div class="tgs-k">Melden, wenn ein Druck …</div><div class="tgr">${[["start","startet"],["pause","pausiert"],["fertig","fertig ist"],["abbruch","abgebrochen wird"],["fehler","einen Fehler hat"]].map(([k,n])=>ch(`data-tgev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
+        <label class="tgf"><input type="checkbox" id="srv_tgfoto"${t.foto===false?"":" checked"}> Kamerabild mitschicken</label></div>
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvTgTest">Test senden</button><button class="btn sm ghost" data-act="srvTgAus">Trennen</button></div>`
     :`<p>Auch ohne Home Assistant: In Telegram <b>@BotFather</b> öffnen, <code>/newbot</code> schreiben und den Token hier eintragen. Dann deinem neuen Bot einmal <code>/start</code> schreiben und auf „Verbinden“ tippen.</p>
       <div class="srvcopy"><input type="password" id="srv_tgtok" value="" placeholder="123456789:AA…" autocomplete="off"><button class="btn sm" data-act="srvTgVerb">Verbinden</button></div>`}
+  async function tgSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{telegram:neu});telegramForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
+  document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("#srv_tg [data-tgst],#srv_tg [data-tgx],#srv_tg [data-tgvor],#srv_tg [data-tgev]");if(!b)return;const t=E.telegram||{};
+    if(b.dataset.tgst!=null){if(b.dataset.tgst==="eigen")return;tgSpeichern({stufen:b.dataset.tgst?b.dataset.tgst.split(",").map(Number):[]},"Fortschritt-Meldungen gespeichert");return}
+    if(b.dataset.tgx){const x=Number(b.dataset.tgx);const st=new Set(Array.isArray(t.stufen)?t.stufen:[25,50,75]);st.has(x)?st.delete(x):st.add(x);tgSpeichern({stufen:[...st].sort((a,b)=>a-b)});return}
+    if(b.dataset.tgvor!=null){tgSpeichern({vor_ende:Number(b.dataset.tgvor)});return}
+    if(b.dataset.tgev){const e2=Object.assign({},t.ereignisse||{});e2[b.dataset.tgev]=e2[b.dataset.tgev]===false;tgSpeichern({ereignisse:e2});return}});
+  document.addEventListener("change",ev=>{if(ev.target&&ev.target.id==="srv_tgfoto")tgSpeichern({foto:ev.target.checked})});
   /* alle Handys aus Home Assistant zum Ankreuzen */
   async function handysLaden(){const box=document.getElementById("srv_handys"),inp=document.getElementById("srv_hanot");if(!box||!inp)return;
     let d;try{d=await req("GET","/api/ha/notify")}catch(e){return}if(!d.dienste||!d.dienste.length)return;
@@ -599,6 +615,7 @@ const SRV=window.SRV=(()=>{
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}return}
     if(a==="srvTgVerb"){const tok=((document.getElementById("srv_tgtok")||{}).value||"").replace(/\s+/g,"");if(!tok)return msg("Bitte zuerst den Token von @BotFather eintragen.");msg("Suche deinen Chat …");
       try{const d=await req("POST","/api/telegram/chat",{token:tok});E=await req("GET","/api/einstellungen");telegramForm();await req("POST","/api/telegram/test");msg(`✓ Verbunden mit ${esc(d.name||d.chat)} – Testmeldung ist unterwegs.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvTgSet"){return}
     if(a==="srvTgTest"){msg("Sende Testmeldung …");try{await req("POST","/api/telegram/test");msg("✓ Testmeldung an Telegram gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
     if(a==="srvTgAus"){try{E=await req("PUT","/api/einstellungen",{telegram:{token:"",chat:"",chat_name:""}});telegramForm();msg("Telegram getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
@@ -7649,6 +7666,11 @@ window.DMGR={ICON,auf};
 .dm-r small{font-size:11.5px;color:var(--fg-3)}
 .dm-r>div{display:flex;gap:2px}
 .dm-weg.sicher{color:var(--bad);width:auto;padding:0 8px;font-size:12px}
+.tgs{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px}.tgs-k{font-size:12px;font-weight:600;color:var(--fg-2);margin-top:6px}
+.tgr{display:flex;flex-wrap:wrap;gap:6px}.tgp .tgc{padding:4px 9px;font-size:12px}
+.tgc{padding:6px 11px;border-radius:999px;border:1px solid var(--line-2);background:none;color:var(--fg-2);font:inherit;font-size:13px;cursor:pointer}
+.tgc.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff);font-weight:600}
+.tgf{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:6px}
 .dl-fs{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .dl-fsz{display:flex;gap:8px;align-items:center}.dl-fsz select{flex:1;min-width:0}
 .dl-fsf{width:22px;height:22px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.3)}
