@@ -218,7 +218,7 @@ table.list tr.click:hover td{background:var(--glass)}
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button data-tab="heute">Heute</button>
       <button data-tab="lager">Lager</button>
-      <button data-tab="drucke" data-kurz="Drucke">Druckaufträge</button>
+      <button data-tab="drucke">Drucker</button>
       <button data-tab="rechner" aria-current="page">Rechner</button>
       <button data-tab="preise">Preise</button>
       <button data-tab="auftraege">Aufträge</button>
@@ -803,7 +803,7 @@ function roundPrice(p,mode){
 }
 
 /* ---------- Rendering ---------- */
-const TABNAMES={heute:"Heute",lager:"Lager",drucke:"Druckaufträge",rechner:"Rechner",preise:"Preise",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
+const TABNAMES={heute:"Heute",lager:"Lager",drucke:"Drucker",rechner:"Rechner",preise:"Preise",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
 function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
 function render(){if(window.WACHE)WACHE.Z.render++;try{designAnwenden()}catch(e){}
   const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
@@ -3142,22 +3142,29 @@ function render(m){
     ${window.CRE&&selJ.some(j=>j.src==="creality")?`<button class="btn sm" data-act="jobBuchen" title="Verbrauch dieser Creality-Drucke im Lager abziehen">Im Lager abbuchen</button>`:""}
     <button class="btn sm" data-act="jobToQuote">${ICON.plus} In Kalkulation</button>
     <button class="btn pri sm" data-act="jobToOrder">${ICON.save} Auftrag …</button></div>`:"";
-  m.innerHTML=`<div class="stack">
-    <div class="row"><h1>Druckaufträge</h1><span class="dim">${vis.length} ${J.open?"offen":"angezeigt"}</span><span class="sp"></span>
+  /* Drei Bereiche wie im Preise-Reiter: Drucker (live) · Drucke (Verlauf) · Dateien */
+  const SEG=(()=>{try{return localStorage.getItem("sl_dr_seg")||"jetzt"}catch(e){return "jetzt"}})();
+  const L=window.DLIVE?DLIVE.liste():[];const nA=k=>L.filter(d=>DLIVE.art(d)===k).length;const nD=L.filter(d=>/druckt|pause/.test(DLIVE.art(d))).length;
+  const seg=`<div class="pvseg dr3" role="tablist">${[["jetzt","Drucker"],["drucke","Drucke"],["dateien","Dateien"]].map(([k2,t])=>`<button type="button" role="tab" class="${SEG===k2?"on":""}" aria-selected="${SEG===k2}" data-drseg="${k2}">${t}${k2==="dateien"&&J.speicherAnz?` <small>${N0.format(J.speicherAnz)}</small>`:k2==="drucke"&&vis.length?` <small>${N0.format(vis.length)}</small>`:""}</button>`).join("")}</div>`;
+  const kopf=`<div class="pvh"><h1>Drucker</h1><div class="pvh-m">${L.length?`<span><b>${nD}</b> ${nD===1?"druckt":"drucken"}</span><span><b>${nA("bereit")}</b> bereit</span>${nA("aus")?`<span><b>${nA("aus")}</b> offline</span>`:""}${nA("err")?`<span class="bad"><b>${nA("err")}</b> Fehler</span>`:""}`:"Keine Drucker verbunden"}</div></div>`;
+  if(SEG==="dateien"){m.innerHTML=`<div class="stack pvg">${kopf}${seg}<div id="drDateien"></div></div>`;if(window.DMGR&&DMGR.inline)DMGR.inline(document.getElementById("drDateien"));return}
+  if(SEG==="jetzt"){m.innerHTML=`<div class="stack pvg drjetzt">${kopf}${seg}${window.DLIVE?DLIVE.html():""}${window.ABU?ABU.html():""}${window.CRE?CRE.statusHTML():""}</div>`;
+    if(window.DLIVE)DLIVE.after();if(window.ABU)ABU.after();return}
+  m.innerHTML=`<div class="stack pvg">
+    ${kopf}${seg}
+    <div class="drq"><div class="drq-r">${sources}</div>
       <div class="jseg" role="group" aria-label="Ansicht">${[["liste","Liste"],["kacheln","Kacheln"]].map(([v,t])=>`<button type="button" data-act="jobAnsicht" data-v="${v}" aria-pressed="${ansicht()===v}">${t}</button>`).join("")}</div></div>
-    ${sources}
-    ${window.DLIVE?DLIVE.html():""}${window.ABU?ABU.html():""}
-    ${window.CRE?CRE.statusHTML():""}
     ${list.length?`<div class="jhead">
       <input type="search" id="job_q" placeholder="Suchen" value="${esc(J.q)}">
       <select id="job_src" aria-label="Quelle"><option value="alle">Alle Quellen</option><option value="ha"${J.src==="ha"?" selected":""}>Druckprotokoll</option>${J.speicher.length?`<option value="speicher"${J.src==="speicher"?" selected":""}>Druckerspeicher</option>`:""}<option value="cloud"${J.src==="cloud"?" selected":""}>Bambu-Cloud</option>${cre?`<option value="creality"${J.src==="creality"?" selected":""}>Creality-Cloud</option>`:""}</select>
       <select id="job_pr" aria-label="Drucker"><option value="">Alle Drucker</option>${printers.map(p=>`<option${p===J.printer?" selected":""}>${esc(p)}</option>`).join("")}</select>
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="job_open" ${J.open?"checked":""} style="margin:0 4px 0 0;accent-color:var(--accent)">Nur offene</label>
+      <label class="chip" style="cursor:pointer" title="Nur Drucke, die noch nicht in einen Auftrag oder den Rechner übernommen wurden"><input type="checkbox" id="job_open" ${J.open?"checked":""} style="margin:0 4px 0 0;accent-color:var(--accent)">Nur nicht abgerechnete</label>
       <span class="sp"></span>${vis.length?`<button class="btn ghost sm" data-act="jobAll">Alle sichtbaren wählen</button>`:""}</div>`:""}
     ${body}${bar}
   </div>`;
   if(window.DLIVE)DLIVE.after();if(window.ABU)ABU.after();
 }
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-drseg]");if(!b)return;try{localStorage.setItem("sl_dr_seg",b.dataset.drseg)}catch(x){}render();window.scrollTo({top:0})});
 function redraw(){if(S.tab!=="drucke")return;const q=$("#job_q");const foc=q&&document.activeElement===q,pos=q?q.selectionStart:0;render();if(foc){const n=$("#job_q");n.focus();n.setSelectionRange(pos,pos)}}
 
 /* --- Übernehmen --- */
@@ -7171,6 +7178,12 @@ window.PVG={render:renderSeite,_P:P,ansicht:v=>{P.ansicht=v}};
 })();
 </script>
 <style>
+.pvseg.dr3{grid-template-columns:1fr 1fr 1fr}.pvseg button small{font-size:11px;font-weight:500;color:var(--fg-3);margin-left:2px}
+.drjetzt .dl-ks{display:none}.drjetzt .dlive{border-radius:18px}
+.pvh-m .bad,.pvh-m .bad b{color:var(--bad)}
+.drq{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}.drq-r{min-width:0;flex:1}.drq .jsrc{margin:0}.drq .jsrc .chip,.drq .jsrc .btn{font-size:12.5px;padding:5px 10px}
+.drq .jsrc .dmk{display:none}
+.dm-inl .dm-k{position:static;background:none}
 .pvseg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--sunken);border:1px solid var(--line)}
 .pvseg button{border:0;background:none;color:var(--fg-2);font:inherit;font-size:14px;font-weight:600;padding:10px;border-radius:10px;cursor:pointer}
 .pvseg button.on{background:var(--solid);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.35)}
@@ -7686,9 +7699,10 @@ async function seSenden(starten){const x=D.se;if(starten&&!x.sicher){x.sicher=tr
 function neu(){const el=document.getElementById("dm_in");if(!el)return;const fo=document.activeElement&&document.activeElement.id==="dm_q",pos=fo?document.activeElement.selectionStart:0;
   el.innerHTML=D.se?seHtml():inhalt();if(fo){const q=document.getElementById("dm_q");q.focus();try{q.setSelectionRange(pos,pos)}catch(e){}}}
 async function laden(){D.fehler="";try{const d=await SRV.req("GET","/api/drucke/archiv");D.l=d.dateien||[];D.info=d.archiv}catch(e){D.fehler=e.status===404?"Braucht Server-Version 3.8.3 – bitte den SchichtLohn-Server aktualisieren.":String(e&&e.message||e)}neu()}
+function inline(el){if(!el)return;if(!document.getElementById("dm_in")||!el.contains(document.getElementById("dm_in"))){D.n=120;D.weg="";D.se=null}el.innerHTML=`<div id="dm_in" class="dm-inl">${D.se?seHtml():inhalt()}</div>`;laden()}
 function auf(){D.n=120;D.weg="";D.se=null;modal("Druckdateien",`<div id="dm_in">${inhalt()}</div>`);const m=document.querySelector("#modal .modal");if(m)m.classList.add("plwide","dm");laden()}
 document.addEventListener("click",async e=>{const t=e.target.closest&&e.target.closest("[data-dm]");if(!t)return;const a=t.dataset.dm;
-  if(a==="auf"){e.preventDefault();auf();return}
+  if(a==="auf"){e.preventDefault();if(S.tab==="drucke"){try{localStorage.setItem("sl_dr_seg","dateien")}catch(x){}window.render();return}auf();return}
   if(a==="mehr"){D.n+=120;neu();return}
   if(a==="send"){seAuf(t.dataset.k);return}
   if(a==="zurueck"){D.se=null;neu();return}
@@ -7703,7 +7717,7 @@ document.addEventListener("change",e=>{const x=D.se;
     if(e.target.dataset&&e.target.dataset.dmzu){x.zu[e.target.dataset.dmzu]=e.target.value===""?null:Number(e.target.value);neu();return}
     if(e.target.id==="dm_kal"){x.kal=e.target.checked;return}if(e.target.id==="dm_zr"){x.zr=e.target.checked;return}}
   if(e.target.id==="dm_dr"){D.dr=e.target.value;D.n=120;neu()}else if(e.target.id==="dm_sort"){D.sort=e.target.value;neu()}});
-window.DMGR={ICON,auf};
+window.DMGR={ICON,auf,inline};
 })();
 </script>
 <style>
