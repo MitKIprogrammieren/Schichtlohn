@@ -2031,6 +2031,39 @@ def archiv_datei(serial, name):
         return serial, name, f.read()
 
 
+# Allgemeine Bambu-Profile, wenn eine Sorte keine eigene Bambu-ID hat (Material → ID, Düsentemperatur min/max)
+GENERISCH = {"PLA": ("GFL99", 190, 230), "PLA+": ("GFL99", 200, 230), "PETG": ("GFG99", 220, 260), "PCTG": ("GFG97", 230, 260),
+             "ABS": ("GFB99", 240, 270), "ASA": ("GFB98", 240, 270), "TPU": ("GFU99", 200, 250), "PA": ("GFN99", 260, 290),
+             "PC": ("GFC99", 260, 280), "PVA": ("GFS99", 190, 210), "HIPS": ("GFS98", 220, 240), "PET": ("GFG99", 230, 260)}
+
+
+def fach_belegen(k):
+    """Ein AMS-Fach am Drucker auf eine Sorte aus dem Lager setzen."""
+    name = str(k.get("drucker") or "")
+    dr = next((d for d in BAMBU.drucker.values() if d.serial == name or (d.info().get("name") or "") == name), None)
+    if not dr:
+        raise Fehler(404, "Drucker nicht verbunden")
+    fach = next((f for f in drucker_mod.faecher(dr.p) if f["ort"] == k.get("ort") or str(f["global"]) == str(k.get("fach"))), None)
+    if not fach:
+        raise Fehler(404, "Fach nicht gefunden")
+    it = next((x for x in liste_lesen(ENT) if x["uid"] == k.get("uid")), None)
+    if not it:
+        raise Fehler(404, "Sorte nicht im Lager")
+    d = _desc(it)
+    mat = str(d.get("material") or "PLA").upper().split()[0]
+    basis = re.sub(r"[-+ ].*$", "", mat) if mat not in GENERISCH else mat
+    gid, gmin, gmax = GENERISCH.get(mat) or GENERISCH.get(basis) or GENERISCH["PLA"]
+    fid = str(d.get("bambu_id") or "").strip() or gid
+    tmin = int(_zahl(d.get("duese_min")) or gmin)
+    tmax = int(_zahl(d.get("duese_max")) or gmax)
+    try:
+        b = dr.fach_setzen(fach, fid, d.get("hex") or "#888888", basis if basis in GENERISCH else mat, tmin, tmax)
+    except RuntimeError as e:
+        raise Fehler(409, str(e))
+    return {"ok": True, "ort": fach["ort"], "sorte": it["summary"], "tray_info_idx": fid, "typ": b["tray_type"], "farbe": b["tray_color"],
+            "duese": [tmin, tmax], "eigene_id": bool(str(d.get("bambu_id") or "").strip())}
+
+
 def senden_pruefen(serial, name):
     """Für den Dialog „An Drucker senden“: Platten der Datei, passende Drucker und Vorschlag, welches Fach welches Filament druckt."""
     serial, name, daten = archiv_datei(serial, name)
@@ -2916,6 +2949,8 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucke", "speicher"] and methode == "POST":
             im_hintergrund(speicher_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile == ["drucker", "fach"] and methode == "POST":
+            return self._json(200, fach_belegen(self._json_rumpf()))
         if teile == ["drucke", "senden", "pruefen"] and methode == "POST":
             k = self._json_rumpf()
             return self._json(200, senden_pruefen(k.get("serial"), k.get("name")))

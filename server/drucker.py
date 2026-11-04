@@ -837,6 +837,27 @@ class Drucker:
         self.wirt.log(f"Drucker {self.serial}: Druck gestartet: {name} Platte {platte}, AMS {mapping}")
         return befehl["print"]
 
+    def fach_setzen(self, fach, fid, farbe, typ, tmin, tmax):
+        """Filament eines AMS-Fachs festlegen (wie „Fach bearbeiten“ in Bambu Studio). fach = Eintrag aus faecher()."""
+        if not (self.client and self.online):
+            raise RuntimeError("Drucker ist nicht verbunden")
+        g = fach["global"]
+        if fach["ams"] is None:  # externe Spule
+            ams_id, slot, tray = (255 if g == 254 else 254), 0, 254
+        elif g >= 128:  # AMS HT: ein Fach je Einheit
+            ams_id, slot, tray = fach["ams"], 0, fach["ams"]
+        else:
+            ams_id, slot, tray = fach["ams"], fach["fach"], fach["ams"] * 4 + fach["fach"]
+        f = str(farbe or "#888888").lstrip("#").upper()
+        f = (f + "FF") if len(f) == 6 else (f if len(f) == 8 else "888888FF")
+        befehl = {"print": {"sequence_id": str(int(time.time()) % 100000), "command": "ams_filament_setting", "ams_id": ams_id, "slot_id": slot,
+                            "tray_id": tray, "tray_info_idx": fid, "tray_color": f, "tray_type": typ,
+                            "nozzle_temp_min": int(tmin), "nozzle_temp_max": int(tmax), "setting_id": "", "reason": "success", "result": "success"}}
+        self.client.publish(f"device/{self.serial}/request", json.dumps(befehl))
+        self.wirt.log(f"Drucker {self.serial}: {fach['ort']} auf {typ} {fid} #{f[:6]} gesetzt")
+        threading.Timer(2.0, self._pushall).start()
+        return befehl["print"]
+
     def _pushall(self):
         try:
             self.client.publish(f"device/{self.serial}/request",

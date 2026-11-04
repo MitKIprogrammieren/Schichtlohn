@@ -2533,7 +2533,15 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
   const abH=zeig.length?`<div class="lgsh" style="margin-top:8px"><span>${seitT?"Seit dem Eintragen abgebucht":"Zuletzt aus diesem Fach"}</span>${seitT?`<span style="text-transform:none">− ${g1(summe)}</span>`:""}</div>
       <div class="dl-rab">${zeig.map(d=>`<div><span>${esc(new Date(d.zeit).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}</span><span class="n" title="${esc(d.aufgabe||"")}">${esc(String(d.aufgabe||d.anlass||"").replace(/\.(gcode\.3mf|3mf|gcode|stl)$/i,""))}${/abgebrochen/i.test(d.anlass||"")?' <i>abgebrochen</i>':""}</span><b>− ${g1(Number(d.gramm)||0)}</b></div>`).join("")}</div>`
     :`<div class="hint" style="margin-top:6px">${seitT?"Seit dem Eintragen wurde aus diesem Fach noch nichts abgebucht.":"Aus diesem Fach wurde noch nichts abgebucht."}</div>`;
-  const body=!R||!R.uid?`<p>${esc(dr)} · ${esc(ortText||ort)}: Diesem Fach ist noch keine Sorte mit Bestand zugeordnet. Ordne es zuerst im Lager zu, dann lässt sich die Rolle eintragen.</p>`
+  /* Sorte ins Fach am Drucker schreiben (wie „Fach bearbeiten“ in Bambu Studio) */
+  let sorten=[];try{sorten=(window.LGN&&LGN.sorten()||[]).filter(x=>x.uid).sort((a,b)=>(a.hersteller+a.material+a.farbe).localeCompare(b.hersteller+b.material+b.farbe,"de"))}catch(x){}
+  const sel=R&&R.uid||"";const nm=x=>[x.hersteller,x.material,x.besonderheiten&&x.besonderheiten.join(" ")].filter(Boolean).join(" ")+(x.farbe?" · "+x.farbe:"");
+  const sx=sorten.find(x=>x.uid===sel);
+  const fachH=`<div class="dl-fs"><div class="lgsh" style="margin:0"><span>Im Drucker eintragen</span></div>
+      <div class="dl-fsz"><i class="dl-fsf" id="dl_fsf" style="background:${esc(sx&&sx.hex||"transparent")}"></i><select id="dl_fss" aria-label="Sorte für dieses Fach"><option value="">Sorte aus dem Lager wählen …</option>${sorten.map(x=>`<option value="${esc(x.uid)}" data-hex="${esc(x.hex||"")}"${x.uid===sel?" selected":""}>${esc(nm(x))}</option>`).join("")}</select></div>
+      <button class="btn" data-rla="fach"${sel?"":" disabled"} id="dl_fsb">Ins Fach am Drucker schreiben</button>
+      <div class="hint">Der Drucker zeigt dann Material, Farbe und Profil dieser Sorte – wie „Fach bearbeiten“ in Bambu Studio.</div></div>`;
+  const body=!R||!R.uid?`<p>${esc(dr)} · ${esc(ortText||ort)}: Diesem Fach ist noch keine Sorte aus dem Lager zugeordnet. Wähle unten die Sorte, die drinsteckt – dann kennt der Drucker sie, und SchichtLohn bucht hier ab und zeigt die Gramm dieser Rolle.</p>${fachH}`
     :`<div class="stack" style="gap:6px"><p style="margin:0"><b>${esc(R.sorte)}</b></p>
       ${zeile("Diese Rolle",ro&&ro.g!=null?N0.format(Math.round(ro.g))+" g":"unbekannt")}
       ${ro?zeile("Eingetragen",esc([seitT?new Date(seitT).toLocaleDateString("de-DE"):"",qn].filter(Boolean).join(" · "))):""}
@@ -2543,12 +2551,20 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
       <label class="dl-rlab" for="dl_rlg">Oder von Hand: Gramm auf der Rolle, ohne Spule</label>
       <div class="dl-rin"><span class="dl-rfeld"><input type="number" inputmode="decimal" min="0" max="${gw}" step="1" id="dl_rlg" placeholder="z. B. 640"><i>g</i></span><button class="btn" data-rla="gramm">Speichern</button></div>
       ${netto!=null?`<div class="hint">Waage zeigt ${N0.format(brutto)} g, abzüglich ${N0.format(leerG)} g Leerspule${R.leer_g?"":" (Standardwert – bei der Sorte als Leergewicht eintragbar)"}.</div>`:`<div class="hint">Mit der Filamentwaage geht es schneller: Rolle auflegen, dann steht hier „Von der Waage“.</div>`}
-      <div class="hint" id="dl_rlmsg" role="status"></div></div>`;
+      ${fachH}<div class="hint" id="dl_rlmsg" role="status"></div></div>`;
   modal(`${esc(dr)} · ${esc(ortText||ort)}`,body,`${ro?`<button class="btn ghost" data-rla="entfernen">Rolle entfernen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
   const m=document.getElementById("modal");if(m)m.dataset.rlkey=key}
+document.addEventListener("change",e=>{if(e.target.id!=="dl_fss")return;const o=e.target.selectedOptions[0];const f=document.getElementById("dl_fsf");if(f)f.style.background=o&&o.dataset.hex||"transparent";
+  const b=document.getElementById("dl_fsb");if(b){b.disabled=!e.target.value;b.textContent="Ins Fach am Drucker schreiben"}});
 document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],[data-rla]");if(!t)return;
   if(t.dataset.rl){e.preventDefault();let items=null;try{items=((await SRV.req("GET","/api/listen/todo.filament_verbrauch"))||{}).items||null}catch(x){}return rolleModal(t.dataset.rl,t.dataset.rlo,items)}
   const m=document.getElementById("modal");const key=m&&m.dataset.rlkey;if(!key)return;const [drucker,ort]=key.split("|");const aktion=t.dataset.rla;
+  if(aktion==="fach"){const uid=(document.getElementById("dl_fss")||{}).value;const x=document.getElementById("dl_rlmsg")||document.getElementById("dl_fsb");if(!uid)return;
+    t.disabled=true;t.textContent="Wird geschrieben …";
+    try{const r=await SRV.req("POST","/api/drucker/fach",{drucker,ort,uid});t.textContent="Im Fach eingetragen ✓";
+      if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=`${r.ort}: ${r.sorte} (${r.typ}${r.eigene_id?"":", allgemeines Profil – die Sorte hat keine Bambu-ID"}, Düse ${r.duese[0]}–${r.duese[1]} °C).`;toast("Fach am Drucker aktualisiert")}
+    catch(x2){t.disabled=false;t.textContent="Ins Fach am Drucker schreiben";if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=x2.status===404&&/nicht gefunden|Not Found/i.test(x2.message||"")?"Braucht Server-Version 3.8.3.":String(x2&&x2.message||x2)}
+    return}
   const body={drucker,ort,aktion:aktion==="waage"?"gramm":aktion,quelle:aktion};
   if(aktion==="waage")body.g=Number(t.dataset.g);
   if(aktion==="gramm"){const roh=String((document.getElementById("dl_rlg")||{}).value||"").replace(",",".");const v=Number(roh);if(roh===""||!(v>=0)){const x=document.getElementById("dl_rlmsg");if(x)x.textContent="Gib die Gramm ein.";return}body.g=v}
@@ -7567,6 +7583,9 @@ window.DMGR={ICON,auf};
 .dm-r small{font-size:11.5px;color:var(--fg-3)}
 .dm-r>div{display:flex;gap:2px}
 .dm-weg.sicher{color:var(--bad);width:auto;padding:0 8px;font-size:12px}
+.dl-fs{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.dl-fsz{display:flex;gap:8px;align-items:center}.dl-fsz select{flex:1;min-width:0}
+.dl-fsf{width:22px;height:22px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.3)}
 .dm-zur{background:none;border:0;color:var(--fg-2);font:inherit;font-size:13px;padding:0;cursor:pointer;align-self:flex-start}
 .dm-sk{display:flex;flex-direction:column;gap:2px}.dm-sk b{font-size:16px}.dm-sk span{font-size:12px;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dm-lab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg-2)}
