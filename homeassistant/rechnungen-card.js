@@ -6,7 +6,7 @@
 // und die Filamentpreise (bezahlter Preis pro Rolle) über die Farbnummer ins SchichtLohn-Lager geschrieben.
 // Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), preise_ins_lager (true)
 (()=>{
-const VERSION='2.2.0';
+const VERSION='2.3.0';
 const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
 const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress',andere:'rechnungen_andere'};
 const SEITE=150;
@@ -144,9 +144,9 @@ const AZ_GLISTE=AZ_GRUPPEN.map(g=>[g[0],g[1]]);
 const AZ_GNAME=Object.fromEntries(AZ_GLISTE);
 function azKat(n){return /filament/i.test(n)&&/1[,.]75|\d ?kg|\bpla\b|petg|\babs\b|\basa\b|\btpu\b/i.test(n)&&!/trockner|halter|box|sensor|cutter|schneider|schlauch|ptfe|tube|düse|nozzle|hotend|extruder|platte|kupplung|stecker|waage|reiniger|sauger|dryer|holder/i.test(n)?'Filament':'Zubehör'}
 const SRC={bambu:{titel:'Bambu-Rechnungen',name:'Bambu Lab'},amazon:{titel:'Amazon-Bestellungen',name:'Amazon',datei:'amazon-bestellungen.json',
-    art:id=>`https://www.amazon.de/dp/${id}`,best:o=>`https://www.amazon.de/your-orders/order-details?orderID=${o}`,bei:'Amazon',vk:'Verkauf durch '},
+    art:id=>`https://www.amazon.de/dp/${id}`,best:o=>`https://www.amazon.de/your-orders/order-details?orderID=${o}`,rech:o=>`https://www.amazon.de/gp/css/summary/print.html?orderID=${o}`,rechT:'Rechnung bei Amazon',bei:'Amazon',vk:'Verkauf durch '},
   aliexpress:{titel:'AliExpress-Bestellungen',name:'AliExpress',datei:'aliexpress-bestellungen.json',
-    art:id=>`https://www.aliexpress.com/item/${id}.html`,best:o=>`https://www.aliexpress.com/p/order/detail.html?orderId=${o}`,bei:'AliExpress',vk:'Shop: '},
+    art:id=>`https://www.aliexpress.com/item/${id}.html`,best:o=>`https://www.aliexpress.com/p/order/detail.html?orderId=${o}`,rech:o=>`https://www.aliexpress.com/p/order/detail.html?orderId=${o}`,rechT:'Bestellbeleg bei AliExpress',bei:'AliExpress',vk:'Shop: '},
   andere:{titel:'Andere Shops',name:'Andere Shops',pdf:true,vk:'',art:()=>'',best:()=>'',bei:''}};
 function invName(n){return n.replace(/^Pre-order\s+/i,'').replace(/\s+Final Payment$/i,'').replace(/\s+3D Printer$/i,'')}
 
@@ -299,6 +299,19 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .tag.rt{background:rgba(224,161,0,.16);color:#a87400}
 .nm a{color:inherit;text-decoration:none}.nm a:hover{text-decoration:underline}
 .foot a{color:var(--ac-ink)}
+.pdfb{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:.8rem;font-weight:600;border:1px solid var(--ac);border-radius:999px;padding:4px 11px;background:var(--ac-soft);color:var(--ac-ink)!important;cursor:pointer;text-decoration:none}
+.pdfb svg{width:14px;height:14px;flex:none}
+.pdfb.leer{border-style:dashed;background:none;color:var(--mut)!important;border-color:var(--line)}
+.fl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pdfv{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;flex-direction:column}
+.pdfv .bar{display:flex;gap:8px;align-items:center;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));background:#1c1c1e;color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
+.pdfv .bar b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+.pdfv .bar a,.pdfv .bar button{font:inherit;font-size:.85rem;font-weight:600;border:0;border-radius:var(--rs,8px);padding:7px 12px;cursor:pointer;text-decoration:none}
+.pdfv .bar a{background:var(--ac);color:var(--ac-on)}
+.pdfv .bar button{background:rgba(255,255,255,.14);color:#fff}
+.pdfv .pg{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;align-items:center;gap:12px;-webkit-overflow-scrolling:touch}
+.pdfv canvas{max-width:100%;height:auto!important;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.4);border-radius:4px}
+.pdfv .msg{color:#fff;padding:30px;text-align:center}
 button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 `;
 
@@ -315,7 +328,7 @@ class BambuRechnungenCard extends HTMLElement{
     const dk=!!(h.themes&&h.themes.darkMode); if(dk!==this._dark){this._dark=dk;this._applyDesign()}}
   disconnectedCallback(){document.removeEventListener('visibilitychange',this._vis)}
   connectedCallback(){if(!this._vis)this._vis=()=>{if(document.visibilityState==='visible'&&this._h&&Date.now()-(this._zuletzt||0)>60000)this._laden(this.st.src)};document.addEventListener('visibilitychange',this._vis);if(this._h&&this._zuletzt)this._laden(this.st.src)}
-  _subscribe(){ if(!this._h) return; const erst=this.st.src; this._laden(erst).then(()=>{for(const k of Object.keys(SRC))if(k!==erst)this._laden(k)}); }
+  _subscribe(){ if(!this._h) return; this._pdfIndex().then(()=>this._render()).catch(()=>{}); const erst=this.st.src; this._laden(erst).then(()=>{for(const k of Object.keys(SRC))if(k!==erst)this._laden(k)}); }
   /* SchichtLohn-Server über HA-Ingress (gleiche Sitzung wie die Preisübernahme ins Lager) */
   async _api(pfad,opt,nochmal){ const base=await this._lagerBase(); const r=await fetch(base+pfad,Object.assign({credentials:'same-origin'},opt||{}));
     if((r.status===401||r.status===403)&&!nochmal){this._lb=null;return this._api(pfad,opt,true)}
@@ -477,7 +490,7 @@ class BambuRechnungenCard extends HTMLElement{
     :`<div class="invs">${vis.length?vis.slice(0,st.n).map(r=>{const its=r.items.filter(it=>!filtered||((!st.k||it.k===st.k)&&this._hit(it)));const pcs=r.items.reduce((s,i)=>s+i.q,0);const m=METH[r.m]||r.m||'';
       return `<details class="tile"${filtered?' open':''}><summary><span class="when">${dm(r.d)}</span><span class="meta">${pcs} Stück${m?' · '+esc(m):''}${r.ship?' · Versand '+eur(r.ship):''}${r.ohne?' · <span class="tag">ohne Rechnung</span>':''}<br><span class="ord">${r.o}${r.i?' · Rechnung '+esc(r.i):''}</span></span><span class="sum">${eur(r.pay)}${r.storno?'<small>storniert</small>':r.erst?`<small>${eur(r.erst)} erstattet</small>`:''}${r.tot&&r.tot!==r.net?`<small>von ${eur(r.tot)}${r.gift?', Rest per Gutschein':r.disc?' vor Rabatt':', Rest per Gutschein'}</small>`:''}</span></summary>
       <div class="tbl"><table><tbody>${its.map(it=>`<tr><td${it.ret?' class="ret"':''}>${it.ret?`<span class="tag rt" style="float:right">${r.storno?'storniert':'zurückgegeben'}</span>`:''}<div class="pbw">${this._pb(it)}<div><div class="nm">${this._hl(it.n)}${it.c?`<span class="code">${this._hl(it.c)}</span>`:''}</div>${it.v?`<div class="var">${this._hl(it.v)}</div>`:''}</div></div></td><td class="num">${it.q} ×</td><td class="num">${eur(it.s)}</td></tr>`).join('')}</tbody></table></div>
-      <div class="foot"><span class="ord">${SRC[st.src].pdf?esc([r.shop,r.i?'Rechnung '+r.i:'',r.file?'PDF: '+r.file:''].filter(Boolean).join(' · ')):az?`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`:r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span>${az&&!SRC[st.src].pdf?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
+      <div class="foot"><span class="fl">${this._pdfKnopf(r)}<span class="ord">${SRC[st.src].pdf?esc([r.shop,r.i?'Rechnung '+r.i:'',r.file?'PDF: '+r.file:''].filter(Boolean).join(' · ')):az?(SRC[st.src].rech&&SRC[st.src].rech(r.o)===SRC[st.src].best(r.o)?'':`<a href="${SRC[st.src].best(r.o)}" target="_blank" rel="noopener">Bestellung bei ${SRC[st.src].bei} öffnen</a>`):r.ohne?'Keine Rechnung im Shop – Daten aus der Bestellübersicht':r.file?'PDF: '+esc(r.file):''}</span></span>${az&&!SRC[st.src].pdf?`<button class="del" style="color:var(--ac-ink)" data-storno="${r.uid}">${r.storno?'Storno aufheben':'Als storniert markieren'}</button>`:''}${st.del===r.uid?`<span>Wirklich entfernen? <button class="del" data-delok="${r.uid}">Ja, entfernen</button> <button class="del" style="color:var(--mut)" data-delno="1">Abbrechen</button></span>`:`<button class="del" data-del="${r.uid}">Entfernen</button>`}</div></details>`}).join('')+mehr(vis.length):`<div class="empty tile">Keine Bestellung passt zur Suche.</div>`}</div>`}`}`;
     const $=s=>root.querySelectorAll(s);
     $('[data-lay]').forEach(b=>b.onclick=()=>{st.lay=b.dataset.lay;try{localStorage.setItem('bambu_rechnungen_lay',st.lay)}catch(e){}this._render()});
     root.querySelector('#kg')?.addEventListener('input',e=>{st.kg=+e.target.value;$('.kgrid').forEach(g=>g.style.setProperty('--kg',st.kg+'px'))});
@@ -488,6 +501,8 @@ class BambuRechnungenCard extends HTMLElement{
     root.querySelector('#mehr')?.addEventListener('click',()=>{st.n+=300;this._render()}); if(focus==='q'){q.focus();try{q.setSelectionRange(caret,caret)}catch(e){}}
     root.querySelector('#clr')?.addEventListener('click',()=>{st.q='';this._render();root.querySelector('#q')?.focus()});
     root.querySelector('#pick').addEventListener('click',()=>this.shadowRoot.getElementById('file').click());
+    $('[data-pdf]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();this._pdfZeigen(b.dataset.pdf,b.dataset.pdfn)});
+    $('[data-pdfup]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();this._pdfWaehlen(b.dataset.pdfup)});
     root.querySelector('#clrlog')?.addEventListener('click',()=>{st.log=[];this._render()});
     root.querySelector('#dsbtn').addEventListener('click',()=>{st.ds=!st.ds;this._render()});
     $('[data-v]').forEach(b=>b.onclick=()=>{st.view=b.dataset.v;this._render()});
@@ -540,20 +555,50 @@ class BambuRechnungenCard extends HTMLElement{
       this._log('','Lese '+esc(f.name)+' …');
       const seiten=await pdfSeiten(f); let x=this.st.src==='andere'?null:blParsePages(seiten); this.st.log.pop();
       if(!x||!x.o||!x.items.length){ await this._importAndere(f,allgParse(seiten)); continue; }
-      if((this._data||[]).some(r=>r.o===x.o)){this._log('warn',`<b>${x.o}</b> ist schon eingetragen.`);continue}
+      if((this._data||[]).some(r=>r.o===x.o)){ if(!this._pdfDa('bambu',x.o)){await this._pdfSpeichern('bambu',x.o,f);this._log('ok',`<b>${x.o}</b>: PDF zur Rechnung gespeichert.`)} else this._log('warn',`<b>${x.o}</b> ist schon eingetragen.`);continue}
       const items=x.items.map(it=>{const c=code(it.v);return [it.n,it.v,it.q,it.s,c,kat(it.n,it.v,c)]});
       const desc={v:1,o:x.o,i:x.i,d:x.d,net:x.net,tot:x.tot,ship:x.ship,m:METH[x.m]||x.m,file:`${x.d}_${x.o}.pdf`,items};
       await this._svc('bambu','add_item',{item:`${x.d} · ${x.o}`,description:JSON.stringify(desc)});
+      try{await this._pdfSpeichern('bambu',x.o,f)}catch(e){this._log('warn',`PDF zu <b>${x.o}</b> konnte nicht gespeichert werden: ${esc(e.message||e)}`)}
       const warn=x.sub!=null&&Math.abs(x.check-x.sub)>0.02?`<small>Hinweis: Die Positionen ergeben ${eur(x.check)}, auf der Rechnung stehen ${eur(x.sub)}. Bitte kurz prüfen.</small>`:'';
       this._log('ok',`<b>${dm(x.d)} · ${x.o}</b> eingetragen: ${items.length} Positionen, ${eur(x.net)} bezahlt.${warn}`);
       if(this._c.preise_ins_lager) await this._preise(x.d,items,x.o);
     }catch(e){this.st.log=this.st.log.filter(m=>!m.h.startsWith('Lese '));this._log('err',`<b>${esc(f.name)}</b>: ${esc(e.message||e)}`)} } }
+  /* Rechnungs-PDFs: liegen auf dem SchichtLohn-Server (Daten „rechnungpdf_<quelle>_<nr>“, Verzeichnis „rechnungpdf_index“) */
+  _pdfKey(src,o){return 'rechnungpdf_'+src+'_'+String(o).replace(/[^\w.-]/g,'_')}
+  _pdfDa(src,o){return !!(this._pdfIx&&this._pdfIx[this._pdfKey(src,o)])}
+  async _pdfIndex(neu){ if(this._pdfIx&&!neu) return this._pdfIx; try{const r=await this._api('/api/daten/rechnungpdf_index');this._pdfIx=(r&&r.wert)||{}}catch(e){this._pdfIx=this._pdfIx||{}} return this._pdfIx; }
+  _pdfKnopf(r){ const src=this.st.src, S=SRC[src], ic='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>';
+    if(S.rech) return `<a class="pdfb" href="${S.rech(r.o)}" target="_blank" rel="noopener">${ic}${S.rechT}</a>`;
+    if(this._pdfDa(src,r.o)) return `<button class="pdfb" data-pdf="${esc(src)}" data-pdfn="${esc(r.o)}">${ic}Rechnung öffnen</button>`;
+    if(r.ohne||!this._pdfIx) return '';
+    return `<button class="pdfb leer" data-pdfup="${esc(r.o)}">${ic}PDF hinzufügen</button>`; }
+  _pdfWaehlen(o){ const i=document.createElement('input'); i.type='file'; i.accept='application/pdf,.pdf'; const src=this.st.src;
+    i.onchange=async()=>{const f=i.files&&i.files[0]; if(!f) return; try{await this._pdfSpeichern(src,o,f);this._log('ok',`PDF zu <b>${esc(o)}</b> gespeichert.`)}catch(e){this._log('err',`PDF zu <b>${esc(o)}</b> konnte nicht gespeichert werden: ${esc(e.message||e)}`)}}; i.click(); }
+  async _pdfSpeichern(src,o,f){ const buf=new Uint8Array(await f.arrayBuffer()); if(buf.length>12*1024*1024) throw new Error('Die PDF ist größer als 12 MB.');
+    let b='';for(let i=0;i<buf.length;i+=0x8000)b+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000)); const key=this._pdfKey(src,o);
+    await this._api('/api/daten/'+key,this._json('PUT',{wert:{name:f.name,groesse:buf.length,zeit:new Date().toISOString(),b64:btoa(b)}}));
+    const ix=await this._pdfIndex(true); ix[key]={name:f.name,groesse:buf.length}; await this._api('/api/daten/rechnungpdf_index',this._json('PUT',{wert:ix})); this._pdfIx=ix; this._render(); }
+  async _pdfZeigen(src,o){ const ov=document.createElement('div'); ov.className='pdfv'; const name=(this._pdfIx[this._pdfKey(src,o)]||{}).name||(o+'.pdf');
+    ov.innerHTML=`<div class="bar"><b>${esc(name)}</b><a id="pdl" href="#" download="${esc(name)}">Herunterladen</a><button id="pzu">Schließen</button></div><div class="pg"><div class="msg">PDF wird geladen …</div></div>`;
+    const zu=()=>{ov.remove();if(ov._url)URL.revokeObjectURL(ov._url);document.removeEventListener('keydown',esck)}; const esck=e=>{if(e.key==='Escape')zu()};
+    ov.querySelector('#pzu').onclick=zu; ov.addEventListener('click',e=>{if(e.target===ov||e.target.classList.contains('pg'))zu()}); document.addEventListener('keydown',esck);
+    this.shadowRoot.appendChild(ov); const pg=ov.querySelector('.pg');
+    try{ const w=(await this._api('/api/daten/'+this._pdfKey(src,o))).wert; if(!w||!w.b64) throw new Error('Die PDF wurde auf dem Server nicht gefunden.');
+      const bin=atob(w.b64), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+      ov._url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'})); ov.querySelector('#pdl').href=ov._url;
+      const lib=await loadPdf(); const doc=await lib.getDocument({data:u8}).promise; pg.innerHTML='';
+      const breite=Math.min(pg.clientWidth-28,900), dpr=Math.min(window.devicePixelRatio||1,2);
+      for(let n=1;n<=doc.numPages;n++){ const p=await doc.getPage(n); const v0=p.getViewport({scale:1}); const sc=breite/v0.width*dpr; const v=p.getViewport({scale:sc});
+        const c=document.createElement('canvas'); c.width=v.width; c.height=v.height; c.style.width=(v.width/dpr)+'px'; pg.appendChild(c); await p.render({canvasContext:c.getContext('2d'),viewport:v}).promise; }
+    }catch(e){ pg.innerHTML=`<div class="msg">${esc(e.message||String(e))}</div>`; } }
   async _importAndere(f,x){
     if(!x.items.length){this._log('err',`<b>${esc(f.name)}</b>: In der PDF wurden keine Positionen erkannt (Zeilen mit Menge, Einzelpreis und Summe).`);return}
     if(!x.o)x.o=x.i||f.name.replace(/\.pdf$/i,'');
-    if((this._by.andere||[]).some(r=>r.o===x.o)){this._log('warn',`<b>${esc(x.o)}</b> ist schon bei „Andere Shops“ eingetragen.`);return}
+    if((this._by.andere||[]).some(r=>r.o===x.o)){ if(!this._pdfDa('andere',x.o)){await this._pdfSpeichern('andere',x.o,f);this._log('ok',`<b>${esc(x.o)}</b>: PDF zur Rechnung gespeichert.`)} else this._log('warn',`<b>${esc(x.o)}</b> ist schon bei „Andere Shops“ eingetragen.`);return}
     const desc={v:1,o:x.o,i:x.i,d:x.d,shop:x.shop,net:x.net,tot:x.tot,ship:x.ship,file:f.name,items:x.items.map(it=>[it.n,x.shop||'',it.q,it.s,it.e||'',0])};
     await this._svc('andere','add_item',{item:`${x.d} · ${x.shop||''} · ${x.o}`,description:JSON.stringify(desc)},this.st.src!=='andere');
+    try{await this._pdfSpeichern('andere',x.o,f)}catch(e){this._log('warn',`PDF zu <b>${esc(x.o)}</b> konnte nicht gespeichert werden: ${esc(e.message||e)}`)}
     if(this.st.src!=='andere')await this._neu('andere');
     this._log('ok',`<b>${dm(x.d)} · ${esc(x.shop||'Shop')} · ${esc(x.o)}</b> unter „Andere Shops“ eingetragen: ${x.items.length} ${x.items.length===1?'Position':'Positionen'}, ${eur(x.net)} bezahlt.`);
     if(this._c.preise_ins_lager) await this._preiseAndere(x);
