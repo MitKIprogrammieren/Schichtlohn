@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.8.5 – 05.11.2026
+- Mehrere Waagen: Bekommt eine weitere Filamentwaage in ihren Einstellungen einen eigenen Namen (z. B. „waage2“), zeigt SchichtLohn sie als eigene Kachel im Lager. Beim Wiegen einer Rolle nimmt SchichtLohn das Gewicht der Waage, auf der zuletzt etwas gelegt wurde.
+
 ## 3.8.4 – 04.11.2026
 - Telegram-Meldungen einstellbar: bei welchen Prozenten der Fortschritt gemeldet wird (z. B. 50 %, 25/50/75 %, alle 10 % oder eigene Stufen), eine Meldung kurz vor Druckende (5–30 Minuten vorher), welche Ereignisse überhaupt gemeldet werden (Start, Pause, fertig, abgebrochen, Fehler) und ob das Kamerabild mitkommt. Zu finden unter Einstellungen → Meldungen → Telegram.
 

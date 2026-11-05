@@ -2576,9 +2576,15 @@ function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book
   const gT=leer?"":ro!=null?N0.format(ro)+" g":rest!=null&&chip?"≈ "+N0.format(Math.round(rest/100*gw))+" g":S.srv?"? g":"";
   const gK=ro!=null?"":gT.startsWith("≈")?" q":" n";const rb=ro!=null?Math.max(0,Math.min(100,ro/gw*100)):rest;const kl=S.srv&&!leer;
   return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null?" · "+rest+" %":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
+/* Waagen (bambu-scale): je Waage sensor.<name>_laufzeit mit Attribut „waage“ – die erste heißt filamentwaage, weitere z. B. waage2 */
+window.slWaagen=function(z){z=z||{};const out=[];for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_laufzeit$/);if(!m)continue;const a=(z[id]||{}).attributes||{};if(m[1]!=="filamentwaage"&&!a.waage)continue;const n=String(a.waage||m[1]),nr=n.match(/^waage[-_]?(\d+)$/i);out.push({pre:m[1],name:m[1]==="filamentwaage"?"Waage":nr?"Waage "+nr[1]:n.charAt(0).toUpperCase()+n.slice(1)})}
+  if(!out.some(w=>w.pre==="filamentwaage")&&z["sensor.filamentwaage_gewicht"])out.push({pre:"filamentwaage",name:"Waage"});
+  return out.sort((a,b)=>a.pre==="filamentwaage"?-1:b.pre==="filamentwaage"?1:a.pre.localeCompare(b.pre))};
+/* Gewicht, das gerade auf einer Waage liegt: von der Waage, deren Wert sich zuletzt geändert hat (mehr als 0 g) */
+window.slWaageBrutto=function(z){z=z||{};let best=null,bt=-1;for(const w of slWaagen(z)){const s=z["sensor."+w.pre+"_gewicht"];const v=s?Number(s.state):NaN;if(!(v>0))continue;const t=Date.parse(s.last_changed||s.last_updated||"")||0;if(t>bt){bt=t;best=v}}return best};
 /* Fenster für die Rolle eines Fachs: Gramm, Herkunft, was seither abgebucht wurde, neu wiegen oder eintragen */
 function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.split("|");
-  const zst=(window.SRV&&SRV.zst)||{};const w=zst["sensor.filamentwaage_gewicht"];const brutto=w&&isFinite(Number(w.state))&&Number(w.state)>0?Number(w.state):null;
+  const zst=(window.SRV&&SRV.zst)||{};const brutto=slWaageBrutto(zst);
   const leerG=(R&&R.leer_g)||250;const netto=brutto!=null?Math.max(0,Math.round(brutto-leerG)):null;const gw=(R&&R.gewicht)||1000;
   const ro=R&&R.rolle;const seitT=ro&&ro.seit?Date.parse(ro.seit):0;const qn={voll:"volle Rolle",gramm:"von Hand",waage:"Waage"}[ro&&ro.quelle]||"";
   const zeile=(a,b)=>`<div class="dl-rz"><span>${a}</span><b>${b}</b></div>`;const g1=v=>(v<100?v.toLocaleString("de-DE",{maximumFractionDigits:1}):N0.format(Math.round(v)))+" g";
@@ -4257,16 +4263,18 @@ function meter(label,s,unit,warn,hi,max){
 function status(){
   const el=$("#lagerStatus");if(!el)return;const st=stateMap();
   const aus=(S.cfg&&Array.isArray(S.cfg.lagerAus))?S.cfg.lagerAus:[];
-  el.innerHTML=DEV.filter(([pre])=>!aus.includes(pre)).map(([pre,name])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
+  /* jede Waage eine eigene Kachel; der Schalter „Waage“ blendet alle aus */
+  const geraete=[...(window.slWaagen?slWaagen(st):[]).map(w=>[w.pre,w.name,true]),["druckbruecke","Druckbrücke",false]];
+  el.innerHTML=geraete.filter(([pre,,ist])=>!aus.includes(ist?"filamentwaage":pre)).map(([pre,name,ist])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
     const off=ids.every(id=>["unavailable","unknown"].includes(st[id].state));
     const temp=pick(st,pre,[/^temperatur/,/temp/]);
     const load=pre==="druckbruecke"?pick(st,pre,[/^auslastung/,/cpu|load/]):pick(st,pre,[/^arbeitsspeicher/,/speicher|ram|memory/]);
     const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
-    const wt=pre==="filamentwaage"?st[`sensor.${pre}_gewicht`]:null;
+    const wt=ist?st[`sensor.${pre}_gewicht`]:null;
     const vals=off?`<div class="dv"><span>Status</span><b class="dim">keine Verbindung</b></div>`:
-      (pre==="filamentwaage"?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0):"")+zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90)+(pre==="druckbruecke"?m20vals(st):"");
+      (ist?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0):"")+zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90)+(pre==="druckbruecke"?m20vals(st):"");
     const m20=pre==="druckbruecke"?st["binary_sensor.m20_pro_verbunden"]:null;
-    return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[pre]||ICON.cube}</span>
+    return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[ist?"filamentwaage":pre]||ICON.cube}</span>
       <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span>${m20?`<span class="ds m20${m20.state==="on"?"":" weg"}" title="${m20.state==="on"?"Etikettendrucker verbunden":"Etikettendrucker nicht verbunden – Werte vom letzten Kontakt"}"><i></i>M20 Pro</span>`:""}</div>
       <div class="dvs">${vals}</div>
       ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}</div>`}).join("");
@@ -7878,9 +7886,10 @@ const kgT=g=>g>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).fo
 const dauer=m=>m>=60?Math.floor(m/60)+" h "+String(Math.round(m%60)).padStart(2,"0")+" min":Math.round(m)+" min";
 const wann=t=>{const d=new Date(t),h=new Date();h.setHours(0,0,0,0);const dt=Math.round((h-new Date(d).setHours(0,0,0,0))/864e5);const u=d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});return dt===0?"heute "+u:dt===1?"gestern "+u:d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})+" "+u};
 const zst=()=>(window.slStates&&slStates())||(window.SRV&&SRV.zst)||{};
-function waage(){const z=zst();const g=z["sensor.filamentwaage_gewicht"];if(!g)return null;const ids=Object.keys(z).filter(i=>i.startsWith("sensor.filamentwaage_"));
-  const off=ids.every(i=>["unavailable","unknown"].includes(z[i].state));const v=Number(g.state);const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);
-  return {off,g:isFinite(v)?v:null,trocknen:isFinite(tr)?tr:0}}
+function waage(){const z=zst();const W=(window.slWaagen?slWaagen(z):[]).filter(w=>z["sensor."+w.pre+"_gewicht"]);if(!W.length)return null;
+  const ids=Object.keys(z).filter(i=>W.some(w=>i.startsWith("sensor."+w.pre+"_")));
+  const off=ids.every(i=>["unavailable","unknown"].includes(z[i].state));const v=slWaageBrutto(z);const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);
+  return {off,g:v!=null?v:0,trocknen:isFinite(tr)?tr:0}}
 function feuchte(){const z=zst();const out=[];for(const [id,st] of Object.entries(z)){const m=id.match(/^sensor\.(.+?)_ams_(\d+)_luftfeuchtigkeit$/);if(!m)continue;const v=Number(st.state);if(!(v>=40))continue;
   const dr=((z["sensor."+m[1]+"_druckstatus"]||{}).attributes||{}).drucker_name||m[1].split("_")[0].toUpperCase();const n=Number(m[2]);out.push({dr,ams:n>=128?"AMS HT "+(n-127):"AMS "+n,v})}return out.sort((a,b)=>b.v-a.v)}
 function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
