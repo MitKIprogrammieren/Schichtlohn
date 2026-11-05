@@ -18,5 +18,13 @@
                     "sitemaps": ["https://colorfabb.com/media/colorfabb_com/products.xml"], "muster": "-1-75", "farbe_nach_material": true, "ersetzen": {"https://colorfabb.com/": "https://colorfabb.com/de/"}},
   "3do":           {"name": "3DO",            "marke": "",               "art": "seiten",  "basis": "https://3do.dk",
                     "sitemaps": ["https://3do.dk/sitemap.xml"], "muster": "^https://3do\\.dk/[a-z-]*(pla|petg|asa|abs|tpu|nylon|pa|pc|filament)[a-z-]*/", "ohne": "/(da|en)/",
-                    "ersetzen": {"https://3do.dk/": "https://3do.dk/de/"}, "kurs": {"DKK": 7.46}, "sprache": "da", "nur_mit_material": true}
+                    "ersetzen": {"https://3do.dk/": "https://3do.dk/de/"}, "kurs": {"DKK": 7.46}, "sprache": "da", "nur_mit_material": true},
+  "eryone":         {"name": "Eryone", "marke": "Eryone", "art": "shopify", "nur_mit_material": true, "basis": "https://de.eryone3d.com"},
+  "fillamentum":    {"name": "Fillamentum", "marke": "Fillamentum", "art": "shopify", "nur_mit_material": true, "basis": "https://shop.fillamentum.com"},
+  "kingroon":       {"name": "Kingroon", "marke": "Kingroon", "art": "shopify", "nur_mit_material": true, "basis": "https://eu.kingroon.com"},
+  "jayo":           {"name": "Jayo", "marke": "Jayo", "art": "shopify", "nur_mit_material": true, "basis": "https://eu.jayo3d.com"},
+  "fiberlogy":      {"name": "Fiberlogy", "marke": "Fiberlogy", "art": "woo", "nur_mit_material": true, "basis": "https://fiberlogy.com", "kurs": {"PLN": 4.25}},
+  "formfutura":     {"name": "Formfutura", "marke": "Formfutura", "art": "seiten", "nur_mit_material": true, "basis": "https://www.formfutura.com", "sitemaps": ["https://www.formfutura.com/sitemap.xml"], "muster": "^https://www\\.formfutura\\.com/[a-z0-9-]+$", "ohne": "/(shop|blog|filaments|contactus|about|faq|page|event|jobs|privacy|terms|slides|forum|helpdesk|aboutus|impressum)\\b|-(resin|nozzle|tool|kit)$"},
+  "addnorth":       {"name": "add:north", "marke": "add:north", "art": "seiten", "nur_mit_material": true, "basis": "https://addnorth.com", "sitemaps": ["https://addnorth.com/sitemap.xml"], "muster": "/product/.*1\\.75mm", "kurs": {"SEK": 11.1}},
+  "rosa3d":         {"name": "Rosa3D", "marke": "Rosa3D", "art": "seiten", "nur_mit_material": true, "basis": "https://www.rosa3d.pl", "sitemaps": ["https://www.rosa3d.pl/sitemap/render/product.xml?page=1"], "muster": ".", "kurs": {"PLN": 4.25}, "sprache": "pl"}
 }

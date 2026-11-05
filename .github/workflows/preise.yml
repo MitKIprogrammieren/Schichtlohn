@@ -10,18 +10,72 @@ permissions:
   contents: write
 
 jobs:
-  preise:
+  # Jeder Shop läuft als eigener Teil-Job (parallel) – so bleibt alles weit unter der 6-Stunden-Grenze von GitHub, auch mit vielen Shops.
+  liste:
     runs-on: ubuntu-latest
+    outputs:
+      shops: ${{ steps.l.outputs.shops }}
     steps:
       - uses: actions/checkout@v4
-      - name: Shops holen
-        run: python3 tools/shops_roh.py tools/shops.json /tmp/roh
+      - id: l
+        run: echo "shops=$(python3 -c 'import json;print(json.dumps(list(json.load(open("tools/shops.json")))))')" >> "$GITHUB_OUTPUT"
+
+  shop:
+    needs: liste
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shop: ${{ fromJSON(needs.liste.outputs.shops) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: ${{ matrix.shop }} holen
+        run: python3 tools/shops_roh.py tools/shops.json /tmp/roh ${{ matrix.shop }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roh-${{ matrix.shop }}
+          path: /tmp/roh/
+          if-no-files-found: ignore
+          retention-days: 3
+
+  jake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
       - name: 3DJake auffrischen (Preise, neue Farben)
         run: python3 tools/jake.py tools/haendler/3djake.jsonl 2500
         timeout-minutes: 240
         continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jake
+          path: tools/haendler/3djake.jsonl
+          retention-days: 3
+
+  preise:
+    needs: [shop, jake]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: roh-*
+          path: /tmp/roh
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: jake
+          path: tools/haendler
       - name: Vereinheitlichen und preise.json bauen
         run: |
+          ls /tmp/roh
           python3 tools/shops.py /tmp/roh /tmp/norm
           python3 tools/preise_bauen.py /tmp/norm preise.json
       - name: Speichern, falls sich Preise geändert haben

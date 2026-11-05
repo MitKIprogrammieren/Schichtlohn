@@ -146,13 +146,16 @@ def woo(shop, cfg, daten):
         if not ist_filament(name):
             continue
         pr = p.get("prices") or {}
-        if pr.get("currency_code") != "EUR":
-            continue
+        kurs = 1.0
+        if pr.get("currency_code") != "EUR":  # z. B. PLN bei polnischen Shops: fester Kurs aus shops.json, sonst weglassen
+            kurs = (cfg.get("kurs") or {}).get(pr.get("currency_code"))
+            if not kurs:
+                continue
         if p.get("is_in_stock") is False or p.get("is_purchasable") is False:  # ausverkauft
             continue
         teil = 10 ** int(pr.get("currency_minor_unit") or 2)
-        preis = int(pr.get("price") or 0) / teil or None
-        normal = int(pr.get("regular_price") or 0) / teil or None
+        preis = round(int(pr.get("price") or 0) / teil / kurs, 2) or None
+        normal = round(int(pr.get("regular_price") or 0) / teil / kurs, 2) or None
         va = p.get("variation")
         if isinstance(va, list):
             attr = " ".join(f"{a.get('attribute')}: {a.get('value')}" for a in va if isinstance(a, dict))
@@ -285,6 +288,17 @@ DA_FARBEN = {"sort": "Schwarz", "hvid": "Weiß", "rød": "Rot", "blå": "Blau", 
              "mørkeblå": "Dunkelblau", "lyseblå": "Hellblau", "mørkegrøn": "Dunkelgrün", "lysegrøn": "Hellgrün", "klar": "Transparent", "natur": "Natur"}
 
 
+PL_FARBEN = {"czarny": "Schwarz", "czarna": "Schwarz", "biały": "Weiß", "biala": "Weiß", "biały": "Weiß", "szary": "Grau", "czerwony": "Rot",
+             "niebieski": "Blau", "zielony": "Grün", "żółty": "Gelb", "zolty": "Gelb", "pomarańczowy": "Orange", "fioletowy": "Lila",
+             "różowy": "Rosa", "brązowy": "Braun", "srebrny": "Silber", "złoty": "Gold", "naturalny": "Natur", "transparentny": "Transparent",
+             "beżowy": "Beige", "granatowy": "Dunkelblau", "turkusowy": "Türkis", "grafitowy": "Graphit", "ciemnoszary": "Dunkelgrau",
+             "jasnoszary": "Hellgrau", "ciemnozielony": "Dunkelgrün", "jasnoniebieski": "Hellblau", "miedziany": "Kupfer", "oliwkowy": "Oliv"}
+
+
+def pl_farbe(f):
+    return " ".join(PL_FARBEN.get(w.lower(), w) for w in str(f or "").split())
+
+
 def da_farbe(f):
     return " ".join(DA_FARBEN.get(w.lower(), w) for w in str(f or "").split())
 
@@ -360,6 +374,9 @@ def alle(roh, shops):
         if cfg.get("sprache") == "da":
             for x in z:
                 x["farbe"] = da_farbe(x["farbe"])
+        if cfg.get("sprache") == "pl":
+            for x in z:
+                x["farbe"] = pl_farbe(x["farbe"])
         for x in z:
             x["shopname"] = cfg["name"]
         zeilen += z
