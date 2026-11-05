@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.8.6 – 05.11.2026
+- Gleiche Sorte in verschiedenen Rollengrößen (z. B. 1 kg und 2 kg): Rollen, die nicht 1 kg haben, tragen die Größe jetzt im Namen („… · 2 kg“).
+- Abbuchen nach Fach: Passen mehrere Sorten zu einem AMS-Fach, bucht SchichtLohn bei der Sorte ab, deren Rolle in diesem Fach eingetragen ist. Im Fenster des Fachs wählst du dafür unter „Welche Rolle steckt drin?“ die richtige Sorte. „Ins Fach am Drucker schreiben“ merkt sich die Sorte ebenfalls für das Abbuchen.
+
 ## 3.8.5 – 05.11.2026
 - Mehrere Waagen: Bekommt eine weitere Filamentwaage in ihren Einstellungen einen eigenen Namen (z. B. „waage2“), zeigt SchichtLohn sie als eigene Kachel im Lager. Beim Wiegen einer Rolle nimmt SchichtLohn das Gewicht der Waage, auf der zuletzt etwas gelegt wurde.
 

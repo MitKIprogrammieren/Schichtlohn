@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.8.5"
+VERSION = "3.8.6"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1229,9 +1229,12 @@ def _zahl(x, std=0.0):
         return std
 
 
-def sorte_fuer(fid, col):
-    """Sorte mit passender Bambu-ID und Bestand, bei mehreren die mit der nächsten Farbe (hex oder gelernte AMS-Farben)."""
+def sorte_fuer(fid, col, key=None):
+    """Sorte mit passender Bambu-ID und Bestand, bei mehreren die mit der nächsten Farbe (hex oder gelernte AMS-Farben).
+    Mit key (Drucker|Fach): passen mehrere Sorten (z. B. dieselbe Sorte als 1-kg- und als 2-kg-Rolle), gewinnt die,
+    deren Rolle in genau diesem Fach eingetragen ist."""
     beste, abst = None, 10 ** 9
+    im_fach = None
     for it in liste_lesen(ENT):
         if it["status"] == "completed":
             continue
@@ -1240,13 +1243,51 @@ def sorte_fuer(fid, col):
             continue
         farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
         dist = min(drucker_mod.farbunterschied(h, col) if col else 0 for h in farben)
+        if key and dist <= drucker_mod.FARB_TOL and isinstance(d.get("faecher"), dict) and key in d["faecher"]:
+            im_fach = (it, d)
         if dist < abst:
             beste, abst = (it, d), dist
+    if im_fach:
+        return im_fach, ""
     if beste and abst <= drucker_mod.FARB_TOL:
         return beste, ""
     if beste:
         return None, f"Farbe {col} passt zu keiner Sorte mit Bambu-ID {fid}"
     return None, f"keine Sorte mit Bambu-ID {fid or '?'} und Bestand"
+
+
+def sorten_gleich(fid, col, ohne=""):
+    """Weitere Sorten, die zu einem Fach passen (gleiche Bambu-ID und Farbe, mit Bestand) – Auswahl im Rollen-Fenster."""
+    out = []
+    for it in liste_lesen(ENT):
+        if it["status"] == "completed" or it["uid"] == ohne:
+            continue
+        d = _desc(it)
+        if not fid or str(d.get("bambu_id") or "") != fid or int(_zahl(d.get("spulen"))) <= 0:
+            continue
+        farben = [d.get("hex") or "#888888"] + [x for x in (d.get("ams_farben") or []) if isinstance(x, str)]
+        if min(drucker_mod.farbunterschied(h, col) if col else 0 for h in farben) <= drucker_mod.FARB_TOL:
+            out.append({"uid": it["uid"], "sorte": it["summary"], "gewicht": _zahl(d.get("gewicht"), 1000) or 1000})
+    return out
+
+
+def fach_sorte_setzen(uid, drucker, ort, quelle="fach"):
+    """Fach einer bestimmten Sorte zuordnen (Abbuchung geht dann an diese Sorte); bei allen anderen den Eintrag entfernen."""
+    key = fach_key(drucker, ort)
+    for it in liste_lesen(ENT):
+        d = _desc(it)
+        f = d.get("faecher") if isinstance(d.get("faecher"), dict) else {}
+        if it["uid"] == uid:
+            if key in f:
+                continue
+            f = dict(f)
+            f[key] = {"g": None, "seit": time.strftime("%Y-%m-%dT%H:%M:%S"), "quelle": quelle}
+        elif key in f:
+            f = {k: v for k, v in f.items() if k != key}
+        else:
+            continue
+        d = dict(d, faecher=f)
+        liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(d, ensure_ascii=False)})
 
 
 def abbuchen_rechnen(d, gramm):
@@ -1400,8 +1441,9 @@ def rollen_liste():
         if f["leer"] or not f["fid"]:
             continue
         ort = fach_ort(eid)
-        treffer, _ = sorte_fuer(f["fid"], f["col"])
         x = {"drucker": f["drucker"], "ort": ort, "key": fach_key(f["drucker"], ort)}
+        treffer, _ = sorte_fuer(f["fid"], f["col"], x["key"])
+        x["alternativen"] = sorten_gleich(f["fid"], f["col"], treffer[0]["uid"] if treffer else "")
         if treffer:
             it, d = treffer
             r = (d.get("faecher") or {}).get(x["key"]) if isinstance(d.get("faecher"), dict) else None
@@ -1695,7 +1737,7 @@ def druck_abbuchen(druckername, erg):
         g = float(po.get("gramm") or 0)
         if g <= 0.05:
             continue
-        treffer, grund = sorte_fuer(po.get("fid") or "", (po.get("col") or "").lower())
+        treffer, grund = sorte_fuer(po.get("fid") or "", (po.get("col") or "").lower(), fach_key(druckername, po.get("ort") or ""))
         if treffer:
             it, d = treffer
             vorher = abbuchen_rechnen(d, 0)[1]
@@ -2109,6 +2151,8 @@ def fach_belegen(k):
         b = dr.fach_setzen(fach, fid, d.get("hex") or "#888888", basis if basis in GENERISCH else mat, tmin, tmax)
     except RuntimeError as e:
         raise Fehler(409, str(e))
+    # Ab jetzt bucht dieses Fach bei genau dieser Sorte ab (wichtig, wenn es sie z. B. als 1- und 2-kg-Rolle gibt)
+    fach_sorte_setzen(it["uid"], name, str(k.get("ort") or fach["ort"]))  # gleicher Schlüssel wie im Rollen-Fenster
     return {"ok": True, "ort": fach["ort"], "sorte": it["summary"], "tray_info_idx": fid, "typ": b["tray_type"], "farbe": b["tray_color"],
             "duese": [tmin, tmax], "eigene_id": bool(str(d.get("bambu_id") or "").strip())}
 
@@ -2810,6 +2854,11 @@ class Handler(BaseHTTPRequestHandler):
             ziel = next((r for r in rollen_liste() if r["drucker"] == dr and r["ort"] == ort), None)
             if not ziel or not ziel.get("uid"):
                 raise Fehler(404, "Diesem Fach ist keine Sorte mit Bestand zugeordnet – erst in SchichtLohn zuordnen")
+            wahl = str(b.get("uid") or "")
+            if wahl and wahl != ziel["uid"]:  # andere passende Sorte gewählt (z. B. die 2-kg-Rolle statt der 1-kg-Rolle)
+                if not any(a["uid"] == wahl for a in ziel.get("alternativen") or []):
+                    raise Fehler(400, "Diese Sorte passt nicht zum Fach (Bambu-ID oder Farbe)")
+                ziel = dict(ziel, uid=wahl)
             it = next(i for i in liste_lesen(ENT) if i["uid"] == ziel["uid"])
             d = _desc(it)
             if aktion == "gramm":

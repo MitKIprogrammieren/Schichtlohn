@@ -2597,7 +2597,7 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
     :`<div class="hint" style="margin-top:6px">${seitT?"Seit dem Eintragen wurde aus diesem Fach noch nichts abgebucht.":"Aus diesem Fach wurde noch nichts abgebucht."}</div>`;
   /* Sorte ins Fach am Drucker schreiben (wie „Fach bearbeiten“ in Bambu Studio) */
   let sorten=[];try{sorten=(window.LGN&&LGN.sorten()||[]).filter(x=>x.uid).sort((a,b)=>(a.hersteller+a.material+a.farbe).localeCompare(b.hersteller+b.material+b.farbe,"de"))}catch(x){}
-  const sel=R&&R.uid||"";const nm=x=>[x.hersteller,x.material,x.besonderheiten&&x.besonderheiten.join(" ")].filter(Boolean).join(" ")+(x.farbe?" · "+x.farbe:"");
+  const sel=R&&R.uid||"";const nm=x=>[x.hersteller,x.material,x.besonderheiten&&x.besonderheiten.join(" ")].filter(Boolean).join(" ")+(x.farbe?" · "+x.farbe:"")+(Number(x.gewicht)&&Number(x.gewicht)!==1000?" · "+(x.gewicht>=1000?String(x.gewicht/1000).replace(".",",")+" kg":x.gewicht+" g"):"");
   const sx=sorten.find(x=>x.uid===sel);
   const fachH=`<div class="dl-fs"><div class="lgsh" style="margin:0"><span>Im Drucker eintragen</span></div>
       <div class="dl-fsz"><i class="dl-fsf" id="dl_fsf" style="background:${esc(sx&&sx.hex||"transparent")}"></i><select id="dl_fss" aria-label="Sorte für dieses Fach"><option value="">Sorte aus dem Lager wählen …</option>${sorten.map(x=>`<option value="${esc(x.uid)}" data-hex="${esc(x.hex||"")}"${x.uid===sel?" selected":""}>${esc(nm(x))}</option>`).join("")}</select></div>
@@ -2605,6 +2605,10 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
       <div class="hint">Der Drucker zeigt dann Material, Farbe und Profil dieser Sorte – wie „Fach bearbeiten“ in Bambu Studio.</div></div>`;
   const body=!R||!R.uid?`<p>${esc(dr)} · ${esc(ortText||ort)}: Diesem Fach ist noch keine Sorte aus dem Lager zugeordnet. Wähle unten die Sorte, die drinsteckt – dann kennt der Drucker sie, und SchichtLohn bucht hier ab und zeigt die Gramm dieser Rolle.</p>${fachH}`
     :`<div class="stack" style="gap:6px"><p style="margin:0"><b>${esc(R.sorte)}</b></p>
+      ${(R.alternativen||[]).length?`<label class="dl-rlab" for="dl_rwahl">Mehrere Sorten passen zu diesem Fach – welche Rolle steckt drin?</label>
+      <div class="dl-rin"><select id="dl_rwahl" aria-label="Rolle in diesem Fach"><option value="${esc(R.uid)}" selected>${esc(R.sorte)}</option>${R.alternativen.map(a=>`<option value="${esc(a.uid)}">${esc(a.sorte)}</option>`).join("")}</select>
+        <button class="btn" data-rla="wahl">Übernehmen</button></div>
+      <div class="hint">Ab dann bucht SchichtLohn Drucke aus diesem Fach bei dieser Sorte ab.</div>`:""}
       ${zeile("Diese Rolle",ro&&ro.g!=null?N0.format(Math.round(ro.g))+" g":"unbekannt")}
       ${ro?zeile("Eingetragen",esc([seitT?new Date(seitT).toLocaleDateString("de-DE"):"",qn].filter(Boolean).join(" · "))):""}
       ${(R.gleiche||[]).map(x=>zeile("Gleiche Sorte, "+esc(x.key.replace("|"," · ")),x.g!=null?N0.format(Math.round(x.g))+" g":"?")).join("")}
@@ -2627,7 +2631,12 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],
       if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=`${r.ort}: ${r.sorte} (${r.typ}${r.eigene_id?"":", allgemeines Profil – die Sorte hat keine Bambu-ID"}, Düse ${r.duese[0]}–${r.duese[1]} °C).`;toast("Fach am Drucker aktualisiert")}
     catch(x2){t.disabled=false;t.textContent="Ins Fach am Drucker schreiben";if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=x2.status===404&&/nicht gefunden|Not Found/i.test(x2.message||"")?"Braucht Server-Version 3.8.3.":String(x2&&x2.message||x2)}
     return}
+  if(aktion==="wahl"){const uid=(document.getElementById("dl_rwahl")||{}).value;if(!uid)return;
+    t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",{drucker,ort,aktion:"voll",uid,quelle:"wahl"});closeModal();toast(`${d.sorte}: steckt jetzt in ${ort}`);RL.zeit=0;rollenHolen()}
+    catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}
+    return}
   const body={drucker,ort,aktion:aktion==="waage"?"gramm":aktion,quelle:aktion};
+  {const w=document.getElementById("dl_rwahl");if(w&&w.value)body.uid=w.value}
   if(aktion==="waage")body.g=Number(t.dataset.g);
   if(aktion==="gramm"){const roh=String((document.getElementById("dl_rlg")||{}).value||"").replace(",",".");const v=Number(roh);if(roh===""||!(v>=0)){const x=document.getElementById("dl_rlmsg");if(x)x.textContent="Gib die Gramm ein.";return}body.g=v}
   t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",body);closeModal();toast(aktion==="entfernen"?"Rolle entfernt":`${d.sorte}: Rolle ${N0.format(Math.round(d.rolle.g))} g`);RL.zeit=0;rollenHolen()}
@@ -5128,7 +5137,9 @@ function farbeDe(name){const w=String(name||"").trim().split(/\s+/).filter(Boole
 const deF=f=>{const x=farbeDe(f);return x?`<span class="lgde">${esc(x)}</span>`:""};
 /* Schreibweise wie im Katalog: „Marke Material Ausführung · Farbe“, z. B. „Bambu Lab PLA Basic · Mistletoe Green“ */
 const name=e=>[e.hersteller,e.material].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"");
-const summary=e=>[e.hersteller,e.material,...(e.besonderheiten||[])].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"");
+/* Rollengröße im Namen, wenn sie nicht 1 kg ist – damit z. B. die 1-kg- und die 2-kg-Rolle derselben Sorte unterscheidbar sind */
+const groesseTxt=g=>{g=Number(g)||0;if(!g||g===1000)return "";return g>=1000?(g%1000?String(g/1000).replace(".",","):String(g/1000))+" kg":g+" g"};
+const summary=e=>[e.hersteller,e.material,...(e.besonderheiten||[])].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"")+(groesseTxt(e.gewicht)?" · "+groesseTxt(e.gewicht):"");
 /* vorhandene Lager-Einträge einmal auf die neue Schreibweise umbenennen (nur der Name, Daten bleiben) */
 let umbenannt=false;
 async function namenAngleichen(){if(umbenannt||!G.loaded)return;umbenannt=true;
