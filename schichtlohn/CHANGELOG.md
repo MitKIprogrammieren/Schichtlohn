@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.8.8 – 06.11.2026
+- „Waage einstellen“: Das Fenster lässt sich wieder mit dem X schließen und lädt nicht mehr bei jedem Klick neu (Eingaben blieben dadurch nicht stehen).
+
 ## 3.8.7 – 05.11.2026
 - Waage aus SchichtLohn einstellen: In der Kachel jeder Waage gibt es jetzt „Einstellen“ – Tara, Kalibrieren, Nullpunkt-Nachführung, Leerspulen-Gewichte, NFC, Etiketten und Name. Klappt auch unterwegs und in der Home-Assistant-App, weil SchichtLohn die Einstellungen an die Waage weiterreicht.
 - Daneben öffnet ein Link-Knopf die komplette Weboberfläche der Waage (im Heimnetz oder über Tailscale).

@@ -4322,10 +4322,10 @@ async function waageEinst(pre,name){
     <div class="hint">Startet die Waage neu. Für eine weitere Waage z. B. „waage2“.</div>`:""}
     <div class="hint" id="wst_msg" role="status"></div></div>`;
   modal(esc(name)+" einstellen",body,`<button class="btn ghost" data-wsta="neustart">Neu starten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button><button class="btn pri" data-wsta="speichern">Speichern</button>`);
-  const m=$("#modal");if(m)m.dataset.wst=pre}
+  const m=$("#modal");if(m)m.dataset.wstpre=pre}
 document.addEventListener("click",async ev=>{const k=ev.target.closest("[data-wst],[data-wsta]");if(!k)return;
   if(k.dataset.wst){ev.preventDefault();return waageEinst(k.dataset.wst,k.dataset.wstn||"Waage")}
-  const m=$("#modal");const pre=m&&m.dataset.wst;if(!pre)return;const a=k.dataset.wsta;const msg=$("#wst_msg");
+  const m=$("#modal");const pre=m&&m.dataset.wstpre;if(!pre)return;const a=k.dataset.wsta;const msg=$("#wst_msg");
   const api=(w,b)=>SRV.req("POST",`/api/waagen/${encodeURIComponent(pre)}/${w}`,b||{});
   const v=id=>{const el=$("#"+id);return el?el.value:undefined};const zahlV=id=>{const x=Number(String(v(id)||"").replace(",","."));return isFinite(x)&&String(v(id)||"").trim()!==""?Math.round(x):undefined};
   k.disabled=true;
