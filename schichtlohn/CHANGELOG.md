@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.8.7 – 05.11.2026
+- Waage aus SchichtLohn einstellen: In der Kachel jeder Waage gibt es jetzt „Einstellen“ – Tara, Kalibrieren, Nullpunkt-Nachführung, Leerspulen-Gewichte, NFC, Etiketten und Name. Klappt auch unterwegs und in der Home-Assistant-App, weil SchichtLohn die Einstellungen an die Waage weiterreicht.
+- Daneben öffnet ein Link-Knopf die komplette Weboberfläche der Waage (im Heimnetz oder über Tailscale).
+
 ## 3.8.6 – 05.11.2026
 - Gleiche Sorte in verschiedenen Rollengrößen (z. B. 1 kg und 2 kg): Rollen, die nicht 1 kg haben, tragen die Größe jetzt im Namen („… · 2 kg“).
 - Abbuchen nach Fach: Passen mehrere Sorten zu einem AMS-Fach, bucht SchichtLohn bei der Sorte ab, deren Rolle in diesem Fach eingetragen ist. Im Fenster des Fachs wählst du dafür unter „Welche Rolle steckt drin?“ die richtige Sorte. „Ins Fach am Drucker schreiben“ merkt sich die Sorte ebenfalls für das Abbuchen.

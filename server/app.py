@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.8.6"
+VERSION = "3.8.7"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -917,6 +917,51 @@ def waage_weiter(was, methode, rumpf):
         grund = getattr(e, "reason", None) or e
         raise Fehler(502, f"Waage unter {basis} nicht erreichbar ({getattr(grund, 'strerror', None) or grund}). "
                           "Läuft sie, und steht in ihrer config.toml unter [server] adresse = \"0.0.0.0\"?")
+
+
+# ---------------------------------------------------------------- Waagen einstellen (bambu-scale-Firmware)
+# Jede Waage meldet sich mit sensor.<name>_laufzeit samt IP. SchichtLohn reicht nur diese wenigen Aufrufe an sie weiter.
+WAAGE_PFADE = {("einstellungen", "GET"): "/api/einstellungen", ("einstellungen", "POST"): "/api/einstellungen",
+               ("etikett", "GET"): "/api/etikett/einstellungen", ("etikett", "POST"): "/api/etikett/einstellungen",
+               ("info", "GET"): "/api/system/info", ("zustand", "GET"): "/api/zustand",
+               ("tara", "POST"): "/api/tara", ("kalibrieren", "POST"): "/api/kalibrieren", ("system", "POST"): "/api/system"}
+WAAGE_FELDER = {"einstellungen": ("leerspule_g", "leer_bambu_g", "leer_bambu_ht_g", "nfc_stufe", "ams_suche", "nullpunkt_auto", "drucker"),
+                "etikett": ("bruecke", "qr", "bild_quelle"), "kalibrieren": ("g",), "system": ("aktion", "name"), "tara": ()}
+
+
+def waage_ip(pre):
+    if not re.fullmatch(r"[a-z0-9_]{2,30}", pre or ""):
+        raise Fehler(400, "Ungültiger Waagen-Name")
+    with _zst_lock:
+        z = _zst.get(f"sensor.{pre}_laufzeit") or {}
+    ip = str((z.get("attributes") or {}).get("ip") or "")
+    if not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+        raise Fehler(404, "Diese Waage hat sich noch nicht gemeldet (braucht Waagen-Firmware ab 2.24)")
+    return ip
+
+
+def waage_einstellen(pre, was, methode, rumpf):
+    import urllib.request
+    pfad = WAAGE_PFADE.get((was, methode))
+    if not pfad:
+        raise Fehler(404, "Unbekannt")
+    ip = waage_ip(pre)
+    if rumpf is not None:
+        rumpf = {k: rumpf[k] for k in WAAGE_FELDER.get(was, ()) if k in rumpf}
+        if was == "system" and rumpf.get("aktion") not in ("name", "neustart"):
+            raise Fehler(400, "Nur Name und Neustart")
+    req = urllib.request.Request(f"http://{ip}{pfad}", method=methode, headers={"Content-Type": "application/json"},
+                                 data=json.dumps(rumpf).encode() if rumpf is not None else None)
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            roh = r.read().decode("utf-8") or "{}"
+    except Exception as e:
+        grund = getattr(e, "reason", None) or e
+        raise Fehler(502, f"Waage unter {ip} nicht erreichbar ({getattr(grund, 'strerror', None) or grund})")
+    try:
+        return json.loads(roh)
+    except ValueError:
+        return {"ok": True, "text": roh[:200]}
 
 
 def waage_drucker(basis):
@@ -3030,6 +3075,8 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise", "abrufen"] and methode == "POST":
             im_hintergrund(preise_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile[0] == "waagen" and len(teile) == 3:
+            return self._json(200, waage_einstellen(teile[1], teile[2], methode, self._json_rumpf() if methode == "POST" else None))
         if teile[0] == "waage" and len(teile) == 2:
             return self._json(200, waage_weiter(teile[1], methode, self._json_rumpf() if methode == "POST" else None))
         if teile == ["telegram", "chat"] and methode == "POST":

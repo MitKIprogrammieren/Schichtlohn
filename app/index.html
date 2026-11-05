@@ -4012,6 +4012,10 @@ window.SYNC={settingsHTML,aktiv,abgleichen,handyModal,_conf:conf,_ableiten:ablei
 .dcard.kompakt{flex-direction:row;align-items:center;gap:12px;padding:10px 14px}
 .dcard.kompakt .di{width:32px;height:32px}.dcard.kompakt .di svg{width:18px;height:18px}
 .dcard.kompakt{position:relative}
+.wst-k{display:flex;align-items:center;gap:6px;margin-left:auto}
+.wst{gap:10px}.wst .field{margin:0}.wst-z{display:flex;gap:8px;align-items:flex-end}.wst-z .field{flex:1}.wst-z>.btn{height:44px}
+.wst-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}.wst-3 input,.wst-z input{width:100%;box-sizing:border-box}@media(max-width:560px){.wst-3{grid-template-columns:1fr 1fr}}
+.wst-cb{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.wst-cb input{width:20px;height:20px;margin-top:2px;accent-color:var(--acc,#4caf50)}.wst-cb small{color:var(--muted)}
 .dcard.kompakt .dt{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
 .dcard.kompakt .dt .ds{margin-left:0;font-size:11px;padding:1px 7px}
 .dcard.kompakt .dvs{margin-left:auto;display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
@@ -4286,8 +4290,60 @@ function status(){
     return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[ist?"filamentwaage":pre]||ICON.cube}</span>
       <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span>${m20?`<span class="ds m20${m20.state==="on"?"":" weg"}" title="${m20.state==="on"?"Etikettendrucker verbunden":"Etikettendrucker nicht verbunden – Werte vom letzten Kontakt"}"><i></i>M20 Pro</span>`:""}</div>
       <div class="dvs">${vals}</div>
-      ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}</div>`}).join("");
+      ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}
+      ${ist&&!off?(()=>{const ip=((st[`sensor.${pre}_laufzeit`]||{}).attributes||{}).ip;return `<div class="wst-k"><button class="btn sm" data-wst="${esc(pre)}" data-wstn="${esc(name)}">Einstellen</button>${ip?`<a class="btn icon ghost" href="http://${esc(ip)}/" target="_blank" rel="noopener" title="Weboberfläche der Waage öffnen (Heimnetz oder Tailscale)" aria-label="Weboberfläche der Waage öffnen">${ICON.link}</a>`:""}</div>`})():""}</div>`}).join("");
 }
+/* ===== Waage aus SchichtLohn einstellen: der Server reicht die Aufrufe an die Waage weiter ===== */
+async function waageEinst(pre,name){
+  const api=(w,m,b)=>SRV.req(m||"GET",`/api/waagen/${encodeURIComponent(pre)}/${w}`,b);
+  modal(esc(name)+" einstellen",`<div class="hint">Verbinde mit der Waage …</div>`,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
+  let e,et;try{[e,et]=await Promise.all([api("einstellungen"),api("etikett").catch(()=>({}))])}
+  catch(x){const m=$("#modal .mb")||$("#modal");if(m)m.querySelector(".hint")&&(m.querySelector(".hint").textContent=String(x.message||x));return}
+  const n=(id,lab,v,ein,hint)=>`<label class="field"><span>${lab}</span><div class="unit"><input type="text" inputmode="numeric" id="${id}" value="${esc(v??"")}"><em>${ein}</em></div>${hint?`<div class="hint">${hint}</div>`:""}</label>`;
+  const t=(id,lab,v,ph)=>`<label class="field"><span>${lab}</span><input type="text" id="${id}" value="${esc(v||"")}" placeholder="${esc(ph||"")}" autocomplete="off" autocapitalize="off"></label>`;
+  const c=(id,lab,v,hint)=>`<label class="wst-cb"><input type="checkbox" id="${id}"${v?" checked":""}><span><b>${lab}</b>${hint?`<br><small>${hint}</small>`:""}</span></label>`;
+  const body=`<div class="stack wst">
+    <div class="lgsh" style="margin:0"><span>Wiegen</span></div>
+    <div class="wst-z"><button class="btn" data-wsta="tara">Tara (Teller leer)</button></div>
+    <div class="wst-z">${n("wst_kal","Kalibriergewicht",1000,"g")}<button class="btn" data-wsta="kalibrieren">Kalibrieren</button></div>
+    <div class="hint">Erst Tara mit leerem Teller, dann das Gewicht auflegen und kalibrieren.</div>
+    ${e.nullpunkt_auto!==undefined?c("wst_null","Nullpunkt automatisch nachführen",e.nullpunkt_auto,"Hält die Anzeige bei 0, solange nichts aufliegt"):""}
+    <div class="lgsh" style="margin:0"><span>Leere Spule</span></div>
+    <div class="wst-3">${n("wst_l","Allgemein",e.leerspule_g,"g")}${e.leer_bambu_g!==undefined?n("wst_lb","Bambu Lab",e.leer_bambu_g,"g")+n("wst_lh","Bambu HT",e.leer_bambu_ht_g,"g","PA, PAHT, PPA, PPS, PC"):""}</div>
+    <div class="lgsh" style="margin:0"><span>NFC und AMS</span></div>
+    <label class="field"><span>Empfindlichkeit der NFC-Leser</span><select id="wst_nfc">${[1,2,3,4,5].map(k=>`<option${k===(e.nfc_stufe||3)?" selected":""}>${k}</option>`).join("")}</select></label>
+    ${c("wst_ams","Spule im AMS erkennen",e.ams_suche,"Zeigt beim Wiegen, in welchem Fach eine Bambu-Spule zuletzt steckte")}
+    <div class="lgsh" style="margin:0"><span>Etiketten</span></div>
+    ${t("wst_br","Druckbrücke",et.bruecke,"http://192.168.1.66:8123/api/m20_druckbruecke")}
+    ${t("wst_qr","QR-Code: SchichtLohn-Adresse",et.qr,"https://schichtlohn.tail….ts.net")}
+    ${t("wst_bq","Bildquelle Herstellerlogos",et.bild_quelle,"leer = automatisch")}
+    ${e.name!==undefined?`<div class="lgsh" style="margin:0"><span>Name im Netzwerk</span></div>
+    <div class="wst-z">${t("wst_name","Name",e.name,"filamentwaage")}<button class="btn" data-wsta="name">Umbenennen</button></div>
+    <div class="hint">Startet die Waage neu. Für eine weitere Waage z. B. „waage2“.</div>`:""}
+    <div class="hint" id="wst_msg" role="status"></div></div>`;
+  modal(esc(name)+" einstellen",body,`<button class="btn ghost" data-wsta="neustart">Neu starten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button><button class="btn pri" data-wsta="speichern">Speichern</button>`);
+  const m=$("#modal");if(m)m.dataset.wst=pre}
+document.addEventListener("click",async ev=>{const k=ev.target.closest("[data-wst],[data-wsta]");if(!k)return;
+  if(k.dataset.wst){ev.preventDefault();return waageEinst(k.dataset.wst,k.dataset.wstn||"Waage")}
+  const m=$("#modal");const pre=m&&m.dataset.wst;if(!pre)return;const a=k.dataset.wsta;const msg=$("#wst_msg");
+  const api=(w,b)=>SRV.req("POST",`/api/waagen/${encodeURIComponent(pre)}/${w}`,b||{});
+  const v=id=>{const el=$("#"+id);return el?el.value:undefined};const zahlV=id=>{const x=Number(String(v(id)||"").replace(",","."));return isFinite(x)&&String(v(id)||"").trim()!==""?Math.round(x):undefined};
+  k.disabled=true;
+  try{
+    if(a==="tara"){await api("tara");if(msg)msg.textContent="Tara läuft – die Waage nimmt den Nullpunkt."}
+    else if(a==="kalibrieren"){const g=zahlV("wst_kal");if(!(g>=20)){if(msg)msg.textContent="Kalibriergewicht ab 20 g eintragen.";return}await api("kalibrieren",{g});if(msg)msg.textContent=`Kalibriere mit ${g} g …`}
+    else if(a==="name"){const n=String(v("wst_name")||"").trim().toLowerCase();if(!/^[a-z0-9-]{2,24}$/.test(n)){if(msg)msg.textContent="Nur a–z, 0–9 und -, 2 bis 24 Zeichen.";return}await api("system",{aktion:"name",name:n});closeModal();toast("Name gespeichert – die Waage startet neu")}
+    else if(a==="neustart"){await api("system",{aktion:"neustart"});closeModal();toast("Waage startet neu")}
+    else if(a==="speichern"){
+      const e={};const set=(k2,x)=>{if(x!==undefined)e[k2]=x};
+      set("leerspule_g",zahlV("wst_l"));set("leer_bambu_g",zahlV("wst_lb"));set("leer_bambu_ht_g",zahlV("wst_lh"));
+      set("nfc_stufe",zahlV("wst_nfc"));if($("#wst_ams"))e.ams_suche=$("#wst_ams").checked;if($("#wst_null"))e.nullpunkt_auto=$("#wst_null").checked;
+      for(const [k2,x] of Object.entries(e))if(typeof x==="number"&&(x<0||x>1500)){if(msg)msg.textContent="Gewicht zwischen 0 und 1500 g.";return}
+      await api("einstellungen",e);
+      const et={bruecke:String(v("wst_br")||"").trim(),qr:String(v("wst_qr")||"").trim(),bild_quelle:String(v("wst_bq")||"").trim()};
+      await api("etikett",et);closeModal();toast("Waage gespeichert")}
+  }catch(x){if(msg)msg.textContent="Fehler: "+(x.message||x)}
+  finally{k.disabled=false}});
 function m20vals(st){const on=(st["binary_sensor.m20_pro_verbunden"]||{}).state==="on";const et=st["sensor.m20_pro_etiketten"],ak=st["sensor.m20_pro_akku"];let h="";
   const alt=on?"":" alt",tip=on?"":` title="Vom letzten Kontakt mit dem M20 Pro"`;
   if(et&&isFinite(Number(et.state))){const n=Number(et.state),g=Number((et.attributes||{}).gesamt);h+=`<div class="dv${n<20?" mid":""}${alt}"${tip}><span>Etiketten</span><b>${n}${g>0?`<small> / ${g}</small>`:""}</b></div>`}
