@@ -374,6 +374,17 @@ def alle(roh, shops):
         if cfg.get("sprache") == "da":
             for x in z:
                 x["farbe"] = da_farbe(x["farbe"])
+        for x in z:  # Reste wie „( / )“ aus Variantennamen entfernen
+            x["farbe"] = re.sub(r"\(\s*[/,\s]*\)", "", x["farbe"] or "").strip(" -–")
+        if cfg.get("farbe_nach_strich"):  # Eryone: „Lite Matte - Black“ → „Black“
+            for x in z:
+                if " - " in x["farbe"]:
+                    x["farbe"] = x["farbe"].rsplit(" - ", 1)[1].strip()
+        if cfg.get("farbe_in_anfuehrung"):  # Fillamentum: PLA Extrafill „Marrakesh Red“ → „Marrakesh Red“
+            for x in z:
+                m = re.search(r'["“„]([^"“”„]+)["”“]', x["titel"])
+                if m:
+                    x["farbe"] = m.group(1).strip()
         if cfg.get("sprache") == "pl":
             for x in z:
                 x["farbe"] = pl_farbe(x["farbe"])
