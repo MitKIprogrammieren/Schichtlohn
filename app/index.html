@@ -4250,7 +4250,7 @@ async function ensure(){
   try{await L.p;L.err=""}catch(e){L.err=String(e&&e.message||e);throw e}finally{L.p=null}
 }
 window.addEventListener("pw-hass-update",()=>{if(!isWS()&&window.__hass){if(L.el)L.el.hass=window.__hass;if(S.tab==="lager")statusSoon();if(window.LGN)LGN.onStates()}});
-let stT=null;function statusSoon(){if(stT)return;stT=setTimeout(()=>{stT=null;status()},1500)}
+let stT=null;function statusSoon(){if(stT)return;stT=setTimeout(()=>{stT=null;status()},250)}  /* Waagen-Gewicht soll gleich sichtbar sein */
 
 /* --- Zustand von Waage und Druckbrücke --- */
 function stateMap(){const b=isWS()?(L.states||{}):((window.__hass&&window.__hass.states)||{});

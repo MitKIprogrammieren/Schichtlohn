@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.8.9 – 06.11.2026
+- Das Gewicht der Waage erscheint im Lager schneller (zusammen mit Waagen-Firmware 2.24.6 nach etwa 1–2 Sekunden).
+
 ## 3.8.8 – 06.11.2026
 - „Waage einstellen“: Das Fenster lässt sich wieder mit dem X schließen und lädt nicht mehr bei jedem Klick neu (Eingaben blieben dadurch nicht stehen).
 
