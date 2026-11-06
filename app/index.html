@@ -1348,8 +1348,29 @@ const STILE={
   sand:["Sand",{bg:"#f5f1ea",k:"#fffdf9",k2:"#faf6ef",l:"#e6ddd0",l2:"#d8ccbb",fg:"#2b2420",fg2:"#5e534a",fg3:"#8f8378",a:"#c2410c",as:"rgba(194,65,12,.12)",ok:"#4d7c0f",w:"#b45309",b:"#b91c1c",h:"#fffdf9",st:"#f1ebe1",su:"#f6f1e9",cs:"light"},
     {bg:"#1c1917",k:"#26221f",k2:"#2f2a26",l:"#3a332d",l2:"#4a4139",fg:"#f5efe6",fg2:"#c9bfb2",fg3:"#8f8378",a:"#fb923c",ai:"#1c0d02",as:"rgba(251,146,60,.16)",ok:"#a3e635",w:"#fbbf24",b:"#f87171",h:"#1a1715",st:"#2f2a26",su:"#171412",cs:"dark"},10],
   kontrast:["Kontrast",{bg:"#ffffff",k:"#ffffff",k2:"#f2f2f2",l:"#1a1a1a",l2:"#000000",fg:"#000000",fg2:"#1f1f1f",fg3:"#4a4a4a",a:"#0047ff",as:"rgba(0,71,255,.12)",ok:"#007a2e",w:"#a15c00",b:"#c40000",h:"#ffffff",st:"#f2f2f2",su:"#f7f7f7",cs:"light"},
-    {bg:"#000000",k:"#0d0d0d",k2:"#161616",l:"#3d3d3d",l2:"#5c5c5c",fg:"#ffffff",fg2:"#dcdcdc",fg3:"#a8a8a8",a:"#ffd400",ai:"#000000",as:"rgba(255,212,0,.18)",ok:"#3ddc84",w:"#ffb020",b:"#ff5a5a",h:"#000000",st:"#141414",su:"#000000",cs:"dark"},4]};
-function stilCss(d){const x=STILE[d.stil];if(!x)return "";const r=`--r:${x[3]}px;--r-s:${Math.max(2,Math.round(x[3]*0.6))}px;`;const sel=":root:root:root";
+    {bg:"#000000",k:"#0d0d0d",k2:"#161616",l:"#3d3d3d",l2:"#5c5c5c",fg:"#ffffff",fg2:"#dcdcdc",fg3:"#a8a8a8",a:"#ffd400",ai:"#000000",as:"rgba(255,212,0,.18)",ok:"#3ddc84",w:"#ffb020",b:"#ff5a5a",h:"#000000",st:"#141414",su:"#000000",cs:"dark"},4],
+  tuerkis:["Türkis",{bg:"#f2f5f5",k:"#ffffff",k2:"#f6f8f8",l:"#e1e7e7",l2:"#cfd8d8",fg:"#111827",fg2:"#4b5563",fg3:"#8a949e",a:"#0d9488",as:"rgba(13,148,136,.12)",ok:"#0d9488",w:"#d97706",b:"#dc2626",h:"#ffffff",st:"#eef3f3",su:"#f4f7f7",cs:"light"},
+    {bg:"#121212",k:"#1c1c1c",k2:"#242424",l:"#2a2a2a",l2:"#3a3a3a",fg:"#f2f2f2",fg2:"#a3a3a3",fg3:"#767676",a:"#2dd4bf",ai:"#04201c",as:"rgba(45,212,191,.14)",ok:"#2dd4bf",w:"#f59e0b",b:"#f87171",h:"#121212",st:"#202020",su:"#171717",cs:"dark"},16]};
+/* Zusätzliche Formen je Stil (nicht nur Farben). Türkis: Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen, dickere Füllbalken */
+const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
+  const streifen=(sel)=>z.map((c,i)=>`${R} ${sel}:nth-child(5n+${i+1})::before{background:${c}}`).join("");
+  return `${R} .brand small{color:var(--accent);letter-spacing:.14em}
+${R} .h-z div,${R} .lgbest .dv:not(.lgmon){position:relative;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:10px 10px 10px 16px}
+${R} .lgbest .dv:not(.lgmon){background:var(--sunken)}
+${R} .h-z div::before,${R} .lgbest .dv:not(.lgmon)::before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;border-radius:2px}
+${streifen(".h-z div")}${streifen(".lgbest .dv:not(.lgmon)")}
+${R} .lgbest .dvs{gap:8px}
+${R} .lgbest .dv b{font-size:20px}
+${R} nav.tabs{gap:6px}
+${R} nav.tabs button{border:1px solid var(--line);background:var(--glass);border-radius:12px}
+${R} nav.tabs button.on,${R} nav.tabs button[aria-current="page"],${R} nav.tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft)!important;color:var(--accent)!important}
+${R} .bnav button.on::before{display:none}
+${R} .bnav button.on svg{background:var(--accent-soft);border-radius:999px;padding:3px 14px;box-sizing:content-box}
+${R} .lgbarx{height:6px;width:80px}
+${R} .chip{border-radius:999px}
+${R} .lgp>.row.pad .gt{color:var(--fg)}`})()};
+function stilCss(d){const x=STILE[d.stil];if(!x)return "";return stilFarben(d,x)+(STIL_EXTRA[d.stil]||"")}
+function stilFarben(d,x){const r=`--r:${x[3]}px;--r-s:${Math.max(2,Math.round(x[3]*0.6))}px;`;const sel=":root:root:root";
   const m=window.__PW_HA?"auto":d.modus;
   if(m==="hell")return `${sel}{${STIL_VARS(x[1])};${r}}`;if(m==="dunkel")return `${sel}{${STIL_VARS(x[2])};${r}}`;
   return `${sel}{${STIL_VARS(x[2])};${r}}@media (prefers-color-scheme:light){${sel}{${STIL_VARS(x[1])}}}`}

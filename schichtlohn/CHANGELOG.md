@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.9.1 – 06.11.2026
+- Neuer Stil „Türkis“ unter Einstellungen → Design: dunkel mit türkisem Akzent, Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen und kräftigere Füllbalken im Lager. Die Rollen sehen aus wie bisher. Hell und dunkel möglich.
+
 ## 3.9.0 – 06.11.2026
 - Waage erkennt Rollen per NFC: Auf „Heute“ und in der Waage-Kachel im Lager steht jetzt, welche Rolle gerade aufliegt – mit Farbe, Herstellerlogo und Material. Bambu-Chips werden auch erkannt, wenn die Sorte noch nicht im Lager ist.
 - Die Waage zeigt jetzt auch, wie viel Filament noch auf der Rolle ist (ohne Leerspule, mit Anteil an der vollen Rolle).
