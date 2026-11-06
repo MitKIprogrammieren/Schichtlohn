@@ -6134,11 +6134,13 @@ function einkauf(){const E=ein();const ign=new Set(G.ekAus||[]);return entries()
 function einkaufModal(){const l=einkauf();const E=ein();
   const such=e=>encodeURIComponent([e.hersteller,e.material,...(e.besonderheiten||[]),e.farbe,"Filament",e.gewicht>=1000?(e.gewicht/1000).toString().replace(".",",")+" kg":e.gewicht+" g"].filter(Boolean).join(" "));
   const h=`<div class="lgform" id="lgEk"><div class="lghint">${E.knapp_g>0?`Aufgebraucht oder weniger als ${kg(E.knapp_g)} übrig`:"Aufgebraucht oder weniger als eine volle Rolle übrig"} (Grenze unter Lager-Einstellungen → „Bestand knapp unter“).</div>
-    ${l.length?`<div class="lgpick" style="max-height:60vh">${l.map(({e,t})=>`<div class="lgr lgekr">${spool(e.hex,undefined,e.besonderheiten,e)}<div style="min-width:0"><div class="lgn">${esc(summary(e))}${deF(e.farbe)}</div>
-      <div class="lgs">${e.spulen<=0?`<span style="color:var(--bad)">aufgebraucht</span>`:`noch ${kg(t)}`}${e.preis?` · zuletzt ${String(e.preis).replace(".",",")} €/kg`:""}</div>
+    ${l.length?`<div class="hk ekl">${l.map(({e,t})=>{const p=e.gewicht>0?Math.max(3,Math.min(100,t/e.gewicht*100)):0;const leer=e.spulen<=0||t<=0;
+      return `<div class="hz hr ekr ${leer?"bad":"warn"}"><span class="hz-i hz-ri">${window.slRolle?slRolle(e):spool(e.hex,undefined,e.besonderheiten,e)}</span><div class="hz-t">
+      <b>${window.slRolleTitel?slRolleTitel(e):esc(summary(e))}</b>
+      <small>${leer?"aufgebraucht":`noch ${kg(t)} von ${kg(e.gewicht||1000)}`}${e.preis?` · zuletzt ${String(e.preis).replace(".",",")} €/kg`:""}</small>${leer?"":`<div class="hz-bar hr-bar"><i style="width:${p}%"></i></div>`}
       <div class="lgeka">${(()=>{const i=fdbFuer(e);const a=i==null?[]:fdbAng(i);const r=e.ausfuehrung==="refill";const j=a.find(x=>/3djake/i.test(x.haendler)&&x.refill===r)||a.find(x=>/3djake/i.test(x.haendler));
         return (j?`<a class="btn sm" href="${esc(j.url)}" target="_blank" rel="noopener" title="${esc(j.artnr)}">3DJake${j.preis?" "+eur(j.preis):""}</a>`:`<a class="btn sm" href="https://www.3djake.de/search?keyword=${such(e)}" target="_blank" rel="noopener">3DJake</a>`)
-          +a.filter(x=>!/3djake/i.test(x.haendler)&&x.refill===r).map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.haendler)}${x.preis?" "+eur(x.preis):""}</a>`).join("")})()}${(()=>{const a=preiseFuer(e).filter(x=>x.shop!=="3DJake").slice(0,3);return a.map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.titel)}">${esc(x.shop)} ${eur(x.preis)}</a>`).join("")})()}${pvAngebote(e.uid,e.gewicht).filter(o=>o.url).map(o=>`<a class="btn sm" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)} · ${pvVersandText(o)}">${o.shop} ${eur(o.preis)}</a>`).join("")}<a class="btn sm" href="https://www.amazon.de/s?k=${such(e)}" target="_blank" rel="noopener">Amazon</a><a class="btn sm" href="https://www.google.com/search?tbm=shop&q=${such(e)}" target="_blank" rel="noopener">Google Shopping</a><button class="btn ghost sm" data-act="lgEkAus" data-uid="${esc(e.uid)}" title="Nicht mehr nachkaufen – aus der Liste nehmen">Nicht nachkaufen</button></div></div></div>`).join("")}</div>`
+          +a.filter(x=>!/3djake/i.test(x.haendler)&&x.refill===r).map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.haendler)}${x.preis?" "+eur(x.preis):""}</a>`).join("")})()}${(()=>{const a=preiseFuer(e).filter(x=>x.shop!=="3DJake").slice(0,3);return a.map(x=>`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.titel)}">${esc(x.shop)} ${eur(x.preis)}</a>`).join("")})()}${pvAngebote(e.uid,e.gewicht).filter(o=>o.url).map(o=>`<a class="btn sm" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)} · ${pvVersandText(o)}">${o.shop} ${eur(o.preis)}</a>`).join("")}<a class="btn sm" href="https://www.amazon.de/s?k=${such(e)}" target="_blank" rel="noopener">Amazon</a><a class="btn sm" href="https://www.google.com/search?tbm=shop&q=${such(e)}" target="_blank" rel="noopener">Google Shopping</a><button class="btn ghost sm" data-act="lgEkAus" data-uid="${esc(e.uid)}" title="Nicht mehr nachkaufen – aus der Liste nehmen">Nicht nachkaufen</button></div></div><span class="hz-r hr-g">${leer?"leer":kg(t)}</span></div>`}).join("")}</div>`
       :`<div class="panel empty">Alles gut gefüllt – nichts nachzukaufen.</div>`}</div>`;
   const b=document.querySelector("#modal #lgEk");if(b){b.outerHTML=h;return}
   modal(`Einkaufsliste${l.length?" ("+l.length+")":""}`,h,`${l.length?`<button class="btn ghost" data-act="lgEkKopie">Liste kopieren</button>`:""}${(G.ekAus||[]).length?`<button class="btn ghost" data-act="lgEkReset">Ausgeblendete wieder zeigen (${G.ekAus.length})</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
@@ -7649,7 +7651,7 @@ body.rx-einfach #mbar{display:none!important}
 .lgtop .dcard.kompakt.lgbest .lgmon span{font-size:12px}.lgtop .dcard.kompakt.lgbest .lgmon b{font-size:14px}
 .lgtop .dcard.kompakt.lgbest .lgmon::after{content:"›";margin-left:auto;color:var(--fg-3);font-size:16px;line-height:1}
 .lgtop .dcard.kompakt.lgbest .lgmon:hover{border-color:var(--line-2)}
-.lgekr{align-items:flex-start}.lgeka{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.lgeka a.btn{text-decoration:none}</style>
+.lgekr{align-items:flex-start}#lgEk .ekl{max-height:62vh;overflow:auto;border-radius:16px}#lgEk .ekr{align-items:start}#lgEk .ekr .hz-i,#lgEk .ekr .hz-r{margin-top:2px}#lgEk .ekr .lgeka{margin-top:10px}.lgeka{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.lgeka a.btn{text-decoration:none}</style>
 <style>
 /* Lager-Kopf als eine ruhige Leiste: Bestand, AMS-Feuchte und Waage nebeneinander, Knöpfe als Zeile darunter */
 @media (min-width:621px){
@@ -7959,6 +7961,16 @@ function waage(){const z=zst();const W=(window.slWaagen?slWaagen(z):[]).filter(w
   return {off,g:v!=null?v:0,trocknen:isFinite(tr)?tr:0}}
 function feuchte(){const z=zst();const out=[];for(const [id,st] of Object.entries(z)){const m=id.match(/^sensor\.(.+?)_ams_(\d+)_luftfeuchtigkeit$/);if(!m)continue;const v=Number(st.state);if(!(v>=40))continue;
   const dr=((z["sensor."+m[1]+"_druckstatus"]||{}).attributes||{}).drucker_name||m[1].split("_")[0].toUpperCase();const n=Number(m[2]);out.push({dr,ams:n>=128?"AMS HT "+(n-127):"AMS "+n,v})}return out.sort((a,b)=>b.v-a.v)}
+/* Rolle wie im Lager (Original-Spule in Farbe, Füllstand) und Herstellerlogo statt Farbpunkt */
+/* Symbole im SchichtLohn-Look: aus Schichtstreifen wie das Logo */
+const HIC={feuer:'<svg width="28" height="28" viewBox="0 0 24 24"><defs><linearGradient id="slgs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="1" stop-color="#ff7a1a"/></linearGradient><clipPath id="slcs"><ellipse cx="12" cy="15.5" rx="8.5" ry="7"/></clipPath></defs><g clip-path="url(#slcs)" fill="url(#slgs)"><rect x="0" y="8.60" width="24" height="1.25"/><rect x="0" y="10.40" width="24" height="1.25"/><rect x="0" y="12.20" width="24" height="1.25"/><rect x="0" y="14.00" width="24" height="1.25"/><rect x="0" y="15.80" width="24" height="1.25"/><rect x="0" y="17.60" width="24" height="1.25"/><rect x="0" y="19.40" width="24" height="1.25"/><rect x="0" y="21.20" width="24" height="1.25"/></g><ellipse cx="12" cy="15.5" rx="2.6" ry="2.2" fill="var(--solid,#2b2c31)"/><g fill="none" stroke="#ff7a1a" stroke-width="1.6" stroke-linecap="round"><path d="M8 1.5c-.9 1-.9 1.8 0 2.8s.9 1.8 0 2.8M12 1.5c-.9 1-.9 1.8 0 2.8s.9 1.8 0 2.8M16 1.5c-.9 1-.9 1.8 0 2.8s.9 1.8 0 2.8"/></g></svg>',
+  tropfen:'<svg width="28" height="28" viewBox="0 0 24 24"><defs><linearGradient id="slgt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6cc8ff"/><stop offset="1" stop-color="#2a8cf0"/></linearGradient><clipPath id="slct"><path d="M12 1.8s7.2 7.6 7.2 12.8a7.2 7.2 0 0 1-14.4 0C4.8 9.4 12 1.8 12 1.8z"/></clipPath></defs><g clip-path="url(#slct)" fill="url(#slgt)"><rect x="0" y="2.00" width="24" height="1.25"/><rect x="0" y="3.80" width="24" height="1.25"/><rect x="0" y="5.60" width="24" height="1.25"/><rect x="0" y="7.40" width="24" height="1.25"/><rect x="0" y="9.20" width="24" height="1.25"/><rect x="0" y="11.00" width="24" height="1.25"/><rect x="0" y="12.80" width="24" height="1.25"/><rect x="0" y="14.60" width="24" height="1.25"/><rect x="0" y="16.40" width="24" height="1.25"/><rect x="0" y="18.20" width="24" height="1.25"/><rect x="0" y="20.00" width="24" height="1.25"/><rect x="0" y="21.80" width="24" height="1.25"/></g></svg>',
+  warn:'<svg width="28" height="28" viewBox="0 0 24 24"><defs><linearGradient id="slgw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7b6b"/><stop offset="1" stop-color="#e5483a"/></linearGradient><clipPath id="slcw"><path d="M10.2 3.2 1.6 18.4A2.1 2.1 0 0 0 3.4 21.5h17.2a2.1 2.1 0 0 0 1.8-3.1L13.8 3.2a2.1 2.1 0 0 0-3.6 0z"/></clipPath></defs><g clip-path="url(#slcw)" fill="url(#slgw)"><rect x="0" y="2.00" width="24" height="1.25"/><rect x="0" y="3.80" width="24" height="1.25"/><rect x="0" y="5.60" width="24" height="1.25"/><rect x="0" y="7.40" width="24" height="1.25"/><rect x="0" y="9.20" width="24" height="1.25"/><rect x="0" y="11.00" width="24" height="1.25"/><rect x="0" y="12.80" width="24" height="1.25"/><rect x="0" y="14.60" width="24" height="1.25"/><rect x="0" y="16.40" width="24" height="1.25"/><rect x="0" y="18.20" width="24" height="1.25"/><rect x="0" y="20.00" width="24" height="1.25"/><rect x="0" y="21.80" width="24" height="1.25"/></g><path d="M12 9v5" stroke="var(--solid,#2b2c31)" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.4" fill="var(--solid,#2b2c31)"/></svg>'};
+window.slMarke=function(name){const n=String(name||"").trim();if(!n)return "";const L=window.LAGER;let u=null;try{u=L&&L.logoUrls?L.logoUrls(n).find(x=>/^data:/.test(x.u)):null}catch(x){}
+  if(!u)return `<span class="hm-n">${esc(n)}</span>`;const dk=L.darkUI?L.darkUI():true;
+  return `<img class="hm-l" src="${u.u}" alt="${esc(n)}" title="${esc(n)}"${!u.dunkel&&!dk?' style="filter:invert(1) brightness(.3)"':""}>`};
+window.slRolle=function(e,hex,gr){const L=window.LGN;try{if(L&&L.spool)return L.spool(e?e.hex:hex,"hz-sp",e?e.besonderheiten:undefined,e)}catch(x){}return `<i class="hz-f" style="background:${esc(hex||"#888")}"></i>`};
+window.slRolleTitel=function(e){return `<span class="hm">${slMarke(e.hersteller)}<span class="hm-t">${esc([e.material,...((e.besonderheiten||[]).filter(b=>!/^(basic)$/i.test(b)))].filter(Boolean).join(" "))}${e.farbe?` <em>· ${esc(e.farbe)}</em>`:""}</span></span>`};
 function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   const D=(window.DLIVE&&DLIVE.liste())||[];const art=d=>DLIVE.art(d);const lauf=D.filter(d=>/druckt|pause/.test(art(d))),fehl=D.filter(d=>art(d)==="err"),ruhe=D.filter(d=>art(d)==="bereit"),aus=D.filter(d=>art(d)==="aus");
   const V=bereit?B.verbrauch().filter(d=>!isNaN(zeitMs(d.zeit))).sort((a,b)=>zeitMs(b.zeit)-zeitMs(a.zeit)):[];
@@ -7969,20 +7981,23 @@ function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   const datum=new Date().toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"});
   const z=(ic,t,sub,r,cls)=>`<div class="hz${cls?" "+cls:""}"><span class="hz-i">${ic}</span><div class="hz-t"><b>${t}</b>${sub?`<small>${sub}</small>`:""}</div>${r?`<span class="hz-r">${r}</span>`:""}</div>`;
   const punkt=c=>`<i class="hz-f" style="background:${esc(c||"#888")}"></i>`;
+  const SO=bereit&&LGN.sorten?LGN.sorten():[];const sorte=uid=>SO.find(e=>e.uid===uid);
+  const rolle=(e,t,sub,cls)=>{const p=e.gewicht>0?Math.max(0,Math.min(100,t/e.gewicht*100)):0;
+    return `<div class="hz hr${cls?" "+cls:""}"><span class="hz-i hz-ri">${slRolle(e)}</span><div class="hz-t"><b>${slRolleTitel(e)}</b><small>${sub}</small>${t>0?`<div class="hz-bar hr-bar"><i style="width:${Math.max(3,p)}%"></i></div>`:""}</div><span class="hz-r hr-g">${t>0?kgT(t):"leer"}</span></div>`};
   let dr="";
   lauf.forEach(d=>{const fertig=d.remaining>0?new Date(Date.now()+d.remaining*60000).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"";
     dr+=`<div class="hz"><span class="hz-i">${svg("drucke",20)}</span><div class="hz-t"><b>${esc(d.name)}${d.task?` · ${esc(d.task)}`:""}</b><small>${art(d)==="pause"?"pausiert · ":""}${N0.format(d.progress||0)} %${fertig?` · fertig um ${fertig} Uhr`:""}</small><div class="hz-bar"><i style="width:${Math.max(2,Math.min(100,d.progress||0))}%"></i></div></div><span class="hz-r">${d.remaining>0?dauer(d.remaining):""}</span></div>`});
-  fehl.forEach(d=>dr+=z("⚠",esc(d.name),"Fehler am Drucker – bitte nachsehen","","bad"));
+  fehl.forEach(d=>dr+=z(HIC.warn,esc(d.name),"Fehler am Drucker – bitte nachsehen","","bad"));
   if(ruhe.length)dr+=z(svg("heute",20).replace(IC.heute,'<path d="M5 12.5l4.5 4.5L19 7.5"/>'),esc(ruhe.map(d=>d.name).join(", ")),"bereit");
   if(aus.length)dr+=z("○",esc(aus.map(d=>d.name).join(", ")),"offline","","dim");
   let br="";
-  offen.slice(0,3).forEach(o=>br+=z("⚠",`${g1(o.gramm)} g nicht zugeordnet`,esc([o.drucker,o.ort,o.zeit?wann(zeitMs(o.zeit)):""].filter(Boolean).join(" · ")),`<button type="button" class="btn sm" data-act="lgOzu" data-uid="${esc(o.uid)}">Zuordnen</button>`,"bad"));
-  fast.slice(0,3).forEach(({e,t})=>br+=z(punkt(e.hex),esc([e.hersteller,e.material].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"")),`nur noch ${kgT(t)}`,"","warn"));
-  if(W&&W.trocknen>0)br+=z("🔥",`${W.trocknen} ${W.trocknen===1?"Sorte sollte":"Sorten sollten"} getrocknet werden`,"laut Trocknungsplan der Waage","","warn");
-  fe.slice(0,2).forEach(f=>br+=z("💧",`${esc(f.ams)} am ${esc(f.dr)}: ${N0.format(f.v)} % Feuchte`,"Trockenmittel wechseln oder trocknen","","warn"));
+  offen.slice(0,3).forEach(o=>br+=z(HIC.warn,`${g1(o.gramm)} g nicht zugeordnet`,esc([o.drucker,o.ort,o.zeit?wann(zeitMs(o.zeit)):""].filter(Boolean).join(" · ")),`<button type="button" class="btn sm" data-act="lgOzu" data-uid="${esc(o.uid)}">Zuordnen</button>`,"bad"));
+  fast.slice(0,3).forEach(({e,t})=>br+=rolle(e,t,`nur noch ${kgT(t)} von ${kgT(e.gewicht||1000)}`,"warn"));
+  if(W&&W.trocknen>0)br+=z(HIC.feuer,`${W.trocknen} ${W.trocknen===1?"Sorte sollte":"Sorten sollten"} getrocknet werden`,"laut Trocknungsplan der Waage","","trock");
+  fe.slice(0,2).forEach(f=>br+=z(HIC.tropfen,`${esc(f.ams)} am ${esc(f.dr)}`,"Trockenmittel wechseln oder trocknen",`${N0.format(f.v)} %`,"nass"));
   const ab=V.slice(0,3).map(d=>{const gd=Number(d.gramm_datei)||0,g=Number(d.gramm)||0;const sub=[d.drucker,/abgebrochen/i.test(d.anlass||"")?"abgebrochen":"",d.sorte,gd>g?`${g1(g)} von ${g1(gd)} g`:"",wann(zeitMs(d.zeit))].filter(Boolean).join(" · ");
-    return z(punkt(d.hex),esc(String(d.aufgabe||d.anlass||"Druck").replace(/\.(gcode\.3mf|3mf|gcode)$/i,"")),esc(sub),`${g>=0?"−":"+"}${g1(g)} g`)}).join("");
-  const ekH=(leer.slice(0,3)).map(({e})=>z(punkt(e.hex),esc([e.hersteller,e.material].filter(Boolean).join(" ")+(e.farbe?" · "+e.farbe:"")),"leer")).join("");
+    const se=sorte(d.uid);return z(se?slRolle(se):slRolle(null,d.hex),esc(String(d.aufgabe||d.anlass||"Druck").replace(/\.(gcode\.3mf|3mf|gcode)$/i,"")),esc(sub),`${g>=0?"−":"+"}${g1(g)} g`)}).join("");
+  const ekH=(leer.slice(0,3)).map(({e})=>rolle(e,0,"aufgebraucht – nachkaufen","bad")).join("");
   const sek=(t,inh,link)=>inh?`<section class="hk"><header><b>${t}</b>${link||""}</header>${inh}</section>`:"";
   const lnk=(tab,t,act)=>`<button type="button" class="hk-l" ${act?`data-act="${act}"`:`data-bt="${tab}"`}>${t} ›</button>`;
   return `<div class="heute"><div class="h-k"><h1>${gruss}</h1><span>${esc(datum)}${D.length?` · ${D.filter(d=>art(d)!=="aus").length} von ${D.length} Druckern verbunden`:""}</span></div>
@@ -8031,7 +8046,14 @@ try{navBauen()}catch(e){}
 .hz.bad .hz-i{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.hz.bad .hz-t b{color:var(--bad)}
 .hw .hz-i{background:var(--accent-soft);color:var(--accent)}.hw-g{font-size:22px;color:var(--accent)}
 .hw-a{display:flex;gap:8px;padding:0 14px 12px 66px}
-.hz.warn .hz-i{background:color-mix(in srgb,var(--warn,#f0a020) 18%,transparent)}.hz.dim{opacity:.65}
+.hz.warn .hz-i{background:color-mix(in srgb,var(--warn,#f0a020) 18%,transparent);color:var(--warn,#f0a020)}.hz.dim{opacity:.65}
+.hz.nass .hz-i{background:rgba(79,179,255,.15);color:#4fb3ff}.hz.trock .hz-i{background:rgba(255,140,40,.16)}.hz.nass .hz-r{color:#4fb3ff}
+.hz-i .hz-sp.lgspool{display:inline-flex;width:44px;height:44px;margin:0}.hz-i .hz-sp svg{width:100%;height:100%;display:block}
+.hz-i:has(.hz-sp),.hz-i.hz-ri,.hr .hz-i,.hr.warn .hz-i,.hr.bad .hz-i{background:transparent}
+.hm{display:flex;align-items:center;gap:8px;min-width:0}.hm-l{height:15px;width:auto;max-width:92px;object-fit:contain;flex:none}.hm-n{flex:none;color:var(--fg-2)}
+.hm-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hm-t em{font-style:normal;font-weight:500;color:var(--fg-2)}
+.hr .hz-t small{display:block}.hr-bar{height:4px;margin-top:5px;max-width:220px}.hr.warn .hr-bar i{background:var(--warn,#f0a020)}
+.hr-g{color:var(--warn,#f0a020)}.hr.bad .hr-g{color:var(--bad)}.hz.hr.bad .hz-t b{color:var(--fg)}
 @media (max-width:700px){
   #tabs{display:none!important}
   body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
