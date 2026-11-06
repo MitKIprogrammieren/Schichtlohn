@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.9.0 – 06.11.2026
+- Waage erkennt Rollen per NFC: Auf „Heute“ und in der Waage-Kachel im Lager steht jetzt, welche Rolle gerade aufliegt – mit Farbe, Herstellerlogo und Material. Bambu-Chips werden auch erkannt, wenn die Sorte noch nicht im Lager ist.
+- Die Waage zeigt jetzt auch, wie viel Filament noch auf der Rolle ist (ohne Leerspule, mit Anteil an der vollen Rolle).
+- „Heute“ und Einkaufsliste: Rollen sehen aus wie im Lager (in Farbe, mit Füllstand) und tragen das Herstellerlogo. Neue Symbole im SchichtLohn-Look für Trocknen, Feuchte und Warnungen.
+
 ## 3.8.9 – 06.11.2026
 - Das Gewicht der Waage erscheint im Lager schneller (zusammen mit Waagen-Firmware 2.24.6 nach etwa 1–2 Sekunden).
 
