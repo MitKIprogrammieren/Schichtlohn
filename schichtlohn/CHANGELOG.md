@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.9.8 – 07.11.2026
+- Stil „Türkis“, Lager: Zusätze wie „21 % von 1 kg“ oder „A1 mini“ stehen wieder hinter dem Wert statt darunter – die Kacheln bleiben flach. Nur wenn es nicht passt, rutscht der Zusatz in die nächste Zeile.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.
+
 ## 3.9.7 – 07.11.2026
 - Stil „Türkis“: Im Lager sehen AMS-Feuchte und die Waagen jetzt aus wie „Bestand“ – jeder Wert als Kachel mit farbigem Streifen, auf dem Handy zwei nebeneinander.
 - Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht, kein Update in Home Assistant nötig.
