@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.9.2 – 07.11.2026
+- „Spule erkannt“: Hältst du eine Rolle mit NFC-Chip an eine Waage, erscheint auf „Heute“ und im Lager oben eine Karte mit Material, Farbe, Restgewicht und Tag-ID – mit kurzem Ton. Bekannte Rollen öffnest du mit „Zur Rolle“, neue Bambu-Spulen legst du mit „Neu anlegen“ gleich mit allen Werten an. Auf dem iPhone kommt der Ton, sobald du die App einmal angetippt hast.
+- Zwei Waagen heißen jetzt „Waage 1“ und „Waage 2“ (statt „Filamentwaage-2“).
+
 ## 3.9.1 – 06.11.2026
 - Neuer Stil „Türkis“ unter Einstellungen → Design: dunkel mit türkisem Akzent, Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen und kräftigere Füllbalken im Lager. Die Rollen sehen aus wie bisher. Hell und dunkel möglich.
 

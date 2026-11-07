@@ -2598,8 +2598,9 @@ function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book
   const gK=ro!=null?"":gT.startsWith("≈")?" q":" n";const rb=ro!=null?Math.max(0,Math.min(100,ro/gw*100)):rest;const kl=S.srv&&!leer;
   return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null?" · "+rest+" %":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
 /* Waagen (bambu-scale): je Waage sensor.<name>_laufzeit mit Attribut „waage“ – die erste heißt filamentwaage, weitere z. B. waage2 */
-window.slWaagen=function(z){z=z||{};const out=[];for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_laufzeit$/);if(!m)continue;const a=(z[id]||{}).attributes||{};if(m[1]!=="filamentwaage"&&!a.waage)continue;const n=String(a.waage||m[1]),nr=n.match(/^waage[-_]?(\d+)$/i);out.push({pre:m[1],name:m[1]==="filamentwaage"?"Waage":nr?"Waage "+nr[1]:n.charAt(0).toUpperCase()+n.slice(1)})}
+window.slWaagen=function(z){z=z||{};const out=[];for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_laufzeit$/);if(!m)continue;const a=(z[id]||{}).attributes||{};if(m[1]!=="filamentwaage"&&!a.waage)continue;const n=String(a.waage||m[1]),nr=n.match(/^(?:filament)?waage[-_]?(\d+)$/i);out.push({pre:m[1],name:m[1]==="filamentwaage"?"Waage":nr?"Waage "+nr[1]:n.charAt(0).toUpperCase()+n.slice(1)})}
   if(!out.some(w=>w.pre==="filamentwaage")&&z["sensor.filamentwaage_gewicht"])out.push({pre:"filamentwaage",name:"Waage"});
+  if(out.length>1)out.forEach(w=>{if(w.pre==="filamentwaage")w.name="Waage 1"});
   return out.sort((a,b)=>a.pre==="filamentwaage"?-1:b.pre==="filamentwaage"?1:a.pre.localeCompare(b.pre))};
 /* Gewicht, das gerade auf einer Waage liegt: von der Waage, deren Wert sich zuletzt geändert hat (mehr als 0 g) */
 window.slWaageBrutto=function(z){z=z||{};let best=null,bt=-1;for(const w of slWaagen(z)){const s=z["sensor."+w.pre+"_gewicht"];const v=s?Number(s.state):NaN;if(!(v>0))continue;const t=Date.parse(s.last_changed||s.last_updated||"")||0;if(t>bt){bt=t;best=v}}return best};
@@ -7129,7 +7130,7 @@ function gesamtModal(){
   h+=`</div>`;
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
-window.LGN={render,onStates,_G:G,besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
+window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
 })();
 </script>
@@ -7979,7 +7980,9 @@ const wann=t=>{const d=new Date(t),h=new Date();h.setHours(0,0,0,0);const dt=Mat
 const zst=()=>(window.slStates&&slStates())||(window.SRV&&SRV.zst)||{};
 /* NFC der Waage: welche Rolle gerade aufliegt – Chip-Nummer aus dem Lager („nfc“ der Sorte) oder Inhalt eines Bambu-Chips */
 const NFC={d:{},t:{},laeuft:{},sig:{}};
-function nfcHolen(pre){if(!(S.srv&&window.SRV&&SRV.req)||NFC.laeuft[pre]||document.hidden||Date.now()-(NFC.t[pre]||0)<2500)return;NFC.laeuft[pre]=true;
+function nfcHolen(pre){const ns=zst()["sensor."+pre+"_nfc"];if(ns&&ns.attributes){const d=ns.attributes;NFC.d[pre]=d;const sig=[d.tag_l,d.tag_r,JSON.stringify(d.bambu_l||""),JSON.stringify(d.bambu_r||"")].join("|");
+    if(sig!==NFC.sig[pre]){NFC.sig[pre]=sig;setTimeout(()=>{try{if(S.tab==="heute"&&window.HEUTE&&HEUTE.auf)HEUTE.auf();if(S.tab==="lager"&&window.LAGER&&LAGER.status)LAGER.status()}catch(x){}},0)}return}
+  if(!(S.srv&&window.SRV&&SRV.req)||NFC.laeuft[pre]||document.hidden||Date.now()-(NFC.t[pre]||0)<2500)return;NFC.laeuft[pre]=true;
   SRV.req("GET",`/api/waagen/${encodeURIComponent(pre)}/zustand`).then(d=>{NFC.d[pre]=d}).catch(()=>{NFC.d[pre]=null}).finally(()=>{NFC.t[pre]=Date.now();NFC.laeuft[pre]=false;
     const d=NFC.d[pre]||{};const sig=[d.tag_l,d.tag_r,JSON.stringify(d.bambu_l||""),JSON.stringify(d.bambu_r||"")].join("|");
     if(sig!==NFC.sig[pre]){NFC.sig[pre]=sig;try{if(S.tab==="heute"&&window.HEUTE&&HEUTE.auf)HEUTE.auf();if(S.tab==="lager"&&window.LAGER&&LAGER.status)LAGER.status()}catch(x){}}})}
@@ -8114,5 +8117,96 @@ try{navBauen()}catch(e){}
   .lgfab:not([hidden]){display:grid}
 }
 </style>
+<style>
+#slSpule{margin:14px 0}
+#slSpule[hidden]{display:none}
+.sps{position:relative;background:var(--glass-2);border:2px solid var(--accent);border-radius:var(--r,16px);padding:12px 14px 14px;animation:spsEin .25s ease-out}
+@keyframes spsEin{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
+.sps-k{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-right:30px}
+.sps-b{display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+.sps-b svg{width:14px;height:14px}
+.sps-w{font-size:12px;color:var(--fg-3);margin-left:auto;white-space:nowrap}
+.sps-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border:0;background:none;color:var(--fg-3);font-size:20px;line-height:1;cursor:pointer;border-radius:50%}
+.sps-x:hover{background:var(--glass)}
+.sps-m{display:flex;align-items:center;gap:12px}
+.sps-i{flex:0 0 auto;width:52px;height:52px;display:grid;place-items:center}
+.sps-i>*{max-width:52px;max-height:52px}
+.sps-t{min-width:0}
+.sps-t b{display:block;font-size:17px;line-height:1.25}
+.sps-t small{display:block;color:var(--fg-2);font-size:13px}
+.sps-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.sps-g div{background:var(--glass);border-radius:10px;padding:8px 10px}
+.sps-g span{display:block;font-size:12px;color:var(--fg-3)}
+.sps-g b{font-size:18px}
+.sps-bar{height:6px;background:var(--glass);border-radius:3px;margin-top:10px;overflow:hidden}
+.sps-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.sps-z{display:flex;justify-content:space-between;font-size:12.5px;margin-top:8px;color:var(--fg-3)}
+.sps-z code{color:var(--fg);font-family:ui-monospace,Menlo,monospace}
+.sps-a{display:flex;gap:8px;margin-top:12px}
+.sps-a .btn{flex:1;justify-content:center}
+.sps-h{font-size:12.5px;color:var(--fg-3);margin-top:10px}
+</style>
+<script>
+/* „Spule erkannt“: Liegt eine Rolle mit NFC-Chip auf einer Waage, erscheint oben auf „Heute“ und im Lager eine Karte
+   (mit Ton). Sie bleibt stehen, bis die nächste Spule kommt oder sie geschlossen wird. */
+(()=>{
+const SP={letzte:{},start:{},ereignis:null,zu:"",lauf:0};
+const kg=g=>g>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:2}).format(g/1000)+" kg":Math.round(g)+" g";
+const NFC_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20a1 1 0 0 1-1-1v-6a1 1 0 0 1 1.5-.9l4.5 2.6"/><path d="M8 4a1 1 0 0 1 1 1v6a1 1 0 0 1-1.5.9L3 9.3"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>';
+/* Ton: iOS gibt Töne erst nach der ersten Berührung frei – darum beim ersten Antippen den Ton „aufwecken“ */
+let ctx=null;
+function tonBereit(){try{ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=="running")ctx.resume();const b=ctx.createBuffer(1,1,22050),q=ctx.createBufferSource();q.buffer=b;q.connect(ctx.destination);q.start(0)}catch(e){}}
+["pointerdown","touchend","keydown"].forEach(ev=>document.addEventListener(ev,tonBereit,{passive:true}));
+function ton(){try{if(!ctx)tonBereit();if(!ctx)return;if(ctx.state!=="running")ctx.resume();const t0=ctx.currentTime+.02;
+  [[1318.5,0,.11],[1975.5,.12,.2]].forEach(([hz,ab,d])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=hz;
+    g.gain.setValueAtTime(0,t0+ab);g.gain.linearRampToValueAtTime(.3,t0+ab+.01);g.gain.exponentialRampToValueAtTime(.001,t0+ab+d);o.connect(g);g.connect(ctx.destination);o.start(t0+ab);o.stop(t0+ab+d+.02)})}catch(e){}
+  try{if(navigator.vibrate)navigator.vibrate([40,60,40])}catch(e){}}
+const zst=()=>(window.slStates&&slStates())||(window.SRV&&SRV.zst)||{};
+const sichtbar=()=>["lager","heute"].includes(S.tab);
+function box(){let el=document.getElementById("slSpule");const m=document.getElementById("main");if(!m)return null;
+  if(!el){el=document.createElement("div");el.id="slSpule";el.hidden=true;el.setAttribute("role","status");m.parentNode.insertBefore(el,m)}return el}
+function sorteHinweis(b){const typ=String(b.typ||"").trim();const det=String(b.detail||"").replace(/^bambu\s*/i,"").trim();
+  const rest=typ&&det.toLowerCase().startsWith(typ.toLowerCase())?det.slice(typ.length).trim():"";
+  return {material:typ||det.split(" ")[0]||"PLA",besonderheiten:rest?[rest]:[]}}
+function html(ev){const z=zst();const n=ev.n||{},e=n.e,b=n.b;const liegt=SP.letzte[ev.pre]===ev.uid;
+  const sg=Number((z["sensor."+ev.pre+"_gewicht"]||{}).state);const brutto=liegt&&isFinite(sg)&&sg>20?sg:(ev.brutto||0);if(liegt&&brutto)ev.brutto=brutto;
+  const leer=Number(n.leer)||250;const netto=brutto?Math.max(0,brutto-leer):0;const voll=(e&&e.gewicht)||(b&&b.gewicht)||1000;const p=brutto?Math.min(100,netto/voll*100):0;
+  const hex=e?e.hex:b&&b.farbe?"#"+String(b.farbe).slice(0,6):"#9e9e9e";
+  const icon=window.slRolle?slRolle(e||null,hex):"";
+  const herst=e?e.hersteller:b?"Bambu Lab":"";
+  const titel=e?(window.slRolleTitel?slRolleTitel(e):esc(e.material)):b?esc(String(b.detail||b.typ||"Filament").replace(/^bambu\s*/i,"")):"Unbekannte Rolle";
+  const dm=e?(e.durchmesser||1.75):b&&b.durchmesser;const unter=[e&&e.farbe,dm?String(dm).replace(".",",")+" mm":""].filter(Boolean).join(" · ")||(b?"Bambu-Chip":"NFC-Chip");
+  const sl=e&&e.raw&&e.raw.sl_id?String(e.raw.sl_id):"";
+  const vor=Math.round((Date.now()-ev.t)/60000);
+  return `<div class="sps"><button class="sps-x" data-sps="zu" aria-label="Schließen">×</button>
+    <div class="sps-k"><span class="sps-b">${NFC_IC}Spule erkannt</span><span class="sps-w">${esc(ev.name)} · ${liegt?(vor<1?"gerade eben":"vor "+vor+" min"):"abgenommen"}</span></div>
+    <div class="sps-m"><span class="sps-i">${icon}</span><div class="sps-t">${herst&&!e?`<small>${window.slMarke?slMarke(herst):esc(herst)}</small>`:""}<b>${titel}</b><small>${esc(unter)}</small></div></div>
+    ${brutto?`<div class="sps-g"><div><span>Restgewicht</span><b>${kg(netto)}</b></div><div><span>Spule voll</span><b>${kg(voll)}</b></div></div>
+    <div class="sps-bar"><i style="width:${Math.max(3,p).toFixed(0)}%;background:${esc(hex)}"></i></div>`:`<div class="sps-h">Rolle zum Wiegen ganz auf die Waage legen.</div>`}
+    <div class="sps-z"><span>Tag-ID</span><code>${esc(ev.uid.replace(/(..)(?=.)/g,"$1 "))}</code></div>
+    ${sl?`<div class="sps-z"><span>Rolle</span><span style="color:var(--fg)">${esc(sl)}</span></div>`:""}
+    <div class="sps-a">${e?`<button class="btn pri" data-sps="rolle" data-uid="${esc(e.uid)}">Zur Rolle</button>`:b?`<button class="btn pri" data-sps="neu">Neu anlegen</button>`:""}</div>
+    ${!e&&!b?`<div class="sps-h">Dieser Chip gehört noch zu keiner Sorte – an der Waage zuordnen.</div>`:""}</div>`}
+function zeichnen(){const el=box();if(!el)return;const ev=SP.ereignis;const zeigen=!!ev&&sichtbar()&&SP.zu!==ev.id;
+  if(!zeigen){if(!el.hidden){el.hidden=true;el.innerHTML="";el.__h=""}return}
+  const h=html(ev);if(el.__h!==h){el.__h=h;el.innerHTML=h}el.hidden=false}
+function tick(){if(document.hidden||!sichtbar()||!window.slWaagen||!window.slNfc){zeichnen();return}
+  const z=zst();for(const w of slWaagen(z)){let n=null;try{n=slNfc(w.pre)}catch(e){}if(!n)continue;const uid=String(n.uid||"").toUpperCase();
+    if(!(w.pre in SP.letzte)){SP.letzte[w.pre]=uid;continue}  /* beim Öffnen: was schon aufliegt, nicht melden */
+    if(uid&&uid!==SP.letzte[w.pre]){SP.ereignis={id:w.pre+"|"+uid+"|"+Date.now(),pre:w.pre,name:w.name,uid,n,t:Date.now(),brutto:0};ton()}
+    else if(uid&&SP.ereignis&&SP.ereignis.pre===w.pre&&SP.ereignis.uid===uid)SP.ereignis.n=n;  /* Sorte kann sich noch zuordnen */
+    SP.letzte[w.pre]=uid}
+  zeichnen()}
+setInterval(tick,1500);document.addEventListener("visibilitychange",tick);
+document.addEventListener("click",ev=>{const k=ev.target.closest("[data-sps]");if(!k)return;const a=k.dataset.sps;const E=SP.ereignis;
+  if(a==="zu"){if(E)SP.zu=E.id;zeichnen();return}
+  if(!window.LGN)return;
+  if(a==="rolle"){LGN.bearbeiten(k.dataset.uid);return}
+  if(a==="neu"&&E&&E.n&&E.n.b){const b=E.n.b;const h=sorteHinweis(b);
+    LGN.neu(Object.assign(h,{hersteller:"Bambu Lab",bambu_id:String(b.material_id||""),hex:b.farbe?"#"+String(b.farbe).slice(0,6):"#808080",gewicht:Number(b.gewicht)||1000,durchmesser:Number(b.durchmesser)||1.75,
+      raw:{nfc:[E.uid]},hinweis:`Bambu-Chip ${E.uid} von der ${E.name}. Farbnamen ergänzen und speichern – danach wird die Spule an der Waage erkannt.`}))}});
+window.SPULE={tick,_:SP};
+})();
+</script>
 </body>
 </html>
