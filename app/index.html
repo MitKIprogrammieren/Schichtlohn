@@ -1291,6 +1291,8 @@ function renderSettings(m){
           <div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
           <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
+          <div class="field"><span>Leere Spule je Hersteller</span><small class="hint">Gilt für alle Sorten dieses Herstellers, auch neue – an der Waage, im Lager und bei „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.</small>
+            <div class="stack" id="lge_leerh" style="gap:6px;margin-top:6px">${I.leer||""}</div><div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div></div>
           <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div>
 </div>`})()}
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
@@ -5500,6 +5502,8 @@ function formModal(e,prefill){
       <div class="g3"><label class="field"><span>Bambu-ID (Abbuchung)</span><input type="text" id="lf_bid" value="${v(f.bambu_id)}" placeholder="GFG02"></label>
         <label class="field"><span>Preis je kg</span><div class="unit"><input type="text" inputmode="decimal" id="lf_p" value="${f.preis==null?"":String(f.preis).replace(".",",")}" placeholder="19,99"><em>€</em></div></label>
         <label class="field"><span>Davon Refill</span><div class="unit"><input type="text" inputmode="numeric" id="lf_rf" value="${v(f.refills)}"><em>Stk</em></div></label>${isNew?"":gekauftHTML(e)}</div>
+      ${(()=>{const L=leerInfo(f);return `<div class="g3"><label class="field"><span>Leere Spule</span><div class="unit"><input type="text" inputmode="numeric" id="lf_leer" value="${L.eigen?v(L.eigen):""}" placeholder="${esc(L.platz)}"><em>g</em></div></label></div>
+      <div class="hint" style="margin-top:-6px">Leer lassen = Wert vom Hersteller (Einstellungen → Lager). Ein eigener Wert geht vor, z. B. nach dem Wiegen einer leeren Spule.</div>`})()}
       <div class="g4"><label class="field"><span>Druck von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d1" value="${v(f.duese_min)}"><em>°C</em></div></label>
         <label class="field"><span>Druck bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d2" value="${v(f.duese_max)}"><em>°C</em></div></label>
         <label class="field"><span>Bett von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b1" value="${v(f.bett_min)}"><em>°C</em></div></label>
@@ -5531,6 +5535,8 @@ function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=docu
   set("reste","lf_r",x=>fReste(x,fNum(val("lf_g"))));set("bambu_id","lf_bid",x=>x.trim());set("preis","lf_p",fNum);set("refills","lf_rf",x=>Math.max(0,Math.round(fNum(x)||0)));
   set("duese_min","lf_d1",fNum);set("duese_max","lf_d2",fNum);set("bett_min","lf_b1",fNum);set("bett_max","lf_b2",fNum);set("trocknen_c","lf_tc",fNum);set("trocknen_h","lf_th",fNum);set("durchmesser","lf_dm",fNum);set("fcode","lf_fc",x=>x.trim());
   set("flow","lf_fl",fNum);set("mvs","lf_mvs",fNum);set("k","lf_k",fNum);set("td","lf_td",fNum);set("kammer","lf_ka",fNum);set("schwund","lf_sw",fNum);
+  {const x=val("lf_leer");if(x!==undefined){const r=Object.assign({},f.raw||{});const n=fNum(x);const L=leerInfo(f);
+    if(n>0&&n<1500){r.leer_g=Math.round(n);delete r.leer_auto}else if(L.eigen){delete r.leer_g;delete r.leer_auto}f.raw=r}}
   set("buegeln_tempo","lf_bt",fNum);set("buegeln_flow","lf_bf",fNum);set("ams","lf_ams",x=>x==="ja"?true:x==="nein"?false:null);set("ams_modelle","lf_amsm",x=>x.trim());set("sku","lf_sku",x=>x.trim());
   return f}
 const msg=t=>{const m=document.getElementById("lf_msg");if(m)m.textContent=t};
@@ -6094,6 +6100,14 @@ const EIN_ZAHLEN=[["feuchte_gruen","Feuchte grün unter","%",1,100,"Darunter ist
   ["silica_trocknung_h","Trocknungszeit nach Silica-Tausch","h",1,168,"So lange wird nach einem Tausch noch der Tiefpunkt gesucht"],["silica_nachlauf_h","Abkühlzeit nach AMS-Trocknung","h",1,48,"Nach einer Filamenttrocknung im AMS Pro/HT, bis der Tiefpunkt feststeht"],
   ["knapp_g","Bestand knapp unter","g",0,100000,"Sorten darunter bekommen ein rotes „knapp“, 0 = aus"]];
 const einItem=()=>G.meta.find(i=>desc(i).typ==="einstellungen_plus")||null;
+/* Leere Spule je Hersteller (Lager-Einstellungen); der Server schreibt den Wert als leer_g in die Sorten (leer_auto merkt ihn sich) */
+const LEER_STD={Polymaker:140};
+function leerTab(){const w=einGespeichert().leer_hersteller;return w&&typeof w==="object"?w:LEER_STD}
+function leerInfo(f){const r=(f&&f.raw)||{};const lg=Number(r.leer_g),au=Number(r.leer_auto);const eigen=lg>0&&!(au>0&&au===lg)?lg:0;
+  const t=leerTab();const k=Object.keys(t).find(x=>x.toLowerCase()===String(f&&f.hersteller||"").trim().toLowerCase());
+  const h=k?Number(t[k]):0;return {eigen,platz:h>0?`${h} (${k})`:au>0?String(au):"250 (Standard)"}}
+function leerZeile(h,g){const hs=[...new Set([...known("hersteller"),...(h?[h]:[])])];
+  return `<div class="row lgeleer" style="gap:8px;align-items:center"><select class="lgeleer-h" style="flex:1;min-width:0">${hs.map(x=>`<option${x===h?" selected":""}>${esc(x)}</option>`).join("")}</select><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgeleer-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><button type="button" class="btn icon ghost" data-act="lgeLeerWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
 const einGespeichert=()=>{const it=einItem();const d=it?desc(it):{};return (d.werte&&typeof d.werte==="object")?d.werte:{}};
 function einVoll(){const g=einGespeichert(),e=Object.assign({},EIN_STD);Object.keys(EIN_STD).forEach(k=>{const v=g[k];if(v!==undefined&&v!==null&&v!=="")e[k]=typeof EIN_STD[k]==="number"?(fNum(v)??e[k]):v});return e}
 async function einSpeichern(neu){const it=einItem();const werte=Object.assign({},einGespeichert(),neu);const d=JSON.stringify({typ:"einstellungen_plus",v:1,werte});
@@ -6268,8 +6282,12 @@ document.addEventListener("click",async e=>{
     for(const [k,t,,min,max] of EIN_ZAHLEN){const el=document.querySelector(`[data-lge="${k}"]`);const n=fNum(el?el.value:"");if(n==null||n<min||n>max)return say(`„${t}“: bitte eine Zahl von ${min} bis ${max}.`);g[k]=n}
     if(g.feuchte_gruen>=g.feuchte_warnung)return say("„Grün unter“ muss kleiner sein als „Warnung ab“.");
     const gs=document.getElementById("lge_gruppe"),ls=document.getElementById("lge_leer");if(gs)g.gruppe=gs.value;if(ls)g.leer_zeigen=ls.value==="1";
+    if(document.getElementById("lge_leerh")){const lt={};for(const z of document.querySelectorAll("#lge_leerh .lgeleer")){const h=z.querySelector(".lgeleer-h").value.trim();const raw=z.querySelector(".lgeleer-g").value.trim();if(!h||!raw)continue;const n=fNum(raw);
+      if(!(n>0&&n<1500))return say(`Leere Spule ${h}: bitte Gramm von 1 bis 1499.`);lt[h]=Math.round(n)}g.leer_hersteller=lt}
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
+  if(a==="lgeLeerPlus"){const c=document.getElementById("lge_leerh");if(c){const da=new Set([...c.querySelectorAll(".lgeleer-h")].map(x=>x.value));const h=known("hersteller").find(x=>!da.has(x))||"";c.insertAdjacentHTML("beforeend",leerZeile(h,""))}return}
+  if(a==="lgeLeerWeg"){const z=b.closest(".lgeleer");if(z)z.remove();return}
   if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
     confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht SchichtLohn danach selbst.`,"Getauscht",async()=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
@@ -7184,7 +7202,7 @@ function gesamtModal(){
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
-  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN}}};
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join("")}}};
 })();
 </script>
 <script>
@@ -8048,7 +8066,8 @@ window.slNfc=function(pre){nfcHolen(pre);const d=NFC.d[pre];if(!d)return null;
     let e=SO.find(x=>x.raw&&Array.isArray(x.raw.nfc)&&x.raw.nfc.some(t=>String(t).toUpperCase()===U))||null;
     if(!e&&b){const hx=b.farbe?"#"+String(b.farbe).slice(0,6):"";const mid=String(b.material_id||"");const k1=mid?SO.filter(x=>x.bambu_id===mid):[];
       const det=String(b.detail||b.typ||"").toLowerCase();e=nfcFarbe(k1.length?k1:SO.filter(x=>/bambu/i.test(x.hersteller)&&det&&det.startsWith(String(x.material||"").toLowerCase())),hx)}
-    return {seite,uid,e,b,leer:e?(/bambu/i.test(e.hersteller)?d.leer_bambu_g:d.leer_standard_g):b?d.leer_bambu_g:d.leer_standard_g}}
+    const lgS=e&&e.raw&&Number(e.raw.leer_g)>0?Number(e.raw.leer_g):0;
+    return {seite,uid,e,b,leer:lgS||(e?(/bambu/i.test(e.hersteller)?d.leer_bambu_g:d.leer_standard_g):b?d.leer_bambu_g:d.leer_standard_g)}}
   return {seite:"",uid:"",e:null,b:null}};
 function waage(){const z=zst();const W=(window.slWaagen?slWaagen(z):[]).filter(w=>z["sensor."+w.pre+"_gewicht"]);if(!W.length)return null;
   const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);

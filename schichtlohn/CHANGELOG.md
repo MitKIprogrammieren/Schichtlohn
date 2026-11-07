@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.13.0 – 07.11.2026
+- Leere Spule je Hersteller: unter Einstellungen → Lager steht, was die leere Spule eines Herstellers wiegt – voreingestellt Polymaker mit 140 g (Herstellerangabe für die 1-kg-Pappspule). Gilt für alle Sorten dieses Herstellers, auch neue: an der Waage, im Lager und bei „Spule erkannt“. Alle anderen bleiben bei 250 g.
+- Bei jeder Sorte gibt es jetzt das Feld „Leere Spule“ (unter „Technische Daten“) für Ausnahmen, z. B. nach dem Wiegen einer leeren Spule. Ein eigener Wert geht immer vor.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.12.1 – 07.11.2026
 - Waagen bekommen einen eigenen Anzeigenamen: unter Waage → Einstellen → „Anzeigename in SchichtLohn“ – groß, klein und mit Leerzeichen, z. B. „Filamentwaage ohne Display“. Die Waage startet dafür nicht neu; der Name im Netzwerk bleibt klein. Geht auch bei Waagen ohne eigene Web-Oberfläche.
 - Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.

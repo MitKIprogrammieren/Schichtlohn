@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.12.1"
+VERSION = "3.13.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -193,6 +193,8 @@ def liste_aendern(name, service, data):
             con.execute("ROLLBACK")
             raise
     melden({"typ": "liste", "name": name, "rev": r})
+    if name in ("todo.filament", "todo.filament_verbrauch"):
+        LEER_NEU.set()  # Leerspulen-Gewichte je Hersteller nachziehen (neue Sorte, geänderte Einstellung)
     ergebnis["rev"] = r
     return ergebnis
 
@@ -974,6 +976,66 @@ def nfc_auftrag_neu(sorte, url, waage=""):
         st = _nfc_status()
     melden({"typ": "nfc_auftrag", "a": st})
     return st
+
+
+# ---------------------------------------------------------------- Leere Spule je Hersteller
+# In den Lager-Einstellungen (einstellungen_plus → leer_hersteller, z. B. {"Polymaker": 140}) steht, was die leere
+# Spule eines Herstellers wiegt. Der Server schreibt das als leer_g in jede Sorte dieses Herstellers und merkt sich
+# den Wert in leer_auto. Ein eigener Wert (leer_g ≠ leer_auto, z. B. an der Waage gewogen) bleibt unangetastet.
+# So rechnen Waage, Lager und „Spule erkannt“ ohne eigene Logik mit dem richtigen Gewicht.
+LEER_NEU = threading.Event()
+LEER_STANDARD = {"Polymaker": 140}  # Herstellerangabe: 1-kg-Pappspule 140 ± 7 g
+
+
+def leer_tabelle():
+    for it in liste_lesen(META):
+        d = _desc(it)
+        if d.get("typ") == "einstellungen_plus":
+            w = (d.get("werte") or {}).get("leer_hersteller")
+            if isinstance(w, dict):
+                return {str(k).strip().lower(): int(_zahl(v)) for k, v in w.items() if str(k).strip() and 0 < _zahl(v) < 1500}
+    return {k.lower(): v for k, v in LEER_STANDARD.items()}
+
+
+def leer_anwenden():
+    tab = leer_tabelle()
+    n = 0
+    for it in liste_lesen(ENT):
+        d = _desc(it)
+        if not d:
+            continue
+        auto = d.get("leer_auto")
+        eigen = d.get("leer_g") not in (None, "") and (auto is None or _zahl(d.get("leer_g")) != _zahl(auto))
+        if eigen:
+            continue
+        ziel = tab.get(str(d.get("hersteller") or "").strip().lower())
+        neu = dict(d)
+        if ziel:
+            neu["leer_g"] = ziel
+            neu["leer_auto"] = ziel
+        else:
+            neu.pop("leer_g", None)
+            neu.pop("leer_auto", None)
+        if neu != d:
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+            n += 1
+    if n:
+        print(f"Leerspulen: {n} Sorten angepasst", flush=True)
+    return n
+
+
+def leer_schleife():
+    time.sleep(20)
+    LEER_NEU.set()
+    while True:
+        LEER_NEU.wait(600)
+        LEER_NEU.clear()
+        time.sleep(2)  # mehrere Änderungen hintereinander zusammenfassen
+        try:
+            leer_anwenden()
+        except Exception as e:
+            print("Leerspulen:", e, flush=True)
+        LEER_NEU.clear()  # eigene Änderungen lösen keinen weiteren Lauf aus
 
 
 def nfc_auftrag_abbrechen():
@@ -3608,4 +3670,5 @@ if __name__ == "__main__":
     threading.Thread(target=speicher_auto, daemon=True).start()
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     threading.Thread(target=faecher_schleife, daemon=True).start()
+    threading.Thread(target=leer_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
