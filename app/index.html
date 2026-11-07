@@ -2607,6 +2607,8 @@ function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book
 window.slWaagen=function(z){z=z||{};const out=[];for(const id of Object.keys(z)){const m=id.match(/^sensor\.(.+)_laufzeit$/);if(!m)continue;const a=(z[id]||{}).attributes||{};if(m[1]!=="filamentwaage"&&!a.waage)continue;const n=String(a.waage||m[1]),nr=n.match(/^(?:filament)?waage[-_]?(\d+)$/i);out.push({pre:m[1],name:m[1]==="filamentwaage"?"Waage":nr?"Waage "+nr[1]:n.charAt(0).toUpperCase()+n.slice(1)})}
   if(!out.some(w=>w.pre==="filamentwaage")&&z["sensor.filamentwaage_gewicht"])out.push({pre:"filamentwaage",name:"Waage"});
   if(out.length>1)out.forEach(w=>{if(w.pre==="filamentwaage")w.name="Waage 1"});
+  /* eigener Anzeigename aus den Waagen-Einstellungen (darf groß geschrieben sein und Leerzeichen haben) */
+  const AN=(S.cfg&&S.cfg.waageNamen)||{};out.forEach(w=>{const x=String(AN[w.pre]||"").trim();if(x)w.name=x});
   return out.sort((a,b)=>a.pre==="filamentwaage"?-1:b.pre==="filamentwaage"?1:a.pre.localeCompare(b.pre))};
 /* Gewicht, das gerade auf einer Waage liegt: von der Waage, deren Wert sich zuletzt geändert hat (mehr als 0 g) */
 window.slWaageBrutto=function(z){z=z||{};let best=null,bt=-1;for(const w of slWaagen(z)){const s=z["sensor."+w.pre+"_gewicht"];const v=s?Number(s.state):NaN;if(!(v>0))continue;const t=Date.parse(s.last_changed||s.last_updated||"")||0;if(t>bt){bt=t;best=v}}return best};
@@ -4328,7 +4330,13 @@ async function waageEinst(pre,name){
   const api=(w,m,b)=>SRV.req(m||"GET",`/api/waagen/${encodeURIComponent(pre)}/${w}`,b);
   modal(esc(name)+" einstellen",`<div class="hint">Verbinde mit der Waage …</div>`,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
   let e,et;try{[e,et]=await Promise.all([api("einstellungen"),api("etikett").catch(()=>({}))])}
-  catch(x){const m=$("#modal .mb")||$("#modal");if(m)m.querySelector(".hint")&&(m.querySelector(".hint").textContent=String(x.message||x));return}
+  catch(x){/* Waage ohne Web-Oberfläche (SC01 Plus) oder aus: den Anzeigenamen kann man trotzdem ändern */
+    const an=((S.cfg&&S.cfg.waageNamen)||{})[pre]||"";
+    modal(esc(name)+" einstellen",`<div class="stack wst"><div class="hint">${esc(String(x.message||x))}</div>
+      <div class="wst-z"><label class="field"><span>Anzeigename in SchichtLohn</span><input type="text" id="wst_anz" value="${esc(an)}" placeholder="${esc(name)}" autocomplete="off"></label><button class="btn" data-wsta="anzeige">Speichern</button></div>
+      <div class="hint">Groß, klein, Leerzeichen – alles erlaubt. Leer = automatisch.</div><div class="hint" id="wst_msg" role="status"></div></div>`,
+      `<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
+    const m=$("#modal");if(m)m.dataset.wstpre=pre;return}
   const n=(id,lab,v,ein,hint)=>`<label class="field"><span>${lab}</span><div class="unit"><input type="text" inputmode="numeric" id="${id}" value="${esc(v??"")}"><em>${ein}</em></div>${hint?`<div class="hint">${hint}</div>`:""}</label>`;
   const t=(id,lab,v,ph)=>`<label class="field"><span>${lab}</span><input type="text" id="${id}" value="${esc(v||"")}" placeholder="${esc(ph||"")}" autocomplete="off" autocapitalize="off"></label>`;
   const c=(id,lab,v,hint)=>`<label class="wst-cb"><input type="checkbox" id="${id}"${v?" checked":""}><span><b>${lab}</b>${hint?`<br><small>${hint}</small>`:""}</span></label>`;
@@ -4347,9 +4355,11 @@ async function waageEinst(pre,name){
     ${t("wst_br","Druckbrücke",et.bruecke,"http://192.168.1.66:8123/api/m20_druckbruecke")}
     ${t("wst_qr","QR-Code: SchichtLohn-Adresse",et.qr,"https://schichtlohn.tail….ts.net")}
     ${t("wst_bq","Bildquelle Herstellerlogos",et.bild_quelle,"leer = automatisch")}
-    ${e.name!==undefined?`<div class="lgsh" style="margin:0"><span>Name im Netzwerk</span></div>
-    <div class="wst-z">${t("wst_name","Name",e.name,"filamentwaage")}<button class="btn" data-wsta="name">Umbenennen</button></div>
-    <div class="hint">Startet die Waage neu. Für eine weitere Waage z. B. „waage2“.</div>`:""}
+    <div class="lgsh" style="margin:0"><span>Name</span></div>
+    <div class="wst-z">${t("wst_anz","Anzeigename in SchichtLohn",((S.cfg&&S.cfg.waageNamen)||{})[pre]||"",name).replace('autocapitalize="off"','autocapitalize="words"')}<button class="btn" data-wsta="anzeige">Speichern</button></div>
+    <div class="hint">Groß, klein, Leerzeichen – alles erlaubt. Kein Neustart. Leer = automatisch.</div>
+    ${e.name!==undefined?`<div class="wst-z">${t("wst_name","Name im Netzwerk",e.name,"filamentwaage")}<button class="btn" data-wsta="name">Umbenennen</button></div>
+    <div class="hint">Nur a–z, 0–9 und -. Startet die Waage neu. Für eine weitere Waage z. B. „waage2“.</div>`:""}
     <div class="hint" id="wst_msg" role="status"></div></div>`;
   modal(esc(name)+" einstellen",body,`<button class="btn ghost" data-wsta="neustart">Neu starten</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button><button class="btn pri" data-wsta="speichern">Speichern</button>`);
   const m=$("#modal");if(m)m.dataset.wstpre=pre}
@@ -4363,6 +4373,8 @@ document.addEventListener("click",async ev=>{const k=ev.target.closest("[data-ws
     if(a==="tara"){await api("tara");if(msg)msg.textContent="Tara läuft – die Waage nimmt den Nullpunkt."}
     else if(a==="kalibrieren"){const g=zahlV("wst_kal");if(!(g>=20)){if(msg)msg.textContent="Kalibriergewicht ab 20 g eintragen.";return}await api("kalibrieren",{g});if(msg)msg.textContent=`Kalibriere mit ${g} g …`}
     else if(a==="name"){const n=String(v("wst_name")||"").trim().toLowerCase();if(!/^[a-z0-9-]{2,24}$/.test(n)){if(msg)msg.textContent="Nur a–z, 0–9 und -, 2 bis 24 Zeichen.";return}await api("system",{aktion:"name",name:n});closeModal();toast("Name gespeichert – die Waage startet neu")}
+    else if(a==="anzeige"){const x=String(v("wst_anz")||"").replace(/\s+/g," ").trim().slice(0,40);S.cfg.waageNamen=Object.assign({},S.cfg.waageNamen||{});
+      if(x)S.cfg.waageNamen[pre]=x;else delete S.cfg.waageNamen[pre];saveCfgSoon();closeModal();toast(x?`Heißt jetzt „${x}“`:"Name wieder automatisch");try{window.render&&window.render()}catch(x2){}}
     else if(a==="neustart"){await api("system",{aktion:"neustart"});closeModal();toast("Waage startet neu")}
     else if(a==="speichern"){
       const e={};const set=(k2,x)=>{if(x!==undefined)e[k2]=x};

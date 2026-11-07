@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.12.1 – 07.11.2026
+- Waagen bekommen einen eigenen Anzeigenamen: unter Waage → Einstellen → „Anzeigename in SchichtLohn“ – groß, klein und mit Leerzeichen, z. B. „Filamentwaage ohne Display“. Die Waage startet dafür nicht neu; der Name im Netzwerk bleibt klein. Geht auch bei Waagen ohne eigene Web-Oberfläche.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.
+
 ## 3.12.0 – 07.11.2026
 - NFC-Aufkleber über die Waage beschreiben: Im Fenster „Etikett“ einer Sorte „Über die Waage beschreiben“ tippen und die Rolle mit einem leeren NTAG213/215-Aufkleber auf die Waage legen. Die Waage schreibt den Link zur Rolle drauf und merkt sich den Chip bei der Sorte – danach öffnet das iPhone die Rolle, wenn man es an den Aufkleber hält, und die Waage erkennt sie.
 - Braucht die neue Waagen-Firmware (Sensorplatine 2.26.0, SC01 Plus ohne Sensorplatine 1.13.0).
