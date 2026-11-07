@@ -1361,6 +1361,12 @@ ${R} .h-z div::before,${R} .lgbest .dv:not(.lgmon)::before{content:"";position:a
 ${streifen(".h-z div")}${streifen(".lgbest .dv:not(.lgmon)")}
 ${R} .lgbest .dvs{gap:8px}
 ${R} .lgbest .dv b{font-size:20px}
+${[".lgfeu .dv",".lstat .dcard .dv:not(:has(.dv-nfc))"].map(k=>`${R} ${k}{position:relative;background:var(--sunken);border:1px solid var(--line);border-radius:14px;padding:10px 10px 10px 16px;min-width:0;margin:0;align-self:stretch}
+${R} ${k}::before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;border-radius:2px}
+${streifen(k)}${R} ${k} b{font-size:20px}${R} ${k} b small{display:block;font-size:12px;font-weight:500;margin-top:1px}`).join("\n")}
+${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,130px),1fr));align-items:stretch;gap:8px;width:100%;min-width:0}
+${R} .lstat .dcard .dv:has(.dv-nfc){grid-column:1/-1}
+@media (max-width:700px){${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 ${R} nav.tabs{gap:6px}
 ${R} nav.tabs button{border:1px solid var(--line);background:var(--glass);border-radius:12px}
 ${R} nav.tabs button.on,${R} nav.tabs button[aria-current="page"],${R} nav.tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft)!important;color:var(--accent)!important}

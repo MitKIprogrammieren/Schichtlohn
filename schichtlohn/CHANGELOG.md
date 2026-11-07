@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.9.7 – 07.11.2026
+- Stil „Türkis“: Im Lager sehen AMS-Feuchte und die Waagen jetzt aus wie „Bestand“ – jeder Wert als Kachel mit farbigem Streifen, auf dem Handy zwei nebeneinander.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht, kein Update in Home Assistant nötig.
+
 ## 3.9.6 – 07.11.2026
 - „Heute“ mit zwei Waagen: auf dem iPhone ein gemeinsamer Block „Waagen“ mit „Waage 1“ und „Waage 2“, auf Mac und iPad stehen die beiden Waagen nebeneinander.
 - Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht, kein Update in Home Assistant nötig.
