@@ -8066,7 +8066,7 @@ function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   return `<div class="heute"><div class="h-k"><h1>${gruss}</h1><span>${esc(datum)}${D.length?` · ${D.filter(d=>art(d)!=="aus").length} von ${D.length} Druckern verbunden`:""}</span></div>
     <div class="h-z"><div><b>${lauf.length}</b><span>${lauf.length===1?"druckt gerade":"drucken gerade"}</span></div><div><b>${bereit?kgT(LGN.summe()):"–"}</b><span>im Lager</span></div><div><b>${heute?"−"+kgT(heute):"0 g"}</b><span>heute verbraucht</span></div></div>
     ${sek("Drucker",dr||z("○","Keine Drucker verbunden","Unter Einstellungen → Drucker einrichten"),lnk("drucke","Alle"))}
-    ${W?W.liste.map(W=>sek(W.name,W.off?z("○",W.name+" offline","keine Verbindung","","dim"):W.nfc&&W.nfc.uid?waageNfc(W):W.g>20?`<div class="hz hw"><span class="hz-i">${svg("waage",22)}</span><div class="hz-t"><b>Spule auf der Waage</b><small>ohne Leerspule etwa ${kgT(Math.max(0,W.g-250))} Filament</small></div><span class="hz-r hw-g">${kgT(W.g)}</span></div><div class="hw-a"><button type="button" class="btn sm" data-act="lgScan">Scannen &amp; zuordnen</button><button type="button" class="btn sm" data-bt="lager">Im Lager suchen</button></div>`:z(svg("waage",20),W.name+" bereit","leer – Spule auflegen zum Wiegen"),"")).join(""):""}
+    ${W?(W.liste.length>1?`<div class="hwg"><div class="hwg-k">Waagen</div>`:"")+W.liste.map(W=>sek(W.name,W.off?z("○",W.name+" offline","keine Verbindung","","dim"):W.nfc&&W.nfc.uid?waageNfc(W):W.g>20?`<div class="hz hw"><span class="hz-i">${svg("waage",22)}</span><div class="hz-t"><b>Spule auf der Waage</b><small>ohne Leerspule etwa ${kgT(Math.max(0,W.g-250))} Filament</small></div><span class="hz-r hw-g">${kgT(W.g)}</span></div><div class="hw-a"><button type="button" class="btn sm" data-act="lgScan">Scannen &amp; zuordnen</button><button type="button" class="btn sm" data-bt="lager">Im Lager suchen</button></div>`:z(svg("waage",20),W.name+" bereit","leer – Spule auflegen zum Wiegen"),"")).join("").replace(/<section class="hk">/g,W.liste.length>1?'<section class="hk hwb">':'<section class="hk">')+(W.liste.length>1?"</div>":""):""}
     ${sek("Braucht dich",br,"")}
     ${sek("Zuletzt abgebucht",ab||(bereit?z("○","Noch nichts abgebucht",""):z("…","Wird geladen","")),lnk("drucke","Alle"))}
     ${ek.length?sek("Einkaufsliste",ekH||z("🛒",`${ek.length} ${ek.length===1?"Sorte":"Sorten"} fast leer`,""),lnk("","" + ek.length+" Sorten","lgEinkauf")):""}</div>`}
@@ -8101,6 +8101,17 @@ try{navBauen()}catch(e){}
 .hk-l{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer}
 .hz{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
 .hk>header+.hz{border-top:0}
+/* mehrere Waagen: Mac/iPad nebeneinander, Handy in einem Block „Waagen“ */
+.hwg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;align-items:stretch}
+.hwg-k{display:none}
+@media (max-width:700px){
+  .hwg{display:block;border:1px solid var(--line);border-radius:18px;background:var(--glass);overflow:hidden}
+  .hwg-k{display:block;padding:12px 14px 4px;font-weight:700;font-size:15px}
+  .hwg .hwb{border:0;border-radius:0;background:none}
+  .hwg .hwb+.hwb{border-top:1px solid var(--line)}
+  .hwg .hwb>header{padding:8px 14px 0}
+  .hwg .hwb>header b{font-size:13px;font-weight:600;color:var(--fg-2)}
+}
 .hz-i{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--sunken);font-size:17px;color:var(--fg-2)}
 .hz-f{width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.3)}
 .hz-t{min-width:0}.hz-t b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hz-t small{display:block;font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

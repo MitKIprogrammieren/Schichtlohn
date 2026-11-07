@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.9.6 – 07.11.2026
+- „Heute“ mit zwei Waagen: auf dem iPhone ein gemeinsamer Block „Waagen“ mit „Waage 1“ und „Waage 2“, auf Mac und iPad stehen die beiden Waagen nebeneinander.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht, kein Update in Home Assistant nötig.
+
 ## 3.9.5 – 07.11.2026
 - „Heute“: Jede Waage hat ihren eigenen Block („Waage 1“, „Waage 2“) – liegen auf beiden Rollen, siehst du beide.
 - „Heute“ auf dem Handy: Der Text unter der Rolle („etwa … g Filament · … %“) bricht jetzt um, statt unter die Grammzahl zu laufen.
