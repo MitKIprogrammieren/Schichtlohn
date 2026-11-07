@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.9.5 – 07.11.2026
+- „Heute“: Jede Waage hat ihren eigenen Block („Waage 1“, „Waage 2“) – liegen auf beiden Rollen, siehst du beide.
+- „Heute“ auf dem Handy: Der Text unter der Rolle („etwa … g Filament · … %“) bricht jetzt um, statt unter die Grammzahl zu laufen.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht, kein Update in Home Assistant nötig.
+
 ## 3.9.4 – 07.11.2026
 - „Spule erkannt“: Jede Waage hat ihr eigenes Feld – liegen auf beiden Waagen Rollen, stehen zwei Felder nebeneinander (auf dem Handy untereinander). Jedes Feld lässt sich einzeln schließen. Rollen, die beim Öffnen schon aufliegen, werden auch gezeigt (ohne Ton).
 

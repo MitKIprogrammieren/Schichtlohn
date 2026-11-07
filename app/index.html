@@ -8007,13 +8007,12 @@ window.slNfc=function(pre){nfcHolen(pre);const d=NFC.d[pre];if(!d)return null;
     return {seite,uid,e,b,leer:e?(/bambu/i.test(e.hersteller)?d.leer_bambu_g:d.leer_standard_g):b?d.leer_bambu_g:d.leer_standard_g}}
   return {seite:"",uid:"",e:null,b:null}};
 function waage(){const z=zst();const W=(window.slWaagen?slWaagen(z):[]).filter(w=>z["sensor."+w.pre+"_gewicht"]);if(!W.length)return null;
-  const ids=Object.keys(z).filter(i=>W.some(w=>i.startsWith("sensor."+w.pre+"_")));
-  const off=ids.every(i=>["unavailable","unknown"].includes(z[i].state));const v=slWaageBrutto(z);const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);
-  let nfc=null,akt=null;for(const w of W){const n=slNfc(w.pre);if(n&&n.uid){nfc=n;akt=w;const g=Number((z["sensor."+w.pre+"_gewicht"]||{}).state);nfc.g=isFinite(g)?g:null;break}}
-  /* welche Waage gerade zeigt: die mit Chip, sonst die, deren Gewicht sich zuletzt geändert hat */
-  if(!akt){let bt=-1;for(const w of W){const s=z["sensor."+w.pre+"_gewicht"];if(!(Number(s.state)>0))continue;const t=Date.parse(s.last_changed||s.last_updated||"")||0;if(t>bt){bt=t;akt=w}}}
-  const name=W.length>1?(akt?akt.name:"Waagen"):"Waage";
-  return {off,g:v!=null?v:0,trocknen:isFinite(tr)?tr:0,nfc,name}}
+  const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);
+  /* je Waage ein Eintrag – liegen auf beiden Waagen Rollen, zeigt „Heute“ beide */
+  const liste=W.map(w=>{const ids=Object.keys(z).filter(i=>i.startsWith("sensor."+w.pre+"_"));const off=ids.every(i=>["unavailable","unknown"].includes(z[i].state));
+    const gv=Number((z["sensor."+w.pre+"_gewicht"]||{}).state);const g=isFinite(gv)?gv:0;let nfc=null;try{const n=slNfc(w.pre);if(n&&n.uid){nfc=n;nfc.g=g}}catch(e){}
+    return {pre:w.pre,name:W.length>1?w.name:"Waage",off,g,nfc}});
+  return {liste,trocknen:isFinite(tr)?tr:0}}
 function feuchte(){const z=zst();const out=[];for(const [id,st] of Object.entries(z)){const m=id.match(/^sensor\.(.+?)_ams_(\d+)_luftfeuchtigkeit$/);if(!m)continue;const v=Number(st.state);if(!(v>=40))continue;
   const dr=((z["sensor."+m[1]+"_druckstatus"]||{}).attributes||{}).drucker_name||m[1].split("_")[0].toUpperCase();const n=Number(m[2]);out.push({dr,ams:n>=128?"AMS HT "+(n-127):"AMS "+n,v})}return out.sort((a,b)=>b.v-a.v)}
 /* Rolle wie im Lager (Original-Spule in Farbe, Füllstand) und Herstellerlogo statt Farbpunkt */
@@ -8067,7 +8066,7 @@ function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   return `<div class="heute"><div class="h-k"><h1>${gruss}</h1><span>${esc(datum)}${D.length?` · ${D.filter(d=>art(d)!=="aus").length} von ${D.length} Druckern verbunden`:""}</span></div>
     <div class="h-z"><div><b>${lauf.length}</b><span>${lauf.length===1?"druckt gerade":"drucken gerade"}</span></div><div><b>${bereit?kgT(LGN.summe()):"–"}</b><span>im Lager</span></div><div><b>${heute?"−"+kgT(heute):"0 g"}</b><span>heute verbraucht</span></div></div>
     ${sek("Drucker",dr||z("○","Keine Drucker verbunden","Unter Einstellungen → Drucker einrichten"),lnk("drucke","Alle"))}
-    ${W?sek(W.name||"Waage",W.off?z("○","Waage offline","keine Verbindung","","dim"):W.nfc&&W.nfc.uid?waageNfc(W):W.g>20?`<div class="hz hw"><span class="hz-i">${svg("waage",22)}</span><div class="hz-t"><b>Spule auf der Waage</b><small>ohne Leerspule etwa ${kgT(Math.max(0,W.g-250))} Filament</small></div><span class="hz-r hw-g">${kgT(W.g)}</span></div><div class="hw-a"><button type="button" class="btn sm" data-act="lgScan">Scannen &amp; zuordnen</button><button type="button" class="btn sm" data-bt="lager">Im Lager suchen</button></div>`:z(svg("waage",20),"Waage bereit","leer – Spule auflegen zum Wiegen"),""):""}
+    ${W?W.liste.map(W=>sek(W.name,W.off?z("○",W.name+" offline","keine Verbindung","","dim"):W.nfc&&W.nfc.uid?waageNfc(W):W.g>20?`<div class="hz hw"><span class="hz-i">${svg("waage",22)}</span><div class="hz-t"><b>Spule auf der Waage</b><small>ohne Leerspule etwa ${kgT(Math.max(0,W.g-250))} Filament</small></div><span class="hz-r hw-g">${kgT(W.g)}</span></div><div class="hw-a"><button type="button" class="btn sm" data-act="lgScan">Scannen &amp; zuordnen</button><button type="button" class="btn sm" data-bt="lager">Im Lager suchen</button></div>`:z(svg("waage",20),W.name+" bereit","leer – Spule auflegen zum Wiegen"),"")).join(""):""}
     ${sek("Braucht dich",br,"")}
     ${sek("Zuletzt abgebucht",ab||(bereit?z("○","Noch nichts abgebucht",""):z("…","Wird geladen","")),lnk("drucke","Alle"))}
     ${ek.length?sek("Einkaufsliste",ekH||z("🛒",`${ek.length} ${ek.length===1?"Sorte":"Sorten"} fast leer`,""),lnk("","" + ek.length+" Sorten","lgEinkauf")):""}</div>`}
@@ -8119,7 +8118,7 @@ try{navBauen()}catch(e){}
 .hr .hz-t small{display:block}.hr-bar{height:4px;margin-top:5px;max-width:220px}.hr.warn .hr-bar i{background:var(--warn,#f0a020)}
 .hr-g{color:var(--warn,#f0a020)}
 .hw-nfc{display:inline-flex;align-items:center;gap:3px;margin-right:6px;padding:1px 7px 1px 5px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11.5px;vertical-align:1px}
-.hwn .hz-t small{overflow:visible}.hw-bar i{background:var(--accent)!important}.hz-i-nfc{color:var(--accent)}.hz-i-nfc svg{width:24px;height:24px}
+.hwn .hz-t small{overflow:visible;white-space:normal}.hw-bar i{background:var(--accent)!important}.hz-i-nfc{color:var(--accent)}.hz-i-nfc svg{width:24px;height:24px}
 .hw-h{font-size:12.5px;color:var(--fg-3);align-self:center;margin-right:auto}.hw-a{flex-wrap:wrap}.hr.bad .hr-g{color:var(--bad)}.hz.hr.bad .hz-t b{color:var(--fg)}
 @media (max-width:700px){
   #tabs{display:none!important}
