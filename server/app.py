@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.10.0"
+VERSION = "3.10.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2776,6 +2776,10 @@ class Handler(BaseHTTPRequestHandler):
         url, token = ha_cfg()
         if not url or not token:
             raise Fehler(503, "Home Assistant ist im Server nicht eingetragen – Etikettendruck geht nur darüber")
+        if url == "http://supervisor/core":
+            # nicht über den Supervisor-Proxy: dort sieht die Integration keinen Heimnetz-Absender und lehnt ab.
+            # Direkt an Home Assistant im internen Netz der Apps (Absender ist dann eine private Adresse).
+            url = "http://homeassistant:8123"
         daten = self._rumpf(MAX_JSON) if methode == "POST" else None
         req = urllib.request.Request(url + pfad, data=daten, method=methode,
                                      headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
