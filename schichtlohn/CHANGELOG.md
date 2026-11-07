@@ -1,6 +1,9 @@
 # Änderungen
 
 ## 3.9.3 – 07.11.2026
+- Lager auf dem Handy: Nichts läuft mehr über den rechten Rand hinaus. Der Bestand zeigt Gesamt, Sorten, Rollen und Wert als vier gleich große Kacheln in zwei Reihen, die Werte der Waagen stehen ordentlich in zwei Spalten.
+
+## 3.9.3 – 07.11.2026
 - „Heute“: Die Waagen-Karte nennt jetzt die Waage, die gerade etwas zeigt („Waage 1“ oder „Waage 2“), statt nur „Waage“.
 
 ## 3.9.2 – 07.11.2026

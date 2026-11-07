@@ -4581,6 +4581,15 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgtop .dcard.kompakt .dvs{margin-left:0;width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:12px 36px}
 @media (max-width:620px){.lgtop .dcard.kompakt .dvs{justify-content:space-between;gap:12px}}
 .lgtop .dcard.kompakt a.btn{position:absolute;top:10px;right:10px}
+/* Handy: nichts mehr über den rechten Rand hinaus, Kennzahlen als gleich breite Kacheln in zwei Spalten */
+@media (max-width:620px){
+  .lgtop,.lgtop[data-n]{grid-template-columns:minmax(0,1fr)}
+  .lgtop .dcard.kompakt{min-width:0}
+  .lgtop .dcard.kompakt .dvs,.lgtop[data-n] .dcard.kompakt.lgbest .dvs,.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{display:grid;justify-content:stretch;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;width:100%}
+  .lgtop .dcard.kompakt .dv{min-width:0;margin:0}
+  .lgtop .dcard.kompakt .dv b{overflow-wrap:anywhere}
+  .lgtop .lgbest .dvs .lgmon{grid-column:1/-1}
+}
 
 @media (max-width:620px){.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest{flex-wrap:wrap}.lgtop:has(.lstat:empty):not(:has(.lgfeu)) .lgbest .dvs{position:static;transform:none;margin-left:0;width:100%;justify-content:space-between}}
 .lghead .lgact{flex-wrap:nowrap}
