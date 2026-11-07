@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.10.2"
+VERSION = "3.11.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2768,6 +2768,27 @@ class Handler(BaseHTTPRequestHandler):
             raise Fehler(413, "Anfrage zu groß")
         return self.rfile.read(n)
 
+    def _waagen_update(self, teile):
+        """Firmware für die Waagen von GitHub holen und durchreichen – die Waagen laden ohne HTTPS
+        (zu wenig Speicher für TLS) direkt hier: /api/waagen_update/<zweig>/<datei>."""
+        import re
+        import urllib.error
+        import urllib.request
+        if len(teile) < 2 or teile[0] not in ("webflasher-display", "webflasher-bin"):
+            raise Fehler(404, "Unbekannter Zweig")
+        datei = "/".join(teile[1:])
+        if not re.fullmatch(r"([a-z0-9_]+/)?[a-z0-9_.-]+\.(bin|json)", datei) or ".." in datei:
+            raise Fehler(400, "Ungültige Datei")
+        url = "https://raw.githubusercontent.com/MitKIprogrammieren/Basc/%s/%s" % (teile[0], datei)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "SchichtLohn"}), timeout=60) as r:
+                body = r.read()
+        except urllib.error.HTTPError as e:
+            raise Fehler(e.code if e.code in (404,) else 502, "GitHub: " + str(e.code))
+        except OSError as e:
+            raise Fehler(502, "GitHub nicht erreichbar: " + str(getattr(e, "reason", e)))
+        return self._senden(200, body, "application/json" if datei.endswith(".json") else "application/octet-stream")
+
     def _druckbruecke(self, methode, pfad):
         """Etikettendrucker für Waagen, die an SchichtLohn melden: Aufrufe an die Integration m20_druckbruecke
         in Home Assistant weiterreichen (als Home-Assistant-App direkt über den Supervisor)."""
@@ -2921,6 +2942,8 @@ class Handler(BaseHTTPRequestHandler):
         teile = [unquote(x) for x in pfad.split("/")[2:]]
         if teile and teile[0] == "m20_druckbruecke":
             return self._druckbruecke(methode, pfad)
+        if teile and teile[0] == "waagen_update" and methode == "GET":
+            return self._waagen_update(teile[1:])
         if teile == ["rollen"] and methode == "GET":
             return self._json(200, {"rollen": rollen_liste()})
         if teile == ["rolle"] and methode == "POST":

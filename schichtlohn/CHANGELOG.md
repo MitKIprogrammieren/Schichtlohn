@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.11.0 – 07.11.2026
+- Waagen aktualisieren sich selbst: „Nach Update suchen“ an der Waage holt die neue Firmware über SchichtLohn von GitHub (`/api/waagen_update/…`). Die Waagen brauchen dafür kein HTTPS.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.10.2 – 07.11.2026
 - Fast leere Rolle (30 g oder weniger): „Achtung: ±10 g möglich“ auf „Spule erkannt“, auf „Heute“ und bei den Waagen im Lager – Leerspulen wiegen je nach Papphülse ein paar Gramm mehr oder weniger.
 - Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.
