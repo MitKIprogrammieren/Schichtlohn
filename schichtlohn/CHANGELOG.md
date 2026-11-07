@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.9.3 – 07.11.2026
+- „Heute“: Die Waagen-Karte nennt jetzt die Waage, die gerade etwas zeigt („Waage 1“ oder „Waage 2“), statt nur „Waage“.
+
 ## 3.9.2 – 07.11.2026
 - „Spule erkannt“: Hältst du eine Rolle mit NFC-Chip an eine Waage, erscheint auf „Heute“ und im Lager oben eine Karte mit Material, Farbe, Restgewicht und Tag-ID – mit kurzem Ton. Bekannte Rollen öffnest du mit „Zur Rolle“, neue Bambu-Spulen legst du mit „Neu anlegen“ gleich mit allen Werten an. Auf dem iPhone kommt der Ton, sobald du die App einmal angetippt hast.
 - Zwei Waagen heißen jetzt „Waage 1“ und „Waage 2“ (statt „Filamentwaage-2“).
