@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.10.0 – 07.11.2026
+- Etikettendruck für Waagen, die an SchichtLohn melden: Der Server reicht die Aufrufe an deine Integration m20_druckbruecke in Home Assistant weiter. Waage 2 (SC01 Plus) zeigt damit M20 Pro und M110 und kann darauf drucken, statt „Integration m20_druckbruecke fehlt“ zu melden.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.9.9 – 07.11.2026
 - Lager, Waagen: Die erkannte Rolle („Per NFC erkannt“) steht jetzt direkt unter dem Gewicht. Temperatur und Speicher stehen nur noch klein ganz unten (orange, wenn es zu warm oder voll wird).
 - Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.

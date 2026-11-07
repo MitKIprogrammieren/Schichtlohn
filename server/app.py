@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.9.9"
+VERSION = "3.10.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2768,6 +2768,32 @@ class Handler(BaseHTTPRequestHandler):
             raise Fehler(413, "Anfrage zu groß")
         return self.rfile.read(n)
 
+    def _druckbruecke(self, methode, pfad):
+        """Etikettendrucker für Waagen, die an SchichtLohn melden: Aufrufe an die Integration m20_druckbruecke
+        in Home Assistant weiterreichen (als Home-Assistant-App direkt über den Supervisor)."""
+        import urllib.error
+        import urllib.request
+        url, token = ha_cfg()
+        if not url or not token:
+            raise Fehler(503, "Home Assistant ist im Server nicht eingetragen – Etikettendruck geht nur darüber")
+        daten = self._rumpf(MAX_JSON) if methode == "POST" else None
+        req = urllib.request.Request(url + pfad, data=daten, method=methode,
+                                     headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        ctx = None
+        if url.startswith("https://"):
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        try:
+            with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
+                code, body, typ = r.status, r.read(), r.headers.get("Content-Type") or "application/json"
+        except urllib.error.HTTPError as e:
+            code, body, typ = e.code, e.read(), e.headers.get("Content-Type") or "application/json"
+        except OSError as e:
+            raise Fehler(502, "Home Assistant nicht erreichbar: " + str(getattr(e, "reason", e)))
+        return self._senden(code, body, typ)
+
     def _json_rumpf(self):
         try:
             return json.loads(self._rumpf(MAX_JSON).decode("utf-8"))
@@ -2889,6 +2915,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self._darf(q):
             raise Fehler(401, "Falscher oder fehlender Schlüssel")
         teile = [unquote(x) for x in pfad.split("/")[2:]]
+        if teile and teile[0] == "m20_druckbruecke":
+            return self._druckbruecke(methode, pfad)
         if teile == ["rollen"] and methode == "GET":
             return self._json(200, {"rollen": rollen_liste()})
         if teile == ["rolle"] and methode == "POST":
