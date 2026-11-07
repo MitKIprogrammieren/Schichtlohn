@@ -8130,7 +8130,7 @@ try{navBauen()}catch(e){}
 }
 </style>
 <style>
-#slSpule{margin:14px 0}
+#slSpule{margin:14px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
 #slSpule[hidden]{display:none}
 .sps{position:relative;background:var(--glass-2);border:2px solid var(--accent);border-radius:var(--r,16px);padding:12px 14px 14px;animation:spsEin .25s ease-out}
 @keyframes spsEin{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
@@ -8162,7 +8162,7 @@ try{navBauen()}catch(e){}
 /* „Spule erkannt“: Liegt eine Rolle mit NFC-Chip auf einer Waage, erscheint oben auf „Heute“ und im Lager eine Karte
    (mit Ton). Sie bleibt stehen, bis die nächste Spule kommt oder sie geschlossen wird. */
 (()=>{
-const SP={letzte:{},start:{},ereignis:null,zu:"",lauf:0};
+const SP={letzte:{},ereignisse:{},zu:{}};
 const kg=g=>g>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:2}).format(g/1000)+" kg":Math.round(g)+" g";
 const NFC_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20a1 1 0 0 1-1-1v-6a1 1 0 0 1 1.5-.9l4.5 2.6"/><path d="M8 4a1 1 0 0 1 1 1v6a1 1 0 0 1-1.5.9L3 9.3"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>';
 /* Ton: iOS gibt Töne erst nach der ersten Berührung frei – darum beim ersten Antippen den Ton „aufwecken“ */
@@ -8190,7 +8190,7 @@ function html(ev){const z=zst();const n=ev.n||{},e=n.e,b=n.b;const liegt=SP.letz
   const dm=e?(e.durchmesser||1.75):b&&b.durchmesser;const unter=[e&&e.farbe,dm?String(dm).replace(".",",")+" mm":""].filter(Boolean).join(" · ")||(b?"Bambu-Chip":"NFC-Chip");
   const sl=e&&e.raw&&e.raw.sl_id?String(e.raw.sl_id):"";
   const vor=Math.round((Date.now()-ev.t)/60000);
-  return `<div class="sps"><button class="sps-x" data-sps="zu" aria-label="Schließen">×</button>
+  return `<div class="sps" data-pre="${esc(ev.pre)}"><button class="sps-x" data-sps="zu" aria-label="Schließen">×</button>
     <div class="sps-k"><span class="sps-b">${NFC_IC}Spule erkannt</span><span class="sps-w">${esc(ev.name)} · ${liegt?(vor<1?"gerade eben":"vor "+vor+" min"):"abgenommen"}</span></div>
     <div class="sps-m"><span class="sps-i">${icon}</span><div class="sps-t">${herst&&!e?`<small>${window.slMarke?slMarke(herst):esc(herst)}</small>`:""}<b>${titel}</b><small>${esc(unter)}</small></div></div>
     ${brutto?`<div class="sps-g"><div><span>Restgewicht</span><b>${kg(netto)}</b></div><div><span>Spule voll</span><b>${kg(voll)}</b></div></div>
@@ -8199,19 +8199,23 @@ function html(ev){const z=zst();const n=ev.n||{},e=n.e,b=n.b;const liegt=SP.letz
     ${sl?`<div class="sps-z"><span>Rolle</span><span style="color:var(--fg)">${esc(sl)}</span></div>`:""}
     <div class="sps-a">${e?`<button class="btn pri" data-sps="rolle" data-uid="${esc(e.uid)}">Zur Rolle</button>`:b?`<button class="btn pri" data-sps="neu">Neu anlegen</button>`:""}</div>
     ${!e&&!b?`<div class="sps-h">Dieser Chip gehört noch zu keiner Sorte – an der Waage zuordnen.</div>`:""}</div>`}
-function zeichnen(){const el=box();if(!el)return;const ev=SP.ereignis;const zeigen=!!ev&&sichtbar()&&SP.zu!==ev.id;
-  if(!zeigen){if(!el.hidden){el.hidden=true;el.innerHTML="";el.__h=""}return}
-  const h=html(ev);if(el.__h!==h){el.__h=h;el.innerHTML=h}el.hidden=false}
+/* je Waage ein Feld – in der Reihenfolge der Waagen (Waage 1, Waage 2 …) */
+function offen(){const reihe=window.slWaagen?slWaagen(zst()).map(w=>w.pre):[];
+  return Object.values(SP.ereignisse).filter(ev=>ev&&SP.zu[ev.pre]!==ev.id).sort((a,b)=>{const i=reihe.indexOf(a.pre),j=reihe.indexOf(b.pre);return (i<0?99:i)-(j<0?99:j)})}
+function zeichnen(){const el=box();if(!el)return;const L=sichtbar()?offen():[];
+  if(!L.length){if(!el.hidden){el.hidden=true;el.innerHTML="";el.__h=""}return}
+  const h=L.map(html).join("");if(el.__h!==h){el.__h=h;el.innerHTML=h}el.hidden=false}
 function tick(){if(document.hidden||!sichtbar()||!window.slWaagen||!window.slNfc){zeichnen();return}
   const z=zst();for(const w of slWaagen(z)){let n=null;try{n=slNfc(w.pre)}catch(e){}if(!n)continue;const uid=String(n.uid||"").toUpperCase();
-    if(!(w.pre in SP.letzte)){SP.letzte[w.pre]=uid;continue}  /* beim Öffnen: was schon aufliegt, nicht melden */
-    if(uid&&uid!==SP.letzte[w.pre]){SP.ereignis={id:w.pre+"|"+uid+"|"+Date.now(),pre:w.pre,name:w.name,uid,n,t:Date.now(),brutto:0};ton()}
-    else if(uid&&SP.ereignis&&SP.ereignis.pre===w.pre&&SP.ereignis.uid===uid)SP.ereignis.n=n;  /* Sorte kann sich noch zuordnen */
+    const erst=!(w.pre in SP.letzte);const alt=SP.ereignisse[w.pre];
+    /* neue Spule: Feld für diese Waage; beim Öffnen wird, was schon aufliegt, still angezeigt (ohne Ton) */
+    if(uid&&uid!==SP.letzte[w.pre]){SP.ereignisse[w.pre]={id:w.pre+"|"+uid+"|"+Date.now(),pre:w.pre,name:w.name,uid,n,t:Date.now(),brutto:0};if(!erst)ton()}
+    else if(uid&&alt&&alt.uid===uid){alt.n=n;alt.name=w.name}  /* Sorte kann sich noch zuordnen */
     SP.letzte[w.pre]=uid}
   zeichnen()}
 setInterval(tick,1500);document.addEventListener("visibilitychange",tick);
-document.addEventListener("click",ev=>{const k=ev.target.closest("[data-sps]");if(!k)return;const a=k.dataset.sps;const E=SP.ereignis;
-  if(a==="zu"){if(E)SP.zu=E.id;zeichnen();return}
+document.addEventListener("click",ev=>{const k=ev.target.closest("[data-sps]");if(!k)return;const a=k.dataset.sps;const kar=k.closest(".sps");const E=kar?SP.ereignisse[kar.dataset.pre]:null;
+  if(a==="zu"){if(E)SP.zu[E.pre]=E.id;zeichnen();return}
   if(!window.LGN)return;
   if(a==="rolle"){LGN.bearbeiten(k.dataset.uid);return}
   if(a==="neu"&&E&&E.n&&E.n.b){const b=E.n.b;const h=sorteHinweis(b);

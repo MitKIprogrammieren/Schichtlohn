@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.9.4 – 07.11.2026
+- „Spule erkannt“: Jede Waage hat ihr eigenes Feld – liegen auf beiden Waagen Rollen, stehen zwei Felder nebeneinander (auf dem Handy untereinander). Jedes Feld lässt sich einzeln schließen. Rollen, die beim Öffnen schon aufliegen, werden auch gezeigt (ohne Ton).
+
 ## 3.9.3 – 07.11.2026
 - Lager auf dem Handy: Nichts läuft mehr über den rechten Rand hinaus. Der Bestand zeigt Gesamt, Sorten, Rollen und Wert als vier gleich große Kacheln in zwei Reihen, die Werte der Waagen stehen ordentlich in zwei Spalten.
 
