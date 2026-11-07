@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.12.0 – 07.11.2026
+- NFC-Aufkleber über die Waage beschreiben: Im Fenster „Etikett“ einer Sorte „Über die Waage beschreiben“ tippen und die Rolle mit einem leeren NTAG213/215-Aufkleber auf die Waage legen. Die Waage schreibt den Link zur Rolle drauf und merkt sich den Chip bei der Sorte – danach öffnet das iPhone die Rolle, wenn man es an den Aufkleber hält, und die Waage erkennt sie.
+- Braucht die neue Waagen-Firmware (Sensorplatine 2.26.0, SC01 Plus ohne Sensorplatine 1.13.0).
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.11.0 – 07.11.2026
 - Waagen aktualisieren sich selbst: „Nach Update suchen“ an der Waage holt die neue Firmware über SchichtLohn von GitHub (`/api/waagen_update/…`). Die Waagen brauchen dafür kein HTTPS.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.11.0"
+VERSION = "3.12.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -938,6 +938,110 @@ def waage_ip(pre):
     if not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
         raise Fehler(404, "Diese Waage hat sich noch nicht gemeldet (braucht Waagen-Firmware ab 2.24)")
     return ip
+
+
+# ---------------------------------------------------------------- NFC-Aufkleber über die Waage beschreiben
+# Die App legt einen Auftrag an (Sorte + Link). Liegt danach ein leerer NTAG-Aufkleber auf einer Waage, fragt diese
+# alle 2 s nach (POST /api/nfc_auftrag/<waage>), schreibt den Link und meldet das Ergebnis. Bei Erfolg kommt die
+# Chip-Nummer in die Sorte („nfc“) – dann erkennt die Waage die Rolle, und das iPhone öffnet sie am Aufkleber.
+NFC_AUFTRAG = {}
+_nfc_auftrag_lock = threading.Lock()
+NFC_AUFTRAG_S = 180
+
+
+def _nfc_status():
+    a = dict(NFC_AUFTRAG)
+    if not a:
+        return {"zustand": "keiner"}
+    if a["zustand"] in ("wartet", "schreibt") and time.time() > a["bis"]:
+        a["zustand"] = "abgelaufen"
+    a["rest_s"] = max(0, int(a["bis"] - time.time()))
+    return a
+
+
+def nfc_auftrag_neu(sorte, url, waage=""):
+    url = str(url or "").strip()
+    if not re.match(r"^https?://", url) or len(url) > 200:
+        raise Fehler(400, "Link fehlt oder ist zu lang")
+    it = next((x for x in liste_lesen(ENT) if x["uid"] == sorte), None)
+    if not it:
+        raise Fehler(404, "Sorte nicht gefunden")
+    with _nfc_auftrag_lock:
+        NFC_AUFTRAG.clear()
+        NFC_AUFTRAG.update({"id": uuid.uuid4().hex[:8], "sorte": sorte, "name": it["summary"], "url": url,
+                            "waage": re.sub(r"[^a-z0-9_]", "", str(waage or "").lower()), "bis": time.time() + NFC_AUFTRAG_S,
+                            "zustand": "wartet", "uid": "", "fehler": "", "seit": 0})
+        st = _nfc_status()
+    melden({"typ": "nfc_auftrag", "a": st})
+    return st
+
+
+def nfc_auftrag_abbrechen():
+    with _nfc_auftrag_lock:
+        if NFC_AUFTRAG.get("zustand") in ("wartet", "schreibt"):
+            NFC_AUFTRAG["zustand"] = "abgebrochen"
+        st = _nfc_status()
+    melden({"typ": "nfc_auftrag", "a": st})
+    return st
+
+
+def nfc_auftrag_abholen(pre, l, r):
+    """Frage einer Waage: Auf ihr liegen NTAG-Aufkleber l/r. Antwort {seite, uid, url} oder {}."""
+    pre = re.sub(r"[^a-z0-9_]", "", pre.lower())
+    with _nfc_auftrag_lock:
+        a = NFC_AUFTRAG
+        if not a or time.time() > a.get("bis", 0):
+            return {}
+        if a["zustand"] == "schreibt" and time.time() - a["seit"] > 20:  # Waage hat sich nicht mehr gemeldet
+            a["zustand"] = "wartet"
+        if a["zustand"] != "wartet" or (a["waage"] and a["waage"] != pre):
+            return {}
+        seite, uid = ("r", r) if r else ("l", l)
+        uid = re.sub(r"[^0-9A-Fa-f]", "", str(uid or "")).upper()
+        if not uid:
+            return {}
+        a.update({"zustand": "schreibt", "uid": uid, "waage": pre, "seit": time.time(), "fehler": ""})
+        antwort = {"seite": seite, "uid": uid, "url": a["url"]}
+        st = _nfc_status()
+    melden({"typ": "nfc_auftrag", "a": st})
+    return antwort
+
+
+def nfc_tag_zuordnen(sorte, uid):
+    """Chip-Nummer in die Sorte schreiben und bei allen anderen Sorten entfernen (ein Aufkleber = eine Sorte)."""
+    for it in liste_lesen(ENT):
+        d = _desc(it)
+        alt = [str(t).upper() for t in (d.get("nfc") or []) if str(t).strip()]
+        neu = [t for t in alt if t != uid]
+        if it["uid"] == sorte:
+            neu.append(uid)
+        if neu != alt:
+            d["nfc"] = neu
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(d, ensure_ascii=False)})
+
+
+def nfc_auftrag_ergebnis(pre, uid, ok, fehler):
+    pre = re.sub(r"[^a-z0-9_]", "", pre.lower())
+    uid = re.sub(r"[^0-9A-Fa-f]", "", str(uid or "")).upper()
+    with _nfc_auftrag_lock:
+        a = NFC_AUFTRAG
+        if not a or a.get("uid") != uid or a.get("waage") != pre or a.get("zustand") != "schreibt":
+            return {"ok": False}
+        sorte = a["sorte"]
+        if ok:
+            a["zustand"] = "fertig"
+        else:  # noch einmal versuchen lassen, solange der Auftrag gilt
+            a.update({"zustand": "wartet", "fehler": str(fehler or "Schreiben gescheitert")[:160]})
+    if ok:
+        try:
+            nfc_tag_zuordnen(sorte, uid)
+        except Exception as e:
+            with _nfc_auftrag_lock:
+                NFC_AUFTRAG.update({"zustand": "fehler", "fehler": f"Aufkleber beschrieben, aber Lager nicht gespeichert ({e})"})
+    with _nfc_auftrag_lock:
+        st = _nfc_status()
+    melden({"typ": "nfc_auftrag", "a": st})
+    return {"ok": True}
 
 
 def waage_einstellen(pre, was, methode, rumpf):
@@ -3130,6 +3234,21 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise", "abrufen"] and methode == "POST":
             im_hintergrund(preise_abrufen, "von Hand")
             return self._json(200, {"ok": True, "laeuft": True})
+        if teile == ["nfc_auftrag"]:
+            if methode == "GET":
+                with _nfc_auftrag_lock:
+                    return self._json(200, _nfc_status())
+            if methode == "POST":
+                b = self._json_rumpf()
+                if b.get("abbrechen"):
+                    return self._json(200, nfc_auftrag_abbrechen())
+                return self._json(200, nfc_auftrag_neu(str(b.get("sorte") or ""), b.get("url"), b.get("waage") or ""))
+        if teile[0] == "nfc_auftrag" and len(teile) == 2 and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            return self._json(200, nfc_auftrag_abholen(teile[1], str(b.get("l") or ""), str(b.get("r") or "")))
+        if teile[0] == "nfc_auftrag" and len(teile) == 3 and teile[2] == "ergebnis" and methode == "POST":
+            b = self._json_rumpf()
+            return self._json(200, nfc_auftrag_ergebnis(teile[1], b.get("uid"), bool(b.get("ok")), b.get("fehler")))
         if teile[0] == "waagen" and len(teile) == 3:
             return self._json(200, waage_einstellen(teile[1], teile[2], methode, self._json_rumpf() if methode == "POST" else None))
         if teile[0] == "waage" and len(teile) == 2:

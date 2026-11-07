@@ -6291,6 +6291,8 @@ document.addEventListener("click",async e=>{
   if(a==="lgEtHoch"){const o=etOpt();o.hochkant=!o.hochkant;etOptSave(o);b.classList.toggle("on",o.hochkant);etZeichnen();return}
   if(a==="lgEtTeilen"){etTeilen();return}
   if(a==="lgEtWaage"){etWaage(b);return}
+  if(a==="etNfcLos"){etNfcLos(b);return}
+  if(a==="etNfcStop"){etNfcStop();return}
   if(a==="lgEtD"){const o=etOpt();o.drucker=b.dataset.d;etOptSave(o);document.querySelectorAll('[data-act="lgEtD"]').forEach(c=>c.classList.toggle("on",c===b));const k=document.getElementById("etDruckKnopf");if(k)k.textContent=etDruckText();return}
   if(a==="lgEinkauf"){if(!PL.d)preiseLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});if(srv()&&!PV.d)pvLaden();einkaufModal();if(!G.fdb)fdbLaden().then(()=>{if(document.querySelector("#modal #lgEk"))einkaufModal()}).catch(()=>{});return}
   if(a==="lgEkAus"){G.ekAus=[...new Set([...(G.ekAus||[]),b.dataset.uid])];try{localStorage.setItem("sl_ek_aus",JSON.stringify(G.ekAus))}catch(x){}einkaufModal();draw(0);return}
@@ -6442,9 +6444,32 @@ async function etikettModal(uid){let e=entries().find(x=>x.uid===uid);if(!e)retu
     ${qrBrauchtAnmeldung()?`<div class="note">Der QR-Code führt im Moment zu einer Adresse mit Home-Assistant-Anmeldung – mit der Handy-Kamera kommt dann nur „401: Unauthorized“. Tailscale-Adresse eintragen, z. B. https://schichtlohn.dein-tailnet.ts.net
       <label class="field" style="margin-top:6px"><span>Adresse im QR-Code</span><input type="text" id="etQr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="https://….ts.net" autocomplete="off" spellcheck="false"></label></div>`:""}
     <div class="lghint">Der QR-Code öffnet diese Rolle in SchichtLohn (${esc(G.et.id)}) – mit der Kamera vom Handy oder im Scanner im Lager.${waage?"":" Gedruckt wird über die Filamentwaage; ohne Waage das Bild teilen und ausdrucken."}</div>
+    ${S.srv&&window.SRV?`<div class="note" id="etNfc">${etNfcInhalt({zustand:"keiner"})}</div>`:""}
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `<button class="btn ghost" data-act="lgEtTeilen">Bild teilen</button><span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>${waage?`<button class="btn pri" data-act="lgEtWaage" id="etDruckKnopf">${etDruckText()}</button>`:""}`);
-  etZeichnen()}
+  etZeichnen();if(S.srv&&window.SRV)etNfcBeobachten()}
+/* NFC-Aufkleber über die Waage beschreiben: Server legt einen Auftrag an, die Waage schreibt den Link auf den
+   nächsten NTAG-Aufkleber, der aufliegt, und die Chip-Nummer kommt in diese Sorte */
+const NFC_SV=`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="vertical-align:-3px;margin-right:6px"><path d="M6.5 8.5a5 5 0 0 1 0 7M10 6a8.5 8.5 0 0 1 0 12M13.5 3.5a12 12 0 0 1 0 17"/></svg>`;
+function etNfcInhalt(a){const z=a&&a.zustand||"keiner";const eigen=a&&G.et&&a.sorte===G.et.uid;
+  if(eigen&&(z==="wartet"||z==="schreibt"))return `<b>${NFC_SV}${z==="schreibt"?"Schreibe auf den Aufkleber …":"Rolle mit Aufkleber auf die Waage legen"}</b>
+    <div style="margin:4px 0 8px">${z==="schreibt"?"Rolle nicht bewegen.":"Aufkleber zum NFC-Leser drehen. Liegt sie schon drauf, kurz anheben und wieder auflegen."}${a.fehler?`<br><span style="color:var(--bad)">${esc(a.fehler)}</span>`:""}
+    <br><small>noch ${Math.max(0,Math.ceil((a.rest_s||0)/60))} min</small></div><button type="button" class="btn sm" data-act="etNfcStop">Abbrechen</button>`;
+  if(eigen&&z==="fertig")return `<b style="color:var(--ok)">${NFC_SV}Aufkleber beschrieben</b><div style="margin-top:4px">Chip ${esc(a.uid||"")} gehört jetzt zu dieser Sorte. iPhone mit der Oberkante an den Aufkleber halten zum Testen.</div>`;
+  const vorher=eigen&&z==="abgelaufen"?"Keine Rolle mit leerem Aufkleber gefunden. ":eigen&&z==="fehler"?esc(a.fehler||"")+" ":"";
+  return `<b>${NFC_SV}NFC-Aufkleber</b><div style="margin:4px 0 8px">${vorher}Ein NTAG213/215-Aufkleber auf der Rolle öffnet sie später am iPhone und wird an der Waage erkannt.</div>
+    <button type="button" class="btn sm" data-act="etNfcLos">${vorher?"Noch einmal versuchen":"Über die Waage beschreiben"}</button>`}
+function etNfcZeigen(a){const el=document.getElementById("etNfc");if(!el)return false;el.innerHTML=etNfcInhalt(a);return true}
+async function etNfcLos(b){if(!G.et)return;if(b)b.disabled=true;
+  try{const a=await SRV.req("POST","/api/nfc_auftrag",{sorte:G.et.uid,url:rolleUrl(G.et.id)});etNfcZeigen(a);etNfcBeobachten()}
+  catch(err){toast(err.message||String(err));if(b)b.disabled=false}}
+async function etNfcStop(){try{etNfcZeigen(await SRV.req("POST","/api/nfc_auftrag",{abbrechen:true}))}catch(err){toast(err.message||String(err))}}
+function etNfcBeobachten(){clearTimeout(etNfcBeobachten.t);
+  const weiter=async()=>{if(!document.getElementById("etNfc"))return;let a=null;try{a=await SRV.req("GET","/api/nfc_auftrag")}catch(err){}
+    if(a&&!etNfcZeigen(a))return;
+    if(a&&a.zustand==="fertig"){try{piep()}catch(x){}return}
+    if(a&&(a.zustand==="wartet"||a.zustand==="schreibt"))etNfcBeobachten.t=setTimeout(weiter,1200)};
+  etNfcBeobachten.t=setTimeout(weiter,1200)}
 let etLauf=0;
 async function etZeichnen(){const cv=document.getElementById("etCv");if(!cv||!G.et)return;const n=++etLauf;const o=etOpt();const e=G.et.e;
   const fmt=o.format||G.waageFormat||"classic";
