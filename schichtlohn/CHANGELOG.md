@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.10.2 – 07.11.2026
+- Fast leere Rolle (30 g oder weniger): „Achtung: ±10 g möglich“ auf „Spule erkannt“, auf „Heute“ und bei den Waagen im Lager – Leerspulen wiegen je nach Papphülse ein paar Gramm mehr oder weniger.
+- Nur Oberfläche: in SchichtLohn → Einstellungen „Aktualisieren“ reicht.
+
 ## 3.10.1 – 07.11.2026
 - Etikettendruck über SchichtLohn: Anfragen gehen jetzt direkt an Home Assistant statt über den Supervisor – die Druck-Integration hatte sie mit „nur im Heimnetz“ abgelehnt.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
