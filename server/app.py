@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.14.0"
+VERSION = "3.14.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3419,6 +3419,22 @@ class Handler(BaseHTTPRequestHandler):
             gefunden = telegram_chat_finden()
             einstellungen_setzen({"telegram": {"chat": gefunden["chat"], "chat_name": gefunden["name"]}})
             return self._json(200, gefunden)
+        if teile == ["absturz"]:
+            # Absturz-Wächter der App: Browser hat die Seite wegen Speicher neu geladen – Bericht ins Protokoll, die letzten 10 aufheben
+            alt, _ = daten_lesen("absturz")
+            alt = alt if isinstance(alt, list) else []
+            if methode == "GET":
+                return self._json(200, alt)
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            b = b if isinstance(b, dict) else {}
+            b["zeit"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+            kurz = {k: b.get(k) for k in ("tab", "sek", "serie", "img", "knoten", "takte", "abrufe", "abrufeGesamt", "bilder", "live", "zst", "hass", "lager", "verbrauch", "ls", "mb")}
+            print("App neu geladen (Absturz-Wächter): " + json.dumps(kurz, ensure_ascii=False), flush=True)
+            for p in (b.get("verlauf") or [])[-18:]:
+                if isinstance(p, dict):
+                    print("  Verlauf: " + json.dumps(p, ensure_ascii=False), flush=True)
+            daten_schreiben("absturz", (alt + [b])[-10:])
+            return self._json(200, {"ok": True})
         if teile == ["telegram", "test"] and methode == "POST":
             # Mit Kamerabild des ersten Druckers, den Home Assistant kennt – so sieht man gleich, ob Bilder ankommen
             foto = next((f for f in (kamera_foto(pre) for pre in list(HA_DRUCKER)[:3]) if f), None)

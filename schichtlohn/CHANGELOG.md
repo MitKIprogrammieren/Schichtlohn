@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.14.1 – 08.11.2026
+- Genauerer Absturz-Wächter: Lädt Safari die App neu, weil sie zu viel Speicher braucht, steht jetzt im Protokoll der SchichtLohn-App, was die App zu dem Zeitpunkt im Speicher hatte – mit einem Verlauf der letzten drei Stunden (alle 10 Minuten ein Messpunkt). Daran lässt sich erkennen, was mit der Zeit wächst.
+- Die Absturzmeldung wurde bisher vom Server abgelehnt; jetzt kommt sie an.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.14.0 – 08.11.2026
 - Gewicht live: Legst du eine Rolle auf die Waage, läuft die Zahl im Lager, unter „Heute“ und bei „Spule erkannt“ flüssig mit (bis zu 10 Werte pro Sekunde) statt in Sprüngen. Auch „Filament übrig“ und der Füllbalken gehen mit.
 - Die schnellen Werte werden nur angezeigt, nicht gespeichert – im Lager bleibt es bei einem Wert pro Sekunde.

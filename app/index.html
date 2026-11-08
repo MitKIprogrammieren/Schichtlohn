@@ -237,6 +237,15 @@ table.list tr.click:hover td{background:var(--glass)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 "use strict";
+/* ---------- Speicher-Spuren für den Absturz-Wächter: laufende Takte, offene Abrufe, Live-Verbindungen ---------- */
+(()=>{const Z=window.__slZaehler={takte:0,abrufe:0,abrufeGesamt:0,bilderGeladen:0,live:0};
+  try{const si=window.setInterval,ci=window.clearInterval,akt=new Set();
+    window.setInterval=function(){const id=si.apply(this,arguments);akt.add(id);Z.takte=akt.size;return id};
+    window.clearInterval=function(id){akt.delete(id);Z.takte=akt.size;return ci.apply(this,arguments)}}catch(e){}
+  try{const f=window.fetch;window.fetch=function(){Z.abrufe++;Z.abrufeGesamt++;const p=f.apply(this,arguments);const ende=()=>{Z.abrufe--};p.then(ende,ende);return p}}catch(e){}
+  try{const ES=window.EventSource;if(ES){window.EventSource=function(u,o){const e=new ES(u,o);Z.live++;const zu=e.close.bind(e);let off=true;e.close=()=>{if(off){off=false;Z.live--}zu()};return e};window.EventSource.prototype=ES.prototype}}catch(e){}
+  try{const WS=window.WebSocket;if(WS){window.WebSocket=function(u,p){const w=p===undefined?new WS(u):new WS(u,p);Z.live++;w.addEventListener("close",()=>{Z.live--});return w};window.WebSocket.prototype=WS.prototype;["CONNECTING","OPEN","CLOSING","CLOSED"].forEach(k=>{window.WebSocket[k]=WS[k]})}}catch(e){}
+  try{addEventListener("load",e=>{if(e.target&&e.target.tagName==="IMG")Z.bilderGeladen++},true)}catch(e){}})();
 /* ---------- Hilfen ---------- */
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -1886,10 +1895,22 @@ const WACHE=window.WACHE=(()=>{const K="schichtlohn_lauf",Z={draw:0,render:0};le
   const jetzt=Date.now(),beginn=jetzt;const absturz=!!(vor&&!vor.ok&&jetzt-vor.t<15000);let serie=0;
   try{const a=JSON.parse(localStorage.getItem("schichtlohn_absturz")||"null");serie=absturz?((a&&jetzt-a.t<120000?a.serie:0)+1):0;
     if(absturz)localStorage.setItem("schichtlohn_absturz",JSON.stringify({t:jetzt,serie,vor}));if(absturz&&serie>=2)LS.set("lasttab","lager")}catch(e){}
-  const puls=()=>{try{localStorage.setItem(K,JSON.stringify({t:Date.now(),start:beginn,ok:false,tab:S.tab,z:Z,img:document.images.length,knoten:document.getElementsByTagName("*").length}))}catch(e){}};
+  /* Was die App gerade im Speicher hält – wächst eine Zahl stetig, ist das die Spur zum Speicherleck */
+  const anz=o=>{try{return o?Object.keys(o).length:0}catch(e){return 0}};
+  const spur=()=>{const C=window.__slZaehler||{};let ls=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls+=k.length+(localStorage.getItem(k)||"").length}}catch(e){}
+    let lager=0,verbrauch=0;try{const B=window.LGN&&LGN._book;if(B&&B.ready()){lager=(LGN.sorten?LGN.sorten().length:0);verbrauch=(B.verbrauch?B.verbrauch().length:0)}}catch(e){}
+    const pm=performance&&performance.memory;
+    return {img:document.images.length,knoten:document.getElementsByTagName("*").length,takte:C.takte||0,abrufe:C.abrufe||0,abrufeGesamt:C.abrufeGesamt||0,bilder:C.bilderGeladen||0,live:C.live||0,
+      zst:anz(window.SRV&&SRV.zst),hass:anz(window.__hass&&window.__hass.states),lager,verbrauch,ls:Math.round(ls/1024),mb:pm?Math.round(pm.usedJSHeapSize/1048576):null}};
+  /* Verlauf: alle 10 Minuten ein Messpunkt, die letzten 18 (3 Stunden) bleiben – so sieht man, was wächst */
+  const VK="schichtlohn_spur";let verlauf=[];const messen=()=>{verlauf.push(Object.assign({m:Math.round((Date.now()-beginn)/60000)},spur()));if(verlauf.length>18)verlauf=verlauf.slice(-18)};
+  setTimeout(messen,60000);setInterval(messen,600000);
+  const puls=()=>{try{localStorage.setItem(K,JSON.stringify(Object.assign({t:Date.now(),start:beginn,ok:false,tab:S.tab,z:Z},spur())));localStorage.setItem(VK,JSON.stringify(verlauf))}catch(e){}};
   setInterval(puls,2000);addEventListener("pagehide",()=>{try{localStorage.setItem(K,JSON.stringify({t:Date.now(),ok:true}))}catch(e){}});
-  function melden(){if(!absturz||!window.__SL_SRV)return;const v=vor||{};const q=new URLSearchParams({serie,tab:v.tab||"",img:v.img||0,knoten:v.knoten||0,draw:(v.z||{}).draw||0,render:(v.z||{}).render||0,sek:Math.round(((v.t||0)-(v.start||v.t||0))/1000)});
-    try{fetch((window.__SL_BASE||"")+"/api/absturz?"+q).catch(()=>{})}catch(e){}}
+  let vorVerlauf=[];try{if(absturz)vorVerlauf=JSON.parse(localStorage.getItem(VK)||"[]")}catch(e){}
+  function melden(){if(!absturz||!window.__SL_SRV)return;const v=vor||{};
+    const bericht=Object.assign({},v,{serie,sek:Math.round(((v.t||0)-(v.start||v.t||0))/1000),geraet:navigator.userAgent,verlauf:vorVerlauf});delete bericht.ok;delete bericht.t;delete bericht.start;
+    try{fetch((window.__SL_BASE||"")+"/api/absturz",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},window.SRV&&SRV.token&&SRV.token()?{"X-Token":SRV.token()}:{}),body:JSON.stringify(bericht)}).catch(()=>{})}catch(e){}}
   setTimeout(melden,3000);return {Z,puls,absturz,serie}})();
 async function start(){
   S.cfg=defaultCfg();S.quote=newQuote();S.tab=startTabPref();render();setSync("busy");
