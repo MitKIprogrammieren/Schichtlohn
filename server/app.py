@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.11"
+VERSION = "3.15.12"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3399,7 +3399,8 @@ class Handler(BaseHTTPRequestHandler):
             zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
             log = {"typ": "verbrauch", "v": 1, "zeit": zeit, "drucker": "", "ort": "", "sorte": it["summary"], "uid": it["uid"],
                    "hersteller": d.get("hersteller") or "", "material": d.get("material") or "", "hex": d.get("hex") or "",
-                   "gramm": round(-g, 1), "anlass": str(b.get("grund") or "Rückbuchung"), "quelle": "SchichtLohn-Server · Korrektur"}
+                   "gramm": round(-g, 1), "anlass": str(b.get("grund") or "Rückbuchung"), "quelle": "SchichtLohn-Server · Korrektur",
+                   "korrektur_von": str(b.get("ref") or "") or None}
             liste_aendern(META, "add_item", {"item": f"{time.strftime('%d.%m.%Y %H:%M')} · Korrektur · +{_gram(g)} g · {it['summary']}",
                                              "description": json.dumps(log, ensure_ascii=False)})
             melden({"typ": "liste"})

@@ -2508,11 +2508,17 @@ function tag(t){const d=new Date(t),h=new Date();h.setHours(0,0,0,0);const dt=(h
   return dt===0?"heute":dt===1?"gestern":d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})}
 function anlassTxt(a){a=String(a||"").replace(/\s*\(von Hand zugeordnet\)/,"");return a||"Druck"}
 function block(z,neuAb){const B=book();const knapp=[];
+  const korr=(()=>{const m={};try{B.verbrauch().forEach(d=>{if(d.korrektur_von)m[String(d.korrektur_von)]=(m[String(d.korrektur_von)]||0)+(-Number(d.gramm)||0)})}catch(e){}return m})();
   const zeilen=z.posten.map(x=>{const d=x.d;
     if(x.art==="offen")return `<div class="ab-warn"><span>⚠ ${gfmt(d.gramm)} g nicht zugeordnet${d.ort?" ("+esc(d.ort)+")":""}</span><button type="button" class="btn sm" data-act="lgOzu" data-uid="${esc(d.uid)}">Zuordnen</button></div>`;
     const b=d.uid&&B.bestand?B.bestand(d.uid):null;const g=Number(d.gramm)||0;
     if(b&&!d.korrektur_von&&!knapp.some(k=>k.uid===d.uid)){if(b.g<=0)knapp.push({uid:d.uid,t:`${d.sorte}: aufgebraucht`});else if(b.g<b.gewicht*.25)knapp.push({uid:d.uid,t:`${d.sorte}: nur noch ${Math.round(b.g)} g`})}
-    return `<div class="ab-p">${ICON_OK}<i style="background:${esc(d.hex||"#999")}"></i><span class="n" title="${esc(d.sorte||"")}">${esc(d.sorte||"?")}</span><span class="g num">${g>=0?"−":"+"}${gfmt(g)} g</span><span class="r">${b?"noch "+rest(b.g):""}</span></div>`}).join("");
+    const schon=korr[String(d.zeit||"")]||0;
+    const kannZb=x.art==="ab"&&g>0.05&&d.uid&&!d.korrektur_von;
+    const zb=kannZb?(schon>=g-0.05
+        ?`<span class="ab-zbok">${ICON_OK} zurückgebucht</span>`
+        :`<button type="button" class="ab-zb" data-zb="1" data-uid="${esc(d.uid)}" data-g="${(g-schon).toFixed(1)}" data-ref="${esc(d.zeit||"")}" data-sorte="${esc(d.sorte||"")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg><span>Zurückbuchen</span></button>`):"";
+    return `<div class="ab-p">${ICON_OK}<i style="background:${esc(d.hex||"#999")}"></i><span class="n" title="${esc(d.sorte||"")}">${esc(d.sorte||"?")}</span><span class="g num">${g>=0?"−":"+"}${gfmt(g)} g</span><span class="r">${b?"noch "+rest(b.g):""}</span>${zb}</div>`}).join("");
   const neu=neuAb&&z.t>neuAb;const zt=new Date(z.t);
   /* Abgebrochen/übersprungen: abgebucht wird nur der gedruckte Teil – die Menge laut Datei steht daneben */
   const ab=z.posten.filter(x=>x.art==="ab"),gAb=ab.reduce((a,x)=>a+(Number(x.d.gramm)||0),0),gDat=ab.reduce((a,x)=>a+(Number(x.d.gramm_datei)||Number(x.d.gramm)||0),0);
@@ -2534,6 +2540,21 @@ function after(){merken();if(document.querySelector("#abu[data-warte]")){const B
 let wt=null;function warte(){if(wt)return;let n=0;wt=setInterval(()=>{n++;const B=book();if(B&&B.ready()||n>40){clearInterval(wt);wt=null;neu()}},300)}
 function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;window.slMorphAussen(alt,h)}
 document.addEventListener("click",e=>{if(e.target.closest("[data-abm]")){alle=!alle;letzt="";neu()}});
+/* Zurückbuchen: erster Tipp fragt nach, zweiter führt aus */
+let zbTimer=null;
+document.addEventListener("click",async e=>{const btn=e.target.closest(".ab-zb");if(!btn)return;e.preventDefault();
+  const g=Number(btn.dataset.g)||0;if(g<=0)return;
+  if(btn.dataset.armed!=="1"){
+    document.querySelectorAll(".ab-zb[data-armed]").forEach(b=>{if(b!==btn){delete b.dataset.armed;b.classList.remove("warnt");b.querySelector("span").textContent="Zurückbuchen"}});
+    btn.dataset.armed="1";btn.classList.add("warnt");btn.querySelector("span").textContent=gfmt(g)+" g wirklich zurückbuchen?";
+    clearTimeout(zbTimer);zbTimer=setTimeout(()=>{delete btn.dataset.armed;btn.classList.remove("warnt");const s=btn.querySelector("span");if(s)s.textContent="Zurückbuchen"},5000);
+    return}
+  clearTimeout(zbTimer);btn.disabled=true;btn.querySelector("span").textContent="…";
+  try{const r=await req("POST","/api/nachbuchen",{uid:btn.dataset.uid,g:g,ref:btn.dataset.ref,grund:"Rückbuchung aus dem Verlauf"});
+    if(typeof toast==="function")toast(`${gfmt(g)} g zurückgebucht – ${r.sorte} wieder ${rest(r.bestand_g)}`);
+    letzt="";neu()}
+  catch(x){btn.disabled=false;delete btn.dataset.armed;btn.classList.remove("warnt");btn.querySelector("span").textContent="Zurückbuchen";
+    if(typeof toast==="function")toast("Rückbuchen fehlgeschlagen: "+(x&&x.message||x))}});
 /* Lageränderungen (auch von anderen Geräten) übernehmen */
 setInterval(()=>{if(S.tab==="drucke"&&!document.hidden)neu()},5000);
 /* Meldung, sobald der Server etwas abbucht */
@@ -2558,6 +2579,12 @@ window.ABU={html,after};
 .ab{padding:12px 14px;display:flex;flex-direction:column}
 .ab-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px}
 .ab-kopf h3{margin:0;font-size:15px}.ab-kopf span{font-size:13px;color:var(--fg-3)}
+.ab-zb{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:3px 9px;border:1px solid var(--rand,#3a3e44);border-radius:999px;background:none;color:var(--akzent,#5ea9ff);font-size:12px;cursor:pointer;white-space:nowrap}
+.ab-zb:hover{background:rgba(94,169,255,.1)}
+.ab-zb.warnt{color:var(--warn,#e8a33d);border-color:var(--warn,#e8a33d)}
+.ab-zb:disabled{opacity:.6}
+.ab-zbok{display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:12px;color:var(--good,#3ecf7a)}
+.ab-zbok .ab-ok{color:var(--good,#3ecf7a)}
 .ab-leer{font-size:13px;color:var(--fg-3);padding:6px 0 2px}
 .ab-d{display:flex;gap:12px;padding:9px 2px;border-top:1px solid var(--line)}
 .ab-r{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.ab-zeit{flex:none;width:46px;font-size:12.5px;color:var(--fg-3);padding-top:1px}.ab-zeit b{display:block;color:var(--fg);font-size:14px}
