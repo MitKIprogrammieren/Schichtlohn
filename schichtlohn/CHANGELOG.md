@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.1 – 08.11.2026
+- Filament Manager: Fächer, bei denen noch keine Rolle mit Gramm eingetragen ist, kommen jetzt auch rein – mit einem Schätzwert aus dem Lager (genau ein angebrochener Rest → dieser, sonst eine volle Rolle). In Bambu Studio steht dann „geschätzt“ in der Notiz. Genau wird es, sobald du die Rolle wiegst oder einträgst.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.0 – 08.11.2026
 - Füllstand auch in Bambu Studio: SchichtLohn trägt deine Rollen mit den aktuellen Gramm in den Filament Manager deines Bambu-Kontos ein. Studio und die Handy-App zeigen dann auch bei Fremdrollen, wie voll sie sind. Einschalten unter Einstellungen → SchichtLohn-Server → „Bambu Studio · Filament Manager“.
 - Zur Wahl: „Rollen im AMS“ (nur was gerade im Drucker steckt) oder „Ganzes Lager“ (auch die Rollen im Regal, ohne Bambu-Lab-Sorten – die kommen über den Chip von selbst). „Aus“ entfernt die Einträge wieder.

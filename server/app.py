@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.0"
+VERSION = "3.15.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1062,7 +1062,7 @@ def bambu_fm_soll(modus):
         idx = int(m.group(1))
         plaetze[fach_key(f["drucker"], fach_ort(eid))] = {"dev": drucker[pre]["serial"], "ams": idx - 1 if idx < 128 else idx,
                                                           "slot": int(m.group(2)) - 1, "chip": _chip(tags.get(eid))}
-    out = []
+    out, sorten_info = [], {}
     for it in liste_lesen(ENT):
         if it["status"] == "completed":
             continue
@@ -1076,6 +1076,7 @@ def bambu_fm_soll(modus):
                  "name": " ".join([str(d.get("material") or "")] + bes).strip()[:60], "fid": str(d.get("bambu_id") or "").strip(),
                  "hex": d.get("hex"), "voll": gw}
         faecher = d.get("faecher") if isinstance(d.get("faecher"), dict) else {}
+        sorten_info[it["uid"]] = (basis, d, gw)
         im_fach = []
         for k, r in sorted(faecher.items()):
             if not isinstance(r, dict) or r.get("g") is None:
@@ -1095,6 +1096,25 @@ def bambu_fm_soll(modus):
             out.append(dict(basis, key=f"{it['uid']}#r{i}", g=g))
         for i in range(min(voll, 50)):
             out.append(dict(basis, key=f"{it['uid']}#v{i}", g=gw))
+    # Belegte Fächer ohne eingetragene Rolle: Sorte wie bei der Abbuchung zuordnen, Gramm schätzen
+    # (genau ein angebrochener Rest → dieser, sonst eine volle Rolle). Mit „Rolle eintragen“ oder der Waage wird es genau.
+    erledigt = {r["key"].split("|", 1)[1] for r in out if "|" in r["key"]}
+    for x in rollen_liste():
+        k, p = x.get("key"), plaetze.get(x.get("key"))
+        if not p or p["chip"] or k in erledigt or not x.get("uid") or (x.get("rolle") or {}).get("g") is not None:
+            continue
+        info = sorten_info.get(x["uid"])
+        if not info:
+            continue
+        basis, d, gw = info
+        reste = [float(r) for r in (d.get("reste") or []) if isinstance(r, (int, float))]
+        g = reste[0] if len(reste) == 1 else gw
+        # dieselbe Rolle nicht zusätzlich als Regal-Rolle führen („Ganzes Lager“)
+        weg = next((i for i, r in enumerate(out) if r["key"].startswith(x["uid"] + "#") and abs(r["g"] - g) < 0.5), None)
+        if weg is not None:
+            out.pop(weg)
+        out.append(dict(basis, key=f"{x['uid']}|{k}", g=g, dev=p["dev"], ams=p["ams"], slot=p["slot"], geschaetzt=True))
+        erledigt.add(k)
     return out
 
 

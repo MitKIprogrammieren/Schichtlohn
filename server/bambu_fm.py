@@ -114,7 +114,7 @@ def rumpf(r):
          "filamentName": r.get("name") or r.get("typ") or "PLA", "filamentId": fid, "isSupport": False,
          "color": f, "colorType": 2, "colors": [f], "trayIdName": "", "rolls": 1,
          "netWeight": max(0, int(round(r["g"]))), "totalNetWeight": max(1, int(round(r.get("voll") or 1000))),
-         "note": f"SchichtLohn [SL:{r['key']}]", "inPrinter": bool(r.get("dev"))}
+         "note": f"SchichtLohn{' (geschätzt)' if r.get('geschaetzt') else ''} [SL:{r['key']}]", "inPrinter": bool(r.get("dev"))}
     if r.get("dev"):
         b.update({"devId": r["dev"], "amsId": int(r["ams"]), "slotId": str(r["slot"])})
     return b
