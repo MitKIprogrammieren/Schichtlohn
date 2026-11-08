@@ -142,6 +142,11 @@ def _bind_item(r, sid):
             "rfid": None, "slotId": str(int(r.get("slot") or 0)), "spoolId": int(sid)}
 
 
+def _bind_marke(r, sid):
+    # eindeutig je Fach+Rolle: ändert sich die Rolle, das Fach oder die Spule, wird neu gebunden
+    return f"v1:{r.get('amssn')}:{int(r.get('slot') or 0)}:{int(sid)}"
+
+
 def abgleichen(c, soll, stand):
     """soll: [{key, g, voll, hersteller, typ, name, fid, hex, dev, ams, slot}]; stand: {key: {"id", "sig"}} (wird angepasst).
     Gibt {"neu", "geaendert", "geloescht", "gleich", "fehler": [...]} zurück."""
@@ -152,13 +157,21 @@ def abgleichen(c, soll, stand):
             ist[m.group(1)] = h
     erg = {"neu": 0, "geaendert": 0, "geloescht": 0, "gleich": 0, "gebunden": 0, "fehler": []}
     gesehen = set()
-    binds = {}  # devId → [mapping]
+    binds = {}  # devId → [(stand-key, bind-marke, mapping)]; Fach gilt erst nach Cloud-Bestätigung als gebunden
+
+    def merken_binden(r, k, sid):
+        if sid and r.get("dev") and r.get("amssn"):
+            marke = _bind_marke(r, sid)
+            if (stand.get(k) or {}).get("bind") != marke:
+                binds.setdefault(r["dev"], []).append((k, marke, _bind_item(r, sid)))
+
     for r in soll:
         k = r["key"]
         gesehen.add(k)
         b = rumpf(r)
         sig = _sig(b)
         h = ist.get(k)
+        vor = stand.get(k) or {}
         if erg["neu"] + erg["geaendert"]:
             time.sleep(0.15)  # die Cloud nicht mit Hunderten Aufrufen auf einmal fluten (erster Lauf mit ganzem Lager)
         try:
@@ -168,25 +181,17 @@ def abgleichen(c, soll, stand):
                     sid = next((x.get("id") for x in liste(c) if (MARKE.search(str(x.get("note") or "")) or [None, None])[1] == k), None)
                 stand[k] = {"id": sid, "sig": sig}
                 erg["neu"] += 1
-                if sid and r.get("dev") and r.get("amssn"):
-                    binds.setdefault(r["dev"], []).append(_bind_item(r, sid))
-                    stand[k]["fach"] = b.get("note")
-            elif (stand.get(k) or {}).get("sig") != sig or int(h.get("netWeight") or -1) != b["netWeight"]:
+                merken_binden(r, k, sid)
+            elif vor.get("sig") != sig or int(h.get("netWeight") or -1) != b["netWeight"]:
                 # auch neu schreiben, wenn Bambu das Gewicht selbst verstellt hat (bekannter Fehler: springt auf 0 oder 1000 g)
                 aendern(c, h["id"], b)
-                stand[k] = {"id": h["id"], "sig": sig}
+                stand[k] = {"id": h["id"], "sig": sig, "bind": vor.get("bind")}
                 erg["geaendert"] += 1
-                if r.get("dev") and r.get("amssn") and (stand[k].get("fach") != b.get("note")):
-                    binds.setdefault(r["dev"], []).append(_bind_item(r, h["id"]))
-                    stand[k]["fach"] = b.get("note")
+                merken_binden(r, k, h["id"])
             else:
-                vor = stand.get(k) or {}
-                stand[k] = {"id": h["id"], "sig": sig}
-                # nur neu binden, wenn sich das Fach geändert hat (sonst nicht bei jedem Lauf schreiben)
-                if r.get("dev") and r.get("amssn") and vor.get("fach") != b.get("note"):
-                    binds.setdefault(r["dev"], []).append(_bind_item(r, h["id"]))
-                stand[k]["fach"] = b.get("note")
+                stand[k] = {"id": h["id"], "sig": sig, "bind": vor.get("bind")}
                 erg["gleich"] += 1
+                merken_binden(r, k, h["id"])
         except CloudFehler as e:
             erg["fehler"].append(f"{r.get('name') or k}: {e}")
             if "abgelaufen" in str(e):
@@ -198,13 +203,21 @@ def abgleichen(c, soll, stand):
             erg["geloescht"] = len(weg)
         except CloudFehler as e:
             erg["fehler"].append(f"Löschen: {e}")
-    for dev, mp in binds.items():
+    for dev, liste_mp in binds.items():
         try:
-            res = binden(c, dev, mp)
-            erg["gebunden"] += sum(1 for r in res if r.get("code") in (0, None))
-            schlecht = [str(r.get("code")) for r in res if r.get("code") not in (0, None)]
+            res = binden(c, dev, [mp for _, _, mp in liste_mp])
+            # Ergebnis je (amsSn, slotId) zuordnen und nur bei Code 0 als gebunden merken
+            ok = {(str(x.get("amsSn")), str(x.get("slotId"))): x.get("code") for x in res}
+            schlecht = set()
+            for k, marke, mp in liste_mp:
+                code = ok.get((str(mp["amsSn"]), str(mp["slotId"])))
+                if code in (0, None):
+                    stand[k]["bind"] = marke
+                    erg["gebunden"] += 1
+                else:
+                    schlecht.add(str(code))
             if schlecht:
-                erg["fehler"].append(f"Fach-Bindung {dev}: Code {', '.join(sorted(set(schlecht)))}")
+                erg["fehler"].append(f"Fach-Bindung {dev}: Code {', '.join(sorted(schlecht))}")
         except CloudFehler as e:
             erg["fehler"].append(f"Fach-Bindung {dev}: {e}")
     for k in list(stand):
