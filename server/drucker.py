@@ -49,6 +49,19 @@ MODELL_NAMEN = {"x1c": "X1C", "x1": "X1", "x1e": "X1E", "p1p": "P1P", "p1s": "P1
                 "a1": "A1", "h2d": "H2D", "h2s": "H2S", "h2c": "H2C"}
 LAUFEND = ("RUNNING", "PAUSE", "PREPARE", "SLICING")
 
+# Wartungs-/Kalibrierläufe der Drucker (z. B. Kamera-Kalibrierung beim H2). Sie laufen wie ein Druck durch
+# (RUNNING → FINISH), bringen aber keine Druckdatei mit – SchichtLohn darf dafür nichts abbuchen.
+WARTUNG_NAMEN = {"liveview_camera_cali", "auto_cali", "flow_cali", "vibration_cali", "extrusion_cali",
+                 "nozzle_cali", "nozzle_offset_cali", "auto_bed_level", "bed_level", "heatbed_cali", "z_cali"}
+WARTUNG_RE = re.compile(r"(^|_)(cali|calib(ration)?|level(l?ing)?)$|^liveview_|_cali_", re.IGNORECASE)
+
+
+def ist_wartung(name):
+    n = str(name or "").strip()
+    if not n:
+        return False
+    return n.lower() in WARTUNG_NAMEN or bool(WARTUNG_RE.search(n))
+
 
 def modell_aus_serie(serie, produkt=""):
     p = re.sub(r"[^a-z0-9]", "", str(produkt or "").lower())
@@ -959,8 +972,11 @@ class Drucker:
                                  "skip": {}, "datei": None, "gcode": None, "objekte": None}
             self._skip_merken(a)
             self.auftrag = None
-            anteil = 1.0 if st == "FINISH" else min(1.0, max(a.get("max", 0), _int(self.p.get("mc_percent"), 0)) / 100)
-            threading.Thread(target=self._abschluss, args=(a, st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
+            if ist_wartung(a.get("name")):
+                self.wirt.log(f"Drucker {self.serial}: „{a.get('name')}“ ist eine Kalibrierung/Wartung – keine Abbuchung")
+            else:
+                anteil = 1.0 if st == "FINISH" else min(1.0, max(a.get("max", 0), _int(self.p.get("mc_percent"), 0)) / 100)
+                threading.Thread(target=self._abschluss, args=(a, st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
         if st:
             self.vorher = st
         self.wirt.zustaende(self, zustaende(self.d, self.p, True))
