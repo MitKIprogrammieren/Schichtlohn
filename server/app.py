@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.10"
+VERSION = "3.15.11"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3361,6 +3361,49 @@ class Handler(BaseHTTPRequestHandler):
             return self._waagen_update(teile[1:])
         if teile == ["rollen"] and methode == "GET":
             return self._json(200, {"rollen": rollen_liste()})
+        if teile == ["nachbuchen"] and methode == "POST":
+            # Fehlbuchung rückgängig machen: g Gramm wieder zum Bestand einer Sorte addieren (auf die angebrochenen Reste)
+            b = self._json_rumpf()
+            uid = str(b.get("uid") or "")
+            try:
+                g = float(str(b.get("g")).replace(",", "."))
+            except (TypeError, ValueError):
+                raise Fehler(400, "g muss eine Zahl sein")
+            if not 0 < g <= 20000:
+                raise Fehler(400, "g zwischen 0 und 20000")
+            it = next((i for i in liste_lesen(ENT) if i["uid"] == uid), None)
+            if not it:
+                raise Fehler(404, "Sorte nicht gefunden")
+            d = _desc(it)
+            gw = _zahl(d.get("gewicht"), 1000) or 1000
+            sp = int(_zahl(d.get("spulen"), 1))
+            reste = sorted(x for x in (_zahl(r) for r in (d.get("reste") or [])) if 0 < x < gw)[:max(sp, 0)]
+            vorher = abbuchen_rechnen(d, 0)[1]
+            rest_g = g
+            for i in range(len(reste)):
+                if rest_g <= 0.5:
+                    break
+                platz = gw - reste[i]
+                zu = min(platz, rest_g)
+                reste[i] += zu
+                rest_g -= zu
+            while rest_g > 0.5:  # kein angebrochener Rest mehr: neue (Teil-)Spule
+                nimm = min(gw, rest_g)
+                reste.append(nimm)
+                sp += 1
+                rest_g -= nimm
+            neu = {k: v for k, v in d.items() if k != "rest"}
+            neu.update({"v": 2, "spulen": sp, "reste": [int(round(x)) for x in reste if round(x) < gw]})
+            liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(neu, ensure_ascii=False)})
+            bestand = abbuchen_rechnen(neu, 0)[1]
+            zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+            log = {"typ": "verbrauch", "v": 1, "zeit": zeit, "drucker": "", "ort": "", "sorte": it["summary"], "uid": it["uid"],
+                   "hersteller": d.get("hersteller") or "", "material": d.get("material") or "", "hex": d.get("hex") or "",
+                   "gramm": round(-g, 1), "anlass": str(b.get("grund") or "Rückbuchung"), "quelle": "SchichtLohn-Server · Korrektur"}
+            liste_aendern(META, "add_item", {"item": f"{time.strftime('%d.%m.%Y %H:%M')} · Korrektur · +{_gram(g)} g · {it['summary']}",
+                                             "description": json.dumps(log, ensure_ascii=False)})
+            melden({"typ": "liste"})
+            return self._json(200, {"ok": True, "sorte": it["summary"], "zurueck_g": round(g, 1), "vorher_g": int(round(vorher)), "bestand_g": int(round(bestand))})
         if teile == ["rolle"] and methode == "POST":
             b = self._json_rumpf()
             dr, ort, aktion = str(b.get("drucker") or ""), str(b.get("ort") or ""), str(b.get("aktion") or "")

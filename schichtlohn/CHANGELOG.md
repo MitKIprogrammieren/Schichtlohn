@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.11 – 08.11.2026
+- Rückbuchung: Eine versehentlich abgebuchte Menge lässt sich jetzt wieder gutschreiben (landet auf dem angebrochenen Rest, mit Eintrag im Verlauf).
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.10 – 08.11.2026
 - Fehler behoben: Bei einer Kalibrierung (z. B. der Kamera-Kalibrierung am H2) hat SchichtLohn fälschlich Filament abgebucht – teils die Gramm des vorherigen Drucks. Kalibrier- und Wartungsläufe buchen jetzt nichts mehr ab.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
