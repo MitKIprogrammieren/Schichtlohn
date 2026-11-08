@@ -714,6 +714,7 @@ class Drucker:
         self.d = d
         self.wirt = wirt
         self.p = {}
+        self.module = []
         self.online = False
         self.fehler = ""
         self.zuletzt = 0
@@ -879,6 +880,15 @@ class Drucker:
         client.subscribe(f"device/{self.serial}/report")
         self.fehler = ""
         self._pushall()
+        self._get_version()
+
+    def _get_version(self):
+        # Modul-/Versionsliste holen – darin stehen die Seriennummern der AMS-Einheiten (amsSn) für den Filament Manager
+        try:
+            self.client.publish(f"device/{self.serial}/request",
+                                json.dumps({"info": {"sequence_id": "1", "command": "get_version"}}))
+        except Exception:
+            pass
 
     def _getrennt(self, *a, **k):
         self._offline()
@@ -897,6 +907,11 @@ class Drucker:
 
     # ---- Auswertung (auch für Tests direkt aufrufbar)
     def verarbeiten(self, daten):
+        info = daten.get("info")
+        if isinstance(info, dict) and info.get("command") == "get_version" and isinstance(info.get("module"), list):
+            self.module = info["module"]
+            self.zuletzt = time.time()
+            self.online = True
         p = daten.get("print")
         if not isinstance(p, dict):
             return

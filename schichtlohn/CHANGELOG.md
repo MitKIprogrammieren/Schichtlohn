@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.4 – 08.11.2026
+- Vorbereitung: SchichtLohn liest jetzt die Modul-Liste der Drucker aus (für den nächsten Schritt im Filament Manager). Für dich ändert sich nichts Sichtbares.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.3 – 08.11.2026
 - „Ins Fach am Drucker schreiben“ gibt es nur noch bei Druckern, die im Heimnetz (LAN-Modus) verbunden sind. Über die Bambu-Cloud lehnt die Drucker-Firmware solche Befehle ab und meldete am Drucker „Überprüfung des MQTT-Befehls fehlgeschlagen“ – das kommt jetzt nicht mehr vor. Stattdessen steht dort ein Hinweis.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

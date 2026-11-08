@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.3"
+VERSION = "3.15.4"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3726,6 +3726,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._senden(200, f.read(), "image/png", "private, max-age=2592000")
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
+        if teile == ["drucker", "module"] and methode == "GET":
+            # Prüf-Ausgabe: Modul-Liste je Drucker (AMS-Seriennummern für den Filament-Manager-Bind)
+            out = {}
+            for dr in BAMBU.drucker.values():
+                out[dr.serial] = {"name": (dr.info().get("name") or ""), "ams": [f["ort"] + " = ams " + str(f["ams"]) for f in drucker_mod.faecher(dr.p) if not f["leer"] and f["ams"] is not None],
+                                  "module": [{"name": m.get("name"), "product_name": m.get("product_name"), "sn": m.get("sn")} for m in (getattr(dr, "module", []) or []) if isinstance(m, dict)]}
+            return self._json(200, out)
         if teile == ["drucker", "lan"] and methode == "POST":
             # Heimnetz zusätzlich zur Cloud: Druckerspeicher prüfen oder die IP suchen (für die genaue Abbuchung aus der Druckdatei)
             b = self._json_rumpf()
