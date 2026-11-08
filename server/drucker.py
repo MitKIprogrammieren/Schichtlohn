@@ -99,6 +99,29 @@ def ort_name(ams_id, fach):
 
 # ---------------------------------------------------------------- Fächer aus der Meldung
 
+AMS_TYP = {"ams": 1, "ams_lite": 2, "n3f": 3, "n3s": 4, "f1": 2}
+
+
+def ams_module_map(dr):
+    """Aus der get_version-Modul-Liste: {ams_id (wie in der Meldung): {"sn": Seriennummer, "typ": AMS-Typ}}.
+    Modulname ist z. B. "n3f/0" oder "n3s/128" – die Zahl ist genau die ams_id aus push_status."""
+    out = {}
+    for m in getattr(dr, "module", []) or []:
+        if not isinstance(m, dict):
+            continue
+        name = str(m.get("name") or "")
+        if "/" not in name:
+            continue
+        pre, _, num = name.partition("/")
+        if not num.lstrip("-").isdigit():
+            continue
+        typ = AMS_TYP.get(pre.lower())
+        if typ is None:
+            continue
+        out[int(num)] = {"sn": str(m.get("sn") or ""), "typ": typ}
+    return out
+
+
 def faecher(p):
     """Alle belegten und leeren Fächer: [{ams, fach, global, ort, fid, farbe, typ, name, rest, gewicht, tag, leer}]"""
     out = []

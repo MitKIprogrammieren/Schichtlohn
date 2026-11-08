@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.4"
+VERSION = "3.15.5"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1051,6 +1051,12 @@ def bambu_fm_soll(modus):
     if modus not in ("ams", "lager"):
         return []
     drucker = {drucker_mod.praefix(d): d for d in einstellungen().get("drucker") or [] if d.get("serial")}
+    ams_mod = {}  # AMS-Seriennummern/-Typen je Drucker (zum Binden an ein Fach im Filament Manager)
+    for dr in BAMBU.drucker.values():
+        try:
+            ams_mod[dr.serial] = drucker_mod.ams_module_map(dr)
+        except Exception:
+            ams_mod[dr.serial] = {}
     with _zst_lock:
         tags = {e: (z.get("attributes") or {}).get("tag_uid") for e, z in _zst.items()}
     plaetze = {}  # Fach-Schlüssel (Drucker|Ort) → Platz im Drucker
@@ -1060,8 +1066,11 @@ def bambu_fm_soll(modus):
         if not m or not m.group(1) or pre not in drucker or f["leer"]:
             continue  # externe Spule und Drucker, die nur Home Assistant kennt, bleiben draußen
         idx = int(m.group(1))
-        plaetze[fach_key(f["drucker"], fach_ort(eid))] = {"dev": drucker[pre]["serial"], "ams": idx - 1 if idx < 128 else idx,
-                                                          "slot": int(m.group(2)) - 1, "chip": _chip(tags.get(eid))}
+        serial = drucker[pre]["serial"]
+        amsid = idx - 1 if idx < 128 else idx  # push_status-ams_id: AMS 1..4 → 0..3, AMS HT → 128..
+        mod = (ams_mod.get(serial) or {}).get(amsid) or {}
+        plaetze[fach_key(f["drucker"], fach_ort(eid))] = {"dev": serial, "ams": amsid, "slot": int(m.group(2)) - 1,
+                                                          "chip": _chip(tags.get(eid)), "amssn": mod.get("sn", ""), "amstyp": mod.get("typ", 0)}
     out, sorten_info = [], {}
     for it in liste_lesen(ENT):
         if it["status"] == "completed":
@@ -1084,7 +1093,8 @@ def bambu_fm_soll(modus):
             im_fach.append(float(r["g"]))
             p = plaetze.get(k)
             if p and not p["chip"]:
-                out.append(dict(basis, key=f"{it['uid']}|{k}", g=float(r["g"]), dev=p["dev"], ams=p["ams"], slot=p["slot"]))
+                out.append(dict(basis, key=f"{it['uid']}|{k}", g=float(r["g"]), dev=p["dev"], ams=p["ams"], slot=p["slot"],
+                                    amssn=p.get("amssn", ""), amstyp=p.get("amstyp", 0)))
         if modus != "lager" or herst.lower().startswith("bambu"):
             continue
         reste = [float(x) for x in (d.get("reste") or []) if isinstance(x, (int, float))]
@@ -1113,7 +1123,8 @@ def bambu_fm_soll(modus):
         weg = next((i for i, r in enumerate(out) if r["key"].startswith(x["uid"] + "#") and abs(r["g"] - g) < 0.5), None)
         if weg is not None:
             out.pop(weg)
-        out.append(dict(basis, key=f"{x['uid']}|{k}", g=g, dev=p["dev"], ams=p["ams"], slot=p["slot"], geschaetzt=True))
+        out.append(dict(basis, key=f"{x['uid']}|{k}", g=g, dev=p["dev"], ams=p["ams"], slot=p["slot"],
+                           amssn=p.get("amssn", ""), amstyp=p.get("amstyp", 0), geschaetzt=True))
         erledigt.add(k)
     return out
 

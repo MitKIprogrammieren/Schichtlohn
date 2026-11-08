@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.15.5 – 08.11.2026
+- Filament Manager: Rollen hängen jetzt am richtigen AMS-Fach. In Bambu Studio und der Handy-App steht die Fremdrolle damit am passenden Fach des Druckers, nicht mehr nur lose in der Liste.
+- Läuft über die normale Bambu-Cloud, nichts wird am Drucker umgestellt. Rollen mit Bambu-Chip macht Bambu weiter selbst.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.4 – 08.11.2026
 - Vorbereitung: SchichtLohn liest jetzt die Modul-Liste der Drucker aus (für den nächsten Schritt im Filament Manager). Für dich ändert sich nichts Sichtbares.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

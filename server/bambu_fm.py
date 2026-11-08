@@ -124,6 +124,24 @@ def _sig(b):
     return json.dumps(b, sort_keys=True)
 
 
+SLOT_PFAD = "/v1/design-user-service/my/filament/v2/slot-mappings/sync"
+
+
+def binden(c, devId, mappings):
+    """Rollen an AMS-Fächer binden/lösen. mappings: [{amsSn, amsType, amsId, slotId(str), rfid|None, spoolId|None}].
+    Gibt {slotId: code} zurück (code 0 = ok, 2 = Rolle unbekannt, 3 = RFID-Konflikt)."""
+    if not devId or not mappings:
+        return {}
+    d = _anfrage(c, "POST", SLOT_PFAD, {"devId": devId, "mappings": mappings})
+    return [r for r in ((d.get("results") or []) if isinstance(d, dict) else []) if isinstance(r, dict)]
+
+
+def _bind_item(r, sid):
+    # Studio sendet slotId als String, rfid=null und spoolId für eine von Hand angelegte Rolle (ohne Chip)
+    return {"amsId": int(r.get("ams") or 0), "amsSn": str(r.get("amssn") or ""), "amsType": int(r.get("amstyp") or 0),
+            "rfid": None, "slotId": str(int(r.get("slot") or 0)), "spoolId": int(sid)}
+
+
 def abgleichen(c, soll, stand):
     """soll: [{key, g, voll, hersteller, typ, name, fid, hex, dev, ams, slot}]; stand: {key: {"id", "sig"}} (wird angepasst).
     Gibt {"neu", "geaendert", "geloescht", "gleich", "fehler": [...]} zurück."""
@@ -132,8 +150,9 @@ def abgleichen(c, soll, stand):
         m = MARKE.search(str(h.get("note") or ""))
         if m and h.get("id") is not None:
             ist[m.group(1)] = h
-    erg = {"neu": 0, "geaendert": 0, "geloescht": 0, "gleich": 0, "fehler": []}
+    erg = {"neu": 0, "geaendert": 0, "geloescht": 0, "gleich": 0, "gebunden": 0, "fehler": []}
     gesehen = set()
+    binds = {}  # devId → [mapping]
     for r in soll:
         k = r["key"]
         gesehen.add(k)
@@ -149,13 +168,24 @@ def abgleichen(c, soll, stand):
                     sid = next((x.get("id") for x in liste(c) if (MARKE.search(str(x.get("note") or "")) or [None, None])[1] == k), None)
                 stand[k] = {"id": sid, "sig": sig}
                 erg["neu"] += 1
+                if sid and r.get("dev") and r.get("amssn"):
+                    binds.setdefault(r["dev"], []).append(_bind_item(r, sid))
+                    stand[k]["fach"] = b.get("note")
             elif (stand.get(k) or {}).get("sig") != sig or int(h.get("netWeight") or -1) != b["netWeight"]:
                 # auch neu schreiben, wenn Bambu das Gewicht selbst verstellt hat (bekannter Fehler: springt auf 0 oder 1000 g)
                 aendern(c, h["id"], b)
                 stand[k] = {"id": h["id"], "sig": sig}
                 erg["geaendert"] += 1
+                if r.get("dev") and r.get("amssn") and (stand[k].get("fach") != b.get("note")):
+                    binds.setdefault(r["dev"], []).append(_bind_item(r, h["id"]))
+                    stand[k]["fach"] = b.get("note")
             else:
+                vor = stand.get(k) or {}
                 stand[k] = {"id": h["id"], "sig": sig}
+                # nur neu binden, wenn sich das Fach geändert hat (sonst nicht bei jedem Lauf schreiben)
+                if r.get("dev") and r.get("amssn") and vor.get("fach") != b.get("note"):
+                    binds.setdefault(r["dev"], []).append(_bind_item(r, h["id"]))
+                stand[k]["fach"] = b.get("note")
                 erg["gleich"] += 1
         except CloudFehler as e:
             erg["fehler"].append(f"{r.get('name') or k}: {e}")
@@ -168,6 +198,15 @@ def abgleichen(c, soll, stand):
             erg["geloescht"] = len(weg)
         except CloudFehler as e:
             erg["fehler"].append(f"Löschen: {e}")
+    for dev, mp in binds.items():
+        try:
+            res = binden(c, dev, mp)
+            erg["gebunden"] += sum(1 for r in res if r.get("code") in (0, None))
+            schlecht = [str(r.get("code")) for r in res if r.get("code") not in (0, None)]
+            if schlecht:
+                erg["fehler"].append(f"Fach-Bindung {dev}: Code {', '.join(sorted(set(schlecht)))}")
+        except CloudFehler as e:
+            erg["fehler"].append(f"Fach-Bindung {dev}: {e}")
     for k in list(stand):
         if k not in gesehen:
             stand.pop(k, None)
