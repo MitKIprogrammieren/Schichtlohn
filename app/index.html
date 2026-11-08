@@ -2679,11 +2679,13 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
   let sorten=[];try{sorten=(window.LGN&&LGN.sorten()||[]).filter(x=>x.uid).sort((a,b)=>(a.hersteller+a.material+a.farbe).localeCompare(b.hersteller+b.material+b.farbe,"de"))}catch(x){}
   const sel=R&&R.uid||"";const nm=x=>[x.hersteller,x.material,x.besonderheiten&&x.besonderheiten.join(" ")].filter(Boolean).join(" ")+(x.farbe?" · "+x.farbe:"")+(Number(x.gewicht)&&Number(x.gewicht)!==1000?" · "+(x.gewicht>=1000?String(x.gewicht/1000).replace(".",",")+" kg":x.gewicht+" g"):"");
   const sx=sorten.find(x=>x.uid===sel);
-  const fachH=`<div class="dl-fs"><div class="lgsh" style="margin:0"><span>Im Drucker eintragen</span></div>
+  /* über die Bambu-Cloud verbunden: die Firmware lehnt Fach-Befehle von SchichtLohn ab (auch über die IP) – Knopf nicht anbieten */
+  const fachH=R&&R.cloud?`<div class="dl-fs"><div class="lgsh" style="margin:0"><span>Im Drucker eintragen</span></div>
+      <div class="hint">${esc(dr)} ist über die Bambu-Cloud verbunden – dort nimmt der Drucker keine Fach-Befehle von SchichtLohn an. Material und Farbe bitte in Bambu Studio („Fach bearbeiten“) oder am Drucker einstellen. Mit LAN-Modus und Entwicklermodus am Drucker geht es auch von hier.</div></div>`:`<div class="dl-fs"><div class="lgsh" style="margin:0"><span>Im Drucker eintragen</span></div>
       <div class="dl-fsz"><i class="dl-fsf" id="dl_fsf" style="background:${esc(sx&&sx.hex||"transparent")}"></i><select id="dl_fss" aria-label="Sorte für dieses Fach"><option value="">Sorte aus dem Lager wählen …</option>${sorten.map(x=>`<option value="${esc(x.uid)}" data-hex="${esc(x.hex||"")}"${x.uid===sel?" selected":""}>${esc(nm(x))}</option>`).join("")}</select></div>
       <button class="btn" data-rla="fach"${sel?"":" disabled"} id="dl_fsb">Ins Fach am Drucker schreiben</button>
       <div class="hint">Der Drucker zeigt dann Material, Farbe und Profil dieser Sorte – wie „Fach bearbeiten“ in Bambu Studio.</div></div>`;
-  const body=!R||!R.uid?`<p>${esc(dr)} · ${esc(ortText||ort)}: Diesem Fach ist noch keine Sorte aus dem Lager zugeordnet. Wähle unten die Sorte, die drinsteckt – dann kennt der Drucker sie, und SchichtLohn bucht hier ab und zeigt die Gramm dieser Rolle.</p>${fachH}`
+  const body=!R||!R.uid?`<p>${esc(dr)} · ${esc(ortText||ort)}: Diesem Fach ist noch keine Sorte aus dem Lager zugeordnet. ${R&&R.cloud?"Ordne die Rolle über „Scannen &amp; zuordnen“ zu – dann bucht SchichtLohn hier ab und zeigt die Gramm dieser Rolle.":"Wähle unten die Sorte, die drinsteckt – dann kennt der Drucker sie, und SchichtLohn bucht hier ab und zeigt die Gramm dieser Rolle."}</p>${fachH}`
     :`<div class="stack" style="gap:6px"><p style="margin:0"><b>${esc(R.sorte)}</b></p>
       ${(R.alternativen||[]).length?`<label class="dl-rlab" for="dl_rwahl">Mehrere Sorten passen zu diesem Fach – welche Rolle steckt drin?</label>
       <div class="dl-rin"><select id="dl_rwahl" aria-label="Rolle in diesem Fach"><option value="${esc(R.uid)}" selected>${esc(R.sorte)}</option>${R.alternativen.map(a=>`<option value="${esc(a.uid)}">${esc(a.sorte)}</option>`).join("")}</select>

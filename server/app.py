@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.2"
+VERSION = "3.15.3"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1876,12 +1876,13 @@ def rolle_setzen(d, drucker, ort, aktion, gramm=None, quelle=""):
 def rollen_liste():
     """Alle belegten Fächer mit Sorte (wie bei der Abbuchung zugeordnet) und Rolle, falls bekannt."""
     out = []
+    cloud = {str(d.get("name") or d.get("serial") or ""): d.get("modus") == "cloud" for d in einstellungen().get("drucker") or []}
     sorten = {it["uid"]: (it, _desc(it)) for it in liste_lesen(ENT) if it["status"] != "completed"}
     for eid, f in sorted(faecher_sammeln().items()):
         if f["leer"] or not f["fid"]:
             continue
         ort = fach_ort(eid)
-        x = {"drucker": f["drucker"], "ort": ort, "key": fach_key(f["drucker"], ort)}
+        x = {"drucker": f["drucker"], "ort": ort, "key": fach_key(f["drucker"], ort), "cloud": cloud.get(f["drucker"], False)}
         treffer, _ = sorte_fuer(f["fid"], f["col"], x["key"])
         x["alternativen"] = sorten_gleich(f["fid"], f["col"], treffer[0]["uid"] if treffer else "")
         if treffer:
@@ -2577,6 +2578,11 @@ def fach_belegen(k):
     dr = next((d for d in BAMBU.drucker.values() if d.serial == name or (d.info().get("name") or "") == name), None)
     if not dr:
         raise Fehler(404, "Drucker nicht verbunden")
+    if dr.d.get("modus") == "cloud":
+        # Neuere Firmware (Autorisierungskontrolle) lehnt unsignierte Schreibbefehle ab – auch über die IP – und zeigt
+        # am Drucker „Überprüfung des MQTT-Befehls fehlgeschlagen“. Geht nur mit LAN-Modus + Entwicklermodus.
+        raise Fehler(409, "Dieser Drucker ist über die Bambu-Cloud verbunden – dort nimmt er keine Fach-Befehle von SchichtLohn an. "
+                          "Fach in Bambu Studio oder am Drucker einstellen (oder am Drucker LAN-Modus + Entwicklermodus einschalten).")
     fach = next((f for f in drucker_mod.faecher(dr.p) if f["ort"] == k.get("ort") or str(f["global"]) == str(k.get("fach"))), None)
     if not fach:
         raise Fehler(404, "Fach nicht gefunden")

@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.3 – 08.11.2026
+- „Ins Fach am Drucker schreiben“ gibt es nur noch bei Druckern, die im Heimnetz (LAN-Modus) verbunden sind. Über die Bambu-Cloud lehnt die Drucker-Firmware solche Befehle ab und meldete am Drucker „Überprüfung des MQTT-Befehls fehlgeschlagen“ – das kommt jetzt nicht mehr vor. Stattdessen steht dort ein Hinweis.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.2 – 08.11.2026
 - AMS-Ansicht: Statt „? g“ steht bei Fächern ohne eingetragene Rolle jetzt ein Schätzwert aus dem Lager („≈ 420 g“) mit Füllbalken – derselbe Wert, der an Bambu Studio geht. Tippen aufs Fach zum Wiegen oder Eintragen macht ihn genau.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
