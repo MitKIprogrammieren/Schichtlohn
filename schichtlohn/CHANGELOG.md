@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.9 – 08.11.2026
+- Fach-Bindung: Jede Rolle wird jetzt einzeln an die Bambu-Cloud gemeldet (wie Bambu Studio). Vorher blieb bei vielen Fächern auf einen Schlag nur eine pro AMS hängen.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.8 – 08.11.2026
 - Interne Rückleseprüfung für die Fach-Bindung. Für dich ändert sich nichts.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

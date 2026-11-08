@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.8"
+VERSION = "3.15.9"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3540,6 +3540,13 @@ class Handler(BaseHTTPRequestHandler):
                     elif m != "aus":
                         im_hintergrund(bambu_fm_lauf)
                 elif b.get("jetzt") and einstellungen().get("bambu_fm", "aus") != "aus":
+                    if b.get("force"):  # alle Fach-Bindungen neu schreiben
+                        st, _ = daten_lesen(BFM_KEY)
+                        if isinstance(st, dict):
+                            for v in st.values():
+                                if isinstance(v, dict):
+                                    v.pop("bind", None)
+                            daten_schreiben(BFM_KEY, st)
                     im_hintergrund(bambu_fm_lauf)
             return self._json(200, dict(BFM, modus=einstellungen().get("bambu_fm", "aus"), angemeldet=bool(einstellungen()["cloud"].get("token"))))
         if teile == ["einstellungen"]:

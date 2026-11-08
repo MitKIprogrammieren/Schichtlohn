@@ -128,12 +128,17 @@ SLOT_PFAD = "/v1/design-user-service/my/filament/v2/slot-mappings/sync"
 
 
 def binden(c, devId, mappings):
-    """Rollen an AMS-Fächer binden/lösen. mappings: [{amsSn, amsType, amsId, slotId(str), rfid|None, spoolId|None}].
-    Gibt {slotId: code} zurück (code 0 = ok, 2 = Rolle unbekannt, 3 = RFID-Konflikt)."""
+    """Rollen an AMS-Fächer binden. Jede Zuordnung wird einzeln gepostet – genau wie Bambu Studio, das immer nur eine
+    Rolle auf einmal bindet. Ein großer Sammel-POST kam in der Cloud nur teilweise an. Gibt die Ergebnisliste zurück."""
     if not devId or not mappings:
-        return {}
-    d = _anfrage(c, "POST", SLOT_PFAD, {"devId": devId, "mappings": mappings})
-    return [r for r in ((d.get("results") or []) if isinstance(d, dict) else []) if isinstance(r, dict)]
+        return []
+    out = []
+    for i, m in enumerate(mappings):
+        if i:
+            time.sleep(0.2)
+        d = _anfrage(c, "POST", SLOT_PFAD, {"devId": devId, "mappings": [m]})
+        out += [r for r in ((d.get("results") or []) if isinstance(d, dict) else []) if isinstance(r, dict)]
+    return out
 
 
 def _bind_item(r, sid):
