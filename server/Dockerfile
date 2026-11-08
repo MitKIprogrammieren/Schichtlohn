@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY --from=modell /modelle /app/modelle
 COPY pruefen.py .
 RUN python pruefen.py && rm pruefen.py
-COPY app.py drucker.py web.py preise.py produktbilder.py mcp.py ./
+COPY app.py drucker.py web.py preise.py produktbilder.py mcp.py bambu_fm.py ./
 VOLUME /daten
 EXPOSE 8093
 HEALTHCHECK --interval=60s --timeout=5s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8093/')" || exit 1

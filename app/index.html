@@ -479,6 +479,7 @@ const SRV=window.SRV=(()=>{
       <div class="hint" id="srv_msg"></div>
       <div class="srvgrid">
         ${karte(IC.dr,"Bambu-Drucker",`<label class="srvsw" title="Nach jedem Druck automatisch abbuchen"><input type="checkbox" id="srv_abb" checked><i></i><span>Automatisch abbuchen</span></label>`,`<div id="srv_drliste" class="stack" style="gap:8px"><p>wird geprüft …</p></div>`,"weit")}
+        ${karte(IC.dr,"Bambu Studio · Filament Manager",`<span class="chip" id="srv_bfmchip">…</span>`,`<div id="srv_bfm"><p>wird geprüft …</p></div>`)}
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.zg,"Zugang",`<span class="chip" id="srv_zgchip">…</span>`,`<div id="srv_zugang"><p>wird geprüft …</p></div>`)}
@@ -542,7 +543,21 @@ const SRV=window.SRV=(()=>{
   /* Drucker und Home Assistant */
   let E=null,DR=[];
   const drStatus=d=>!d.online?(d.fehler?`<span style="color:var(--bad)">${esc(d.fehler)}</span>`:"verbindet …"):({RUNNING:"druckt",PAUSE:"pausiert",FINISH:"fertig",FAILED:"abgebrochen",IDLE:"bereit",PREPARE:"bereitet vor"}[d.status]||esc(d.status||"verbunden"))+(d.status==="RUNNING"?` · ${d.fortschritt} %`:"");
-  async function drLaden(){const el=document.getElementById("srv_drliste");if(!el)return;
+  /* Filament Manager in Bambu Studio: SchichtLohn trägt die Rollen mit den aktuellen Gramm ins Bambu-Konto ein */
+  let bfmT=null;
+  async function bfmLaden(){const el=document.getElementById("srv_bfm");if(!el)return;let d;
+    try{d=await req("GET","/api/bambu_fm")}catch(e){el.innerHTML=`<p>Braucht Server-Version 3.15 (${esc(e.message||e)}).</p>`;return}
+    const chip=document.getElementById("srv_bfmchip");if(chip){chip.textContent=d.modus==="aus"?"aus":d.laeuft?"gleicht ab …":"an";chip.style.color=d.modus!=="aus"&&!d.fehler?"var(--good,#3ecf7a)":d.fehler?"var(--bad)":""}
+    const r=d.ergebnis,uhr=d.zuletzt?new Date(d.zuletzt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):"";
+    const st=d.laeuft?"Gleicht gerade ab …":d.fehler?`<span style="color:var(--bad)">${esc(d.fehler)}</span>`:r&&uhr?`Zuletzt ${uhr} · ${r.neu+r.geaendert+r.gleich} Rollen eingetragen${r.neu?`, ${r.neu} neu`:""}${r.geaendert?`, ${r.geaendert} geändert`:""}${r.geloescht?`, ${r.geloescht} entfernt`:""}`:d.modus==="aus"?"":"Erster Abgleich läuft gleich.";
+    el.innerHTML=`<p>SchichtLohn trägt deine Rollen mit den aktuellen Gramm in den Filament Manager deines Bambu-Kontos ein – Bambu Studio und Handy zeigen dann, wie voll jede Rolle ist. Rollen mit Bambu-Chip macht Bambu selbst.</p>
+      ${d.angemeldet?"":`<p style="color:var(--bad)">Dafür oben unter <b>Bambu-Cloud</b> anmelden.</p>`}
+      <div class="tabtg" style="margin:8px 0">${[["aus","Aus"],["ams","Rollen im AMS"],["lager","Ganzes Lager"]].map(([k,t])=>`<button type="button" class="chip${d.modus===k?" on":""}" data-act="srvBfm" data-m="${k}" aria-pressed="${d.modus===k}">${t}</button>`).join("")}</div>
+      ${st?`<div class="hint" style="margin-bottom:8px">${st}</div>`:""}
+      ${d.modus!=="aus"?`<button class="btn sm" data-act="srvBfmJetzt"${d.laeuft?" disabled":""}>Jetzt abgleichen</button>`:""}
+      <div class="hint" style="margin-top:8px">„Ganzes Lager“ trägt auch die Rollen im Regal ein (ohne Bambu-Lab-Sorten – die kommen über den Chip von selbst). „Aus“ entfernt die Einträge von SchichtLohn wieder.</div>`;
+    clearTimeout(bfmT);if(d.laeuft)bfmT=setTimeout(bfmLaden,3000)}
+  async function drLaden(){bfmLaden();const el=document.getElementById("srv_drliste");if(!el)return;
     try{E=await req("GET","/api/einstellungen");const l=await req("GET","/api/drucker");DR=l.drucker||[]}catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+").";return}
     const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};const st=d.aktiv===false?"aus":live.online?"ok":live.fehler?"err":"warte";
       return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.modus==="cloud"?(d.ip?"Bambu-Cloud + Heimnetz "+esc(d.ip):"Bambu-Cloud"):"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
@@ -636,6 +651,7 @@ const SRV=window.SRV=(()=>{
       const alt=l.findIndex(x=>(vorher&&vorher.id&&x.id===vorher.id)||x.serial===d.serial);if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d);
       if(d.modus==="cloud"){const k=bambuKonto();if(k)await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""}).catch(()=>{})}
       closeModal();einstSpeichern({drucker:l},`✓ ${esc(d.name||d.serial)} gespeichert – der Server verbindet sich …`);return}
+    if(a==="srvBfm"||a==="srvBfmJetzt"){try{await req("POST","/api/bambu_fm",a==="srvBfm"?{modus:b.dataset.m}:{jetzt:true});toast(a==="srvBfm"?(b.dataset.m==="aus"?"Filament Manager aus – Einträge werden entfernt":"Filament Manager an – gleicht ab …"):"Gleicht ab …")}catch(x){toast(x.message||String(x))}setTimeout(bfmLaden,600);return}
     if(a==="srvDrCloud"){const k=bambuKonto();if(!k){msg(`<span style="color:var(--bad)">Erst oben unter <b>Bambu-Cloud</b> anmelden${window.__SL_SRV?" – hier in dieser Ansicht, die Anmeldung von schichtlohn.pages.dev gilt hier nicht":""}. Danach diesen Knopf noch einmal antippen.</span>`);const d=[...document.querySelectorAll("details,section")].find(x=>/Bambu-Cloud/i.test((x.querySelector("summary,.sec-title,h2")||{}).textContent||""));if(d){if(d.tagName==="DETAILS")d.open=true;d.scrollIntoView({behavior:"smooth",block:"start"})}return}
       msg("Frage die Bambu-Cloud nach deinen Druckern …");
       try{const r=await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""});const l=await druckerFrisch();let n=0;

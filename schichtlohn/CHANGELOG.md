@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.15.0 – 08.11.2026
+- Füllstand auch in Bambu Studio: SchichtLohn trägt deine Rollen mit den aktuellen Gramm in den Filament Manager deines Bambu-Kontos ein. Studio und die Handy-App zeigen dann auch bei Fremdrollen, wie voll sie sind. Einschalten unter Einstellungen → SchichtLohn-Server → „Bambu Studio · Filament Manager“.
+- Zur Wahl: „Rollen im AMS“ (nur was gerade im Drucker steckt) oder „Ganzes Lager“ (auch die Rollen im Regal, ohne Bambu-Lab-Sorten – die kommen über den Chip von selbst). „Aus“ entfernt die Einträge wieder.
+- Nach jeder Abbuchung, jedem Wiegen und alle 30 Minuten wird nachgezogen – auch wenn Bambu einen Wert von sich aus verstellt hat. Rollen mit Bambu-Chip und eigene Einträge in Bambu Studio bleiben unberührt.
+- Braucht die Anmeldung unter Bambu-Cloud. Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.14.1 – 08.11.2026
 - Genauerer Absturz-Wächter: Lädt Safari die App neu, weil sie zu viel Speicher braucht, steht jetzt im Protokoll der SchichtLohn-App, was die App zu dem Zeitpunkt im Speicher hatte – mit einem Verlauf der letzten drei Stunden (alle 10 Minuten ein Messpunkt). Daran lässt sich erkennen, was mit der Zeit wächst.
 - Die Absturzmeldung wurde bisher vom Server abgelehnt; jetzt kommt sie an.

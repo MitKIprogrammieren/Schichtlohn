@@ -29,6 +29,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/preise/suche?q=…          freie Suche bei eBay und AliExpress (Preisvergleichsseite)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
   GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
+  GET/POST /api/bambu_fm             Filament Manager in Bambu Studio: Modus aus|ams|lager, Stand, „Jetzt abgleichen“
 
 Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
   POST /api/services/todo/get_items|update_item|add_item|remove_item
@@ -55,6 +56,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 import drucker as drucker_mod
 import preise as preise_mod
 import mcp as mcp_mod
+import bambu_fm
 import produktbilder
 import web
 
@@ -70,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.14.1"
+VERSION = "3.15.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -349,6 +351,11 @@ _hoerer_lock = threading.Lock()
 
 
 def melden(ev):
+    if ev.get("typ") == "liste":
+        try:
+            BFM_NEU.set()  # Lager geändert → Filament Manager in Bambu Studio nachziehen (falls eingeschaltet)
+        except NameError:
+            pass
     with _hoerer_lock:
         for q in list(_hoerer):
             try:
@@ -634,6 +641,7 @@ def einstellungen():
     w.setdefault("fach_meldung", True)
     w.setdefault("fach_link", "/schichtlohn-app")
     w.setdefault("waage_url", "")
+    w.setdefault("bambu_fm", "aus")
     w.setdefault("preise", {})
     w["preise"].setdefault("ebay", {})
     w["preise"].setdefault("ali", {})
@@ -1022,6 +1030,110 @@ def _waage_live_lauf(pre):
     finally:
         with _waage_live_lock:
             _waage_live.pop(pre, None)
+
+
+# ---------------------------------------------------------------- Bambu Studio: Filament Manager
+# Trägt die Rollen aus dem Lager mit den aktuellen Gramm in den Filament Manager des Bambu-Kontos ein (siehe bambu_fm.py).
+# Modus „ams“: nur Rollen, die gerade in einem AMS-Fach stecken (ohne Bambu-Chip – die macht Bambu selbst);
+# „lager“: dazu alle übrigen Rollen im Lager, außer Bambu-Lab-Sorten (die kommen über den Chip von allein).
+BFM_NEU = threading.Event()
+BFM = {"laeuft": False, "zuletzt": "", "ergebnis": None, "fehler": ""}
+BFM_KEY = "_bambu_fm_stand"
+_bfm_lock = threading.Lock()
+
+
+def _chip(tag):
+    t = str(tag or "").strip()
+    return bool(t) and set(t) != {"0"}
+
+
+def bambu_fm_soll(modus):
+    if modus not in ("ams", "lager"):
+        return []
+    drucker = {drucker_mod.praefix(d): d for d in einstellungen().get("drucker") or [] if d.get("serial")}
+    with _zst_lock:
+        tags = {e: (z.get("attributes") or {}).get("tag_uid") for e, z in _zst.items()}
+    plaetze = {}  # Fach-Schlüssel (Drucker|Ort) → Platz im Drucker
+    for eid, f in faecher_sammeln().items():
+        m = FACH_RE.search(eid)
+        pre = eid[7:].split("_ams_")[0]
+        if not m or not m.group(1) or pre not in drucker or f["leer"]:
+            continue  # externe Spule und Drucker, die nur Home Assistant kennt, bleiben draußen
+        idx = int(m.group(1))
+        plaetze[fach_key(f["drucker"], fach_ort(eid))] = {"dev": drucker[pre]["serial"], "ams": idx - 1 if idx < 128 else idx,
+                                                          "slot": int(m.group(2)) - 1, "chip": _chip(tags.get(eid))}
+    out = []
+    for it in liste_lesen(ENT):
+        if it["status"] == "completed":
+            continue
+        d = _desc(it)
+        if not d.get("material") or d.get("typ") is not None:
+            continue
+        gw = _zahl(d.get("gewicht"), 1000) or 1000
+        herst = str(d.get("hersteller") or "").strip()
+        bes = [str(x) for x in (d.get("besonderheiten") or []) if str(x).strip()]
+        basis = {"hersteller": herst or "Generic", "typ": str(d.get("material") or "PLA").upper(),
+                 "name": " ".join([str(d.get("material") or "")] + bes).strip()[:60], "fid": str(d.get("bambu_id") or "").strip(),
+                 "hex": d.get("hex"), "voll": gw}
+        faecher = d.get("faecher") if isinstance(d.get("faecher"), dict) else {}
+        im_fach = []
+        for k, r in sorted(faecher.items()):
+            if not isinstance(r, dict) or r.get("g") is None:
+                continue
+            im_fach.append(float(r["g"]))
+            p = plaetze.get(k)
+            if p and not p["chip"]:
+                out.append(dict(basis, key=f"{it['uid']}|{k}", g=float(r["g"]), dev=p["dev"], ams=p["ams"], slot=p["slot"]))
+        if modus != "lager" or herst.lower().startswith("bambu"):
+            continue
+        reste = [float(x) for x in (d.get("reste") or []) if isinstance(x, (int, float))]
+        for g in im_fach:  # Rollen im Fach stecken auch in den Resten
+            if g < gw and reste:
+                reste.pop(min(range(len(reste)), key=lambda i: abs(reste[i] - g)))
+        voll = max(0, int(_zahl(d.get("spulen"), 0)) - len(d.get("reste") or []) - sum(1 for g in im_fach if g >= gw))
+        for i, g in enumerate(sorted(reste, reverse=True)):
+            out.append(dict(basis, key=f"{it['uid']}#r{i}", g=g))
+        for i in range(min(voll, 50)):
+            out.append(dict(basis, key=f"{it['uid']}#v{i}", g=gw))
+    return out
+
+
+def bambu_fm_lauf(modus=None):
+    if not _bfm_lock.acquire(blocking=False):
+        return
+    try:
+        modus = modus or einstellungen().get("bambu_fm", "aus")
+        c = einstellungen()["cloud"]
+        if not c.get("token"):
+            BFM["fehler"] = "Erst unter Bambu-Cloud anmelden"
+            return
+        stand, _ = daten_lesen(BFM_KEY)
+        stand = stand if isinstance(stand, dict) else {}
+        BFM.update(laeuft=True, fehler="")
+        try:
+            erg = bambu_fm.abgleichen(c, bambu_fm_soll(modus), stand)
+            BFM.update(ergebnis=erg, fehler="; ".join(erg["fehler"][:3]))
+        except Exception as e:
+            BFM["fehler"] = str(e)
+        daten_schreiben(BFM_KEY, stand)
+        BFM["zuletzt"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    finally:
+        BFM["laeuft"] = False
+        _bfm_lock.release()
+
+
+def bambu_fm_schleife():
+    time.sleep(90)
+    BFM_NEU.set()
+    while True:
+        BFM_NEU.wait(1800)  # sonst alle 30 min – fängt auch ab, wenn Bambu das Gewicht selbst verstellt hat
+        time.sleep(20)       # mehrere Änderungen (z. B. Abbuchung mit mehreren Farben) zusammenfassen
+        BFM_NEU.clear()
+        if einstellungen().get("bambu_fm", "aus") in ("ams", "lager"):
+            try:
+                bambu_fm_lauf()
+            except Exception as e:
+                print("Filament Manager:", e, flush=True)
 
 
 def waagen_live_schleife():
@@ -3374,6 +3486,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._senden(200, ha_anfrage("/api/template", {"template": t}, roh=True), "text/plain; charset=utf-8", "no-store")
             raise Fehler(400, "Vorlagen gehen nur mit eingetragenem Home Assistant")
         # --- Einstellungen, Drucker, App
+        if teile == ["bambu_fm"]:
+            if methode == "POST":
+                b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+                m = b.get("modus")
+                if m in ("aus", "ams", "lager"):
+                    e = einstellungen()
+                    alt = e.get("bambu_fm", "aus")
+                    e["bambu_fm"] = m
+                    daten_schreiben(EINST_KEY, e)
+                    if m == "aus" and alt != "aus":
+                        im_hintergrund(bambu_fm_lauf, "aus")  # eigene Einträge wieder entfernen
+                    elif m != "aus":
+                        im_hintergrund(bambu_fm_lauf)
+                elif b.get("jetzt") and einstellungen().get("bambu_fm", "aus") != "aus":
+                    im_hintergrund(bambu_fm_lauf)
+            return self._json(200, dict(BFM, modus=einstellungen().get("bambu_fm", "aus"), angemeldet=bool(einstellungen()["cloud"].get("token"))))
         if teile == ["einstellungen"]:
             if methode == "GET":
                 return self._json(200, einstellungen_maskiert())
@@ -3785,4 +3913,5 @@ if __name__ == "__main__":
     threading.Thread(target=faecher_schleife, daemon=True).start()
     threading.Thread(target=leer_schleife, daemon=True).start()
     threading.Thread(target=waagen_live_schleife, daemon=True).start()
+    threading.Thread(target=bambu_fm_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
