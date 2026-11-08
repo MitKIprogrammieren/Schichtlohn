@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.5"
+VERSION = "3.15.6"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3743,6 +3743,12 @@ class Handler(BaseHTTPRequestHandler):
             for dr in BAMBU.drucker.values():
                 out[dr.serial] = {"name": (dr.info().get("name") or ""), "ams": [f["ort"] + " = ams " + str(f["ams"]) for f in drucker_mod.faecher(dr.p) if not f["leer"] and f["ams"] is not None],
                                   "module": [{"name": m.get("name"), "product_name": m.get("product_name"), "sn": m.get("sn")} for m in (getattr(dr, "module", []) or []) if isinstance(m, dict)]}
+            try:
+                soll = bambu_fm_soll("ams")
+                out["_soll"] = {"anzahl": len(soll), "mit_amssn": sum(1 for r in soll if r.get("amssn")),
+                                "beispiel": [{"key": r["key"], "ams": r.get("ams"), "slot": r.get("slot"), "amssn": r.get("amssn"), "amstyp": r.get("amstyp")} for r in soll[:4]]}
+            except Exception as e:
+                out["_soll"] = {"fehler": str(e)}
             return self._json(200, out)
         if teile == ["drucker", "lan"] and methode == "POST":
             # Heimnetz zusätzlich zur Cloud: Druckerspeicher prüfen oder die IP suchen (für die genaue Abbuchung aus der Druckdatei)
