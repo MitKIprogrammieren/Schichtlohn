@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.8 – 08.11.2026
+- Interne Rückleseprüfung für die Fach-Bindung. Für dich ändert sich nichts.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.7 – 08.11.2026
 - Fach-Bindung im Filament Manager läuft jetzt sauber: Ein Fach gilt erst als gebunden, wenn die Bambu-Cloud es bestätigt. So landet jede Fremdrolle verlässlich am richtigen AMS-Fach in Bambu Studio und der Handy-App.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

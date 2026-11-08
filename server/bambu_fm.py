@@ -147,6 +147,19 @@ def _bind_marke(r, sid):
     return f"v1:{r.get('amssn')}:{int(r.get('slot') or 0)}:{int(sid)}"
 
 
+def cloud_stand(c):
+    """Liste unserer SchichtLohn-Rollen, wie die Cloud sie zurückgibt (zur Diagnose der Fach-Bindung)."""
+    out = []
+    for h in liste(c):
+        m = MARKE.search(str(h.get("note") or ""))
+        if not m:
+            continue
+        out.append({"key": m.group(1), "id": h.get("id"), "trayIdName": h.get("trayIdName"),
+                    "amsId": h.get("amsId"), "slotId": h.get("slotId"), "devId": h.get("devId"),
+                    "inPrinter": h.get("inPrinter"), "netWeight": h.get("netWeight")})
+    return out
+
+
 def abgleichen(c, soll, stand):
     """soll: [{key, g, voll, hersteller, typ, name, fid, hex, dev, ams, slot}]; stand: {key: {"id", "sig"}} (wird angepasst).
     Gibt {"neu", "geaendert", "geloescht", "gleich", "fehler": [...]} zurück."""

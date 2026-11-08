@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.7"
+VERSION = "3.15.8"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3737,6 +3737,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._senden(200, f.read(), "image/png", "private, max-age=2592000")
         if teile == ["drucker"] and methode == "GET":
             return self._json(200, {"drucker": BAMBU.liste(), "mqtt": drucker_mod.mqtt is not None})
+        if teile == ["bambu_fm", "cloud"] and methode == "GET":
+            try:
+                cl = bambu_fm.cloud_stand(einstellungen()["cloud"])
+                mit_fach = sum(1 for x in cl if x.get("trayIdName"))
+                return self._json(200, {"anzahl": len(cl), "mit_fach": mit_fach, "liste": cl})
+            except Exception as e:
+                return self._json(200, {"fehler": str(e)})
         if teile == ["drucker", "module"] and methode == "GET":
             # Prüf-Ausgabe: Modul-Liste je Drucker (AMS-Seriennummern für den Filament-Manager-Bind)
             out = {}
