@@ -2641,9 +2641,11 @@ function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book
   const ort=g==="Extern"?"Extern":ht?"AMS HT "+fach:g+" · Fach "+fach;
   const key=drucker+"|"+sort,R=RL.m[key];const ro=R&&R.rolle&&R.rolle.g!=null?Math.round(R.rolle.g):null;
   const gw=(R&&R.gewicht)||(e&&e.gewicht)||1000;const chip=a.tag_uid&&!/^0+$/.test(String(a.tag_uid));
-  const gT=leer?"":ro!=null?N0.format(ro)+" g":rest!=null&&chip?"≈ "+N0.format(Math.round(rest/100*gw))+" g":S.srv?"? g":"";
-  const gK=ro!=null?"":gT.startsWith("≈")?" q":" n";const rb=ro!=null?Math.max(0,Math.min(100,ro/gw*100)):rest;const kl=S.srv&&!leer;
-  return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null?" · "+rest+" %":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
+  /* ohne eingetragene Rolle: Schätzung aus dem Lager (dieselbe, die an den Filament Manager in Bambu Studio geht) */
+  const sch=ro==null&&!(rest!=null&&chip)&&R&&R.schaetzung!=null?Math.round(R.schaetzung):null;
+  const gT=leer?"":ro!=null?N0.format(ro)+" g":rest!=null&&chip?"≈ "+N0.format(Math.round(rest/100*gw))+" g":sch!=null?"≈ "+N0.format(sch)+" g":S.srv?"? g":"";
+  const gK=ro!=null?"":gT.startsWith("≈")?" q":" n";const rb=ro!=null?Math.max(0,Math.min(100,ro/gw*100)):sch!=null?Math.max(0,Math.min(100,sch/gw*100)):rest;const kl=S.srv&&!leer;
+  return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null&&chip?" · "+rest+" %":sch!=null?" · geschätzt aus dem Lager – tippen zum Wiegen oder Eintragen":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
 /* Live-Gewicht: der Server reicht bis zu 10 Werte/s von jeder Waage durch ({typ:"waage_live"}). Ersetzt werden nur die markierten
    Zahlen (data-wl = Waage, data-wlk = netto → abzüglich data-wll, data-wlf = g|kg1|kg2, data-wlv = Balken mit Sollgewicht) – ohne neu zu zeichnen. */
 window.slWaageLiveAnwenden=function(pre,g){const f=(v,a)=>(a==="kg1"||a==="kg2")&&v>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:a==="kg1"?1:2}).format(v/1000)+" kg":Math.round(v).toLocaleString("de-DE")+" g";

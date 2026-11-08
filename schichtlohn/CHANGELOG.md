@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.15.2 – 08.11.2026
+- AMS-Ansicht: Statt „? g“ steht bei Fächern ohne eingetragene Rolle jetzt ein Schätzwert aus dem Lager („≈ 420 g“) mit Füllbalken – derselbe Wert, der an Bambu Studio geht. Tippen aufs Fach zum Wiegen oder Eintragen macht ihn genau.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.1 – 08.11.2026
 - Filament Manager: Fächer, bei denen noch keine Rolle mit Gramm eingetragen ist, kommen jetzt auch rein – mit einem Schätzwert aus dem Lager (genau ein angebrochener Rest → dieser, sonst eine volle Rolle). In Bambu Studio steht dann „geschätzt“ in der Notiz. Genau wird es, sobald du die Rolle wiegst oder einträgst.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

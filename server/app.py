@@ -72,7 +72,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.15.1"
+VERSION = "3.15.2"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1887,6 +1887,9 @@ def rollen_liste():
         if treffer:
             it, d = treffer
             r = (d.get("faecher") or {}).get(x["key"]) if isinstance(d.get("faecher"), dict) else None
+            gw_ = _zahl(d.get("gewicht"), 1000) or 1000
+            reste_ = [float(v) for v in (d.get("reste") or []) if isinstance(v, (int, float))]
+            x["schaetzung"] = reste_[0] if len(reste_) == 1 else gw_  # wie beim Filament Manager: ein Rest → dieser, sonst volle Rolle
             x.update({"uid": it["uid"], "sorte": it["summary"], "gewicht": _zahl(d.get("gewicht"), 1000) or 1000, "leer_g": _zahl(d.get("leer_g")) or None,
                       "rolle": r, "gleiche": [{"key": k, "g": v.get("g")} for k, v in (d.get("faecher") or {}).items() if k != x["key"] and isinstance(v, dict)]})
         out.append(x)
