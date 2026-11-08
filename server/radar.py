@@ -116,7 +116,7 @@ def sammeln(ha_anfrage, preis_fn, einst, modell_namen):
         n = lambda suf: _zahl(st(suf)) if _ok(st(suf)) else None
         status = str(st("druckstatus") or "unknown")
         online = st("online", "binary_sensor")
-        if online == "off" or status == "offline":
+        if online == "off" or status in ("offline", "unavailable"):
             status = "offline"
         cfg = zuordnung.get(pre) if isinstance(zuordnung.get(pre), dict) else {}
         name = cfg.get("name") or (st("name_des_druckers") if _ok(st("name_des_druckers")) else "") or modell_namen.get(modell, modell.upper())
