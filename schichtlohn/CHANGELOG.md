@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.14.0 – 08.11.2026
+- Gewicht live: Legst du eine Rolle auf die Waage, läuft die Zahl im Lager, unter „Heute“ und bei „Spule erkannt“ flüssig mit (bis zu 10 Werte pro Sekunde) statt in Sprüngen. Auch „Filament übrig“ und der Füllbalken gehen mit.
+- Die schnellen Werte werden nur angezeigt, nicht gespeichert – im Lager bleibt es bei einem Wert pro Sekunde.
+- Waage 1 (Sensorplatine) kann das schon; Waage 2 (SC01 Plus) braucht dafür die Display-Firmware 1.14.0.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.13.0 – 07.11.2026
 - Leere Spule je Hersteller: unter Einstellungen → Lager steht, was die leere Spule eines Herstellers wiegt – voreingestellt Polymaker mit 140 g (Herstellerangabe für die 1-kg-Pappspule). Gilt für alle Sorten dieses Herstellers, auch neue: an der Waage, im Lager und bei „Spule erkannt“. Alle anderen bleiben bei 250 g.
 - Bei jeder Sorte gibt es jetzt das Feld „Leere Spule“ (unter „Technische Daten“) für Ausnahmen, z. B. nach dem Wiegen einer leeren Spule. Ein eigener Wert geht immer vor.

@@ -14,7 +14,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   PUT  /api/listen/<name>             {"items": [...]}  ganze Liste ersetzen (Übernahme)
   GET  /api/daten/<schlüssel>         gespeicherter Wert (cfg, portfolio, orders …)
   PUT  /api/daten/<schlüssel>         {"wert": ...}
-  GET  /api/ereignisse                Live-Meldungen bei Änderungen (Server-Sent Events)
+  GET  /api/ereignisse                Live-Meldungen bei Änderungen (Server-Sent Events), auch Live-Gewicht der Waagen (typ waage_live)
   GET  /api/sorten                    Lager vereinfacht (für die Waage)
   GET  /api/sicherung                 alles als JSON (Backup)
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
@@ -70,7 +70,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.13.0"
+VERSION = "3.14.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -940,6 +940,103 @@ def waage_ip(pre):
     if not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
         raise Fehler(404, "Diese Waage hat sich noch nicht gemeldet (braucht Waagen-Firmware ab 2.24)")
     return ip
+
+
+# ---------------------------------------------------------------- Live-Gewicht der Waagen
+# Solange jemand die App offen hat, hält der Server zu jeder Waage genau eine Live-Verbindung (/api/ereignisse der
+# Waage, Server-Sent Events) und reicht das Gewicht als {"typ": "waage_live"} an die App weiter – so oft, wie die
+# Waage es schickt (Sensorplatine bis ~7×/s, SC01 Plus 10×/s). In die Datenbank kommt davon nichts; dort bleibt
+# die normale Meldung der Waage (höchstens 1×/s). Waagen ohne Live-Strom (ältere Firmware) werden nur selten neu versucht.
+_waage_live = {}
+_waage_live_lock = threading.Lock()
+
+
+def _waagen_mit_ip():
+    out = {}
+    with _zst_lock:
+        for eid, z in _zst.items():
+            m = re.fullmatch(r"sensor\.([a-z0-9_]{2,30})_laufzeit", eid)
+            if not m:
+                continue
+            a = z.get("attributes") or {}
+            ip = str(a.get("ip") or "")
+            if (m.group(1) == "filamentwaage" or a.get("waage")) and re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+                out[m.group(1)] = ip
+    return out
+
+
+def _zuschauer():
+    with _hoerer_lock:
+        return bool(_hoerer)
+
+
+def _waage_live_lauf(pre):
+    import http.client
+    pause = 2
+    try:
+        while True:
+            ip = _waagen_mit_ip().get(pre)
+            if not ip:
+                return
+            if not _zuschauer():
+                time.sleep(1)
+                continue
+            c = None
+            try:
+                c = http.client.HTTPConnection(ip, 80, timeout=6)
+                c.request("GET", "/api/ereignisse", headers={"Accept": "text/event-stream"})
+                r = c.getresponse()
+                if r.status != 200:
+                    raise OSError(f"HTTP {r.status}")
+                pause = 2
+                ereignis, daten, letzt = "", [], None
+                while _zuschauer() and _waagen_mit_ip().get(pre) == ip:
+                    zeile = r.fp.readline()
+                    if not zeile:
+                        raise OSError("Waage hat die Verbindung beendet")
+                    zeile = zeile.decode("utf-8", "replace").rstrip("\r\n")
+                    if zeile.startswith("event:"):
+                        ereignis = zeile[6:].strip()
+                    elif zeile.startswith("data:"):
+                        daten.append(zeile[5:].lstrip())
+                    elif not zeile:
+                        if ereignis in ("", "zustand") and daten:
+                            try:
+                                d = json.loads("\n".join(daten))
+                            except ValueError:
+                                d = None
+                            if isinstance(d, dict) and isinstance(d.get("brutto_g"), (int, float)):
+                                w = (round(max(0.0, float(d["brutto_g"])), 1), bool(d.get("stabil")), d.get("kalibriert", True) is not False)
+                                if w != letzt:
+                                    letzt = w
+                                    melden({"typ": "waage_live", "pre": pre, "g": w[0], "stabil": w[1], "kalibriert": w[2]})
+                        ereignis, daten = "", []
+            except (OSError, http.client.HTTPException) as e:
+                if pause >= 30:
+                    print(f"Waage {pre} live: {e}", flush=True)
+                time.sleep(pause)
+                pause = min(120, pause * 2)  # ohne Live-Strom (alte Firmware) nur noch alle 2 min versuchen
+            finally:
+                if c:
+                    c.close()
+    finally:
+        with _waage_live_lock:
+            _waage_live.pop(pre, None)
+
+
+def waagen_live_schleife():
+    while True:
+        try:
+            for pre in _waagen_mit_ip():
+                with _waage_live_lock:
+                    if pre in _waage_live:
+                        continue
+                    t = threading.Thread(target=_waage_live_lauf, args=(pre,), daemon=True, name="live-" + pre)
+                    _waage_live[pre] = t
+                t.start()
+        except Exception as e:
+            print("Waagen live:", e, flush=True)
+        time.sleep(5)
 
 
 # ---------------------------------------------------------------- NFC-Aufkleber über die Waage beschreiben
@@ -3671,4 +3768,5 @@ if __name__ == "__main__":
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     threading.Thread(target=faecher_schleife, daemon=True).start()
     threading.Thread(target=leer_schleife, daemon=True).start()
+    threading.Thread(target=waagen_live_schleife, daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
