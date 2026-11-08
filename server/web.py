@@ -30,7 +30,7 @@ def cdn_basis():
     except Exception:
         pass
     return "https://cdn.jsdelivr.net/gh/%s@%s/" % (REPO, sha if re.fullmatch(r"[0-9a-f]{40}", sha) else "main")
-APP_DATEIEN = ["index.html", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "scan.html"]
+APP_DATEIEN = ["index.html", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "scan.html", "radar.html"]
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
       "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
 

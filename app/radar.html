@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SchichtRadar">
+<meta name="theme-color" content="#0b1220">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg">
+<title>SchichtRadar</title>
+<style>
+:root{--bg:#0b1220;--card:#111b2e;--card2:#0e1728;--line:#1f3352;--line2:#2a4570;--fg:#e6edf5;--mut:#8fa3bb;--dim:#5b6f88;--acc:#22d3ee;--acc2:#0ea5c6;--rot:#f0606a;--gruen:#34d399;--gelb:#fbbf24;--lila:#c084fc}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+body{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+button{font:inherit;color:inherit;cursor:pointer}
+.kopf{display:flex;align-items:center;gap:10px;max-width:1900px;margin:0 auto 10px}
+.logo{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.logo b{color:var(--acc);font-weight:800}.logo small{font-size:12px;color:var(--mut);font-weight:600;margin-left:6px;letter-spacing:0}
+.unter{font-size:12px;color:var(--mut);margin-top:4px;display:flex;align-items:center;gap:6px}
+.punkt{width:8px;height:8px;border-radius:50%;background:var(--gruen);display:inline-block}.punkt.aus{background:var(--rot)}
+.knopf{border:1px solid var(--line2);background:var(--card);border-radius:12px;padding:9px 12px;display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+.knopf:hover{border-color:var(--acc)}.knopf.klein{padding:5px 9px;font-size:12px;border-radius:9px}
+.knopf.an{background:var(--acc);color:#05202a;border-color:var(--acc)}
+.chips{display:flex;gap:6px;overflow-x:auto;max-width:1900px;margin:0 auto 12px;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line2);background:var(--card);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--mut);display:flex;align-items:center;gap:6px}
+.chip.an{color:var(--fg);border-color:var(--acc)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.chip i.l{background:var(--acc)}.chip i.f{background:var(--gruen)}.chip i.p{background:var(--gelb)}.chip i.e{background:var(--rot)}
+.raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr));gap:14px;max-width:1900px;margin:0 auto;align-items:start}
+.karte{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.khead{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.mbadge{width:44px;height:44px;border-radius:12px;border:1px solid var(--acc2);display:flex;align-items:center;justify-content:center;color:var(--acc);font-weight:800;font-size:13px;flex:none;background:var(--card2)}
+.kname{flex:1;min-width:0}.kname b{display:block;font-size:17px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kname span{font-size:12px;color:var(--mut)}
+.pill{border:1px solid var(--acc);color:var(--acc);border-radius:999px;padding:4px 11px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pill:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.f{color:var(--gruen);border-color:var(--gruen)}.pill.p{color:var(--gelb);border-color:var(--gelb)}.pill.e{color:var(--rot);border-color:var(--rot)}.pill.o{color:var(--dim);border-color:var(--line2)}
+.kam{position:relative;background:#04070d;aspect-ratio:16/9;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kam img{width:100%;height:100%;object-fit:cover;display:block}
+.kam .leer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:13px}
+.kam .tasten{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.kam .tasten .knopf{background:rgba(10,18,32,.82);backdrop-filter:blur(6px)}.kam .tasten .knopf.an{background:var(--acc);color:#05202a}
+.kam .live{position:absolute;left:8px;top:8px;background:var(--rot);color:#fff;font-size:11px;font-weight:800;border-radius:6px;padding:2px 7px;letter-spacing:.5px}
+.sek{border-top:1px solid var(--line)}
+.shead{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;cursor:pointer;user-select:none}
+.shead h3{margin:0;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#c9d6e6;font-weight:700}
+.shead .pfeil{width:30px;height:30px;border:1px solid var(--line2);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--mut);transition:transform .15s}
+.sek.zu .pfeil{transform:rotate(180deg)}
+.sek.zu .sbody{display:none}
+.sbody{padding:0 14px 14px}
+.balken{height:26px;border-radius:13px;background:var(--card2);border:1px solid var(--line);overflow:hidden;position:relative;margin-bottom:10px}
+.balken div{height:100%;background:linear-gradient(90deg,#0ea5c6,var(--acc));border-radius:13px;transition:width .6s}
+.balken span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;text-shadow:0 1px 2px #0008}
+.kacheln{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:7px}
+.k{background:var(--card2);border:1.5px solid var(--acc2);border-radius:13px;padding:9px 4px;text-align:center;min-width:0}
+.k .l{font-size:10.5px;letter-spacing:1px;color:var(--mut);font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k .w{font-size:17px;font-weight:800;margin-top:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.k .w.r{color:var(--rot)}.k .w small{font-size:11px;color:var(--mut);font-weight:600;display:block}
+.k.hell{background:#e8edf2;color:#13243b;border-color:#e8edf2}.k.hell .l{color:#41546e}
+.k .bruch{display:inline-flex;flex-direction:column;line-height:1.05}.k .bruch i{font-style:normal;border-top:1.5px solid currentColor;margin-top:2px;padding-top:2px}
+.rund{width:38px;height:38px;border-radius:50%;margin:5px auto 4px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;border:2.5px solid #9fb0c4;background:#2a3a52}
+.k.hell .rund{border-color:#7d8fa6}
+.hinweis{font-size:11.5px;color:var(--mut);margin-top:8px}
+.schritt{font-size:13px;color:var(--acc);margin:-2px 0 10px;display:flex;gap:6px;align-items:center}
+.ams{display:grid;gap:8px}
+.amseinheit{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.amskopf{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:8px}
+.amskopf span{color:var(--mut);font-weight:600}
+.faecher{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.fach{text-align:center;border:1.5px solid transparent;border-radius:11px;padding:6px 2px}
+.fach.aktiv{border-color:var(--acc);background:#0f2a3a}
+.spule{width:34px;height:34px;border-radius:50%;margin:0 auto 4px;border:2px solid #ffffff30;position:relative}
+.spule.leer{background:repeating-linear-gradient(45deg,#1a2740,#1a2740 4px,#22324f 4px,#22324f 8px)!important}
+.fach b{display:block;font-size:12px}.fach small{display:block;font-size:10.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zeilen{display:grid;gap:6px}
+.zeile{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:13.5px}
+.zeile span{color:var(--mut);font-size:12px}
+.zeile .wert{font-weight:700;display:flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums}
+.zeile .wert i{width:7px;height:7px;border-radius:50%;background:var(--acc)}.zeile .wert i.aus{background:#f0a35e}
+.gross{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:8px}
+.gk{background:var(--card2);border:1px solid var(--line);border-radius:13px;padding:11px 12px}
+.gk .l{font-size:10.5px;letter-spacing:1.3px;color:var(--mut);font-weight:700;text-transform:uppercase}
+.gk .w{font-size:24px;font-weight:800;color:var(--acc);margin-top:3px;font-variant-numeric:tabular-nums}
+.gk small{display:block;font-size:11px;color:var(--mut);margin-top:2px}
+.summe{background:#0f2a3a;border:1px solid var(--acc2);border-radius:13px;padding:11px 13px;font-weight:800;font-size:16px}
+.summe small{display:block;font-weight:500;font-size:11.5px;color:var(--mut);margin-top:2px}
+.modell{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.modell b{display:block;font-size:13px;margin-bottom:8px;word-break:break-all}
+.modell img{max-width:100%;max-height:260px;border-radius:8px}
+.legende{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;color:var(--mut);margin-top:6px}
+.legende i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:4px 9px;font-size:12px;color:var(--mut)}.seg button.an{background:var(--acc2);color:#fff}
+.diagramm svg{width:100%;height:auto;display:block}
+.fuss{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--dim)}
+.dialog{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:9;padding:12px}
+.dialog[hidden]{display:none}
+.dbox{background:var(--card);border:1px solid var(--line2);border-radius:20px;width:100%;max-width:560px;max-height:88vh;overflow:auto;padding:16px}
+.dbox h2{margin:0 0 12px;font-size:18px}
+.feld{display:grid;gap:4px;margin-bottom:10px;font-size:12.5px;color:var(--mut)}
+.feld input,.feld select{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:10px;padding:9px 10px;font:inherit;font-size:14px;width:100%}
+.dk{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.dk b{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.zwei{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.leerzustand{text-align:center;color:var(--mut);padding:50px 20px}
+@media (max-width:420px){.k .w{font-size:15px}.logo{font-size:26px}}
+@media (min-width:700px){.dialog{align-items:center}}
+</style>
+</head>
+<body>
+<div class="kopf">
+  <div style="flex:1;min-width:0">
+    <div class="logo"><b>Schicht</b>Radar<small>v1.0</small></div>
+    <div class="unter"><span class="punkt" id="punkt"></span><span id="stand">verbinde …</span></div>
+  </div>
+  <button class="knopf" id="einstKnopf" aria-label="Einstellungen">☰ <span>Menü</span></button>
+</div>
+<div class="chips" id="chips"></div>
+<div class="raster" id="raster"><div class="leerzustand">Lade Drucker aus Home Assistant …</div></div>
+
+<div class="dialog" id="dialog" hidden>
+  <div class="dbox" id="dbox"></div>
+</div>
+
+<script>
+"use strict";
+const API=new URL("../api/",location.href).href;
+const Q=new URLSearchParams(location.search);
+if(Q.get("token"))try{localStorage.setItem("radar_token",Q.get("token"))}catch(e){}
+let TOKEN="";try{TOKEN=localStorage.getItem("radar_token")||""}catch(e){}
+const mitTok=u=>TOKEN?u+(u.includes("?")?"&":"?")+"token="+encodeURIComponent(TOKEN):u;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const N0=new Intl.NumberFormat("de-DE",{maximumFractionDigits:0}),N1=new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}),N2=new Intl.NumberFormat("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2});
+const EUR=v=>v==null?"–":N2.format(v)+" €";
+const ls={get(k,d){try{const v=localStorage.getItem("radar_"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem("radar_"+k,JSON.stringify(v))}catch(e){}}};
+
+const STATUS={running:["Druckt",""],pause:["Pause","p"],prepare:["Vorbereitung",""],slicing:["Slicen",""],init:["Start",""],finish:["Fertig","f"],failed:["Abgebrochen","e"],idle:["Bereit","o"],offline:["Offline","o"],unknown:["Unbekannt","o"]};
+const LAUF=["running","pause","prepare","slicing","init"];
+const SCHRITT={printing:"Druckt",auto_bed_leveling:"Bett wird vermessen",heatbed_preheating:"Bett heizt vor",heating_hotend:"Düse heizt",changing_filament:"Filamentwechsel",filament_loading:"Filament wird geladen",filament_unloading:"Filament wird entladen",cleaning_nozzle_tip:"Düsenspitze wird gereinigt",homing_toolhead:"Druckkopf fährt Referenz",inspecting_first_layer:"Erste Schicht wird geprüft",scanning_bed_surface:"Bettoberfläche wird gescannt",calibrating_extrusion_flow:"Fluss wird kalibriert",calibrating_extrusion:"Extrusion wird kalibriert",paused_filament_runout:"Pause: Filament leer",paused_user:"Pause durch Nutzer",paused_nozzle_clog:"Pause: Düse verstopft",paused_first_layer_error:"Pause: Fehler erste Schicht",heating_chamber:"Kammer heizt",waiting_for_heatbed_temperature:"Warte auf Betttemperatur",cooling_chamber:"Kammer kühlt",preparing_hotend:"Hotend wird vorbereitet",hotend_pick_place_test:"Hotend-Wechseltest",check_material:"Material wird geprüft",preparing_ams:"AMS wird vorbereitet",purifying_chamber_air:"Kammerluft wird gereinigt",thermal_preconditioning:"Aufwärmen",identifying_build_plate_type:"Druckplatte wird erkannt",calibrate_nozzle_offset:"Düsenversatz wird kalibriert"};
+const PLATTE={textured_plate:"Texturiert PEI",cool_plate:"Cool Plate",engineering_plate:"Engineering",hot_plate:"High Temp",supertack_plate:"SuperTack",smooth_plate:"Glatt PEI"};
+const DTYP={hardened_steel:"Gehärtet",stainless_steel:"Edelstahl",tungsten_carbide:"Wolframkarbid",high_flow:"High Flow"};
+const PROFIL={silent:"Leise",standard:"Standard",sport:"Sport",ludicrous:"Wahnsinn"};
+const SEK=[["kam","Kamera",1],["ueb","Druckübersicht",1],["duese","Aktive Düse",0],["ams","AMS & Filament",0],["energie","Energie & Kosten",0],["temp","Temperaturen",0],["modell","Druckmodell",0],["luefter","Lüfter & Licht",0]];
+let D=null,FILTER=ls.get("filter","alle"),offen=ls.get("offen",{}),FEHLER=0,LETZT=0;
+const karten={};
+const istOffen=(pre,k)=>{const o=offen[pre+"|"+k];return o==null?(SEK.find(s=>s[0]===k)||[])[2]===1:o};
+
+function dauer(min){if(min==null||!isFinite(min))return "–";min=Math.max(0,Math.round(min));const h=Math.floor(min/60),m=min%60;return h?`${h}h ${String(m).padStart(2,"0")}m`:`${m}m`}
+function uhr(d){return d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}
+function temp(v){return v==null?"–":N0.format(v)+" °C"}
+function ortKurz(o){o=o||"";let m=o.match(/^AMS (\d+) Fach (\d+)$/);if(m)return m[1]+"-"+m[2];m=o.match(/^AMS HT (\d+)$/);if(m)return "HT"+m[1];if(/^Externe/.test(o))return "E"+(o.endsWith("2")?"2":"");return o?"?":"–"}
+function farbeText(h){if(!h)return "#e6edf5";const r=parseInt(h.substr(1,2),16),g=parseInt(h.substr(3,2),16),b=parseInt(h.substr(5,2),16);return (r*299+g*587+b*114)/1000>150?"#13243b":"#fff"}
+
+async function api(pfad,opt){const r=await fetch(mitTok(API+pfad),Object.assign({cache:"no-store"},opt||{}));if(!r.ok){let t="";try{t=(await r.json()).message||""}catch(e){}throw new Error(t||("HTTP "+r.status))}return r.json()}
+
+async function laden(){
+  try{D=await api("radar");FEHLER=0;LETZT=Date.now();zeichnen()}
+  catch(e){FEHLER++;document.getElementById("punkt").classList.add("aus");document.getElementById("stand").textContent="Keine Verbindung: "+e.message;
+    if(!D)document.getElementById("raster").innerHTML=`<div class="leerzustand">Keine Daten vom SchichtLohn-Server.<br><small>${esc(e.message)}</small></div>`}
+}
+
+function zeichnen(){
+  const dr=D.drucker||[];
+  const online=dr.filter(d=>d.status!=="offline").length,lauf=dr.filter(d=>LAUF.includes(d.status)).length;
+  document.getElementById("punkt").classList.toggle("aus",!online);
+  document.getElementById("stand").textContent=`${online} von ${dr.length} online · ${lauf} ${lauf===1?"druckt":"drucken"} · ${new Date().toLocaleTimeString("de-DE")}`;
+  const chips=[["alle","Alle",""],["aktiv","Aktiv",""]].concat(dr.map(d=>[d.pre,d.name,d.status]));
+  const ch=chips.map(([k,n,s])=>{const c=s?(LAUF.includes(s)?(s==="pause"?"p":"l"):s==="finish"?"f":s==="failed"?"e":""):"";return `<button class="chip${FILTER===k?" an":""}" data-filter="${esc(k)}">${s!==""?`<i class="${c}"></i>`:""}${esc(n)}</button>`}).join("");
+  const ce=document.getElementById("chips");if(ce.innerHTML!==ch)ce.innerHTML=ch;
+  const sicht=dr.filter(d=>FILTER==="alle"||(FILTER==="aktiv"?(LAUF.includes(d.status)||d.status==="pause"):d.pre===FILTER));
+  const raster=document.getElementById("raster");
+  if(!dr.length){raster.innerHTML=`<div class="leerzustand">Keine Bambu-Drucker in Home Assistant gefunden.</div>`;return}
+  if(!sicht.length){raster.innerHTML=`<div class="leerzustand">Gerade druckt keiner.</div>`;return}
+  raster.querySelectorAll(".leerzustand").forEach(x=>x.remove());
+  const reihe=sicht.map(d=>karte(d));
+  reihe.forEach((el,i)=>{if(raster.children[i]!==el)raster.insertBefore(el,raster.children[i]||null)});
+  [...raster.children].forEach(el=>{if(!reihe.includes(el))el.remove()});
+  sicht.forEach(d=>fuellen(d));
+}
+
+function karte(d){
+  if(karten[d.pre])return karten[d.pre];
+  const el=document.createElement("section");el.className="karte";el.dataset.pre=d.pre;
+  el.innerHTML=`<div class="khead" data-teil="kopf"></div>`+SEK.map(([k,t])=>k==="kam"?`<div class="kam" data-teil="kam"><img alt="" hidden><div class="leer">Keine Kamera</div><div class="tasten"></div></div>`:
+    `<div class="sek${istOffen(d.pre,k)?"":" zu"}" data-sek="${k}"><div class="shead" data-klapp="${k}"><h3>${t}</h3><span class="pfeil">⌃</span></div><div class="sbody" data-teil="${k}"></div></div>`).join("")+`<div class="fuss" data-teil="fuss"></div>`;
+  karten[d.pre]=el;return el}
+
+function setze(el,teil,html){const t=el.querySelector(`[data-teil="${teil}"]`);if(t&&t.__h!==html){t.innerHTML=html;t.__h=html}}
+
+function fuellen(d){
+  const el=karten[d.pre];const [stxt,scls]=STATUS[d.status]||[d.status,"o"];
+  const lauf=LAUF.includes(d.status);
+  setze(el,"kopf",`<div class="mbadge">${esc(d.modell.replace(" mini","m"))}</div><div class="kname"><b>${esc(d.name)}</b><span>Gesamtdruckzeit: ${d.laufzeit_h!=null?N0.format(Math.floor(d.laufzeit_h))+" h "+String(Math.round((d.laufzeit_h%1)*60)).padStart(2,"0")+" min":"–"}</span></div><div class="pill ${d.fehler&&d.status!=="offline"?"e":scls}">${d.fehler&&d.status!=="offline"?"Fehler":stxt}</div>`);
+  kamera(el,d);
+  if(istOffen(d.pre,"ueb"))setze(el,"ueb",uebersicht(d));
+  if(istOffen(d.pre,"duese"))setze(el,"duese",`<div class="diagramm">${dueseSvg(d)}</div>`);
+  if(istOffen(d.pre,"ams"))setze(el,"ams",amsHtml(d));
+  if(istOffen(d.pre,"energie"))setze(el,"energie",energieHtml(d));
+  if(istOffen(d.pre,"temp"))tempLaden(el,d);
+  if(istOffen(d.pre,"modell"))setze(el,"modell",modellHtml(d));
+  if(istOffen(d.pre,"luefter"))setze(el,"luefter",luefterHtml(d));
+  setze(el,"fuss",`<span>Seriennr. ${esc(d.serie)}${d.wlan?" · WLAN "+esc(d.wlan)+" dBm":""}</span><span>${d.platte?esc(PLATTE[d.platte]||d.platte):""}</span>`);
+}
+
+/* ---------- Kamera ---------- */
+const LIVE={};
+function kamera(el,d){
+  const k=el.querySelector('[data-teil="kam"]');const sek=istOffen(d.pre,"kam");
+  k.style.display=sek?"":"none";
+  const img=k.querySelector("img"),leer=k.querySelector(".leer");
+  const tasten=`${d.licht!=null?`<button class="knopf klein${d.licht?" an":""}" data-licht="${d.pre}">💡 Licht</button>`:""}${d.kamera?`<button class="knopf klein" data-snap="${d.pre}">📷 Snapshot</button><button class="knopf klein${LIVE[d.pre]?" an":""}" data-live="${d.pre}">${LIVE[d.pre]?"■ Live":"▶ Live"}</button>`:""}`;
+  const te=k.querySelector(".tasten");if(te.__h!==tasten){te.innerHTML=tasten;te.__h=tasten}
+  let lv=k.querySelector(".live");if(LIVE[d.pre]&&!lv){lv=document.createElement("div");lv.className="live";lv.textContent="LIVE";k.appendChild(lv)}else if(!LIVE[d.pre]&&lv)lv.remove();
+  if(!d.kamera||!sek){img.hidden=true;leer.hidden=!sek?true:false;leer.textContent=d.status==="offline"?"Drucker offline":"Keine Kamera";if(!sek)img.removeAttribute("src");return}
+  if(LIVE[d.pre]){const u=mitTok(API+"kamera/"+d.pre+"/live");if(img.dataset.live!=="1"){img.src=u;img.dataset.live="1"}img.hidden=false;leer.hidden=true;return}
+  img.dataset.live="";
+  const takt=LAUF.includes(d.status)?3000:15000;
+  if(!img.__t||Date.now()-img.__t>takt){img.__t=Date.now();const neu=new Image();neu.onload=()=>{img.src=neu.src;img.hidden=false;leer.hidden=true};neu.onerror=()=>{if(img.hidden){leer.hidden=false;leer.textContent="Kamerabild nicht verfügbar"}};neu.src=mitTok(API+"kamera/"+d.pre+".jpg?t="+Date.now())}
+  if(img.hidden){leer.hidden=false;leer.textContent="Kamera lädt …"}
+}
+
+/* ---------- Druckübersicht ---------- */
+function uebersicht(d){
+  const lauf=LAUF.includes(d.status),pct=d.status==="finish"?100:(d.fortschritt||0);
+  const start=d.start?new Date(d.start):null,ende=lauf&&d.rest_min!=null?new Date(Date.now()+d.rest_min*60000):(d.ende?new Date(d.ende):null);
+  const seit=start?(lauf?(Date.now()-start)/60000:(ende?(ende-start)/60000:null)):null;
+  const kach=[];
+  d.duesen.forEach(z=>kach.push(`<div class="k${z.aktiv?" hell":""}"><div class="l">${d.duesen.length>1?"Düse "+esc(z.name):"Düse"}</div><div class="rund" style="background:${z.aktiv&&d.filament&&d.filament.farbe?esc(d.filament.farbe):z.aktiv?"#fff":"#2a3a52"};color:${z.aktiv&&d.filament?farbeText(d.filament.farbe):"#e6edf5"}">${esc(z.id)}</div><div class="w" style="font-size:15px">${temp(z.temp)}</div></div>`));
+  const f=d.filament;
+  kach.push(`<div class="k"><div class="l">Filament</div><div class="rund" style="background:${f&&f.farbe?esc(f.farbe):"#2a3a52"};color:${farbeText(f&&f.farbe)}">${f?esc(ortKurz(f.ort)):"–"}</div><div class="w" style="font-size:13px">${f?esc(f.typ||"–"):"–"}</div></div>`);
+  if(d.duesen.length<2)kach.push(`<div class="k"><div class="l">Profil</div><div class="w" style="margin-top:14px">${esc(PROFIL[d.profil]||d.profil||"–")}</div></div>`);
+  kach.push(`<div class="k"><div class="l">Kammer</div><div class="w" style="margin-top:14px">${temp(d.kammer)}</div></div>`);
+  while(kach.length%4)kach.push(`<div class="k"><div class="l">Bett</div><div class="w" style="margin-top:14px">${temp(d.bett)}</div></div>`);
+  const lf=d.luefter.bauteil;
+  const sch=d.schritt&&d.schritt!=="idle"&&d.schritt!=="printing"&&lauf?`<div class="schritt">⟳ ${esc(SCHRITT[d.schritt]||d.schritt.replace(/_/g," "))}</div>`:"";
+  return `<div class="balken"><div style="width:${pct}%"></div><span>${N1.format(pct)} %</span></div>${sch}
+  <div class="kacheln">${kach.join("")}</div>
+  <div class="kacheln">
+    <div class="k"><div class="l">Ende</div><div class="w r">${ende&&(lauf||d.status==="finish")?uhr(ende):"–"}</div></div>
+    <div class="k"><div class="l">Dauer</div><div class="w">${seit!=null&&(lauf||d.status==="finish"||d.status==="failed")?dauer(seit):"–"}</div></div>
+    <div class="k"><div class="l">Rest</div><div class="w">${lauf?dauer(d.rest_min):"–"}</div></div>
+    <div class="k"><div class="l">Kosten</div><div class="w r">${d.energie.gesamt!=null&&!d.wartung?EUR(d.energie.gesamt):"–"}</div></div>
+  </div>
+  <div class="kacheln">
+    <div class="k"><div class="l">Bett</div><div class="w">${temp(d.bett)}</div></div>
+    <div class="k"><div class="l">Layer</div><div class="w">${d.schichten?`<span class="bruch">${N0.format(d.schicht||0)}<i>${N0.format(d.schichten)}</i></span>`:"–"}</div></div>
+    <div class="k"><div class="l">Bauteillü.</div><div class="w">${lf!=null?N0.format(lf)+" %":"–"}</div></div>
+    <div class="k"><div class="l">Leistung</div><div class="w">${d.energie.leistung!=null?N0.format(d.energie.leistung)+" W":"–"}</div></div>
+  </div>
+  ${d.aufgabe&&!d.wartung?`<div class="hinweis">${esc(d.aufgabe)}</div>`:d.wartung?`<div class="hinweis">Kalibrierung / Wartungslauf: ${esc(d.aufgabe)}</div>`:""}`;
+}
+
+/* ---------- Aktive Düse (Grafik) ---------- */
+function dueseSvg(d){
+  const z=d.duesen.find(x=>x.aktiv)||d.duesen[0];const f=d.filament||{};
+  const fc=f.farbe||"#e6edf5",lauf=LAUF.includes(d.status);
+  const lab=(x,y,t,w,anker)=>`<text x="${x}" y="${y}" fill="#a9b8cc" font-size="10" letter-spacing="1.4" font-weight="700" text-anchor="${anker||"start"}">${esc(t.toUpperCase())}</text><text x="${x}" y="${y+21}" fill="#fff" font-size="19" font-weight="800" text-anchor="${anker||"start"}">${w}</text>`;
+  const fins=[0,1,2,3,4,5,6,7].map(i=>`<rect x="150" y="${118+i*15}" width="100" height="9" fill="#9aa3ad"/>`).join("");
+  const lagen=[0,1,2,3,4,5].map(i=>`<path d="M146 ${318+i*11} h106 a5 5 0 0 0 0 -10" fill="none" stroke="${lauf?fc:"#7c8a9c"}" stroke-width="5" stroke-linecap="round" opacity="${lauf?1:.6}"/>`).join("");
+  const spuleStr=[0,1,2,3,4,5,6,7].map(i=>`<rect x="156" y="${36+i*7}" width="88" height="3.5" fill="${esc(fc)}" opacity=".95"/>`).join("");
+  return `<svg viewBox="0 0 400 430" role="img" aria-label="Aktive Düse">
+  <rect x="148" y="26" width="104" height="5" rx="2" fill="#9aa3ad"/><rect x="148" y="94" width="104" height="5" rx="2" fill="#9aa3ad"/>${spuleStr}
+  <rect x="162" y="51" width="76" height="22" rx="11" fill="#0e2140"/><text x="200" y="67" fill="#fff" font-size="13" font-weight="800" text-anchor="middle">${esc(f.typ||"–")}</text>
+  <rect x="184" y="104" width="32" height="8" fill="#9aa3ad"/>${fins}
+  <rect x="198" y="99" width="4" height="190" fill="${esc(fc)}"/>
+  <circle cx="200" cy="170" r="27" fill="#e8edf2" stroke="#9aa3ad" stroke-width="3"/><text x="200" y="179" fill="#13243b" font-size="24" font-weight="800" text-anchor="middle">${esc(z.id)}</text>
+  <rect x="172" y="240" width="56" height="34" fill="#8a929b"/>
+  <path d="M184 276 h10 v14 h-10z M206 276 h10 v14 h-10z" fill="#facc15"/><path d="M180 288 h40 l-20 22z" fill="#facc15"/><rect x="198" y="276" width="4" height="34" fill="${esc(fc)}"/>
+  <path d="M110 168 h18 v-36 h12 v80 h-12 v-38 h-18" fill="none" stroke="#c5ccd4" stroke-width="3"/><path d="M128 150 l10 6 v8 l-10 4z M128 186 l10 -6 v-8 l-10 -4z" fill="#c5ccd4"/>
+  ${lagen}
+  <path d="M110 384 h180 l40 22 h-260z" fill="#b8c0c9"/><rect x="70" y="406" width="260" height="22" fill="#5b636c"/>
+  <text x="200" y="398" fill="#5b636c" font-size="15" text-anchor="middle">≀≀≀</text><text x="200" y="422" fill="#fff" font-size="14" font-weight="800" text-anchor="middle">${d.bett!=null?N0.format(d.bett)+"°":"–"}</text>
+  <g stroke="#cfd8e3" stroke-width="1.3" fill="none"><path d="M10 92 h70 l70 38"/><path d="M10 205 h80 l20 -20"/><path d="M10 330 h75 l112 -18"/><path d="M390 66 h-75 l-63 72"/><path d="M390 176 h-70 l-70 22"/><path d="M390 268 h-75 l-87 -10"/><path d="M390 350 h-60 l-78 -10"/></g>
+  ${lab(10,70,"Energie",d.energie.leistung!=null?N0.format(d.energie.leistung)+" W":"–")}
+  ${lab(10,182,"Lüfter Hotend",d.luefter.hotend!=null?N0.format(d.luefter.hotend)+" %":"–")}
+  ${lab(10,308,"Düse",esc(z.groesse?z.groesse+" mm":"–"))}<text x="10" y="345" fill="#8fa3bb" font-size="10">${esc(DTYP[z.typ]||z.typ||"")}</text>
+  ${lab(390,44,"Gesamtlaufzeit",d.laufzeit_h!=null?N1.format(d.laufzeit_h)+" h":"–","end")}
+  ${lab(390,154,"Profil",esc(PROFIL[d.profil]||d.profil||"–"),"end")}
+  ${lab(390,246,"Düsentemperatur",z.temp!=null?N0.format(z.temp)+"°":"–","end")}
+  <text x="390" y="328" fill="#a9b8cc" font-size="10" letter-spacing="1.4" font-weight="700" text-anchor="end">SCHICHT</text>
+  <text x="362" y="350" fill="#fff" font-size="18" font-weight="800" text-anchor="middle">${d.schichten?N0.format(d.schicht||0):"–"}</text><path d="M338 356 h48" stroke="#fff" stroke-width="1.5"/><text x="362" y="375" fill="#fff" font-size="18" font-weight="800" text-anchor="middle">${d.schichten?N0.format(d.schichten):"–"}</text>
+  </svg>`;
+}
+
+/* ---------- AMS ---------- */
+function fachHtml(f,ort){
+  const kurz=ortKurz(ort);
+  return `<div class="fach${f.aktiv?" aktiv":""}"><div class="spule${f.leer?" leer":""}" style="background:${f.farbe?esc(f.farbe):"#2a3a52"}"></div><b>${f.leer?"leer":esc(f.typ||"?")}</b><small>${f.leer?esc(kurz):(f.rest!=null?N0.format(f.rest)+" % · ":"")+esc(f.name||kurz)}</small></div>`}
+function amsHtml(d){
+  if(!d.ams.length&&!d.extern.length)return `<div class="hinweis">Kein AMS gefunden.</div>`;
+  const feu=u=>u.feuchte!=null?`💧 ${N0.format(u.feuchte)} %`:"";
+  const ht=d.ams.filter(u=>u.ht),norm=d.ams.filter(u=>!u.ht);
+  let h=norm.map(u=>`<div class="amseinheit"><div class="amskopf">${esc(u.name)}<span>${feu(u)}${u.temp!=null?" · 🌡 "+N0.format(u.temp)+" °C":""}${u.trocknet?" · trocknet"+(u.trocken_rest?" ("+dauer(u.trocken_rest)+")":""):""}</span></div><div class="faecher">${u.faecher.map(f=>fachHtml(f,f.ort)).join("")}</div></div>`).join("");
+  const kl=ht.map(u=>Object.assign({},u.faecher[0]||{leer:true},{ort:u.name,feuchte:u.feuchte,trocknet:u.trocknet})).concat(d.extern.map(f=>Object.assign({},f)));
+  if(kl.length)h+=`<div class="amseinheit"><div class="amskopf">AMS HT & externe Spulen<span></span></div><div class="faecher">${kl.map(f=>fachHtml(f,f.ort).replace("</small></div>",`</small><small>${f.feuchte!=null?`💧 ${N0.format(f.feuchte)} %${f.trocknet?" · trocknet":""}`:esc(f.ort.replace("Externe Spule","Extern"))}</small></div>`)).join("")}</div></div>`;
+  return `<div class="ams">${h}</div>`}
+
+/* ---------- Energie & Kosten ---------- */
+function energieHtml(d){
+  const e=d.energie;
+  const post=d.posten.map(p=>`<div class="zeile"><span style="display:flex;align-items:center;gap:8px"><i style="width:12px;height:12px;border-radius:50%;background:${esc(p.farbe||"#888")};display:inline-block"></i><span><b style="color:var(--fg);font-size:13px">${esc(p.name||p.typ||p.ort)}</b><br>${esc(p.ort)} · ${N1.format(p.bisher)} von ${N1.format(p.gramm)} g</span></span><span class="wert">${p.preis?EUR(p.bisher/1000*p.preis):"kein Preis"}</span></div>`).join("");
+  return `<div class="gross">
+    <div class="gk"><div class="l">Leistung jetzt</div><div class="w">${e.leistung!=null?N0.format(e.leistung)+" W":"–"}</div><small>${e.leistung_ent?esc(e.leistung_ent):"Keine Steckdose zugeordnet"}</small></div>
+    <div class="gk"><div class="l">Strom dieser Druck</div><div class="w">${EUR(e.strom)}</div><small>${e.kwh_druck!=null?N2.format(e.kwh_druck)+" kWh · "+N2.format(e.strompreis)+" €/kWh":"Kein Energiezähler"}</small></div>
+    <div class="gk"><div class="l">Filament bisher</div><div class="w">${EUR(e.filament)}</div><small>${d.posten.length?N1.format(d.posten.reduce((a,p)=>a+p.bisher,0))+" g · Preise aus dem Lager":"–"}</small></div>
+    <div class="gk"><div class="l">Druckgewicht</div><div class="w">${d.gewicht!=null&&!d.wartung?N1.format(d.gewicht)+" g":"–"}</div><small>${d.laenge!=null&&!d.wartung?N1.format(d.laenge)+" m laut Slicer":""}</small></div>
+  </div>
+  <div class="summe">Druckkosten bisher: ${EUR(e.gesamt)}<small>${e.filament_unvollstaendig?"Mindestens ein Fach hat keinen Preis im Lager – Kosten unvollständig. ":""}Strom + Filament, Schätzung nach Druckfortschritt.</small></div>
+  ${post?`<div class="zeilen" style="margin-top:8px">${post}</div>`:""}`;
+}
+
+/* ---------- Temperaturen ---------- */
+const VERL={},MIN=ls.get("minuten",15);let minuten=MIN;
+const TFARBEN={bett:"#22d3ee",duese:"#60a5fa",links:"#60a5fa",rechts:"#c084fc",kammer:"#f472b6"};
+const TNAMEN={bett:"Heizbett",duese:"Düse",links:"Düse links",rechts:"Düse rechts",kammer:"Kammer"};
+async function tempLaden(el,d){
+  const v=VERL[d.pre];
+  if(v&&v.min===minuten&&Date.now()-v.t<20000){setze(el,"temp",tempHtml(d,v.daten));return}
+  if(v&&v.laedt)return;
+  VERL[d.pre]=Object.assign(v||{},{laedt:true});
+  try{const daten=await api(`radar/verlauf/${d.pre}?min=${minuten}`);VERL[d.pre]={t:Date.now(),min:minuten,daten}}
+  catch(e){VERL[d.pre]={t:Date.now(),min:minuten,daten:{reihen:{}},fehler:e.message}}
+  setze(el,"temp",tempHtml(d,VERL[d.pre].daten))}
+function tempHtml(d,daten){
+  const kach=[];d.duesen.forEach(z=>kach.push(`<div class="gk"><div class="l">${d.duesen.length>1?"Düse "+esc(z.name):"Düse"}</div><div class="w">${z.temp!=null?N0.format(z.temp)+"°":"–"}<small style="display:inline;font-size:13px"> / ${z.ziel!=null?N0.format(z.ziel)+"°":"–"}</small></div></div>`));
+  kach.push(`<div class="gk"><div class="l">Heizbett</div><div class="w">${d.bett!=null?N0.format(d.bett)+"°":"–"}<small style="display:inline;font-size:13px"> / ${d.bett_ziel!=null?N0.format(d.bett_ziel)+"°":"–"}</small></div></div>`);
+  if(d.kammer!=null)kach.push(`<div class="gk"><div class="l">Kammer</div><div class="w">${N0.format(d.kammer)}°${d.kammer_ziel?`<small style="display:inline;font-size:13px"> / ${N0.format(d.kammer_ziel)}°</small>`:""}</div></div>`);
+  const R=daten.reihen||{},keys=Object.keys(R);
+  let svg=`<div class="hinweis">Kein Verlauf verfügbar.</div>`;
+  if(keys.length){
+    const jetzt=Date.now()/1000,von=jetzt-minuten*60;let max=50;
+    keys.forEach(k=>R[k].forEach(p=>{if(p[1]>max)max=p[1]}));max=Math.ceil(max/50)*50;
+    const W=360,H=150,X=t=>30+(Math.max(von,t)-von)/(jetzt-von)*(W-34),Y=v=>8+(1-v/max)*(H-24);
+    const lin=keys.map(k=>{const pts=R[k];let pfad="";let letzt=null;pts.forEach((p,i)=>{if(p[0]<von&&pts[i+1]&&pts[i+1][0]<von)return;pfad+=(pfad?` L${X(p[0]).toFixed(1)} ${Y(letzt==null?p[1]:letzt).toFixed(1)} L`:"M")+`${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`;letzt=p[1]});if(letzt!=null)pfad+=` L${X(jetzt).toFixed(1)} ${Y(letzt).toFixed(1)}`;return `<path d="${pfad}" fill="none" stroke="${TFARBEN[k]}" stroke-width="2"/>`}).join("");
+    const gitter=[0,.25,.5,.75,1].map(f=>`<line x1="30" x2="${W-4}" y1="${Y(max*f)}" y2="${Y(max*f)}" stroke="#1f3352"/><text x="26" y="${Y(max*f)+3}" fill="#8fa3bb" font-size="9" text-anchor="end">${N0.format(max*f)}°</text>`).join("");
+    const zt=t=>new Date(t*1000).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+    svg=`<div class="diagramm"><svg viewBox="0 0 ${W} ${H+6}">${gitter}${lin}<text x="30" y="${H+4}" fill="#8fa3bb" font-size="9">${zt(von)}</text><text x="${W-4}" y="${H+4}" fill="#8fa3bb" font-size="9" text-anchor="end">${zt(jetzt)}</text></svg></div><div class="legende">${keys.map(k=>`<span><i style="background:${TFARBEN[k]}"></i>${TNAMEN[k]}</span>`).join("")}</div>`}
+  return `<div class="gross">${kach.join("")}</div><div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px"><b style="font-size:13px">Temperaturverlauf</b><div class="seg">${[[5,"5 Min."],[15,"15 Min."],[60,"1 Std."],[360,"6 Std."]].map(([m,t])=>`<button data-min="${m}" class="${m===minuten?"an":""}">${t}</button>`).join("")}</div></div>${svg}`}
+
+/* ---------- Druckmodell ---------- */
+function modellHtml(d){
+  if(!d.bild&&!d.aufgabe)return `<div class="hinweis">Kein Druckauftrag.</div>`;
+  return `<div class="modell"><b>${esc(d.aufgabe||d.datei||"")}</b>${d.bild?`<img alt="Vorschaubild" src="${esc(mitTok(API+"radar/bild/"+d.pre+"?v="+encodeURIComponent(d.bild)))}" onerror="this.remove()">`:""}<div class="hinweis">Vorschaubild aus der geslicten Druckdatei${d.gewicht!=null&&!d.wartung?" · "+N1.format(d.gewicht)+" g":""}</div></div>`}
+
+/* ---------- Lüfter & Licht ---------- */
+function luefterHtml(d){
+  const ln={bauteil:"Bauteillüfter",druckraum:"Druckraumlüfter",druckkopf:"Druckkopflüfter",hotend:"Hotendlüfter"};
+  const z=Object.entries(d.luefter).map(([k,v])=>`<div class="zeile">${ln[k]||k}<span class="wert"><i class="${v?"":"aus"}"></i>${v!=null?N0.format(v)+" %":"–"}</span></div>`);
+  if(d.licht!=null)z.push(`<div class="zeile">Innenlicht<button class="knopf klein${d.licht?" an":""}" data-licht="${d.pre}">${d.licht?"An":"Aus"}</button></div>`);
+  if(d.tuer!=null)z.push(`<div class="zeile">Gehäusetür<span class="wert"><i class="${d.tuer==="on"?"aus":""}"></i>${d.tuer==="on"?"offen":"zu"}</span></div>`);
+  z.push(`<div class="zeile">Geschwindigkeit<span class="wert">${esc(PROFIL[d.profil]||d.profil||"–")}</span></div>`);
+  return `<div class="zeilen">${z.join("")}</div>`}
+
+/* ---------- Einstellungen ---------- */
+async function einstellungen(){
+  const dlg=document.getElementById("dialog"),box=document.getElementById("dbox");
+  box.innerHTML="Lade …";dlg.hidden=false;
+  let e={};try{e=await api("radar/einstellungen")}catch(x){}
+  const alle=(D&&D.drucker||[]).map(d=>d.pre).concat((D&&D.ausgeblendet)||[]);
+  const name=p=>{const d=(D.drucker||[]).find(x=>x.pre===p);return d?d.modell+" · "+d.serie:p};
+  const sens=(D&&D.sensoren)||[];const dr=e.drucker||{};
+  const opt=(art,wert)=>`<option value="">Automatisch</option>`+sens.filter(s=>s.art===art).map(s=>`<option value="${esc(s.id)}"${s.id===wert?" selected":""}>${esc(s.name)}</option>`).join("");
+  box.innerHTML=`<h2>Einstellungen</h2>
+  <label class="feld">Strompreis (€/kWh)<input id="e_strom" inputmode="decimal" value="${esc(String(e.strompreis??0.35).replace(".",","))}"></label>
+  <div class="hinweis" style="margin:-4px 0 12px">Filamentpreise kommen aus deinem SchichtLohn-Lager (Preis je kg der Sorte im Fach).</div>
+  ${alle.map(p=>{const c=dr[p]||{};return `<div class="dk" data-pre="${esc(p)}"><b>${esc(name(p))}<label style="font-size:12px;font-weight:500;display:flex;gap:6px;align-items:center"><input type="checkbox" data-k="zeigen"${c.aus?"":" checked"}> anzeigen</label></b>
+    <label class="feld">Name<input data-k="name" value="${esc(c.name||"")}" placeholder="Name aus Home Assistant"></label>
+    <div class="zwei"><label class="feld">Leistung (W)<select data-k="leistung">${opt("leistung",c.leistung)}</select></label><label class="feld">Energiezähler (kWh)<select data-k="energie">${opt("energie",c.energie)}</select></label></div></div>`}).join("")}
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="knopf" data-zu>Abbrechen</button><button class="knopf an" id="e_speichern">Speichern</button></div>`;
+  box.querySelector("#e_speichern").onclick=async()=>{
+    const neu={strompreis:parseFloat(box.querySelector("#e_strom").value.replace(",","."))||0,reihenfolge:e.reihenfolge||[],drucker:{}};
+    box.querySelectorAll(".dk").forEach(dk=>{const g=k=>dk.querySelector(`[data-k="${k}"]`);neu.drucker[dk.dataset.pre]={name:g("name").value.trim(),leistung:g("leistung").value,energie:g("energie").value,aus:!g("zeigen").checked}});
+    try{await api("radar/einstellungen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(neu)});dlg.hidden=true;laden()}catch(x){alert("Speichern fehlgeschlagen: "+x.message)}};
+}
+
+/* ---------- Bedienung ---------- */
+document.addEventListener("click",async ev=>{
+  const t=ev.target.closest("button,[data-klapp]");if(!t)return;
+  if(t.dataset.filter){FILTER=t.dataset.filter;ls.set("filter",FILTER);zeichnen();return}
+  if(t.dataset.klapp){const sek=t.closest(".sek"),pre=t.closest(".karte").dataset.pre,k=t.dataset.klapp;const auf=sek.classList.contains("zu");offen[pre+"|"+k]=auf;ls.set("offen",offen);sek.classList.toggle("zu",!auf);if(auf&&D){const d=D.drucker.find(x=>x.pre===pre);if(d)fuellen(d)}return}
+  if(t.dataset.min){minuten=+t.dataset.min;ls.set("minuten",minuten);const pre=t.closest(".karte").dataset.pre;const d=D.drucker.find(x=>x.pre===pre);if(d)tempLaden(karten[pre],d);return}
+  if(t.dataset.live){const p=t.dataset.live;LIVE[p]=!LIVE[p];if(!LIVE[p]){const img=karten[p].querySelector(".kam img");img.removeAttribute("src");img.dataset.live="";img.__t=0}zeichnen();return}
+  if(t.dataset.snap){const img=karten[t.dataset.snap].querySelector(".kam img");if(!img.src)return;try{const b=await (await fetch(mitTok(API+"kamera/"+t.dataset.snap+".jpg?t="+Date.now()))).blob();const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`${t.dataset.snap}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.jpg`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}catch(e){}return}
+  if(t.dataset.licht){const p=t.dataset.licht,d=D.drucker.find(x=>x.pre===p);t.disabled=true;try{await api("radar/licht",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pre:p,an:!d.licht})});d.licht=!d.licht;fuellen(d);setTimeout(laden,1500)}catch(e){alert("Licht: "+e.message)}t.disabled=false;return}
+  if(t.id==="einstKnopf"){einstellungen();return}
+  if(t.hasAttribute("data-zu")){document.getElementById("dialog").hidden=true}
+});
+document.getElementById("dialog").addEventListener("click",e=>{if(e.target.id==="dialog")e.currentTarget.hidden=true});
+
+let timer=null;
+function takt(){clearTimeout(timer);const lauf=D&&D.drucker.some(d=>LAUF.includes(d.status));timer=setTimeout(async()=>{if(!document.hidden)await laden();takt()},FEHLER?10000:lauf?3000:8000)}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){laden();takt()}});
+laden().then(takt);
+</script>
+</body>
+</html>

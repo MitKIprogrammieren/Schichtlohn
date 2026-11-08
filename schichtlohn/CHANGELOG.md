@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.16.0 – 08.11.2026
+- Neu: SchichtRadar – Live-Übersicht aller Bambu-Drucker auf einer Seite (…/app/radar.html). Kamera, Fortschritt, Düsen, AMS mit Feuchte, Temperaturverlauf, Lüfter und Licht.
+- Kosten des laufenden Drucks live: Filament mit den Preisen aus deinem Lager, Strom über die Steckdose des Druckers.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.15.12 – 08.11.2026
 - Unter „Zuletzt abgebucht“ hat jede Abbuchung jetzt einen Knopf „Zurückbuchen“. Ein Tipp fragt nach, der zweite schreibt die Gramm wieder gut. Schon zurückgebuchte Posten sind als „zurückgebucht“ markiert.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
