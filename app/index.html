@@ -1274,6 +1274,7 @@ function renderSettings(m){
         <button class="btn icon ghost danger" data-act="delRow" data-list="printers" data-i="${i}" aria-label="Drucker entfernen">${ICON.trash}</button></div>`).join("")}</div>
       <div class="hint" style="margin-top:8px">Maschinenkosten je Stunde = Kaufpreis ÷ Lebensdauer + Wartung. Leistung ist der Durchschnitt beim Drucken, nicht die Spitzenleistung.</div>
     </section>
+    ${window.etikettDruckerHTML?etikettDruckerHTML():""}
 
     <section class="panel pad"><div class="sec-title"><h2>Materialien</h2><span class="sp"></span>${S.backend==="ha"||S.srv?`<button class="btn sm" data-act="lager">${ICON.spool} Aus FilamentLager</button>`:""}<button class="btn sm" data-act="addRow" data-list="materials">${ICON.plus} Material</button></div>
       <div class="setlist">${c.materials.map((p,i)=>`<div class="setrow sr-mt">
@@ -1474,16 +1475,13 @@ function funktionenHTML(){fnServerLaden();const E=SLF.e;
   const chip=(k,t,on)=>`<button type="button" class="chip${on?" on":""}" data-act="fnToggle" data-k="${k}" aria-pressed="${on}">${on?ok:""}${t}</button>`;
   const fertig=E?E.fertig_meldung!==false:true;
   return `<section class="panel pad stack"><div class="sec-title"><h2>Funktionen</h2></div>
-    <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("etikett","Spulen-Etiketten",fnAn("etikett"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${chip("preisliste","Preisliste",fnAn("preisliste"))}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}</div>
+    <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${chip("preisliste","Preisliste",fnAn("preisliste"))}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}</div>
     <div class="fnliste">
       <div><b>Reicht die Rolle?</b> Der Rechner zeigt unter dem Filament, ob die Rolle im Lager reicht, wie viel danach übrig bleibt und welche Rolle als Ersatz passt.</div>
-      <div><b>Spulen-Etiketten</b> Knopf „Etikett“ beim Bearbeiten einer Sorte: dieselben Etiketten wie auf der Filamentwaage, mit QR-Code zur Rolle. Drucken über die Waage oder als Bild teilen.</div>
       <div><b>Preisliste</b> Knopf „Preisliste“ im Lager: täglich aktuelle Preise der Herstellershops (Sunlu, Tinmorry, Nobufil, Polymaker, Princore, CR3D …) und von 3DJake für jede Sorte, die günstigste markiert.</div>
       <div><b>Jahresrückblick</b> Knopf „Rückblick“ im Lager: Kilo, Kosten, Drucke, Lieblingsfarben und Fehldrucke eines Jahres.</div>
       ${S.srv?`<div><b>Druck fertig</b> Nach jedem Druck eine Handymeldung mit Vorschaubild, Dauer und Verbrauch. Geht an die Handys, die unter „SchichtLohn-Server“ eingetragen sind.</div>`:""}
     </div>
-    ${fnAn("etikett")?`<div class="cols2">${S.srv?`<label class="field"><span>Filamentwaage für den Etikettendruck</span><input type="text" id="fn_waage" value="${esc((E&&E.waage_url)||"")}" placeholder="z. B. 192.168.1.50:8080" autocomplete="off" spellcheck="false"><small class="hint">Leer lassen, wenn es keine Waage mit Etikettendrucker gibt.</small></label>`:""}
-      <label class="field"><span>Adresse im QR-Code</span><input type="text" id="fn_qr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="${esc(rolleBasis())}" autocomplete="off" spellcheck="false"><small class="hint">Leer = automatisch. Für unterwegs die Tailscale-Adresse eintragen.</small></label></div>`:""}
   </section>`}
 /* ---------- Preisvergleich: Zugangsdaten für eBay und AliExpress (liegen nur auf dem SchichtLohn-Server) ---------- */
 const PV={d:null,laden:null};
@@ -7510,7 +7508,7 @@ const IC={dr:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx=
   au:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/><path d="M12 21a3 3 0 0 1 0-6h1.5a2 2 0 0 0 0-4"/>',
   sy:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'};
 const B=[
-  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Drucker aus Home Assistant","Filamentpreis je AMS-Fach","Bambu-Cloud","Creality-Cloud"],karten:["Bambu-Drucker","Druckprotokoll"]},
+  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Etikettendrucker","Drucker aus Home Assistant","Filamentpreis je AMS-Fach","Bambu-Cloud","Creality-Cloud"],karten:["Bambu-Drucker","Druckprotokoll"]},
   {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Lager","Materialien","Preisvergleich"],karten:["Waage","Filament-Datenbank"]},
   {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
   {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
@@ -7618,6 +7616,159 @@ window.__einOrdnen=ordnen;ordnen()})();</script>
 .ebk details.srvum>summary{list-style:none;cursor:pointer}.ebk details.srvum>summary::-webkit-details-marker{display:none}
 .ebk .srvpf{color:var(--fg-3);font-size:18px;transition:transform .15s}.ebk details[open] .srvpf{transform:rotate(90deg)}
 @media (max-width:760px){.ebk .srvgrid{grid-template-columns:1fr}}
+</style>
+<script>/* ===== Einstellungen: einheitliche Zeilen (Name links, Feld rechts), Umschalter statt Klappmenüs,
+   Schalter statt Ein/Aus-Knöpfen, Listen als Tabelle mit Überschrift nur oben. Arbeitet auf dem fertigen Markup,
+   damit alle Abschnitte (auch die vom Server) gleich aussehen, ohne jeden einzeln umzubauen. ===== */
+(()=>{
+const KURZ=24;
+const istEinAus=o=>o.length===2&&o.every(x=>/^(ein|an|aus|ja|nein)$/i.test(x.text.trim()));
+function steuerung(f){/* einziges Bedienelement des Felds (oder null) */
+  const kids=[...f.children].filter(k=>!(k.matches("small,.hint")||(k.tagName==="SPAN"&&k===f.firstElementChild)));
+  if(kids.length!==1)return null;const k=kids[0];
+  if(k.matches(".unit")&&k.querySelector("input"))return k;
+  if(k.matches("select:not([multiple])"))return k;
+  if(k.matches("input")&&/^(text|number|email|url|search|password|tel)$/.test(k.type||"text"))return k;
+  return null}
+function segBauen(sel,f){const o=[...sel.options].filter(x=>!x.disabled&&!x.hidden);
+  if(o.length<2||o.length>4||o.some(x=>x.text.trim().length>KURZ))return false;
+  const ea=istEinAus(o);const w=document.createElement(ea?"button":"div");
+  if(ea){/* Schalter: „an“ ist die Option, die nicht nach aus/nein/ausblenden klingt */
+    const an=o.find(x=>!/^(aus|nein|ausblenden)$/i.test(x.text.trim()))||o[0],aus=o.find(x=>x!==an);
+    w.type="button";w.className="ez-sw";w.setAttribute("role","switch");
+    const zeig=()=>w.setAttribute("aria-checked",sel.value===an.value);zeig();
+    w.addEventListener("click",()=>{sel.value=sel.value===an.value?aus.value:an.value;zeig();sel.dispatchEvent(new Event("input",{bubbles:true}));sel.dispatchEvent(new Event("change",{bubbles:true}))});
+    sel.addEventListener("change",zeig);f.classList.add("ez-schalter")}
+  else{w.className="ez-seg";w.innerHTML=o.map(x=>`<button type="button" data-v="${esc(x.value)}">${esc(x.text.trim())}</button>`).join("");
+    const zeig=()=>w.querySelectorAll("button").forEach(b=>b.classList.toggle("an",b.dataset.v===sel.value));zeig();
+    w.addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.dataset.v===sel.value)return;sel.value=b.dataset.v;zeig();sel.dispatchEvent(new Event("input",{bubbles:true}));sel.dispatchEvent(new Event("change",{bubbles:true}))});
+    sel.addEventListener("change",zeig);f.classList.add("ez-breit")}
+  sel.classList.add("ez-weg");sel.after(w);return true}
+function aufbereiten(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack.eb-detail");if(!st)return;
+  st.querySelectorAll(".field:not([data-ez])").forEach(f=>{f.dataset.ez="1";
+    if(f.closest(".setrow,.lglg,.lgx,.modal,[data-ez-nicht]")||f.matches("details"))return;
+    if(f.style.maxWidth)f.style.maxWidth="";
+    const c=steuerung(f);if(!c)return;f.classList.add("ez");
+    if(c.matches("select")){segBauen(c,f)}
+    else if(!c.matches(".unit"))f.classList.add("ez-text")});
+  /* Raster, in denen nur Zeilen stehen, werden zur Liste */
+  st.querySelectorAll(".cols2,.cols3,.cols4").forEach(g=>{const k=[...g.children];g.classList.toggle("ez-liste",k.length>0&&k.every(x=>x.classList.contains("ez")))});
+  /* Knopfreihen: mit data-v = Auswahl (eine von mehreren) → Umschalter; ohne = einzeln ein/aus → Schalterliste */
+  st.querySelectorAll(".tabtg").forEach(t=>{const c=[...t.children];const knoepfe=c.length>0&&c.every(x=>x.matches("button.chip[aria-pressed]"));
+    const auswahl=knoepfe&&c.every(x=>x.hasAttribute("data-v"));
+    t.classList.toggle("ez-schalterliste",knoepfe&&!auswahl);
+    const seg=auswahl&&c.length<=6&&c.every(x=>x.textContent.trim().length<=KURZ);t.classList.toggle("ez-seg",seg);
+    const f=t.parentElement;if(seg&&f&&f.matches(".field")&&!f.closest(".setrow,.modal")){const rest=[...f.children].filter(x=>x!==t&&!(x.tagName==="SPAN"&&x===f.firstElementChild)&&!x.matches("small,.hint"));
+      if(!rest.length)f.classList.add("ez","ez-breit")}});
+  /* Einheit im Feld: Platz für die Einheit passend zu ihrer Breite */
+  st.querySelectorAll(".unit>em").forEach(em=>{const i=em.parentElement.querySelector("input");if(i&&em.offsetWidth)i.style.paddingRight=(em.offsetWidth+16)+"px";
+    const sp=em.closest(".setrow")&&em.closest(".field")&&em.closest(".field").querySelector(":scope>span:first-child");if(sp)sp.dataset.einheit=em.textContent.trim()})}
+let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(aufbereiten,0)}).observe(document.getElementById("main"),{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});
+window.__ezAufbereiten=aufbereiten})();
+
+/* ===== Etikettendrucker: alles zum Etikettendruck an einer Stelle (Bereich Drucker) ===== */
+(()=>{
+const ED={l:null,laden:false,fehler:""};
+function opt(){try{return JSON.parse(localStorage.getItem("sl_etikett")||"{}")||{}}catch(e){return {}}}
+function laden(){if(ED.laden||ED.l||!(S.srv&&window.SRV))return;ED.laden=true;
+  SRV.req("GET","/api/waage/drucker").then(d=>{ED.l=(d&&d.drucker)||[]}).catch(e=>{ED.l=[];ED.fehler=e.message||String(e)})
+    .finally(()=>{ED.laden=false;const el=document.getElementById("etdr_liste");if(el)el.outerHTML=liste()})}
+function standard(){const l=ED.l||[];if(!l.length)return "";const w=opt().drucker;return l.some(d=>d.id===w)?w:(l.find(d=>d.standard)||l[0]).id}
+function liste(){const E=window.SLF&&SLF.e,waage=!!(E&&E.waage_url);
+  if(!S.srv)return `<div id="etdr_liste" class="hint">Etiketten drucken geht über den SchichtLohn-Server und die Filamentwaage.</div>`;
+  if(!waage)return `<div id="etdr_liste" class="hint">Noch keine Waage eingetragen – unten die Adresse der Filamentwaage eintragen, dann erscheinen hier ihre Etikettendrucker.</div>`;
+  if(!ED.l){laden();return `<div id="etdr_liste" class="hint">Frage die Waage nach ihren Etikettendruckern …</div>`}
+  if(!ED.l.length)return `<div id="etdr_liste" class="hint">Die Waage meldet keine Etikettendrucker${ED.fehler?" ("+esc(ED.fehler)+")":""}. Ist die Druckbrücke in Home Assistant aktiv?</div>`;
+  const std=standard();
+  return `<div id="etdr_liste" class="etdr-l">${ED.l.map(d=>{const an=d.erreichbar!==false;return `<div class="etdr-z"><span class="etdr-p${an?"":" aus"}"></span><div><b>${esc(d.name||d.id)}</b><small>${an?"Erreichbar":"Nicht erreichbar"}${d.dpi?` · ${d.dpi} dpi`:""}${d.id===std?" · Standard":""}</small></div></div>`}).join("")}
+    ${ED.l.length>1&&ED.l.length<=4?`<label class="field"><span>Standard-Drucker</span><select id="etdr_std">${ED.l.map(d=>`<option value="${esc(d.id)}"${d.id===std?" selected":""}>${esc(d.name||d.id)}</option>`).join("")}</select></label>`:""}</div>`}
+window.etikettDruckerHTML=function(){const E=window.SLF&&SLF.e;const an=typeof fnAn==="function"?fnAn("etikett"):true;
+  const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Etikettendrucker</h2></div>
+    <div class="tabtg"><button type="button" class="chip${an?" on":""}" data-act="fnToggle" data-k="etikett" aria-pressed="${an}">${an?ok:""}Spulen-Etiketten</button></div>
+    <div class="hint">Knopf „Etikett“ beim Bearbeiten einer Sorte: dieselben Etiketten wie auf der Filamentwaage, mit QR-Code zur Rolle.</div>
+    ${an?`${liste()}
+    ${S.srv?`<label class="field"><span>Adresse der Filamentwaage</span><input type="text" id="fn_waage" value="${esc((E&&E.waage_url)||"")}" placeholder="z. B. 192.168.1.50:8080" autocomplete="off" spellcheck="false"><small class="hint">Darüber laufen die Etikettendrucker. Leer lassen, wenn es keine gibt.</small></label>`:""}
+    <label class="field"><span>Adresse im QR-Code</span><input type="text" id="fn_qr" value="${esc(S.cfg.etQrBasis||"")}" placeholder="${esc(typeof rolleUrl==="function"?rolleUrl("").replace(/[?&]rolle=$/,""):"")}" autocomplete="off" spellcheck="false"><small class="hint">Leer = automatisch. Für unterwegs die Tailscale-Adresse eintragen.</small></label>`:""}
+  </section>`};
+document.addEventListener("change",e=>{const t=e.target;if(t&&t.id==="etdr_std"){const o=opt();o.drucker=t.value;try{localStorage.setItem("sl_etikett",JSON.stringify(o))}catch(x){}
+  const el=document.getElementById("etdr_liste");if(el)el.outerHTML=liste();if(typeof toast==="function")toast("Standard-Drucker gespeichert")}
+  if(t&&t.id==="fn_waage"){ED.l=null;ED.fehler=""}});
+})();</script>
+<style>
+/* ---- einheitliche Zeilen ---- */
+.eb-detail .field.ez{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,190px);grid-template-areas:"t c" "h c";align-items:center;column-gap:16px;row-gap:2px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.eb-detail .field.ez>span:first-child{grid-area:t;font-size:14px;color:var(--fg);font-weight:500}
+.eb-detail .field.ez>small,.eb-detail .field.ez>.hint{grid-area:h;margin:0}
+.eb-detail .field.ez>:is(.unit,input,select,.ez-seg,.ez-sw){grid-area:c;justify-self:stretch}
+.eb-detail .field.ez.ez-text{grid-template-columns:minmax(0,1fr) minmax(180px,48%)}
+.eb-detail .field.ez.ez-breit{grid-template-columns:minmax(0,1fr) auto}
+.eb-detail .field.ez.ez-schalter{grid-template-columns:minmax(0,1fr) auto}
+.eb-detail .field.ez .unit input{text-align:right}
+.eb-detail :is(.sec-title,.lgein-t)+.field.ez,.eb-detail :is(.sec-title,.lgein-t)+.ez-liste>.field.ez:first-child,.eb-detail .ez-liste:first-child>.field.ez:first-child{border-top:0}
+.eb-detail .ez-liste{display:flex!important;flex-direction:column;gap:0!important}
+.eb-detail .stack:has(>.field.ez),.eb-detail .stack:has(>.ez-liste){row-gap:0}
+.eb-detail .stack:has(>.field.ez,>.ez-liste)>:not(.field.ez):not(:first-child){margin-top:12px}
+.eb-detail .stack:has(>.field.ez,>.ez-liste)>.field.ez:not(.sec-title+*){margin-top:0}
+.eb-detail .field:not(.ez)>.tabtg.ez-seg{align-self:flex-start}
+.eb-detail .panel.stack>.field.ez+.hint,.eb-detail .panel.stack>.ez-liste+.hint{margin-top:8px}
+.eb-detail .panel.stack>:is(.hint,.row,.note,.tabtg)+:is(.field.ez,.ez-liste){margin-top:10px}
+.ez-weg{display:none!important}
+.eb-detail .field.ez:not(:has(>small,>.hint)){grid-template-areas:"t c"}
+.eb-detail .field.ez:has(>select:not(.ez-weg)){grid-template-columns:minmax(0,1fr) minmax(190px,auto)}
+.eb-detail .tabtg.ez-seg{display:inline-flex!important;flex-wrap:nowrap!important;gap:2px!important;background:var(--sunken);border:1px solid var(--line-2);border-radius:9px;padding:2px;justify-self:end;max-width:100%;overflow-x:auto}
+.eb-detail .tabtg.ez-seg>.chip{border:0!important;background:none!important;border-radius:7px!important;padding:8px 12px!important;font:500 13px/1 var(--f-body)!important;color:var(--fg-2)!important;white-space:nowrap}
+.eb-detail .tabtg.ez-seg>.chip[aria-pressed="true"]{background:var(--panel,var(--solid,#fff))!important;color:var(--fg)!important;font-weight:600!important;box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.eb-detail .tabtg.ez-seg>.chip>svg{display:none}
+.eb-detail .field.ez>.tabtg.ez-seg{grid-area:c}
+/* ---- Umschalter ---- */
+.ez-seg{display:flex;background:var(--sunken);border:1px solid var(--line-2);border-radius:9px;padding:2px;gap:2px;min-height:36px;max-width:100%;overflow-x:auto}
+.ez-seg button{flex:1 0 auto;border:0;background:none;color:var(--fg-2);font:500 13px/1 var(--f-body);padding:0 12px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.ez-seg button.an{background:var(--panel,var(--solid,#fff));color:var(--fg);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.14)}
+/* ---- Schalter ---- */
+.ez-sw{width:44px;height:26px;border-radius:13px;border:0;background:var(--line-2);position:relative;cursor:pointer;flex:none;transition:background .15s;padding:0}
+.ez-sw::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.ez-sw[aria-checked="true"]{background:var(--accent)}.ez-sw[aria-checked="true"]::after{left:21px}
+.eb-detail .tabtg.ez-schalterliste{display:flex!important;flex-direction:column;gap:0!important;flex-wrap:nowrap}
+.eb-detail .tabtg.ez-schalterliste>.chip{display:flex!important;align-items:center;justify-content:space-between;width:100%;min-height:46px;padding:8px 0!important;margin:0;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;background:none!important;color:var(--fg)!important;font:500 14px/1.3 var(--f-body)!important;text-align:left;cursor:pointer}
+.eb-detail .tabtg.ez-schalterliste>.chip:first-child{border-top:0!important}
+.eb-detail .tabtg.ez-schalterliste>.chip>svg{display:none}
+.eb-detail .tabtg.ez-schalterliste>.chip::after{content:"";flex:none;margin-left:16px;width:44px;height:26px;border-radius:13px;background:var(--line-2) radial-gradient(circle at 13px 13px,#fff 9.5px,transparent 10.5px) no-repeat;transition:background-position .15s}
+.eb-detail .tabtg.ez-schalterliste>.chip[aria-pressed="true"]::after{background-color:var(--accent);background-position:18px 0}
+.eb-detail .field>span:first-child+.tabtg.ez-schalterliste{margin-top:2px}
+/* ---- Listen (Drucker, Materialien, Kanäle) als Tabelle ---- */
+@media (min-width:900px){
+ .eb-detail .setrow{align-items:center;padding:4px 0}
+ .eb-detail .setlist>.setrow:not(:first-child)>.field>span:first-child{display:none}
+ .eb-detail .setlist>.setrow:first-child{align-items:end}
+ .eb-detail .setlist>.setrow:first-child>.field>span:first-child{font-size:11.5px;font-weight:600;color:var(--fg-3);letter-spacing:.02em}
+ .eb-detail .setrow input:not([type=color]):not(:focus):not(:hover){background:transparent;border-color:transparent;box-shadow:none}
+ .eb-detail .setrow .unit input{text-align:right}
+ .eb-detail .setrow>.field:first-child input[type=text]{font-weight:600}
+}
+/* ---- Etikettendrucker ---- */
+.etdr-l{display:flex;flex-direction:column}
+.etdr-z{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.etdr-z b{display:block;font-weight:600}.etdr-z small{color:var(--fg-3);font-size:12px}
+.etdr-p{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}.etdr-p.aus{background:var(--line-2)}
+/* ---- Handy ---- */
+@media (max-width:600px){
+ .eb-detail .field.ez,.eb-detail .field.ez.ez-text{grid-template-columns:minmax(0,1fr) minmax(110px,44%)}
+ .eb-detail .field.ez.ez-breit{grid-template-columns:1fr;grid-template-areas:"t" "h" "c";row-gap:6px}
+ .eb-detail .field.ez.ez-breit .ez-seg,.eb-detail .field.ez.ez-breit>.tabtg.ez-seg{width:100%}
+ .eb-detail .field.ez.ez-breit>.tabtg.ez-seg>.chip{flex:1}
+ .eb-detail .field.ez:has(>select:not(.ez-weg)){grid-template-columns:minmax(0,1fr) minmax(140px,52%)}
+ .eb-detail .setlist>.sr-mt{grid-template-columns:44px repeat(3,minmax(0,1fr)) 30px;align-items:end}
+ .eb-detail .setlist>.sr-mt>:nth-child(1){grid-column:1;grid-row:1/3;align-self:center}
+ .eb-detail .setlist>.sr-mt>:nth-child(2){grid-column:2/6;grid-row:1}
+ .eb-detail .setlist>.sr-mt>:nth-child(3){grid-column:2;grid-row:2}
+ .eb-detail .setlist>.sr-mt>:nth-child(4){grid-column:3;grid-row:2}
+ .eb-detail .setlist>.sr-mt>:nth-child(5){grid-column:4;grid-row:2}
+ .eb-detail .setlist>.sr-mt>:nth-child(6){grid-column:5;grid-row:2}
+ .eb-detail .setrow .unit input{padding-left:8px;padding-right:8px!important}
+ .eb-detail .setrow .unit em{display:none}
+ .eb-detail .setrow .field>span[data-einheit]::after{content:" (" attr(data-einheit) ")";color:var(--fg-3)}
+}
 </style>
 <style>/* Rechner: Einfach-Modus */
 .rx{display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto}
