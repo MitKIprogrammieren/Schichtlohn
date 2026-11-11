@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.1 – 11.11.2026
+- Fehler behoben: Drucker, die im Leerlauf lange nichts melden (z. B. die H2C über die Bambu-Cloud), wurden alle paar Minuten getrennt und neu verbunden. SchichtLohn fragt jetzt nach einer Minute Stille selbst nach.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.0 – 11.11.2026
 - SchichtRadar läuft jetzt ohne Home Assistant: Temperaturen (Düsen, Bett, Druckraum), Lüfter, Fortschritt, Schichten, AMS mit Feuchte und Trocknung, Tür, Licht und Kosten kommen direkt aus der eigenen Verbindung von SchichtLohn zu den Druckern. Die Bambu-Lab-Integration in Home Assistant wird dafür nicht mehr gebraucht.
 - Kamera direkt vom Drucker: A1 und P1 über den Kamera-Anschluss im Heimnetz, X1 und H2 über den Videostrom. Dafür müssen IP-Adresse und Zugangscode des Druckers in SchichtLohn eingetragen sein; bei X1 und H2 am Drucker „LAN-Modus Liveansicht“ einschalten.

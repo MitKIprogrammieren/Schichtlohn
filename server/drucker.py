@@ -972,7 +972,10 @@ class Drucker:
                         if not war_verbunden and not self.fehler:
                             self.fehler = "Drucker antwortet nicht (Adresse, Zugangscode, LAN-Modus prüfen)"
                         break
-                    if self.online and time.time() - letzter_push > 300:
+                    # Manche Drucker (z. B. H2C über die Cloud) schweigen im Leerlauf minutenlang: nach 60 s Stille
+                    # einmal nachfragen, statt nach 120 s die Verbindung abzubauen
+                    still = time.time() - self.zuletzt
+                    if self.online and (time.time() - letzter_push > 300 or (still > 60 and time.time() - letzter_push > 60)):
                         self._pushall()
                         letzter_push = time.time()
                     if self.online and time.time() - self.zuletzt > 120:
