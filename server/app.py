@@ -60,6 +60,7 @@ import bambu_fm
 import produktbilder
 import web
 import radar
+import kamera as kamera_mod
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
 try:
@@ -73,7 +74,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.16.0"
+VERSION = "3.17.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1983,6 +1984,11 @@ def ha_bild(pfad):
 
 
 def kamera_foto(pre):
+    """Kamerabild: direkt vom Drucker, wenn SchichtLohn ihn selbst verbindet – sonst (falls vorhanden) aus Home Assistant."""
+    dr = eigener_drucker(pre)
+    k = drucker_kamera(dr) if dr else None
+    if k:
+        return k.holen()
     return ha_bild(f"/api/camera_proxy/camera.{pre}_kamera")
 
 
@@ -2140,10 +2146,34 @@ def radar_preis(fid, col, drucker, ort):
     return (_zahl(treffer[1].get("preis")) or None) if treffer else None
 
 
+def eigene_drucker():
+    return list(BAMBU.drucker.values())
+
+
+def eigener_drucker(pre):
+    """Drucker mit eigener Verbindung zum Präfix „h2c_31b8bk631200165“ – None, wenn SchichtLohn ihn nicht selbst verbindet."""
+    pre = str(pre or "").lower()
+    return next((dr for dr in BAMBU.drucker.values() if drucker_mod.praefix(dr.d) == pre), None)
+
+
+def drucker_kamera(dr):
+    """Kamera eines eigenen Druckers (braucht IP und Zugangscode) – wird beim ersten Abruf angelegt."""
+    ip, code = dr.d.get("ip"), dr.d.get("code")
+    if not (ip and code):
+        return None
+    k = dr.kamera
+    if k is None or k.ip != ip or k.code != code:
+        if k:
+            k.beenden()
+        k = dr.kamera = kamera_mod.Kamera(ip, code, drucker_mod.modell_von(dr.d), lambda t: print(t, flush=True))
+    return k
+
+
 def radar_daten():
-    if not all(ha_cfg()):
-        raise Fehler(503, "Home Assistant ist im Server nicht eingetragen")
-    return radar.holen(ha_anfrage, radar_preis, radar_einst(), drucker_mod.MODELL_NAMEN)
+    eigene = eigene_drucker()
+    if not eigene and not all(ha_cfg()):
+        raise Fehler(503, "Keine Drucker eingetragen (Einstellungen → SchichtLohn-Server → Drucker)")
+    return radar.holen(ha_anfrage, radar_preis, radar_einst(), drucker_mod.MODELL_NAMEN, eigene=eigene)
 
 
 class _HaDrucker:
@@ -3942,10 +3972,21 @@ class Handler(BaseHTTPRequestHandler):
                 minuten = int((q.get("min") or ["15"])[0])
             except ValueError:
                 minuten = 15
-            return self._json(200, radar.verlauf(ha_anfrage, teile[1], minuten))
+            dr = eigener_drucker(teile[1])
+            if dr:
+                return self._json(200, radar.verlauf_eigen(dr, minuten))
+            try:
+                return self._json(200, radar.verlauf(ha_anfrage, teile[1], minuten))
+            except Exception:
+                return self._json(200, {"von": "", "reihen": {}})
         if len(teile) == 2 and teile[0] == "bild" and methode == "GET":
             pre = re.sub(r"[^a-z0-9_]", "", teile[1].lower())
-            bild = ha_bild(f"/api/image_proxy/image.{pre}_titelbild")
+            dr = eigener_drucker(pre)
+            if dr:
+                a = dr.auftrag or dr.letzter or {}
+                bild = a.get("vorschau")
+            else:
+                bild = ha_bild(f"/api/image_proxy/image.{pre}_titelbild")
             if not bild:
                 return self._senden(404, b"", "image/png", "no-store")
             return self._senden(200, bild, "image/jpeg" if bild[:1] == b"\xff" else "image/png", "max-age=60")
@@ -3954,15 +3995,26 @@ class Handler(BaseHTTPRequestHandler):
             pre = re.sub(r"[^a-z0-9_]", "", str(b.get("pre") or "").lower())
             if not pre:
                 raise Fehler(400, "Drucker fehlt")
-            ha_anfrage("/api/services/light/" + ("turn_on" if b.get("an") else "turn_off"),
-                       {"entity_id": f"light.{pre}_druckraumbeleuchtung"}, timeout=15)
+            dr = eigener_drucker(pre)
+            if dr:
+                try:
+                    dr.licht(bool(b.get("an")))
+                except RuntimeError as ex:
+                    raise Fehler(409, str(ex))
+            else:
+                ha_anfrage("/api/services/light/" + ("turn_on" if b.get("an") else "turn_off"),
+                           {"entity_id": f"light.{pre}_druckraumbeleuchtung"}, timeout=15)
             radar.leeren()
             return self._json(200, {"ok": True})
         raise Fehler(404, "Unbekannter Radar-Pfad")
 
     def _kamera_live(self, pre, dauer=600, takt=0.25):
-        """Live-Bild als MJPEG: holt so schnell wie möglich Einzelbilder aus Home Assistant
-        (der HA-Live-Strom der Bambu-Kameras startet oft zu langsam). Höchstens 10 Minuten am Stück."""
+        """Live-Bild als MJPEG. Eigene Drucker: direkt von der Druckerkamera. Sonst Einzelbilder aus Home Assistant.
+        Höchstens 10 Minuten am Stück."""
+        dr = eigener_drucker(pre)
+        k = drucker_kamera(dr) if dr else None
+        if k:
+            return self._kamera_live_eigen(k, dauer)
         url, token = ha_cfg()
         if not (url and token):
             raise Fehler(503, "Kamera braucht Home Assistant")
@@ -3990,6 +4042,31 @@ class Handler(BaseHTTPRequestHandler):
                 bild = kamera_foto(pre)
                 if not bild:
                     time.sleep(1)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+
+    def _kamera_live_eigen(self, k, dauer):
+        erstes = k.holen()
+        if not erstes:
+            raise Fehler(404, "Kein Kamerabild" + (" – " + k.fehler if k.fehler else ""))
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", "multipart/x-mixed-replace;boundary=frame")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        self.close_connection = True
+        ende, bild, t = time.time() + dauer, erstes, k.t
+        try:
+            while time.time() < ende:
+                if bild:
+                    self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(bild)).encode() + b"\r\n\r\n" + bild + b"\r\n")
+                    self.wfile.flush()
+                neu, t_neu = k.naechstes(t)
+                if t_neu > t:
+                    bild, t = neu, t_neu
+                else:
+                    bild = None  # nichts Neues: nicht dasselbe Bild nochmal schicken
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
 

@@ -1,6 +1,10 @@
-"""SchichtRadar – Live-Übersicht aller Bambu-Lab-Drucker aus Home Assistant (ha-bambulab).
+"""SchichtRadar – Live-Übersicht aller Bambu-Lab-Drucker.
 
-Liest mit einer Abfrage alle Zustände aus Home Assistant und baut daraus je Drucker ein kompaktes Paket:
+Quelle ist die eigene Verbindung des SchichtLohn-Servers zu jedem Drucker (MQTT, siehe drucker.py) – ohne
+Home Assistant. Home Assistant wird nur noch gefragt, wenn es erreichbar ist: für Strom-Steckdosen
+(Leistung/Energie) und für Drucker, die SchichtLohn selbst nicht verbindet (ha-bambulab).
+
+Je Drucker entsteht ein kompaktes Paket:
 Status, Fortschritt, Düsen, Bett, Kammer, Lüfter, AMS mit Feuchte, Energie und Kosten des laufenden Drucks.
 Die Kosten kommen aus dem SchichtLohn-Lager (Preis je kg der passenden Sorte) und dem Strompreis.
 """
@@ -87,27 +91,195 @@ def _strom(ha_anfrage, by, ent):
     return w
 
 
-def sammeln(ha_anfrage, preis_fn, einst, modell_namen):
-    states = ha_anfrage("/api/states", timeout=20)
-    by = {s["entity_id"]: s for s in states}
+def _ha_states(ha_anfrage):
+    try:
+        return ha_anfrage("/api/states", timeout=20) or []
+    except Exception:
+        return []  # ohne Home Assistant läuft das Radar trotzdem – nur Steckdosen fehlen dann
+
+
+def _energie_block(ha_anfrage, by, cfg, modell, anzahl, start, ende, laeuft, status, wartung, jetzt, strompreis):
+    lei_ent = cfg.get("leistung") or (f"sensor.{modell}_power" if anzahl.get(modell) == 1 and f"sensor.{modell}_power" in by else "")
+    en_ent = cfg.get("energie") or (f"sensor.{modell}_energy" if anzahl.get(modell) == 1 and f"sensor.{modell}_energy" in by else "")
+    leistung = _zahl((by.get(lei_ent) or {}).get("state")) if lei_ent else None
+    kwh_druck = None
+    if en_ent and en_ent in by and start and not wartung and (jetzt - start) < timedelta(days=4) and (laeuft or status in ("finish", "failed")):
+        a0 = _energie_bei(ha_anfrage, en_ent, start)
+        a1 = _strom(ha_anfrage, by, en_ent) if laeuft or not ende else _energie_bei(ha_anfrage, en_ent, ende)
+        if a0 is not None and a1 is not None:
+            kwh_druck = max(0.0, a1 - a0)
+            if kwh_druck > 30:  # Zählerwechsel o. ä.
+                kwh_druck = None
+    strom_kosten = kwh_druck * strompreis if kwh_druck is not None else None
+    return lei_ent, en_ent, leistung, kwh_druck, strom_kosten
+
+
+def _energie_paket(lei_ent, en_ent, leistung, kwh_druck, strom_kosten, posten, fil_kosten, fehlt, strompreis):
+    gesamt = round(fil_kosten + (strom_kosten or 0), 2) if posten or strom_kosten else None
+    return {"leistung": leistung, "leistung_ent": lei_ent, "energie_ent": en_ent,
+            "kwh_druck": round(kwh_druck, 3) if kwh_druck is not None else None,
+            "strom": round(strom_kosten, 2) if strom_kosten is not None else None,
+            "filament": round(fil_kosten, 2) if posten else None, "filament_unvollstaendig": fehlt,
+            "gesamt": gesamt, "strompreis": strompreis}
+
+
+def _aktiver_ort(p, tray_now):
+    """Welches Fach gerade im (aktiven) Extruder steckt → globale Fachnummer wie in drucker.faecher() oder None."""
+    dev = p.get("device") if isinstance(p.get("device"), dict) else {}
+    ex = dev.get("extruder") if isinstance(dev.get("extruder"), dict) else {}
+    info = ex.get("info") if isinstance(ex.get("info"), list) else []
+    if len(info) > 1:  # zwei Düsen (H2D/H2C): aktiver Extruder steht in state Bit 4–7, sein Fach in „snow“
+        aktiv = (drucker_mod._int(ex.get("state"), 0) >> 4) & 0xF
+        e = next((e for e in info if isinstance(e, dict) and e.get("id") == aktiv), None)
+        snow = drucker_mod._int((e or {}).get("snow"), 0xFFFF)
+        if snow is None or snow >= 0xFEFF:
+            return None
+        ams, fach = snow >> 8, snow & 0xFF
+        if ams in (254, 255):
+            return 254 if ams == 255 else 255
+        return ams if ams >= 128 else ams * 4 + fach
+    return tray_now if tray_now is not None and tray_now < 255 else None
+
+
+def aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, strompreis, jetzt):
+    """Radar-Paket aus der eigenen MQTT-Verbindung eines Druckers (drucker.Drucker)."""
+    d, p = dr.d, dr.p
+    modell = drucker_mod.modell_von(d)
+    pre = drucker_mod.praefix(d)
+    cfg = zuordnung.get(pre) if isinstance(zuordnung.get(pre), dict) else {}
+    status = str(p.get("gcode_state") or "").lower() if dr.online else "offline"
+    if not status:
+        status = "unknown"
+    name = cfg.get("name") or d.get("name") or modell_namen.get(modell, modell.upper())
+
+    t = drucker_mod.temperaturen(p, modell)
+    info = drucker_mod.duesen_info(p)
+    nach_id = {x["id"]: x for x in t["duesen"]}
+    if len(t["duesen"]) > 1:  # H2D/H2C: id 1 = links, id 0 = rechts
+        duesen = [{"id": "L", "name": "Links", "nr": 1}, {"id": "R", "name": "Rechts", "nr": 0}]
+    else:
+        duesen = [{"id": "1", "name": "Düse", "nr": t["duesen"][0]["id"]}]
+    for du in duesen:
+        x = nach_id.get(du.pop("nr")) or {}
+        g, typ = info.get(0 if du["id"] in ("1", "R") else 1, ("", ""))
+        du.update({"temp": x.get("temp"), "ziel": x.get("ziel"), "groesse": g, "typ": typ})
+    akt = max(range(len(duesen)), key=lambda i: ((duesen[i]["ziel"] or 0), (duesen[i]["temp"] or 0)))
+    for i, du in enumerate(duesen):
+        du["aktiv"] = i == akt and (du["ziel"] or 0) > 0
+
+    # AMS und externe Spulen
+    tray_now = drucker_mod._int((p.get("ams") or {}).get("tray_now"))
+    aktiv_global = _aktiver_ort(p, tray_now)
+    einheiten = drucker_mod.ams_einheiten(p)
+    ams, extern = {}, []
+    for f in drucker_mod.faecher(p):
+        fach = {"typ": "" if f["leer"] else f["typ"], "name": "" if f["leer"] else f["name"], "farbe": "" if f["leer"] else f["farbe"],
+                "rest": f["rest"] if f["rest"] is not None and f["rest"] >= 0 and not f["leer"] else None,
+                "aktiv": aktiv_global is not None and f["global"] == aktiv_global, "leer": f["leer"], "fid": f["fid"],
+                "entity": None, "ort": f["ort"]}
+        if f["ams"] is None:
+            extern.append(fach)
+            continue
+        nr = f["ams"] + 1 if f["ams"] < 128 else f["ams"]
+        u = ams.get(nr)
+        if u is None:
+            e = einheiten.get(f["ams"]) or {}
+            u = ams[nr] = {"nr": nr, "name": f"AMS HT {nr - 127}" if nr >= 128 else f"AMS {nr}", "ht": nr >= 128, "faecher": [],
+                           "feuchte": e.get("feuchte"), "feuchte_stufe": e.get("feuchte_stufe"), "temp": e.get("temp"),
+                           "trocknet": bool(e.get("trocken_rest")), "trocken_rest": e.get("trocken_rest") or None}
+        u["faecher"].append(fach)
+    ams_liste = [ams[k] for k in sorted(ams)]
+    aktiv = next((f for f in [f for u in ams_liste for f in u["faecher"]] + extern if f["aktiv"] and not f["leer"]), None)
+
+    laeuft = status in LAUFEND
+    pct = drucker_mod._int(p.get("mc_percent"), 0) or 0
+    a = dr.auftrag if laeuft else (dr.letzter if status in ("finish", "failed") else None)
+    st_roh = drucker_mod._int(p.get("gcode_start_time"), 0) or 0
+    start = datetime.fromtimestamp(st_roh, timezone.utc) if st_roh > 1_500_000_000 else (
+        datetime.fromtimestamp(a["start"], timezone.utc) if a and a.get("start") else None)
+    rest_min = drucker_mod._int(p.get("mc_remaining_time"))
+    if laeuft:
+        ende = jetzt + timedelta(minutes=rest_min or 0)
+    else:
+        ende = datetime.fromtimestamp(dr.endzeit, timezone.utc) if dr.endzeit else None
+    aufgabe = str(p.get("subtask_name") or "")
+    wartung = drucker_mod.ist_wartung(re.sub(r"\.(gcode|3mf)$", "", aufgabe.rsplit("/", 1)[-1]))
+
+    # Verbrauch laut Druckdatei je Fach + Kosten aus dem Lager
+    posten, fil_kosten, fehlt = [], 0.0, False
+    anteil = 1.0 if status == "finish" else max(0.0, min(1.0, pct / 100))
+    if a and a.get("datei") and not wartung and (laeuft or status in ("finish", "failed")):
+        for fi, f in drucker_mod.zuordnen(a["datei"], drucker_mod.faecher(p)):
+            ort = f["ort"] if f else "Druckdatei"
+            fid, farbe = (f["fid"] if f and f["fid"] else fi["fid"]), (f["farbe"] if f and f["farbe"] else fi["farbe"])
+            preis = preis_fn(fid, farbe, name, ort)
+            bisher = fi["gramm"] * anteil
+            if preis:
+                fil_kosten += bisher / 1000 * preis
+            else:
+                fehlt = True
+            posten.append({"ort": ort, "gramm": round(fi["gramm"], 2), "bisher": round(bisher, 2), "meter": 0,
+                           "typ": (f["typ"] if f else fi["typ"]) or "", "name": (f["name"] if f else "") or "", "farbe": farbe or "", "preis": preis})
+
+    lei_ent, en_ent, leistung, kwh, strom_kosten = _energie_block(ha_anfrage, by, cfg, modell, anzahl, start, ende, laeuft, status, wartung, jetzt, strompreis)
+
+    luefter = {"druckkopf": drucker_mod._luefter(p.get("cooling_fan_speed")), "hotend": drucker_mod._luefter(p.get("heatbreak_fan_speed"))}
+    if not modell.startswith("a1"):
+        luefter["bauteil"] = drucker_mod._luefter(p.get("big_fan1_speed"))
+        luefter["druckraum"] = drucker_mod._luefter(p.get("big_fan2_speed"))
+    tuer = drucker_mod.tuer_offen(p, modell)
+    hms = p.get("hms") if isinstance(p.get("hms"), list) else []
+    wlan = str(p.get("wifi_signal") or "").lower().replace("dbm", "").strip()
+    sch = drucker_mod._int(p.get("stg_cur"))
+    return {
+        "pre": pre, "serie": dr.serial.upper(), "modell": modell_namen.get(modell, modell.upper()), "modell_id": modell,
+        "name": name, "status": status, "schritt": drucker_mod.SCHRITTE.get(sch, "") if laeuft else "", "quelle": "schichtlohn",
+        "fehler": bool(hms) or (status in ("failed", "pause") and bool(drucker_mod._int(p.get("print_error"), 0))),
+        "tuer": None if tuer is None else ("on" if tuer else "off"),
+        "fortschritt": pct, "rest_min": rest_min, "start": start.isoformat() if start else None, "ende": ende.isoformat() if ende else None,
+        "aufgabe": aufgabe, "wartung": wartung, "datei": str(p.get("gcode_file") or ""),
+        "schicht": drucker_mod._int(p.get("layer_num")), "schichten": drucker_mod._int(p.get("total_layer_num")),
+        "laufzeit_h": None, "gewicht": round(sum(x["gramm"] for x in posten), 2) if posten else None, "laenge": None,
+        "bett": t.get("bett"), "bett_ziel": t.get("bett_ziel"), "kammer": t.get("kammer"), "kammer_ziel": t.get("kammer_ziel"),
+        "luefter": luefter, "profil": drucker_mod.PROFILE.get(drucker_mod._int(p.get("spd_lvl")), ""),
+        "platte": (a or {}).get("platte_typ") or "", "wlan": wlan if re.fullmatch(r"-?\d+", wlan) else "",
+        "duesen": duesen, "ams": ams_liste, "extern": extern, "filament": aktiv,
+        "kamera": bool(d.get("ip") and d.get("code")) and status != "offline",
+        "bild": str(int((a or {}).get("start") or 1)) if (a or {}).get("vorschau") else "",
+        "licht": drucker_mod.licht_an(p) if dr.online else None,
+        "energie": _energie_paket(lei_ent, en_ent, leistung, kwh, strom_kosten, posten, fil_kosten, fehlt, strompreis),
+        "posten": posten,
+    }
+
+
+def sammeln(ha_anfrage, preis_fn, einst, modell_namen, eigene=()):
+    states = _ha_states(ha_anfrage)
+    by = {s["entity_id"]: s for s in states if isinstance(s, dict) and s.get("entity_id")}
     rad = einst if isinstance(einst, dict) else {}
     zuordnung = rad.get("drucker") if isinstance(rad.get("drucker"), dict) else {}
     strompreis = _zahl(rad.get("strompreis"), 0.35)
     jetzt = datetime.now(timezone.utc)
 
+    eigene = [dr for dr in eigene if getattr(dr, "serial", "")]
+    eigene_serien = {dr.serial.lower() for dr in eigene}
     praefixe = []
     for eid, s in by.items():
         m = re.fullmatch(r"sensor\.([a-z0-9]+)_([a-z0-9]{15})_druckstatus", eid)
         a = s.get("attributes") or {}
-        if m and a.get("quelle") != "schichtlohn" and "options" in a:
+        if m and a.get("quelle") != "schichtlohn" and "options" in a and m.group(2) not in eigene_serien:
             praefixe.append((m.group(1), m.group(2)))
 
     # Leistungs-/Energiesensoren automatisch zuordnen: sensor.<modell>_power, nur wenn das Modell einmal vorkommt
     anzahl = {}
-    for mo, _ in praefixe:
+    for mo in [drucker_mod.modell_von(dr.d) for dr in eigene] + [mo for mo, _ in praefixe]:
         anzahl[mo] = anzahl.get(mo, 0) + 1
 
     drucker = []
+    for dr in eigene:
+        try:
+            drucker.append(aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, strompreis, jetzt))
+        except Exception as e:
+            print(f"Radar {dr.serial}:", e, flush=True)
     for modell, serie in praefixe:
         pre = f"{modell}_{serie}"
         z = lambda suf, d="sensor": (by.get(f"{d}.{pre}_{suf}") or {})
@@ -220,20 +392,8 @@ def sammeln(ha_anfrage, preis_fn, einst, modell_namen):
             posten.append({"ort": ort, "gramm": round(g, 2), "bisher": round(bisher, 2), "meter": round(_zahl(len_attr.get(k), 0) or 0, 2),
                            "typ": f.get("typ") or "", "name": f.get("name") or "", "farbe": f.get("farbe") or "", "preis": preis})
 
-        # Energie
-        lei_ent = cfg.get("leistung") or (f"sensor.{modell}_power" if anzahl[modell] == 1 and f"sensor.{modell}_power" in by else "")
-        en_ent = cfg.get("energie") or (f"sensor.{modell}_energy" if anzahl[modell] == 1 and f"sensor.{modell}_energy" in by else "")
-        leistung = _zahl((by.get(lei_ent) or {}).get("state")) if lei_ent else None
-        kwh_druck = None
-        if en_ent and start and not wartung and (jetzt - start) < timedelta(days=4) and (laeuft or status in ("finish", "failed")):
-            a0 = _energie_bei(ha_anfrage, en_ent, start)
-            a1 = _strom(ha_anfrage, by, en_ent) if laeuft or not ende else _energie_bei(ha_anfrage, en_ent, ende)
-            if a0 is not None and a1 is not None:
-                kwh_druck = max(0.0, a1 - a0)
-                if kwh_druck > 30:  # Zählerwechsel o. ä.
-                    kwh_druck = None
-        strom_kosten = kwh_druck * strompreis if kwh_druck is not None else None
-        gesamt = round(fil_kosten + (strom_kosten or 0), 2) if posten or strom_kosten else None
+        lei_ent, en_ent, leistung, kwh_druck, strom_kosten = _energie_block(ha_anfrage, by, cfg, modell, anzahl, start, ende, laeuft, status,
+                                                                            wartung, jetzt, strompreis)
 
         kam = by.get(f"camera.{pre}_kamera")
         bild = by.get(f"image.{pre}_titelbild")
@@ -260,11 +420,7 @@ def sammeln(ha_anfrage, preis_fn, einst, modell_namen):
             "kamera": bool(kam) and (kam.get("state") not in ("unavailable",)),
             "bild": (bild.get("last_updated") or "1") if bild and _ok(bild.get("state")) else "",
             "licht": (licht.get("state") == "on") if licht else None,
-            "energie": {"leistung": leistung, "leistung_ent": lei_ent, "energie_ent": en_ent,
-                        "kwh_druck": round(kwh_druck, 3) if kwh_druck is not None else None,
-                        "strom": round(strom_kosten, 2) if strom_kosten is not None else None,
-                        "filament": round(fil_kosten, 2) if posten else None, "filament_unvollstaendig": fehlt,
-                        "gesamt": gesamt, "strompreis": strompreis},
+            "energie": _energie_paket(lei_ent, en_ent, leistung, kwh_druck, strom_kosten, posten, fil_kosten, fehlt, strompreis),
             "posten": posten,
         })
     reihe = rad.get("reihenfolge") if isinstance(rad.get("reihenfolge"), list) else []
@@ -279,10 +435,10 @@ def sammeln(ha_anfrage, preis_fn, einst, modell_namen):
             "ausgeblendet": sorted(aus), "sensoren": kandidaten, "strompreis": strompreis}
 
 
-def holen(ha_anfrage, preis_fn, einst, modell_namen, max_alter=2.5):
+def holen(ha_anfrage, preis_fn, einst, modell_namen, max_alter=2.5, eigene=()):
     with _lock:
         if _cache["wert"] is None or time.time() - _cache["t"] > max_alter:
-            _cache["wert"] = sammeln(ha_anfrage, preis_fn, einst, modell_namen)
+            _cache["wert"] = sammeln(ha_anfrage, preis_fn, einst, modell_namen, eigene)
             _cache["t"] = time.time()
         return _cache["wert"]
 
@@ -292,8 +448,21 @@ def leeren():
         _cache["t"] = 0.0
 
 
+def verlauf_eigen(dr, minuten=15):
+    """Temperaturverlauf aus dem Speicher der eigenen Verbindung (alle 10 s ein Wert, höchstens 24 h)."""
+    ab = time.time() - max(1, min(int(minuten), 24 * 60)) * 60
+    zwei = drucker_mod.modell_von(dr.d) in ("h2d", "h2c", "h2dpro", "x2d")
+    spalten = [("bett", 1), ("rechts" if zwei else "duese", 2), ("links", 3), ("kammer", 4)]
+    out = {}
+    for k, i in spalten:
+        pkt = [[z[0], round(z[i], 1)] for z in list(dr.verlauf) if z[0] >= ab and z[i] is not None]
+        if pkt:
+            out[k] = pkt[-400:] if len(pkt) <= 400 else pkt[::max(1, len(pkt) // 400)][-400:]
+    return {"von": datetime.fromtimestamp(ab, timezone.utc).isoformat(), "reihen": out}
+
+
 def verlauf(ha_anfrage, pre, minuten=15):
-    """Temperaturverlauf der letzten Minuten: Bett, Düse(n), Kammer."""
+    """Temperaturverlauf der letzten Minuten aus Home Assistant: Bett, Düse(n), Kammer."""
     pre = re.sub(r"[^a-z0-9_]", "", pre)
     namen = [("bett", "druckbetttemperatur"), ("duese", "temperatur_der_duse"), ("links", "linke_dusentemperatur"),
              ("rechts", "rechte_dusentemperatur"), ("kammer", "temperatur_im_druckraum")]

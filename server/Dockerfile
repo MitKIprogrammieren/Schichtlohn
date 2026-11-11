@@ -9,6 +9,8 @@ RUN python web.py /modelle
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8093 DB=/daten/schichtlohn.db
 WORKDIR /app
+# ffmpeg für den Kamerastrom der X1/H2-Drucker (RTSPS)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir --no-deps rapidocr_onnxruntime==1.2.3 \
@@ -16,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY --from=modell /modelle /app/modelle
 COPY pruefen.py .
 RUN python pruefen.py && rm pruefen.py
-COPY app.py drucker.py web.py preise.py produktbilder.py mcp.py bambu_fm.py radar.py ./
+COPY app.py drucker.py web.py preise.py produktbilder.py mcp.py bambu_fm.py radar.py kamera.py ./
 VOLUME /daten
 EXPOSE 8093
 HEALTHCHECK --interval=60s --timeout=5s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8093/')" || exit 1

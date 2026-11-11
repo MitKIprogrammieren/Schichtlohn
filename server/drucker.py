@@ -13,6 +13,7 @@ Bei Druckende (FINISH) bzw. Abbruch (FAILED) werden die Gramm je Filament ermitt
   3. aus der Abnahme der AMS-Restanzeige (nur Bambu-Spulen mit Chip)
 und dem Lager übergeben (Rückruf abbuchen).
 """
+import collections
 import ftplib
 import io
 import os
@@ -163,6 +164,136 @@ def faecher(p):
                     "farbe_roh": str(t.get("tray_color") or ""), "typ": str(t.get("tray_type") or ""),
                     "name": str(t.get("tray_sub_brands") or t.get("tray_type") or ""), "rest": _int(t.get("remain"), -1),
                     "gewicht": _int(t.get("tray_weight"), 0), "tag": str(t.get("tag_uid") or ""), "leer": leer})
+    return out
+
+
+# ---------------------------------------------------------------- Live-Werte für SchichtRadar (ohne Home Assistant)
+
+SCHRITTE = {0: "printing", 1: "auto_bed_leveling", 2: "heatbed_preheating", 3: "sweeping_xy_mech_mode", 4: "changing_filament",
+            5: "m400_pause", 6: "paused_filament_runout", 7: "heating_hotend", 8: "calibrating_extrusion", 9: "scanning_bed_surface",
+            10: "inspecting_first_layer", 11: "identifying_build_plate_type", 12: "calibrating_micro_lidar", 13: "homing_toolhead",
+            14: "cleaning_nozzle_tip", 15: "checking_extruder_temperature", 16: "paused_user", 17: "paused_front_cover_falling",
+            18: "calibrating_micro_lidar", 19: "calibrating_extrusion_flow", 20: "paused_nozzle_temperature_malfunction",
+            21: "paused_heat_bed_temperature_malfunction", 22: "filament_unloading", 23: "paused_skipped_step", 24: "filament_loading",
+            25: "calibrating_motor_noise", 26: "paused_ams_lost", 27: "paused_low_fan_speed_heat_break",
+            28: "paused_chamber_temperature_control_error", 29: "cooling_chamber", 30: "paused_user_gcode", 31: "motor_noise_showoff",
+            32: "paused_nozzle_filament_covered_detected", 33: "paused_cutter_error", 34: "paused_first_layer_error",
+            35: "paused_nozzle_clog", 39: "calibrate_nozzle_offset", 40: "bed_level_high_temperature", 41: "check_quick_release",
+            42: "check_door_and_cover", 47: "bed_level_phase_1", 48: "bed_level_phase_2"}
+PROFILE = {1: "silent", 2: "standard", 3: "sport", 4: "ludicrous"}
+TUER_BIT = 0x00800000
+DUESEN_MATERIAL = {"00": "stainless_steel", "01": "hardened_steel", "05": "tungsten_carbide"}
+
+
+def modell_von(d):
+    return re.sub(r"[^a-z0-9]", "", str(d.get("modell") or modell_aus_serie(d.get("serial"))).lower())
+
+
+def _zahl(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _rund(x):
+    z = _zahl(x)
+    return None if z is None else round(z, 1)
+
+
+def _gepackt(v):
+    """Neuere Firmware (H2, X1 ab 2025): untere 16 Bit = Ist-Wert, obere 16 Bit = Ziel."""
+    v = _int(v)
+    return (None, None) if v is None else (v & 0xFFFF, (v >> 16) & 0xFFFF)
+
+
+def _luefter(roh):
+    """Lüfter melden 0–15 → Prozent in 10er-Schritten (wie Bambu Studio)."""
+    r = _int(roh, 0) or 0
+    return 0 if r <= 0 else min(100, -(-round(r / 15 * 100) // 10) * 10)
+
+
+def _duesentyp(code):
+    code = str(code or "")
+    if len(code) >= 4 and code[0].isalpha() and code[2:4].isdigit():
+        return ("tpu_high_flow" if code[1] == "U" else ("high_flow_" if code[1] in "HE" else "") + DUESEN_MATERIAL.get(code[2:4], "unknown"))
+    return code
+
+
+def temperaturen(p, modell):
+    """Düse(n), Bett, Kammer aus einer (gemischten) Meldung → {duesen: [{id, temp, ziel}], bett, bett_ziel, kammer, kammer_ziel}"""
+    dev = p.get("device") if isinstance(p.get("device"), dict) else {}
+    out = {"duesen": []}
+    ex = (dev.get("extruder") or {}).get("info") if isinstance(dev.get("extruder"), dict) else None
+    zwei = modell in ("h2d", "h2c", "h2dpro", "x2d")
+    if isinstance(ex, list) and ex:
+        for e in sorted((e for e in ex if isinstance(e, dict) and e.get("id") in (0, 1)), key=lambda e: e["id"]):
+            t, z = _gepackt(e.get("temp"))
+            out["duesen"].append({"id": e["id"], "temp": t, "ziel": z})
+    if not out["duesen"] or (not zwei and out["duesen"][0]["temp"] is None):
+        out["duesen"] = [{"id": 0, "temp": _rund(p.get("nozzle_temper")), "ziel": _rund(p.get("nozzle_target_temper"))}]
+    if zwei and len(out["duesen"]) == 1:
+        out["duesen"].append({"id": 1, "temp": None, "ziel": None})
+    bett = (dev.get("bed") or {}).get("info", {}).get("temp") if isinstance(dev.get("bed"), dict) else None
+    if bett is not None:
+        out["bett"], out["bett_ziel"] = _gepackt(bett)
+    else:
+        out["bett"], out["bett_ziel"] = _rund(p.get("bed_temper")), _rund(p.get("bed_target_temper"))
+    out["kammer"] = out["kammer_ziel"] = None
+    if modell.startswith(("x1", "h2", "p2", "x2", "h3")):
+        k = (dev.get("ctc") or {}).get("info", {}).get("temp") if isinstance(dev.get("ctc"), dict) else None
+        if k is not None:
+            out["kammer"], ziel = _gepackt(k)
+            out["kammer_ziel"] = ziel if modell.startswith(("h2", "x2", "h3")) else None
+        elif p.get("chamber_temper") is not None:
+            out["kammer"] = _rund(p.get("chamber_temper"))
+    return out
+
+
+def duesen_info(p):
+    """{id: (Durchmesser, Typ)} – neue Firmware in device.nozzle.info, alte direkt in der Meldung."""
+    dev = p.get("device") if isinstance(p.get("device"), dict) else {}
+    info = (dev.get("nozzle") or {}).get("info") if isinstance(dev.get("nozzle"), dict) else None
+    out = {}
+    if isinstance(info, list):
+        for e in info:
+            if isinstance(e, dict) and e.get("id") in (0, 1):
+                out[e["id"]] = (str(e.get("diameter") or ""), _duesentyp(e.get("type")))
+    if not out and (p.get("nozzle_diameter") or p.get("nozzle_type")):
+        out[0] = (str(p.get("nozzle_diameter") or ""), _duesentyp(p.get("nozzle_type")))
+    return out
+
+
+def tuer_offen(p, modell):
+    if modell.startswith("x1") and p.get("home_flag") is not None:
+        return bool(_int(p.get("home_flag"), 0) & TUER_BIT)
+    if modell.startswith(("h2", "p2", "x2", "h3")) and p.get("stat"):
+        try:
+            return bool(int(str(p["stat"]), 16) & TUER_BIT)
+        except ValueError:
+            return None
+    return None
+
+
+def licht_an(p):
+    for e in p.get("lights_report") or []:
+        if isinstance(e, dict) and e.get("node") == "chamber_light":
+            return str(e.get("mode") or "") == "on"
+    return None
+
+
+def ams_einheiten(p):
+    """{ams_id: {feuchte, feuchte_stufe, temp, trocken_rest (min)}}"""
+    out = {}
+    for a in (p.get("ams") or {}).get("ams") or []:
+        if not isinstance(a, dict):
+            continue
+        aid = _int(a.get("id"))
+        if aid is None:
+            continue
+        roh, stufe, temp = _int(a.get("humidity_raw")), _int(a.get("humidity")), _zahl(a.get("temp"))
+        out[aid] = {"feuchte": roh if roh and 0 < roh <= 100 else None, "feuchte_stufe": stufe if stufe and 1 <= stufe <= 5 else None,
+                    "temp": temp if temp and 0 < temp <= 100 else None, "trocken_rest": max(0, _int(a.get("dry_time"), 0) or 0)}
     return out
 
 
@@ -504,6 +635,15 @@ def druckdatei_laden(ip, code, p, timeout=25):
             pass
 
 
+def platten_typ(daten, idx):
+    """Druckplatte laut Slicer („textured_plate“ usw.) aus Metadata/plate_<n>.json – leer, wenn nicht drin."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(daten)) as z:
+            return str(json.loads(z.read(f"Metadata/plate_{int(idx)}.json")).get("bed_type") or "")
+    except Exception:
+        return ""
+
+
 def platte_aus(p):
     for k in ("gcode_file", "param"):
         m = re.search(r"plate_(\d+)\.gcode", str(p.get(k) or ""))
@@ -759,6 +899,11 @@ class Drucker:
         self.client = None
         self.stop = threading.Event()
         self.thread = None
+        self.endzeit = 0          # wann der letzte Druck geendet hat
+        self.letzter = None       # Auftrag des zuletzt beendeten Drucks (für Radar: Gramm, Vorschaubild)
+        self.verlauf = collections.deque(maxlen=8640)  # (Zeit, Bett, Düse0, Düse1, Kammer) alle 10 s, 24 h
+        self._verlauf_t = 0
+        self.kamera = None
 
     @property
     def serial(self):
@@ -902,6 +1047,17 @@ class Drucker:
         threading.Timer(2.0, self._pushall).start()
         return befehl["print"]
 
+    def licht(self, an):
+        """Innenraumlicht an/aus (wie der Knopf in Bambu Studio)."""
+        if not (self.client and self.online):
+            raise RuntimeError("Drucker ist nicht verbunden")
+        knoten = ["chamber_light"] + (["chamber_light2"] if modell_von(self.d).startswith(("h2", "x2")) else [])
+        for k in knoten:
+            self.client.publish(f"device/{self.serial}/request", json.dumps(
+                {"system": {"sequence_id": str(int(time.time()) % 100000), "command": "ledctrl", "led_node": k, "led_mode": "on" if an else "off",
+                            "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0}}))
+        threading.Timer(1.5, self._pushall).start()
+
     def _pushall(self):
         try:
             self.client.publish(f"device/{self.serial}/request",
@@ -972,6 +1128,7 @@ class Drucker:
                                  "skip": {}, "datei": None, "gcode": None, "objekte": None}
             self._skip_merken(a)
             self.auftrag = None
+            self.letzter, self.endzeit = a, time.time()
             if ist_wartung(a.get("name")):
                 self.wirt.log(f"Drucker {self.serial}: „{a.get('name')}“ ist eine Kalibrierung/Wartung – keine Abbuchung")
             else:
@@ -979,6 +1136,11 @@ class Drucker:
                 threading.Thread(target=self._abschluss, args=(a, st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
         if st:
             self.vorher = st
+        if time.time() - self._verlauf_t >= 10:
+            self._verlauf_t = time.time()
+            t = temperaturen(self.p, modell_von(self.d))
+            du = t["duesen"] + [{"temp": None}] * 2
+            self.verlauf.append((int(self._verlauf_t), t.get("bett"), du[0]["temp"], du[1]["temp"], t.get("kammer")))
         self.wirt.zustaende(self, zustaende(self.d, self.p, True))
 
     def _skip_merken(self, a):
@@ -998,6 +1160,7 @@ class Drucker:
             k = datei_kopf(daten, platte)
             a["vorschau"] = k.get("bild")
             a["minuten_plan"] = k.get("minuten") or 0
+            a["platte_typ"] = platten_typ(daten, k.get("platte") or platte or 1)
         except Exception as e:
             self.wirt.log(f"Drucker {self.serial}: Vorschaubild nicht lesbar: {e}")
         try:

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.17.0 – 11.11.2026
+- SchichtRadar läuft jetzt ohne Home Assistant: Temperaturen (Düsen, Bett, Druckraum), Lüfter, Fortschritt, Schichten, AMS mit Feuchte und Trocknung, Tür, Licht und Kosten kommen direkt aus der eigenen Verbindung von SchichtLohn zu den Druckern. Die Bambu-Lab-Integration in Home Assistant wird dafür nicht mehr gebraucht.
+- Kamera direkt vom Drucker: A1 und P1 über den Kamera-Anschluss im Heimnetz, X1 und H2 über den Videostrom. Dafür müssen IP-Adresse und Zugangscode des Druckers in SchichtLohn eingetragen sein; bei X1 und H2 am Drucker „LAN-Modus Liveansicht“ einschalten.
+- Temperaturverlauf im Radar kommt jetzt aus SchichtLohn selbst (bis 24 Stunden, nach einem Neustart beginnt er neu).
+- Vorschaubild des laufenden Drucks kommt aus der Druckdatei auf dem Drucker.
+- Strom-Steckdosen für die Druckkosten liest SchichtLohn weiter aus Home Assistant, wenn es erreichbar ist.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.16.0 – 08.11.2026
 - Neu: SchichtRadar – Live-Übersicht aller Bambu-Drucker auf einer Seite (…/app/radar.html). Kamera, Fortschritt, Düsen, AMS mit Feuchte, Temperaturverlauf, Lüfter und Licht.
 - Kosten des laufenden Drucks live: Filament mit den Preisen aus deinem Lager, Strom über die Steckdose des Druckers.
