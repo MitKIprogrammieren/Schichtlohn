@@ -13,7 +13,9 @@ Bei Druckende (FINISH) bzw. Abbruch (FAILED) werden die Gramm je Filament ermitt
   3. aus der Abnahme der AMS-Restanzeige (nur Bambu-Spulen mit Chip)
 und dem Lager übergeben (Rückruf abbuchen).
 """
+import base64
 import collections
+import urllib.error
 import ftplib
 import io
 import os
@@ -838,15 +840,30 @@ def cloud_anfrage(token, region, pfad, timeout=20):
 
 
 def cloud_uid(token, region):
+    """Benutzer-ID für die Cloud-Verbindung (MQTT-Benutzer u_<id>). Neuere Anmeldungen sind ein JWT mit „username“."""
+    teile = str(token or "").split(".")
+    if len(teile) == 3:
+        try:
+            nutz = json.loads(base64.urlsafe_b64decode(teile[1] + "=" * (-len(teile[1]) % 4))).get("username") or ""
+            if str(nutz).startswith("u_") and str(nutz)[2:].isdigit():
+                return str(nutz)[2:]
+        except Exception:
+            pass
+    gruende = []
     for pfad in ("/v1/design-user-service/my/preference", "/v1/user-service/my/profile"):
         try:
             d = cloud_anfrage(token, region, pfad)
-        except Exception:
+        except urllib.error.HTTPError as e:
+            gruende.append(f"{pfad.rsplit('/', 1)[-1]}: {e.code}")
+            continue
+        except Exception as e:
+            gruende.append(f"{pfad.rsplit('/', 1)[-1]}: {e}")
             continue
         uid = d.get("uid") or d.get("uidStr") or (d.get("user") or {}).get("uid")
         if uid:
             return str(uid)
-    raise RuntimeError("Bambu-Cloud: Benutzer-ID nicht abrufbar (Anmeldung abgelaufen?)")
+        gruende.append(f"{pfad.rsplit('/', 1)[-1]}: keine ID in der Antwort")
+    raise RuntimeError("Bambu-Cloud: Benutzer-ID nicht abrufbar (" + ", ".join(gruende) + ")")
 
 
 def cloud_geraete(token, region):
@@ -938,8 +955,17 @@ class Drucker:
             if not c.get("token"):
                 raise RuntimeError("Bambu-Cloud: nicht angemeldet")
             if not c.get("uid"):
-                c["uid"] = cloud_uid(c["token"], c.get("region", "global"))
-                self.wirt.cloud_merken(c)
+                try:
+                    c["uid"] = cloud_uid(c["token"], c.get("region", "global"))
+                    self.wirt.cloud_merken(c)
+                except Exception as e:
+                    # Lieber übers Heimnetz verbinden als gar nicht – sonst wird kein Druck mehr abgebucht
+                    if self.d.get("ip") and self.d.get("code"):
+                        if not getattr(self, "_lan_hinweis", False):
+                            self._lan_hinweis = True
+                            self.wirt.log(f"Drucker {self.serial}: {e} – verbinde stattdessen übers Heimnetz")
+                        return self.d["ip"], "bblp", self.d["code"], False
+                    raise
             return CLOUD_MQTT.get(c.get("region", "global"), CLOUD_MQTT["global"]), "u_" + c["uid"], c["token"], True
         if not self.d.get("ip") or not self.d.get("code"):
             raise RuntimeError("IP-Adresse oder Zugangscode fehlt")

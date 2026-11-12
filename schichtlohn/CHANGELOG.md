@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.4 – 12.11.2026
+- Fehler behoben: Nach einer neuen Anmeldung bei der Bambu-Cloud konnte SchichtLohn keine Verbindung mehr zu den Druckern aufbauen – Drucke wurden dann nicht abgebucht. Die Anmeldung behält jetzt die Konto-Kennung, und wenn die Cloud trotzdem nicht will, verbindet sich SchichtLohn übers Heimnetz (IP-Adresse und Zugangscode).
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.3 – 12.11.2026
 - Bambu-Cloud geht wieder: Bambu blockiert seit dem 10.11. alle Programme, die sich als Bambu-Slicer ausgeben. SchichtLohn meldet sich jetzt mit eigenem Namen an – Anmeldung, Druckhistorie und Filament Manager funktionieren wieder.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

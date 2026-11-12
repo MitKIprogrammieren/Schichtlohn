@@ -74,7 +74,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.3"
+VERSION = "3.17.4"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3901,7 +3901,11 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fehler(400, "Nicht bei der Bambu-Cloud angemeldet")
             if b.get("token"):
                 e = einstellungen()
+                alt = e.get("cloud") or {}
                 e["cloud"] = {"token": token, "region": region, "konto": b.get("konto") or ""}
+                # Benutzer-ID bleibt beim selben Konto gleich – nicht wegwerfen, nur weil die Anmeldung erneuert wurde
+                if alt.get("uid") and (alt.get("konto") or "") == (b.get("konto") or "") and (alt.get("region") or "global") == region:
+                    e["cloud"]["uid"] = alt["uid"]
                 daten_schreiben(EINST_KEY, e)
                 if any(d.get("modus") == "cloud" for d in e["drucker"]):
                     BAMBU.neu_starten()
