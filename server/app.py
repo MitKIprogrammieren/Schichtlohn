@@ -40,7 +40,9 @@ Wie Home Assistant (damit Waage und Lager-Ansicht unverändert arbeiten):
 Mit der Umgebungsvariable TOKEN verlangt der Server bei /api/* den Schlüssel
 (Kopfzeile X-Token oder ?token=…). Ohne TOKEN ist alles im Heimnetz offen.
 """
+import datetime
 import io
+import urllib.parse
 import hashlib
 import json
 import os
@@ -74,7 +76,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.4"
+VERSION = "3.17.5"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2241,8 +2243,9 @@ def druck_abbuchen(druckername, erg):
             fertig_melden(druckername, erg, [])
         return
     kurz = []
-    zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    dt = time.strftime("%d.%m.%Y %H:%M")
+    t_ende = time.localtime(erg["ende"]) if erg.get("ende") else time.localtime()
+    zeit = time.strftime("%Y-%m-%dT%H:%M:%S%z", t_ende)
+    dt = time.strftime("%d.%m.%Y %H:%M", t_ende)
     bericht, offen, knapp = [], [], []
     app_posten, app_offen = [], []  # für die Meldung in der App
     for po in erg["posten"]:
@@ -2313,12 +2316,109 @@ def druck_abbuchen(druckername, erg):
     print(text, flush=True)
     melden({"typ": "abbuchung", "drucker": druckername, "text": text, "aufgabe": erg.get("aufgabe") or "", "anlass": erg["anlass"],
             "posten": app_posten, "offen": app_offen})
+    if erg.get("still"):  # Nachbuchung: keine Handymeldung je Druck
+        return
     if fertig:
         fertig_melden(druckername, erg, kurz)
     else:
         handy_meldung("Filament abgebucht", text)
     if knapp:
         handy_meldung("Filament wird knapp", "; ".join(knapp) + ". Steht jetzt auf der Einkaufsliste in SchichtLohn.")
+
+
+# ---------------------------------------------------------------- Verpasste Drucke aus der Bambu-Druckhistorie nachbuchen
+
+def _cloud_zeit(t):
+    try:
+        return datetime.datetime.strptime(str(t)[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc).timestamp()
+    except (TypeError, ValueError):
+        return 0
+
+
+def _gebuchte_aufgaben():
+    """Task-IDs und (Drucker, Endminute), die schon im Verbrauch oder Druckprotokoll stehen."""
+    ids, zeiten = set(), set()
+    for it in liste_lesen(META):
+        try:
+            d = json.loads(it.get("description") or "{}")
+        except ValueError:
+            continue
+        if d.get("typ") == "verbrauch":
+            if d.get("task"):
+                ids.add(str(d["task"]))
+            zeiten.add((d.get("drucker") or "", str(d.get("zeit") or "")[:16]))
+    alt, _ = daten_lesen(DRUCKE_KEY)
+    for x in alt if isinstance(alt, list) else []:
+        if isinstance(x, dict):
+            zeiten.add((x.get("drucker") or "", str(x.get("ende") or "")[:16]))
+    return ids, zeiten
+
+
+def verpasste_drucke(seit):
+    """Drucke laut Bambu-Cloud seit Zeitpunkt seit (Unix), je eigener Drucker, mit Vorschau der Abbuchung."""
+    c = einstellungen()["cloud"]
+    if not c.get("token"):
+        raise Fehler(400, "Nicht bei der Bambu-Cloud angemeldet")
+    ids, zeiten = _gebuchte_aufgaben()
+    out = []
+    for dr in list(BAMBU.drucker.values()):
+        name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+        try:
+            d = drucker_mod.cloud_anfrage(c["token"], c.get("region", "global"),
+                                          "/v1/user-service/my/tasks?" + urllib.parse.urlencode({"deviceId": dr.serial, "limit": 30}))
+        except Exception as ex:
+            out.append({"drucker": name, "fehler": str(ex)})
+            continue
+        fl = drucker_mod.faecher(dr.p)
+        nach_global = {f["global"]: f for f in fl}
+        for h in d.get("hits") or []:
+            ende = _cloud_zeit(h.get("endTime")) or _cloud_zeit(h.get("startTime"))
+            if ende < seit:
+                continue
+            posten = []
+            for m in h.get("amsDetailMapping") or []:
+                g = float(m.get("weight") or 0)
+                if g <= 0:
+                    continue
+                f = nach_global.get(drucker_mod._int(m.get("ams"), -1))
+                po = {"gramm": round(g, 2), "gramm_datei": round(g, 2), "ort": f["ort"] if f else "AMS",
+                      "fid": (f["fid"] if f and f["fid"] else str(m.get("filamentId") or "")),
+                      "col": (f["farbe"] if f and f["farbe"] else drucker_mod._farbe(m.get("sourceColor") or m.get("targetColor"))),
+                      "name": f["name"] if f else "", "material": f["typ"] if f else str(m.get("filamentType") or "")}
+                treffer, grund = sorte_fuer(po["fid"], (po["col"] or "").lower(), fach_key(name, po["ort"]))
+                po["sorte"] = treffer[0]["summary"] if treffer else ""
+                po["grund"] = "" if treffer else grund
+                posten.append(po)
+            minute = time.strftime("%Y-%m-%dT%H:%M", time.localtime(ende))
+            out.append({"id": str(h.get("id") or ""), "drucker": name, "serial": dr.serial, "titel": h.get("title") or h.get("designTitle") or "Druck",
+                        "start": _cloud_zeit(h.get("startTime")), "ende": ende, "status": h.get("status"),
+                        "gramm": round(sum(p["gramm"] for p in posten), 1), "posten": posten,
+                        "schon": str(h.get("id")) in ids or (name, minute) in zeiten})
+    out.sort(key=lambda x: x.get("ende") or 0, reverse=True)
+    return out
+
+
+def drucke_nachbuchen(ids, seit):
+    gewaehlt = {str(i) for i in ids}
+    erledigt = []
+    for x in verpasste_drucke(seit):
+        if x.get("id") not in gewaehlt or x.get("schon"):
+            continue
+        dr = BAMBU.drucker.get(x["serial"])
+        if not dr:
+            continue
+        fertig = x.get("status") == 2
+        erg = {"anlass": "Druck fertig" if fertig else "Druck abgebrochen", "anteil": 1.0, "posten": x["posten"],
+               "quelle": "Bambu-Druckhistorie (nachgebucht)", "aufgabe": x["titel"], "task": x["id"],
+               "dauer": int(x["ende"] - x["start"]) if x.get("start") else 0, "start": x.get("start") or 0, "ende": x["ende"],
+               "praefix": drucker_mod.praefix(dr.d), "still": True}
+        try:
+            druck_merken(dr, x["drucker"], erg)
+        except Exception as ex:
+            print(f"Nachbuchen {x['titel']}: Protokoll: {ex}", flush=True)
+        druck_abbuchen(x["drucker"], erg)
+        erledigt.append({"drucker": x["drucker"], "titel": x["titel"], "gramm": x["gramm"]})
+    return {"ok": True, "gebucht": erledigt}
 
 
 def abdruecke_export():
@@ -2465,7 +2565,7 @@ def _iso(t):
 
 
 def druck_merken(dr, name, erg, vorschau=None):
-    ende = time.time()
+    ende = erg.get("ende") or time.time()  # nachgebuchte Drucke behalten ihre echte Endzeit
     start = erg.get("start") or (ende - erg.get("dauer", 0) if erg.get("dauer") else 0)
     did = _bild_id(dr.serial, int(ende))
     eintrag = {"id": did, "drucker": name, "serial": dr.serial, "praefix": erg.get("praefix") or "",
@@ -3769,6 +3869,12 @@ class Handler(BaseHTTPRequestHandler):
             sp, _ = daten_lesen(SPEICHER_KEY)
             return self._json(200, {"drucke": w if isinstance(w, list) else [], "speicher": sp if isinstance(sp, dict) else {},
                                     "laeuft": SPEICHER_STAND["laeuft"], "archiv": archiv_info()})
+        if teile == ["drucke", "verpasst"] and methode == "GET":
+            seit = float((q.get("seit") or [0])[0] or 0) or time.time() - 7 * 86400
+            return self._json(200, {"drucke": verpasste_drucke(seit)})
+        if teile == ["drucke", "nachbuchen"] and methode == "POST":
+            b = self._json_rumpf()
+            return self._json(200, drucke_nachbuchen(b.get("ids") or [], float(b.get("seit") or 0) or time.time() - 14 * 86400))
         if teile == ["drucke", "import"] and methode == "POST":
             # Drucke aus einer anderen App übernehmen (z. B. Spooly): gleiche id ersetzt, sonst dazu
             b = self._json_rumpf()

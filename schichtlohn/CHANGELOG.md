@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.5 – 12.11.2026
+- Verpasste Drucke nachbuchen: SchichtLohn kann Drucke, die nicht abgebucht wurden (z. B. während die Bambu-Cloud gesperrt war), aus der Bambu-Druckhistorie holen und mit der richtigen Uhrzeit nachbuchen. Was schon gebucht ist, wird nicht doppelt gebucht.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.4 – 12.11.2026
 - Fehler behoben: Nach einer neuen Anmeldung bei der Bambu-Cloud konnte SchichtLohn keine Verbindung mehr zu den Druckern aufbauen – Drucke wurden dann nicht abgebucht. Die Anmeldung behält jetzt die Konto-Kennung, und wenn die Cloud trotzdem nicht will, verbindet sich SchichtLohn übers Heimnetz (IP-Adresse und Zugangscode).
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
