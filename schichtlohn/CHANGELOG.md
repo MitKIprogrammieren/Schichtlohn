@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.3 – 12.11.2026
+- Bambu-Cloud geht wieder: Bambu blockiert seit dem 10.11. alle Programme, die sich als Bambu-Slicer ausgeben. SchichtLohn meldet sich jetzt mit eigenem Namen an – Anmeldung, Druckhistorie und Filament Manager funktionieren wieder.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.2 – 12.11.2026
 - Wenn die Bambu-Cloud SchichtLohn gerade blockiert (Schutzsperre), steht beim Filament Manager jetzt ein verständlicher Satz statt Webseiten-Code.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

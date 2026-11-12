@@ -38,7 +38,7 @@ async function konto(k) {
     if (r.ok && d && d.code === 0 && k.uid) id = "creality:" + String(k.uid);
   } else if (k.art === "bambu") {
     const api = k.region === "cn" ? "https://api.bambulab.cn" : "https://api.bambulab.com";
-    const r = await fetch(api + "/v1/design-user-service/my/preference", { headers: { Authorization: "Bearer " + String(k.token || ""), "User-Agent": "bambu_network_agent/01.09.05.01" } });
+    const r = await fetch(api + "/v1/design-user-service/my/preference", { headers: { Authorization: "Bearer " + String(k.token || ""), "User-Agent": "SchichtLohn/1", "X-BBL-Client-Name": "SchichtLohn", "X-BBL-Client-Type": "homeautomation" } });
     const d = await r.json().catch(() => null);
     const uid = d && (d.uid ?? d.uidStr);
     if (r.ok && uid) id = "bambu:" + String(uid);

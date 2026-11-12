@@ -10,14 +10,15 @@ const ROUTES = {
   "tfa": { m: "POST", web: "/api/sign-in/tfa" },
 };
 const HDR = {
-  "User-Agent": "bambu_network_agent/01.09.05.01",
-  "X-BBL-Client-Name": "OrcaSlicer",
-  "X-BBL-Client-Type": "slicer",
-  "X-BBL-Client-Version": "01.09.05.51",
+  // eigene Kennung – „bambu_network_agent/01.09.*“ sperrt Bambu seit 10.11.2026 per Cloudflare
+  "User-Agent": "SchichtLohn/1",
+  "X-BBL-Client-Name": "SchichtLohn",
+  "X-BBL-Client-Type": "homeautomation",
+  "X-BBL-Client-Version": "01.00.00.00",
   "X-BBL-Language": "de-DE",
   "X-BBL-OS-Type": "linux",
   "X-BBL-OS-Version": "6.2.0",
-  "X-BBL-Agent-Version": "01.09.05.01",
+  "X-BBL-Agent-Version": "01.00.00.00",
   "X-BBL-Executable-info": "{}",
   "X-BBL-Agent-OS-Type": "linux",
   "Accept": "application/json",

@@ -36,11 +36,13 @@ except ImportError:  # Tests ohne paho
 
 CLOUD_API = {"global": "https://api.bambulab.com", "china": "https://api.bambulab.cn"}
 CLOUD_MQTT = {"global": "us.mqtt.bambulab.com", "china": "cn.mqtt.bambulab.com"}
+# Eigene Kennung statt Slicer-Kennung: Bambu sperrt seit 10.11.2026 alle „bambu_network_agent/01.09.*“ per Cloudflare
+# und verlangt, dass sich Fremdprogramme mit eigenem Namen melden (so macht es auch ha-bambulab)
 KOPF = {
-    "User-Agent": "bambu_network_agent/01.09.05.01",
-    "X-BBL-Client-Name": "OrcaSlicer", "X-BBL-Client-Type": "slicer", "X-BBL-Client-Version": "01.09.05.51",
+    "User-Agent": "SchichtLohn/1",
+    "X-BBL-Client-Name": "SchichtLohn", "X-BBL-Client-Type": "homeautomation", "X-BBL-Client-Version": "01.00.00.00",
     "X-BBL-Language": "de-DE", "X-BBL-OS-Type": "linux", "X-BBL-OS-Version": "6.2.0",
-    "X-BBL-Agent-Version": "01.09.05.01", "X-BBL-Executable-info": "{}", "X-BBL-Agent-OS-Type": "linux",
+    "X-BBL-Agent-Version": "01.00.00.00", "X-BBL-Executable-info": "{}", "X-BBL-Agent-OS-Type": "linux",
     "Accept": "application/json",
 }
 # Seriennummer → Modell (wie die Entitätsnamen in Home Assistant)
