@@ -7607,6 +7607,8 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
     let zeigen=akt?e.dataset.eb===akt:!!q&&e.textContent.toLowerCase().includes(q);
     if(e.classList.contains("ebk-hulle")&&!e.querySelector(".srvk"))zeigen=false;e.classList.toggle("eb-weg",!zeigen)});
   st.classList.toggle("eb-detail",!!akt||!!q);
+  /* Im Unterbereich steht „‹ Einstellungen“ schon als Zurück-Knopf – große Überschrift dann ausblenden */
+  if(kopf)kopf.hidden=!!akt;
   const inp=document.getElementById("eb_q");if(inp&&ordnen.fokus){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);ordnen.fokus=false}}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act=ebOeffnen],[data-act=ebZurueck]");if(!b)return;
   akt=b.dataset.act==="ebOeffnen"?b.dataset.k:null;suche="";try{akt?sessionStorage.setItem("sl_einst_bereich",akt):sessionStorage.removeItem("sl_einst_bereich")}catch(x){}ordnen();scrollTo(0,0)});
