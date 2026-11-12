@@ -76,7 +76,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.5"
+VERSION = "3.17.6"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2357,12 +2357,12 @@ def _gebuchte_aufgaben():
 def verpasste_drucke(seit):
     """Drucke laut Bambu-Cloud seit Zeitpunkt seit (Unix), je eigener Drucker, mit Vorschau der Abbuchung."""
     c = einstellungen()["cloud"]
-    if not c.get("token"):
-        raise Fehler(400, "Nicht bei der Bambu-Cloud angemeldet")
     ids, zeiten = _gebuchte_aufgaben()
     out = []
     for dr in list(BAMBU.drucker.values()):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+        if not c.get("token"):
+            continue
         try:
             d = drucker_mod.cloud_anfrage(c["token"], c.get("region", "global"),
                                           "/v1/user-service/my/tasks?" + urllib.parse.urlencode({"deviceId": dr.serial, "limit": 30}))
@@ -2393,8 +2393,66 @@ def verpasste_drucke(seit):
             out.append({"id": str(h.get("id") or ""), "drucker": name, "serial": dr.serial, "titel": h.get("title") or h.get("designTitle") or "Druck",
                         "start": _cloud_zeit(h.get("startTime")), "ende": ende, "status": h.get("status"),
                         "gramm": round(sum(p["gramm"] for p in posten), 1), "posten": posten,
-                        "schon": str(h.get("id")) in ids or (name, minute) in zeiten})
+                        "schon": str(h.get("id")) in ids or (name, minute) in zeiten, "quelle": "Bambu-Druckhistorie"})
+    out += _verpasst_speicher(seit, [x for x in out if not x.get("fehler")])
     out.sort(key=lambda x: x.get("ende") or 0, reverse=True)
+    return out
+
+
+def _verpasst_speicher(seit, cloud):
+    """Drucke aus dem Druckerspeicher (übers Heimnetz aus Bambu Studio geschickt – nicht in der Bambu-Druckhistorie).
+    Zeit = wann die Datei auf den Drucker kam; ob sie wirklich gedruckt wurde, weiß nur der Nutzer → „unsicher“."""
+    sp, _ = daten_lesen(SPEICHER_KEY)
+    sp = sp if isinstance(sp, dict) else {}
+    alt, _ = daten_lesen(DRUCKE_KEY)
+    proto = [x for x in (alt if isinstance(alt, list) else []) if isinstance(x, dict)]
+    verbr = []
+    for it in liste_lesen(META):
+        try:
+            d = json.loads(it.get("description") or "{}")
+        except ValueError:
+            continue
+        if d.get("typ") == "verbrauch" and d.get("aufgabe"):
+            verbr.append((d.get("drucker") or "", _norm_titel(d["aufgabe"]), str(d.get("zeit") or "")))
+
+    def _ts(iso):
+        try:
+            return datetime.datetime.strptime(str(iso)[:19], "%Y-%m-%dT%H:%M:%S").timestamp()
+        except (TypeError, ValueError):
+            return 0
+    out = []
+    for dr in list(BAMBU.drucker.values()):
+        name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+        eintrag = sp.get(dr.serial) if isinstance(sp.get(dr.serial), dict) else {}
+        fl = drucker_mod.faecher(dr.p)
+        for f in eintrag.get("dateien") or []:
+            zeit = float(f.get("zeit") or 0)
+            if zeit < seit or not f.get("filamente") or drucker_mod.ist_wartung(f.get("titel")):
+                continue
+            nt = _norm_titel(f.get("titel") or "")
+            # Schon da? Gleicher Titel am selben Drucker im Protokoll, im Verbrauch oder in der Cloud-Historie (bis 2 Tage danach)
+            fenster = lambda t: zeit - 3600 <= t <= zeit + 2 * 86400
+            if any(x.get("drucker") == name and _norm_titel(x.get("titel") or "") == nt and fenster(_ts(x.get("start") or x.get("ende"))) for x in proto) \
+               or any(d == name and t == nt and fenster(_ts(z)) for d, t, z in verbr) \
+               or any(x["drucker"] == name and _norm_titel(x["titel"]) == nt and fenster(x.get("ende") or 0) for x in cloud):
+                continue
+            posten = []
+            datei = [{"fid": fi.get("fid") or "", "typ": fi.get("typ") or "", "farbe": fi.get("farbe") or "", "gramm": float(fi.get("gramm") or 0)}
+                     for fi in f["filamente"]]
+            for fi, fa in drucker_mod.zuordnen(datei, fl):
+                if fi["gramm"] <= 0:
+                    continue
+                po = {"gramm": round(fi["gramm"], 2), "gramm_datei": round(fi["gramm"], 2), "ort": fa["ort"] if fa else "Druckdatei",
+                      "fid": (fa["fid"] if fa and fa["fid"] else fi["fid"]), "col": (fa["farbe"] if fa and fa["farbe"] else fi["farbe"]),
+                      "name": fa["name"] if fa else "", "material": (fa["typ"] if fa else fi["typ"])}
+                treffer, grund = sorte_fuer(po["fid"], (po["col"] or "").lower(), fach_key(name, po["ort"]))
+                po["sorte"] = treffer[0]["summary"] if treffer else ""
+                po["grund"] = "" if treffer else grund
+                posten.append(po)
+            ende = zeit + 60 * float(f.get("minuten") or 0)
+            out.append({"id": f"speicher:{dr.serial}:{int(zeit)}", "drucker": name, "serial": dr.serial, "titel": f.get("titel") or "Druck",
+                        "start": zeit, "ende": ende, "status": 2, "gramm": round(sum(p["gramm"] for p in posten), 1), "posten": posten,
+                        "schon": False, "quelle": "Druckerspeicher", "unsicher": True})
     return out
 
 
@@ -2408,8 +2466,10 @@ def drucke_nachbuchen(ids, seit):
         if not dr:
             continue
         fertig = x.get("status") == 2
+        aus_speicher = x.get("quelle") == "Druckerspeicher"
         erg = {"anlass": "Druck fertig" if fertig else "Druck abgebrochen", "anteil": 1.0, "posten": x["posten"],
-               "quelle": "Bambu-Druckhistorie (nachgebucht)", "aufgabe": x["titel"], "task": x["id"],
+               "quelle": ("Druckerspeicher" if aus_speicher else "Bambu-Druckhistorie") + " (nachgebucht)", "aufgabe": x["titel"],
+               "task": "" if aus_speicher else x["id"],
                "dauer": int(x["ende"] - x["start"]) if x.get("start") else 0, "start": x.get("start") or 0, "ende": x["ende"],
                "praefix": drucker_mod.praefix(dr.d), "still": True}
         try:

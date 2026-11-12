@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.6 – 12.11.2026
+- Verpasste Drucke findet SchichtLohn jetzt auch im Speicher der Drucker – also auch Drucke, die aus Bambu Studio übers Heimnetz kamen und darum nicht in der Bambu-Druckhistorie stehen. Weil eine Datei im Speicher nicht heißt, dass sie gedruckt wurde, sind diese nicht vorausgewählt.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.5 – 12.11.2026
 - Verpasste Drucke nachbuchen: SchichtLohn kann Drucke, die nicht abgebucht wurden (z. B. während die Bambu-Cloud gesperrt war), aus der Bambu-Druckhistorie holen und mit der richtigen Uhrzeit nachbuchen. Was schon gebucht ist, wird nicht doppelt gebucht.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
