@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.2 – 12.11.2026
+- Wenn die Bambu-Cloud SchichtLohn gerade blockiert (Schutzsperre), steht beim Filament Manager jetzt ein verständlicher Satz statt Webseiten-Code.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.1 – 11.11.2026
 - Fehler behoben: Drucker, die im Leerlauf lange nichts melden (z. B. die H2C über die Bambu-Cloud), wurden alle paar Minuten getrennt und neu verbunden. SchichtLohn fragt jetzt nach einer Minute Stille selbst nach.
 - Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.

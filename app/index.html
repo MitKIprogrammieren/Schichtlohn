@@ -7655,7 +7655,9 @@ function aufbereiten(){if(S.tab!=="einstellungen")return;const st=document.query
   st.querySelectorAll(".cols2,.cols3,.cols4").forEach(g=>{const k=[...g.children];g.classList.toggle("ez-liste",k.length>0&&k.every(x=>x.classList.contains("ez")))});
   /* Knopfreihen: mit data-v = Auswahl (eine von mehreren) → Umschalter; ohne = einzeln ein/aus → Schalterliste */
   st.querySelectorAll(".tabtg").forEach(t=>{const c=[...t.children];const knoepfe=c.length>0&&c.every(x=>x.matches("button.chip[aria-pressed]"));
-    const auswahl=knoepfe&&c.every(x=>x.hasAttribute("data-v"));
+    /* Auswahl = eine von mehreren: eigener Wert (data-v) oder alle mit derselben Aktion – außer echten Mehrfach-Schaltern */
+    const act=c[0]&&c[0].dataset.act,gleich=c.length>1&&c.every(x=>x.dataset.act===act)&&!["fnToggle","tabToggle","lagerGeraet"].includes(act);
+    const auswahl=knoepfe&&(c.every(x=>x.hasAttribute("data-v"))||gleich);
     t.classList.toggle("ez-schalterliste",knoepfe&&!auswahl);
     const seg=auswahl&&c.length<=6&&c.every(x=>x.textContent.trim().length<=KURZ);t.classList.toggle("ez-seg",seg);
     const f=t.parentElement;if(seg&&f&&f.matches(".field")&&!f.closest(".setrow,.modal")){const rest=[...f.children].filter(x=>x!==t&&!(x.tagName==="SPAN"&&x===f.firstElementChild)&&!x.matches("small,.hint"));

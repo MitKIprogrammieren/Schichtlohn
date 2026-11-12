@@ -46,7 +46,10 @@ def _anfrage(c, methode, pfad, rumpf=None, timeout=25):
         text = e.read().decode("utf-8", "replace")[:300]
         if e.code == 401:
             raise CloudFehler("Bambu-Anmeldung abgelaufen – unter Bambu-Cloud neu anmelden")
-        raise CloudFehler(f"Bambu-Cloud antwortet {e.code} auf {methode}: {text}")
+        if "<html" in text.lower() or "cloudflare" in text.lower() or e.code in (403, 429, 503):
+            raise CloudFehler(f"Bambu-Cloud lässt SchichtLohn gerade nicht durch (Fehler {e.code}, Schutzsperre von Bambu/Cloudflare) – "
+                              "das liegt nicht an deinen Einstellungen, später nochmal probieren")
+        raise CloudFehler(f"Bambu-Cloud antwortet {e.code} auf {methode}: {text[:150]}")
     except (urllib.error.URLError, OSError) as e:
         raise CloudFehler(f"Bambu-Cloud nicht erreichbar: {e}")
     try:
