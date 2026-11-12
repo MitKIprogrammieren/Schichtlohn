@@ -1448,7 +1448,13 @@ ${R} .bnav button.on::before{height:3px;width:100%;border-radius:0;top:-7px}
   html.wu.wu-s .toast{left:calc(50% - 114px)}
   #wuSeite{display:flex;flex-direction:column;position:fixed;right:0;top:0;bottom:0;width:300px;z-index:7;background:#22252a;color:#e8e8e8;font-size:13px}
   #wuSeite .wu-k{display:flex;align-items:center;gap:10px;padding:15px 18px 13px;border-bottom:1px solid #3a3e45;font-size:14px;font-weight:600}
-  #wuSeite .wu-k svg{opacity:.8}#wuSeite .wu-k button{margin-left:auto;background:none;border:0;color:#aab0b8;cursor:pointer;font:inherit;font-size:12px;font-weight:400}
+  #wuSeite .wu-k{gap:22px;padding:0 18px}#wuSeite .wu-r{background:none;border:0;border-bottom:3px solid transparent;color:#aab0b8;cursor:pointer;font:inherit;font-size:14px;padding:15px 0 11px}
+  #wuSeite .wu-r.on{color:#fff;font-weight:600;border-bottom-color:#e30613}
+  #wuSeite #wuLeeren{margin-left:auto;background:none;border:0;color:#aab0b8;cursor:pointer;font:inherit;font-size:12px;font-weight:400}
+  #wuSeite .wu-d{display:block;width:100%;text-align:left;margin-top:10px;background:#2d3137;border:0;border-left:3px solid #6b7079;padding:9px 11px;color:inherit;font:inherit;cursor:pointer;position:relative}
+  #wuSeite .wu-d.g{border-color:#2e9e3a}#wuSeite .wu-d.w{border-color:#f0a400}#wuSeite .wu-d.r{border-color:#e30613}#wuSeite .wu-d.x{opacity:.55}
+  #wuSeite .wu-d b{display:block;font-size:13.5px}#wuSeite .wu-d span{display:block;opacity:.75;font-size:12px}#wuSeite .wu-d small{display:block;opacity:.55;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #wuSeite .wu-d i{display:block;height:4px;margin-top:6px;background:linear-gradient(90deg,#2e9e3a var(--p),#454a52 var(--p))}
   #wuSeite .wu-l{flex:1;overflow:auto;padding:4px 14px 14px}
   #wuSeite .wu-m{margin-top:10px;background:#2d3137;border-left:3px solid #2e9e3a;padding:9px 11px;line-height:1.4;word-break:break-word}
   #wuSeite .wu-m.r{border-color:#e30613}#wuSeite .wu-m.b{border-color:#1e88e5}
@@ -2619,6 +2625,8 @@ let begruesst=false;
 const pruefe=setInterval(()=>{const B=book();if(!B)return;if(!B.ready()){B.start();return}clearInterval(pruefe);if(begruesst)return;begruesst=true;
   const g=gruppen()||[];const ab=zeitMs(gesehen);if(!ab){if(g.length)try{localStorage.setItem(KG,new Date(g[0].t).toISOString());gesehen=new Date(g[0].t).toISOString()}catch(e){}return}
   const neu=g.filter(z=>z.t>ab&&!z.k);if(!neu.length||S.tab==="drucke")return;const sum=neu.reduce((a,z)=>a+z.posten.reduce((b,x)=>b+(x.art==="ab"?Number(x.d.gramm)||0:0),0),0);
+  /* Kleinkram (unter 5 g, ohne offene Posten) nicht extra melden */
+  if(sum<5&&!neu.some(z=>z.posten.some(x=>x.art==="offen")))return;
   meldung(`<span class="ab-ti">✓</span><div><b>${neu.length===1?"1 neue Abbuchung":neu.length+" neue Abbuchungen"}</b> seit deinem letzten Besuch<br>zusammen ${gfmt(sum)} g · antippen zum Ansehen</div>`,9000)},1500);
 window.ABU={html,after};
 })();
@@ -7577,8 +7585,8 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "aus":return "Design, Reiter, Funktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
 /* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
-function unter(b){switch(b.k){case "drucker":return S.srv?"Bambu, Creality, Etikettendrucker":status(b);case "lager":return "Waage, Materialien, Anzeige";case "sys":return S.srv?"Server, Daten, Updates":status(b);default:return status(b)}}
-function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:`${on} / ${l.length}`,ok:on>0}}
+function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einDR||[]).filter(d=>!d.online).map(d=>d.name).filter(Boolean);return off.length?"offline: "+off.join(", "):"Bambu, Creality, Etikettendrucker"}return status(b)}case "lager":return "Waage, Materialien, Anzeige";case "sys":return S.srv?"Server, Daten, Updates":status(b);default:return status(b)}}
+function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:on===l.length?"alle online":`${on} von ${l.length} online`,ok:on===l.length,teil:on>0&&on<l.length}}
   if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
 function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
   const kopf=[...st.children].find(e=>e.classList.contains("row")&&e.querySelector("h1"));if(!kopf)return;
@@ -7600,7 +7608,7 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
   let lu=kopf.querySelector(".eb-lupe");if(!lu){lu=document.createElement("div");lu.className="eb-lupe";
     lu.innerHTML=`<input type="search" id="eb_q" placeholder="Suchen …" autocomplete="off" aria-label="Einstellung suchen"><button type="button" class="eb-lu-b" data-act="ebLupe" aria-label="Suchen">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}</button>`;kopf.appendChild(lu)}
   lu.hidden=!!akt;lu.classList.toggle("auf",ordnen.auf||!!suche);const qi=lu.querySelector("input");if(qi.value!==suche)qi.value=suche;
-  let html;if(!akt){html=`${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App",["meld","aus","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
+  let html;if(!akt){html=`${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App",["meld","aus","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":p.teil?" teil":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
   else{const b=B.find(x=>x.k===akt);html=`<button type="button" class="eb-zur" data-act="ebZurueck">${svg('<path d="m15 18-6-6 6-6"/>')}Einstellungen</button><h2 class="eb-titel">${b?b.t:""}</h2>`}
   if(ov.dataset.h!==html){ov.dataset.h=html;ov.innerHTML=html}
   /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
@@ -7644,7 +7652,7 @@ window.__einOrdnen=ordnen;ordnen()})();</script>
 .eb-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.eb-tx b{font-size:15px;font-weight:600}
 .eb-tx small{font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eb-pi{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg-2);white-space:nowrap}
-.eb-pi i{width:8px;height:8px;border-radius:50%;background:var(--accent)}.eb-pi.aus i{background:var(--line-2)}
+.eb-pi i{width:8px;height:8px;border-radius:50%;background:var(--accent)}.eb-pi.aus i{background:var(--line-2)}.eb-pi.teil i{background:var(--warn,#f0a020)}
 .eb-pf{color:var(--fg-3);display:grid;place-items:center}.eb-pf svg{width:18px;height:18px}
 .eb-k{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--glass));color:var(--fg);font:inherit;cursor:pointer}
 .eb-k:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
@@ -8394,7 +8402,7 @@ const NAMEN={heute:"Heute",lager:"Lager",drucke:"Drucker",preise:"Preise",mehr:"
 /* ---- Leiste unten ---- */
 function navBauen(){let n=document.getElementById("bnav");if(!n){n=document.createElement("nav");n.id="bnav";n.className="bnav";n.setAttribute("aria-label","Bereiche");document.body.appendChild(n)}
   const H=HAUPT(),ek=(()=>{try{return window.LGN&&LGN._G&&LGN._G.loaded?LGN.einkauf().length:0}catch(e){return 0}})();const akt=GRUPPE[S.tab]||"mehr";
-  const h=H.concat(["mehr"]).map(k=>`<button type="button" class="${k===akt?"on":""}" data-bn="${k}" aria-current="${k===akt?"page":"false"}">${svg(k)}<span>${NAMEN[k]}</span>${k==="lager"&&ek?`<i class="bn-z">${ek>99?"99+":ek}</i>`:""}</button>`).join("");
+  const h=H.concat(["mehr"]).map(k=>`<button type="button" class="${k===akt?"on":""}" data-bn="${k}" aria-current="${k===akt?"page":"false"}">${svg(k)}<span>${NAMEN[k]}</span>${k==="lager"&&ek?`<i class="bn-z" title="${ek} ${ek===1?"Sorte":"Sorten"} auf der Einkaufsliste" aria-label="${ek} auf der Einkaufsliste">${ek>99?"99+":ek}</i>`:""}</button>`).join("");
   if(n.dataset.h!==h){n.innerHTML=h;n.dataset.h=h;n.style.gridTemplateColumns=`repeat(${H.length+1},1fr)`}
   const fab=document.getElementById("lgfab");if(fab)fab.hidden=S.tab!=="lager"}
 function sheet(titel,inhalt){zu();const d=document.createElement("div");d.className="bs-dim";d.id="bsdim";d.addEventListener("click",zu);
@@ -8519,13 +8527,23 @@ new MutationObserver(()=>{try{navBauen();lagerExtras()}catch(e){}}).observe(docu
 setInterval(()=>{try{navBauen();lagerExtras()}catch(e){}},1500);
 try{navBauen()}catch(e){}
 /* ---- Würth-1Plus-Stil: Leiste links und Meldungsspalte rechts (nur im Browser, nicht in HA) ---- */
-const WU_LOG=[];const wuZeit=()=>new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+const WU_KEY="sl_wu_meldungen";let WU_LOG=[];try{WU_LOG=JSON.parse(localStorage.getItem(WU_KEY)||"[]").filter(m=>m&&m.t&&Date.now()-m.ms<7*864e5)}catch(e){WU_LOG=[]}let wuReiter="meld";
+const wuSpeichern=()=>{try{localStorage.setItem(WU_KEY,JSON.stringify(WU_LOG))}catch(e){}};const wuZeit=()=>new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 function wuAn(){try{return designCfg().stil==="wuerth"&&!window.__PW_HA&&!document.documentElement.classList.contains("eingebettet")}catch(e){return false}}
 function wuMerken(t,art){t=String(t||"").replace(/\s+/g," ").trim();if(!t)return;if(WU_LOG[0]&&WU_LOG[0].t===t&&Date.now()-WU_LOG[0].ms<4000)return;
-  WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now()});WU_LOG.length=Math.min(WU_LOG.length,40);wuSeite()}
+  WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now()});WU_LOG.length=Math.min(WU_LOG.length,40);wuSpeichern();wuSeite()}
 function wuArt(t){return /fehl|nicht|leer|warn|abgebrochen|offline|getrennt/i.test(t)?"r":/erkannt|waage|spule/i.test(t)?"b":""}
+const wuTag=ms=>{const d=new Date(ms),h=new Date();return d.toDateString()===h.toDateString()?"":d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})+" "};
+function wuDrucker(){const L=(window.DLIVE&&DLIVE.liste())||[];if(!L.length)return `<div class="wu-leer">Keine Drucker verbunden.</div>`;
+  const T={druckt:"druckt",pause:"pausiert",bereit:"bereit",err:"Fehler",aus:"aus"},F={druckt:"g",pause:"w",bereit:"",err:"r",aus:"x"};
+  const rang={err:0,druckt:1,pause:2,bereit:3,aus:4};
+  return L.slice().sort((a,b)=>rang[DLIVE.art(a)]-rang[DLIVE.art(b)]).map(d=>{const k=DLIVE.art(d),lauf=k==="druckt"||k==="pause";
+    const zeile=lauf?[k==="pause"?"pausiert":"",`${Math.round(Number(d.progress)||0)} %`,d.remaining>0?"noch "+(d.remaining>=60?Math.floor(d.remaining/60)+" h "+(d.remaining%60)+" min":d.remaining+" min"):""].filter(Boolean).join(" · "):T[k];
+    return `<button type="button" class="wu-d ${F[k]}" data-tab="drucke"><b>${esc(d.name||"Drucker")}</b><span>${esc(zeile)}</span>${lauf&&d.task?`<small>${esc(d.task)}</small>`:""}${lauf?`<i style="--p:${Math.max(0,Math.min(100,Number(d.progress)||0))}%"></i>`:""}</button>`}).join("")}
 function wuSeite(){const s=document.getElementById("wuSeite");if(!s)return;const l=s.querySelector(".wu-l");
-  const h=WU_LOG.length?WU_LOG.map(m=>`<div class="wu-m ${m.art}">${esc(m.t)}<small>${m.z}</small></div>`).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
+  s.querySelectorAll("[data-wur]").forEach(b=>b.classList.toggle("on",b.dataset.wur===wuReiter));
+  const lz=s.querySelector("#wuLeeren");if(lz)lz.hidden=wuReiter!=="meld"||!WU_LOG.length;
+  const h=wuReiter==="drucker"?wuDrucker():WU_LOG.length?WU_LOG.map(m=>`<div class="wu-m ${m.art}">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></div>`).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
   if(l.dataset.h!==h){l.innerHTML=h;l.dataset.h=h}}
 function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.toggle("wu",an);de.classList.toggle("wu-s",an);
   let r=document.getElementById("wuRail"),s=document.getElementById("wuSeite");
@@ -8536,8 +8554,9 @@ function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.tog
   const h=`<button type="button" class="wu-burg" data-bn="mehr" aria-label="Mehr"><i></i></button>${k.map(b).join("")}<div class="wu-sp"></div>${b("einstellungen")}`;
   if(r.dataset.h!==h){r.innerHTML=h;r.dataset.h=h}
   if(!s){s=document.createElement("aside");s.id="wuSeite";s.setAttribute("aria-label","Meldungen");
-    s.innerHTML=`<div class="wu-k"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>Meldungen<button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
-    document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSeite()})}
+    s.innerHTML=`<div class="wu-k"><button type="button" class="wu-r" data-wur="meld">Meldungen</button><button type="button" class="wu-r" data-wur="drucker">Drucker</button><button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
+    document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSpeichern();wuSeite()});
+    s.querySelectorAll("[data-wur]").forEach(b=>b.addEventListener("click",()=>{wuReiter=b.dataset.wur;wuSeite()}))}
   wuSeite()}
 /* Hinweise (Toast) und Druck-/Abbuchungsmeldungen mitschreiben */
 new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;
@@ -8551,7 +8570,7 @@ try{wuRahmen()}catch(e){}
 .bnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--solid) 92%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
 .bnav button{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:var(--fg-3);font:inherit;font-size:11.5px;font-weight:600;padding:6px 0 4px;cursor:pointer}
 .bnav button.on{color:var(--accent)}.bnav button.on::before{content:"";position:absolute;top:-6px;width:34px;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
-.bn-z{position:absolute;top:0;left:calc(50% + 5px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--bad);color:#fff;font-style:normal;font-size:10px;font-weight:700;display:grid;place-items:center}
+.bn-z{position:absolute;top:0;left:calc(50% + 5px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--warn,#f0a020);color:#1a1a1a;font-style:normal;font-size:10px;font-weight:700;display:grid;place-items:center}
 .lgfab{display:none;position:fixed;right:16px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:39;width:58px;height:58px;border-radius:19px;border:0;background:var(--accent);color:var(--accent-ink,#fff);box-shadow:0 10px 28px rgba(0,0,0,.45);place-items:center;cursor:pointer}
 .lgknopf .lgrbbtn,.lgknopf .lggvbtn{display:none!important}
 .bs-dim{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,0);transition:background .2s}.bs-dim.auf{background:rgba(0,0,0,.45)}
