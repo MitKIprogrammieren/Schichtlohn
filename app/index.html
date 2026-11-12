@@ -1275,6 +1275,7 @@ function renderSettings(m){
       <div class="hint" style="margin-top:8px">Maschinenkosten je Stunde = Kaufpreis ÷ Lebensdauer + Wartung. Leistung ist der Durchschnitt beim Drucken, nicht die Spitzenleistung.</div>
     </section>
     ${window.etikettDruckerHTML?etikettDruckerHTML():""}
+    ${window.verpasstHTML?verpasstHTML():""}
 
     <section class="panel pad"><div class="sec-title"><h2>Materialien</h2><span class="sp"></span>${S.backend==="ha"||S.srv?`<button class="btn sm" data-act="lager">${ICON.spool} Aus FilamentLager</button>`:""}<button class="btn sm" data-act="addRow" data-list="materials">${ICON.plus} Material</button></div>
       <div class="setlist">${c.materials.map((p,i)=>`<div class="setrow sr-mt">
@@ -7508,7 +7509,7 @@ const IC={dr:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx=
   au:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/><path d="M12 21a3 3 0 0 1 0-6h1.5a2 2 0 0 0 0-4"/>',
   sy:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'};
 const B=[
-  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Etikettendrucker","Drucker aus Home Assistant","Filamentpreis je AMS-Fach","Bambu-Cloud","Creality-Cloud"],karten:["Bambu-Drucker","Druckprotokoll"]},
+  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Etikettendrucker","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach","Bambu-Cloud","Creality-Cloud"],karten:["Bambu-Drucker","Druckprotokoll"]},
   {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Lager","Materialien","Preisvergleich"],karten:["Waage","Filament-Datenbank"]},
   {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
   {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
@@ -7688,6 +7689,41 @@ function aufbereiten(){if(S.tab!=="einstellungen")return;const st=document.query
 let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(aufbereiten,0)}).observe(document.getElementById("main"),{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});
 window.__ezAufbereiten=aufbereiten})();
 
+/* ===== Verpasste Drucke: nicht abgebuchte Drucke aus Bambu-Druckhistorie und Druckerspeicher nachbuchen ===== */
+(()=>{
+const V={l:null,laden:false,fehler:"",wahl:new Set(),tage:7,buchen:false};
+const fmt=t=>new Date(t*1000).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+const g=x=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:1}).format(x);
+function neu(){const el=document.getElementById("vp_inhalt");if(el)el.outerHTML=inhalt()}
+function laden(){if(V.laden||!(S.srv&&window.SRV))return;V.laden=true;V.fehler="";neu();
+  SRV.req("GET","/api/drucke/verpasst?seit="+Math.floor(Date.now()/1000-V.tage*86400)).then(d=>{V.l=(d.drucke||[]).filter(x=>!x.fehler&&!x.schon);
+    V.wahl=new Set(V.l.filter(x=>!x.unsicher).map(x=>x.id))}).catch(e=>{V.fehler=e.message||String(e);V.l=null}).finally(()=>{V.laden=false;neu()})}
+function zeile(x){const an=V.wahl.has(x.id);
+  return `<label class="vp-z"><input type="checkbox" data-vp="${esc(x.id)}"${an?" checked":""}><span class="vp-tx"><b>${esc(x.titel)}</b>
+    <small>${esc(x.drucker)} · ${fmt(x.ende||x.start)} · ${g(x.gramm)} g · ${x.unsicher?"Druckerspeicher – wurde das wirklich gedruckt?":"Bambu-Druckhistorie"}</small>
+    <small>${(x.posten||[]).map(p=>`${g(p.gramm)} g ${p.sorte?esc(p.sorte):`<span style="color:var(--bad)">nicht zugeordnet (${esc(p.ort)})</span>`}`).join(" · ")}</small></span></label>`}
+function inhalt(){
+  if(!S.srv)return `<div id="vp_inhalt" class="hint">Geht nur mit dem SchichtLohn-Server.</div>`;
+  if(V.laden)return `<div id="vp_inhalt" class="hint">Frage Bambu-Druckhistorie und Druckerspeicher …</div>`;
+  if(V.fehler)return `<div id="vp_inhalt" class="hint" style="color:var(--bad)">${esc(V.fehler)}</div>`;
+  if(!V.l)return `<div id="vp_inhalt"></div>`;
+  if(!V.l.length)return `<div id="vp_inhalt" class="hint">Alles abgebucht – in den letzten ${V.tage} Tagen fehlt kein Druck.</div>`;
+  return `<div id="vp_inhalt" class="vp-l">${V.l.map(zeile).join("")}
+    <div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn pri sm" data-act="vpBuchen"${V.wahl.size&&!V.buchen?"":" disabled"}>${V.buchen?"Buche …":`${V.wahl.size} nachbuchen`}</button></div></div>`}
+window.verpasstHTML=function(){if(!S.srv)return "";
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Verpasste Drucke</h2><span class="sp"></span><button type="button" class="btn sm" data-act="vpPruefen">Prüfen</button></div>
+    <div class="hint">Drucke, die nicht abgebucht wurden (z. B. weil SchichtLohn gerade keine Verbindung hatte). Gesucht wird in den letzten ${V.tage} Tagen in der Bambu-Druckhistorie und im Speicher der Drucker – dort stehen auch Drucke, die aus Bambu Studio übers Heimnetz kamen. Was schon gebucht ist, erscheint nicht.</div>
+    ${inhalt()}</section>`};
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act=vpPruefen],[data-act=vpBuchen]");if(!b)return;
+  if(b.dataset.act==="vpPruefen")return laden();
+  if(V.buchen||!V.wahl.size)return;V.buchen=true;neu();
+  SRV.req("POST","/api/drucke/nachbuchen",{ids:[...V.wahl],seit:Math.floor(Date.now()/1000-V.tage*86400)}).then(r=>{const n=(r.gebucht||[]).length;
+    if(typeof toast==="function")toast(`✓ ${n} Druck${n===1?"":"e"} nachgebucht`)}).catch(x=>{if(typeof toast==="function")toast(x.message||String(x))}).finally(()=>{V.buchen=false;laden()})});
+document.addEventListener("change",e=>{const t=e.target;if(!t||!t.dataset||!t.dataset.vp)return;t.checked?V.wahl.add(t.dataset.vp):V.wahl.delete(t.dataset.vp);
+  const k=document.querySelector("[data-act=vpBuchen]");if(k){k.disabled=!V.wahl.size;k.textContent=`${V.wahl.size} nachbuchen`}});
+window.__vp=V;
+})();
+
 /* ===== Etikettendrucker: alles zum Etikettendruck an einer Stelle (Bereich Drucker) ===== */
 (()=>{
 const ED={l:null,s:[],laden:false,fehler:""};
@@ -7778,6 +7814,11 @@ document.addEventListener("change",e=>{const t=e.target;if(t&&t.id==="etdr_std")
 .eb-detail .note{background:none;border:0;padding:0;color:var(--fg-3);font-size:12.5px;line-height:1.5}
 .eb-detail .note b{color:var(--fg-2)}
 .ez-zu{display:none}
+/* ---- Verpasste Drucke ---- */
+.vp-l{display:flex;flex-direction:column}
+.vp-z{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.vp-z:first-child{border-top:0}.vp-z input{margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:none}
+.vp-tx{display:flex;flex-direction:column;gap:2px;min-width:0}.vp-tx b{font-weight:600}.vp-tx small{color:var(--fg-3);font-size:12.5px}
 /* ---- Etikettendrucker ---- */
 .etdr-l{display:flex;flex-direction:column}
 .etdr-z{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
