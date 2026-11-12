@@ -2607,8 +2607,8 @@ document.addEventListener("click",async e=>{const btn=e.target.closest(".ab-zb")
 setInterval(()=>{if(S.tab==="drucke"&&!document.hidden)neu()},5000);
 /* Meldung, sobald der Server etwas abbucht */
 let tt=null;
-function meldung(html,ms){let el=document.getElementById("abtoast");if(!el){el=document.createElement("div");el.id="abtoast";el.className="ab-toast";el.setAttribute("role","status");el.addEventListener("click",()=>{el.remove();if(S.tab!=="drucke"){S.tab="drucke";try{LS.set("lasttab","drucke")}catch(x){}render()}setTimeout(()=>{const a=document.getElementById("abu");if(a)a.scrollIntoView({behavior:"smooth",block:"start"})},150)});document.body.appendChild(el)}
-  el.innerHTML=html;clearTimeout(tt);tt=setTimeout(()=>el.remove(),ms||9000)}
+function meldung(html,ms){let el=document.getElementById("abtoast");if(!el){el=document.createElement("div");el.id="abtoast";el.className="ab-toast";el.setAttribute("role","status");el.addEventListener("click",e=>{if(e.target.closest(".ab-zu")){el.remove();return}el.remove();if(S.tab!=="drucke"){S.tab="drucke";try{LS.set("lasttab","drucke")}catch(x){}render()}setTimeout(()=>{const a=document.getElementById("abu");if(a)a.scrollIntoView({behavior:"smooth",block:"start"})},150)});document.body.appendChild(el)}
+  el.innerHTML=html+`<button type="button" class="ab-zu" aria-label="Schließen">✕</button>`;clearTimeout(tt);tt=setTimeout(()=>el.remove(),ms||9000)}
 window.addEventListener("sl-abbuchung",e=>{const ev=e.detail||{};const p=Array.isArray(ev.posten)?ev.posten:[];const of=Array.isArray(ev.offen)?ev.offen:[];
   const kopf=[ev.drucker,ev.aufgabe].filter(Boolean).map(esc).join(" · ");
   const zeilen=p.map(x=>`${gfmt(x.gramm)} g ${esc(x.sorte)}${x.bestand!=null?", noch "+rest(x.bestand):""}`).concat(of.map(x=>`⚠ ${gfmt(x.gramm)} g nicht zugeordnet${x.ort?" ("+esc(x.ort)+")":""}`));
@@ -2648,7 +2648,7 @@ window.ABU={html,after};
 .ab-knapp{font-size:12.5px;color:var(--warn,#b45309)}
 .ab-mehr{margin-top:6px;align-self:center;font:inherit;font-size:13px;background:none;border:0;color:var(--fg-2);cursor:pointer;padding:6px}
 .ab-toast{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;background:#1d2b22;color:#fff;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.45;display:flex;gap:10px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.25);width:min(390px,92vw);cursor:pointer;animation:jlbIn .2s ease-out}
-.ab-toast b{color:#7ee2a0}.ab-ti{padding-top:1px}
+.ab-toast b{color:#7ee2a0}.ab-toast>div{flex:1;min-width:0}.ab-zu{flex:none;margin:-6px -8px -6px 0;width:34px;height:34px;border:0;border-radius:999px;background:none;color:#fff;opacity:.7;font-size:16px;cursor:pointer}.ab-zu:hover{opacity:1;background:rgba(255,255,255,.1)}.ab-ti{padding-top:1px}
 </style>
 <script>
 /* ===== Drucker jetzt: kurze Live-Übersicht oben im Reiter „Druckaufträge“ ===== */
