@@ -1381,7 +1381,9 @@ const STILE={
   kontrast:["Kontrast",{bg:"#ffffff",k:"#ffffff",k2:"#f2f2f2",l:"#1a1a1a",l2:"#000000",fg:"#000000",fg2:"#1f1f1f",fg3:"#4a4a4a",a:"#0047ff",as:"rgba(0,71,255,.12)",ok:"#007a2e",w:"#a15c00",b:"#c40000",h:"#ffffff",st:"#f2f2f2",su:"#f7f7f7",cs:"light"},
     {bg:"#000000",k:"#0d0d0d",k2:"#161616",l:"#3d3d3d",l2:"#5c5c5c",fg:"#ffffff",fg2:"#dcdcdc",fg3:"#a8a8a8",a:"#ffd400",ai:"#000000",as:"rgba(255,212,0,.18)",ok:"#3ddc84",w:"#ffb020",b:"#ff5a5a",h:"#000000",st:"#141414",su:"#000000",cs:"dark"},4],
   tuerkis:["Türkis",{bg:"#f2f5f5",k:"#ffffff",k2:"#f6f8f8",l:"#e1e7e7",l2:"#cfd8d8",fg:"#111827",fg2:"#4b5563",fg3:"#8a949e",a:"#0d9488",as:"rgba(13,148,136,.12)",ok:"#0d9488",w:"#d97706",b:"#dc2626",h:"#ffffff",st:"#eef3f3",su:"#f4f7f7",cs:"light"},
-    {bg:"#121212",k:"#1c1c1c",k2:"#242424",l:"#2a2a2a",l2:"#3a3a3a",fg:"#f2f2f2",fg2:"#a3a3a3",fg3:"#767676",a:"#2dd4bf",ai:"#04201c",as:"rgba(45,212,191,.14)",ok:"#2dd4bf",w:"#f59e0b",b:"#f87171",h:"#121212",st:"#202020",su:"#171717",cs:"dark"},16]};
+    {bg:"#121212",k:"#1c1c1c",k2:"#242424",l:"#2a2a2a",l2:"#3a3a3a",fg:"#f2f2f2",fg2:"#a3a3a3",fg3:"#767676",a:"#2dd4bf",ai:"#04201c",as:"rgba(45,212,191,.14)",ok:"#2dd4bf",w:"#f59e0b",b:"#f87171",h:"#121212",st:"#202020",su:"#171717",cs:"dark"},16],
+  wuerth:["Würth 1Plus",{bg:"#e9ecf0",k:"#ffffff",k2:"#f6f7f9",l:"#d6dbe1",l2:"#c3c9d0",fg:"#333333",fg2:"#5f6670",fg3:"#8a9099",a:"#cc0000",as:"rgba(204,0,0,.09)",ok:"#2e9e3a",w:"#e89a00",b:"#cc0000",h:"#ffffff",st:"#f6f7f9",su:"#eef0f3",cs:"light"},
+    {bg:"#1b1d21",k:"#24272c",k2:"#2d3137",l:"#383c43",l2:"#4a4f57",fg:"#ececec",fg2:"#aab0b8",fg3:"#7d838c",a:"#e30613",as:"rgba(227,6,19,.18)",ok:"#4cb85a",w:"#f0a400",b:"#ff4d4d",h:"#24272c",st:"#2d3137",su:"#1f2226",cs:"dark"},3]};
 /* Zusätzliche Formen je Stil (nicht nur Farben). Türkis: Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen, dickere Füllbalken */
 const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
   const streifen=(sel)=>z.map((c,i)=>`${R} ${sel}:nth-child(5n+${i+1})::before{background:${c}}`).join("");
@@ -1406,6 +1408,53 @@ ${R} .bnav button.on svg{background:var(--accent-soft);border-radius:999px;paddi
 ${R} .lgbarx{height:6px;width:80px}
 ${R} .chip{border-radius:999px}
 ${R} .lgp>.row.pad .gt{color:var(--fg)}`})()};
+STIL_EXTRA.wuerth=(()=>{const R=":root:root:root";
+  return `${R}{--f-display:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--f-body:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--body-bg:var(--bg)}
+${R} body{background:var(--bg)!important}
+${R} header.top{background:var(--header-bg);border-bottom:1px solid var(--line);backdrop-filter:none;-webkit-backdrop-filter:none}
+${R} .topin{padding-block:10px 0;row-gap:8px;flex-wrap:wrap!important}
+${R} .brand{font-weight:600;font-size:22px;letter-spacing:0}
+${R} .brand svg{color:var(--accent)}
+${R} .brand small{letter-spacing:.04em;font-size:11px}
+${R} nav.tabs{order:9;flex:0 0 calc(100% + 2*max(16px,env(safe-area-inset-left,0px)));margin:0 calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:0 max(16px,env(safe-area-inset-left,0px));gap:28px;background:var(--strip);border-top:1px solid var(--line);max-width:none;width:auto}
+${R} nav.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;padding:13px 0 10px;background:none!important;color:var(--fg)!important;font-size:15.5px;font-weight:400}
+${R} nav.tabs button:hover{border-bottom-color:var(--line-2)}
+${R} nav.tabs button[aria-current="page"]{border-bottom-color:var(--accent);font-weight:600;color:var(--fg)!important;background:none!important}
+${R} .btn,${R} .chip,${R} .seg,${R} .seg button,${R} input,${R} select,${R} textarea{border-radius:3px}
+${R} :is(.panel,.dcard,.rx-k,.rx-seg,.job,.grp,.spanel,.lgsil,.kpi,.hk,.hz,.pvs,.pvseg,.pvw-sh,.modal,.na-leer,.na-k){border-radius:4px!important}
+${R} .bs{border-radius:6px 6px 0 0}
+${R} .btn.pri{text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+${R} input,${R} select,${R} textarea{background:var(--sunken)}
+${R} .chip{border-radius:2px;font-weight:600}
+${R} table th{text-transform:uppercase;font-size:11.5px;letter-spacing:.03em;color:var(--fg-3);background:var(--strip)}
+${R} .toast{left:50%;top:calc(env(safe-area-inset-top,0px) + 112px);bottom:auto;border-radius:2px;border:0;background:#9bc31c;color:#1d2a00;font-weight:700;padding:11px 18px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+${R} .bnav button.on::before{height:3px;width:100%;border-radius:0;top:-7px}
+@media (max-width:700px){${R} header.top{border-top:4px solid var(--accent)}${R} .topin{padding-block:10px}${R} .toast{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 78px);transform:none;text-align:center}}
+#wuRail,#wuSeite{display:none}
+@media (min-width:701px){
+  html.wu body{padding-left:72px}
+  html.wu .wrap{max-width:1500px}
+  html.wu .toast{left:calc(50% + 36px)}
+  #wuRail{display:flex;flex-direction:column;align-items:stretch;position:fixed;left:0;top:0;bottom:0;width:72px;z-index:7;background:var(--solid);border-right:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+  #wuRail .wu-burg{height:64px;background:var(--accent);border:0;cursor:pointer;display:grid;place-items:center;color:#fff}
+  #wuRail .wu-burg i{display:block;width:22px;height:2px;background:currentColor;box-shadow:0 -7px currentColor,0 7px currentColor}
+  #wuRail button.wu-b{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 8px;background:none;border:0;cursor:pointer;color:var(--fg-2);font:600 10.5px/1.1 var(--f-body)}
+  #wuRail button.wu-b:hover{background:var(--strip);color:var(--fg)}
+  #wuRail button.wu-b.on{color:var(--accent);background:var(--strip);box-shadow:inset 3px 0 var(--accent)}
+  #wuRail .wu-sp{flex:1}
+}
+@media (min-width:1280px){
+  html.wu.wu-s body{padding-right:300px}
+  html.wu.wu-s .toast{left:calc(50% - 114px)}
+  #wuSeite{display:flex;flex-direction:column;position:fixed;right:0;top:0;bottom:0;width:300px;z-index:7;background:#22252a;color:#e8e8e8;font-size:13px}
+  #wuSeite .wu-k{display:flex;align-items:center;gap:10px;padding:15px 18px 13px;border-bottom:1px solid #3a3e45;font-size:14px;font-weight:600}
+  #wuSeite .wu-k svg{opacity:.8}#wuSeite .wu-k button{margin-left:auto;background:none;border:0;color:#aab0b8;cursor:pointer;font:inherit;font-size:12px;font-weight:400}
+  #wuSeite .wu-l{flex:1;overflow:auto;padding:4px 14px 14px}
+  #wuSeite .wu-m{margin-top:10px;background:#2d3137;border-left:3px solid #2e9e3a;padding:9px 11px;line-height:1.4;word-break:break-word}
+  #wuSeite .wu-m.r{border-color:#e30613}#wuSeite .wu-m.b{border-color:#1e88e5}
+  #wuSeite .wu-m small{display:block;opacity:.55;font-size:11px;margin-top:3px}
+  #wuSeite .wu-leer{display:grid;place-items:center;height:60%;opacity:.6;text-align:center;padding:0 20px}
+}`})();
 function stilCss(d){const x=STILE[d.stil];if(!x)return "";return stilFarben(d,x)+(STIL_EXTRA[d.stil]||"")}
 function stilFarben(d,x){const r=`--r:${x[3]}px;--r-s:${Math.max(2,Math.round(x[3]*0.6))}px;`;const sel=":root:root:root";
   const m=window.__PW_HA?"auto":d.modus;
@@ -8455,6 +8504,33 @@ const _r=window.render;if(typeof _r==="function"){window.render=function(){const
 new MutationObserver(()=>{try{navBauen();lagerExtras()}catch(e){}}).observe(document.getElementById("main"),{childList:true});
 setInterval(()=>{try{navBauen();lagerExtras()}catch(e){}},1500);
 try{navBauen()}catch(e){}
+/* ---- Würth-1Plus-Stil: Leiste links und Meldungsspalte rechts (nur im Browser, nicht in HA) ---- */
+const WU_LOG=[];const wuZeit=()=>new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+function wuAn(){try{return designCfg().stil==="wuerth"&&!window.__PW_HA&&!document.documentElement.classList.contains("eingebettet")}catch(e){return false}}
+function wuMerken(t,art){t=String(t||"").replace(/\s+/g," ").trim();if(!t)return;if(WU_LOG[0]&&WU_LOG[0].t===t&&Date.now()-WU_LOG[0].ms<4000)return;
+  WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now()});WU_LOG.length=Math.min(WU_LOG.length,40);wuSeite()}
+function wuArt(t){return /fehl|nicht|leer|warn|abgebrochen|offline|getrennt/i.test(t)?"r":/erkannt|waage|spule/i.test(t)?"b":""}
+function wuSeite(){const s=document.getElementById("wuSeite");if(!s)return;const l=s.querySelector(".wu-l");
+  const h=WU_LOG.length?WU_LOG.map(m=>`<div class="wu-m ${m.art}">${esc(m.t)}<small>${m.z}</small></div>`).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
+  if(l.dataset.h!==h){l.innerHTML=h;l.dataset.h=h}}
+function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.toggle("wu",an);de.classList.toggle("wu-s",an);
+  let r=document.getElementById("wuRail"),s=document.getElementById("wuSeite");
+  if(!an){if(r)r.remove();if(s)s.remove();return}
+  if(!r){r=document.createElement("nav");r.id="wuRail";r.setAttribute("aria-label","Bereiche");document.body.appendChild(r)}
+  const k=["heute","lager","drucke","rechner","preise","auftraege","portfolio","geschaeft"].filter(sichtbar);
+  const b=x=>`<button type="button" class="wu-b${S.tab===x?" on":""}" data-tab="${x}" title="${esc(x==="einstellungen"?"Einstellungen":TABNAMES[x]||x)}">${svg(x,24)}<span>${esc(x==="einstellungen"?"Einst.":TABNAMES[x]||x)}</span></button>`;
+  const h=`<button type="button" class="wu-burg" data-bn="mehr" aria-label="Mehr"><i></i></button>${k.map(b).join("")}<div class="wu-sp"></div>${b("einstellungen")}`;
+  if(r.dataset.h!==h){r.innerHTML=h;r.dataset.h=h}
+  if(!s){s=document.createElement("aside");s.id="wuSeite";s.setAttribute("aria-label","Meldungen");
+    s.innerHTML=`<div class="wu-k"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>Meldungen<button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
+    document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSeite()})}
+  wuSeite()}
+/* Hinweise (Toast) und Druck-/Abbuchungsmeldungen mitschreiben */
+new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;
+  if(n.classList.contains("toast")||n.id==="abtoast"){const t=n.textContent;wuMerken(t,n.id==="abtoast"?"":wuArt(t));
+    if(n.classList.contains("toast"))new MutationObserver(()=>wuMerken(n.textContent,wuArt(n.textContent))).observe(n,{childList:true,characterData:true,subtree:true})}}}).observe(document.body,{childList:true});
+{const _n=navBauen;navBauen=function(){_n();try{wuRahmen()}catch(e){}}}
+try{wuRahmen()}catch(e){}
 })();
 </script>
 <style>
