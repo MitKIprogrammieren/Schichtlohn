@@ -7596,8 +7596,11 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
   /* Übersicht */
   let ov=st.querySelector(":scope>.eb-ov");if(!ov){ov=document.createElement("div");ov.className="eb-ov";kopf.after(ov)}
   const sichtbar=b=>[...st.querySelectorAll(`:scope>[data-eb="${b.k}"]`)].some(e=>!e.hidden||e.classList.contains("ebk-hulle"));
-  let html;if(!akt){html=`<label class="eb-such">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}<input type="search" id="eb_q" placeholder="Einstellung suchen …" value="${esc(suche)}" autocomplete="off"></label>
-      ${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App",["meld","aus","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
+  /* Suche: nur eine Lupe rechts neben der Überschrift, klappt bei Bedarf zum Schriftfeld auf */
+  let lu=kopf.querySelector(".eb-lupe");if(!lu){lu=document.createElement("div");lu.className="eb-lupe";
+    lu.innerHTML=`<input type="search" id="eb_q" placeholder="Suchen …" autocomplete="off" aria-label="Einstellung suchen"><button type="button" class="eb-lu-b" data-act="ebLupe" aria-label="Suchen">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}</button>`;kopf.appendChild(lu)}
+  lu.hidden=!!akt;lu.classList.toggle("auf",ordnen.auf||!!suche);const qi=lu.querySelector("input");if(qi.value!==suche)qi.value=suche;
+  let html;if(!akt){html=`${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App",["meld","aus","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
   else{const b=B.find(x=>x.k===akt);html=`<button type="button" class="eb-zur" data-act="ebZurueck">${svg('<path d="m15 18-6-6 6-6"/>')}Einstellungen</button><h2 class="eb-titel">${b?b.t:""}</h2>`}
   if(ov.dataset.h!==html){ov.dataset.h=html;ov.innerHTML=html}
   /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
@@ -7612,6 +7615,9 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
   const inp=document.getElementById("eb_q");if(inp&&ordnen.fokus){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);ordnen.fokus=false}}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act=ebOeffnen],[data-act=ebZurueck]");if(!b)return;
   akt=b.dataset.act==="ebOeffnen"?b.dataset.k:null;suche="";try{akt?sessionStorage.setItem("sl_einst_bereich",akt):sessionStorage.removeItem("sl_einst_bereich")}catch(x){}ordnen();scrollTo(0,0)});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act=ebLupe]");if(!b)return;
+  if(ordnen.auf&&!suche){ordnen.auf=false;ordnen();return}ordnen.auf=true;ordnen.fokus=true;ordnen()});
+document.addEventListener("focusout",e=>{if(e.target&&e.target.id==="eb_q"&&!suche)setTimeout(()=>{if(!suche&&document.activeElement?.id!=="eb_q"&&!document.activeElement?.closest?.(".eb-lupe")){ordnen.auf=false;ordnen()}},150)});
 document.addEventListener("input",e=>{if(e.target&&e.target.id==="eb_q"){suche=e.target.value;ordnen.fokus=true;ordnen()}});
 document.addEventListener("click",e=>{const t=e.target.closest("[data-tab]");if(t&&t.dataset.tab==="einstellungen"&&S.tab==="einstellungen"){akt=null;suche="";try{sessionStorage.removeItem("sl_einst_bereich")}catch(x){}}},true);
 /* Druckerstatus für die Kachel */
@@ -7620,6 +7626,12 @@ let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearT
 window.__einOrdnen=ordnen;ordnen()})();</script>
 <style>
 .eb-ov{display:flex;flex-direction:column;gap:12px}
+.row:has(>.eb-lupe){flex-wrap:nowrap}.row:has(>.eb-lupe)>h1{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eb-lupe{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none}
+.eb-lupe input{width:0;padding:0;border:0!important;opacity:0;transition:width .2s,opacity .2s,padding .2s;height:34px;border-radius:var(--r-s);background:var(--sunken)!important;font-size:14.5px}
+.eb-lupe.auf input{width:min(38vw,220px);padding:0 10px;opacity:1;border:1px solid var(--line-2)!important}
+.eb-lu-b{width:36px;height:36px;display:grid;place-items:center;border:0;background:none;color:var(--fg-2);cursor:pointer;border-radius:999px}
+.eb-lu-b:hover,.eb-lupe.auf .eb-lu-b{color:var(--accent);background:var(--accent-soft)}.eb-lu-b svg{width:20px;height:20px}
 .eb-such{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:var(--r-s);padding:0 12px;background:var(--panel,var(--glass))}
 .eb-such svg{width:18px;height:18px;color:var(--fg-3);flex:none}.eb-such input{border:0!important;background:none!important;box-shadow:none!important;padding:10px 0;flex:1;min-width:0}
 .eb-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
