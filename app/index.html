@@ -7526,6 +7526,10 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":""].filter(Boolean).join(" · ")||"Handy · Telegram";
     case "aus":return "Design, Reiter, Funktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
+/* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
+function unter(b){switch(b.k){case "drucker":return S.srv?"Bambu, Creality, Etikettendrucker":status(b);case "lager":return "Waage, Materialien, Anzeige";case "sys":return S.srv?"Server, Daten, Updates":status(b);default:return status(b)}}
+function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:`${on} / ${l.length}`,ok:on>0}}
+  if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
 function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
   const kopf=[...st.children].find(e=>e.classList.contains("row")&&e.querySelector("h1"));if(!kopf)return;
   const fa=kopf.querySelector("[data-act=foldAll]");if(fa)fa.hidden=true;
@@ -7543,7 +7547,7 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
   let ov=st.querySelector(":scope>.eb-ov");if(!ov){ov=document.createElement("div");ov.className="eb-ov";kopf.after(ov)}
   const sichtbar=b=>[...st.querySelectorAll(`:scope>[data-eb="${b.k}"]`)].some(e=>!e.hidden||e.classList.contains("ebk-hulle"));
   let html;if(!akt){html=`<label class="eb-such">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}<input type="search" id="eb_q" placeholder="Einstellung suchen …" value="${esc(suche)}" autocomplete="off"></label>
-      ${suche?"":`<div class="eb-kacheln">${B.filter(sichtbar).map(b=>`<button type="button" class="eb-k" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><b>${b.t}</b><small>${esc(status(b))}</small></button>`).join("")}</div>`}`}
+      ${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App",["meld","aus","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
   else{const b=B.find(x=>x.k===akt);html=`<button type="button" class="eb-zur" data-act="ebZurueck">${svg('<path d="m15 18-6-6 6-6"/>')}Einstellungen</button><h2 class="eb-titel">${b?b.t:""}</h2>`}
   if(ov.dataset.h!==html){ov.dataset.h=html;ov.innerHTML=html}
   /* Rechner auf „Einfach“: Verkauf und Angebote werden nicht gebraucht */
@@ -7567,6 +7571,17 @@ window.__einOrdnen=ordnen;ordnen()})();</script>
 .eb-such{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:var(--r-s);padding:0 12px;background:var(--panel,var(--glass))}
 .eb-such svg{width:18px;height:18px;color:var(--fg-3);flex:none}.eb-such input{border:0!important;background:none!important;box-shadow:none!important;padding:10px 0;flex:1;min-width:0}
 .eb-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.eb-gruppen{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:6px 18px;align-items:start}
+.eb-cap{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3);font-weight:600;margin:6px 6px 7px}
+.eb-liste{border:1px solid var(--line);border-radius:14px;background:var(--panel,var(--glass));overflow:hidden}
+.eb-z{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:11px 14px;border:0;border-top:1px solid var(--line);background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
+.eb-z:first-child{border-top:0}.eb-z:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.eb-z .eb-ic{margin:0;flex:none}
+.eb-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.eb-tx b{font-size:15px;font-weight:600}
+.eb-tx small{font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eb-pi{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg-2);white-space:nowrap}
+.eb-pi i{width:8px;height:8px;border-radius:50%;background:var(--accent)}.eb-pi.aus i{background:var(--line-2)}
+.eb-pf{color:var(--fg-3);display:grid;place-items:center}.eb-pf svg{width:18px;height:18px}
 .eb-k{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--glass));color:var(--fg);font:inherit;cursor:pointer}
 .eb-k:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
 .eb-k b{font-size:15px}.eb-k small{font-size:12.5px;color:var(--fg-3)}
@@ -7662,6 +7677,11 @@ function aufbereiten(){if(S.tab!=="einstellungen")return;const st=document.query
     const seg=auswahl&&c.length<=6&&c.every(x=>x.textContent.trim().length<=KURZ);t.classList.toggle("ez-seg",seg);
     const f=t.parentElement;if(seg&&f&&f.matches(".field")&&!f.closest(".setrow,.modal")){const rest=[...f.children].filter(x=>x!==t&&!(x.tagName==="SPAN"&&x===f.firstElementChild)&&!x.matches("small,.hint"));
       if(!rest.length)f.classList.add("ez","ez-breit")}});
+  /* Druckerkosten: auf dem Handy eine Zeile je Drucker, antippen zum Bearbeiten */
+  st.querySelectorAll(".setlist>.sr-pr:not([data-ezk])").forEach(r=>{r.dataset.ezk="1";const k=document.createElement("button");k.type="button";k.className="ez-zu";
+    const fass=()=>{const v=id=>{const i=r.querySelector(`input[id^="${id}"]`);return i?String(i.value||"").trim():""};const e=(x,u)=>x?`${x} ${u}`:"";
+      k.innerHTML=`<span><b>${esc(v("pr_n_")||"Drucker")}</b><small>${esc([e(v("pr_w_"),"W"),e(v("pr_p_"),"€"),e(v("pr_l_"),"h"),e(v("pr_m_"),"€/h Wartung")].filter(Boolean).join(" · "))}</small></span><i>›</i>`};
+    fass();r.prepend(k);k.addEventListener("click",()=>r.classList.toggle("offen"));r.addEventListener("input",fass)});
   /* Einheit im Feld: Platz für die Einheit passend zu ihrer Breite */
   st.querySelectorAll(".unit>em").forEach(em=>{const i=em.parentElement.querySelector("input");if(i&&em.offsetWidth)i.style.paddingRight=(em.offsetWidth+16)+"px";
     const sp=em.closest(".setrow")&&em.closest(".field")&&em.closest(".field").querySelector(":scope>span:first-child");if(sp)sp.dataset.einheit=em.textContent.trim()})}
@@ -7754,6 +7774,10 @@ document.addEventListener("change",e=>{const t=e.target;if(t&&t.id==="etdr_std")
  .eb-detail .setrow .unit input{text-align:right}
  .eb-detail .setrow>.field:first-child input[type=text]{font-weight:600}
 }
+/* ---- Hinweis-Kästen im Bereich flach (wie Untertitel) ---- */
+.eb-detail .note{background:none;border:0;padding:0;color:var(--fg-3);font-size:12.5px;line-height:1.5}
+.eb-detail .note b{color:var(--fg-2)}
+.ez-zu{display:none}
 /* ---- Etikettendrucker ---- */
 .etdr-l{display:flex;flex-direction:column}
 .etdr-z{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
@@ -7764,6 +7788,19 @@ document.addEventListener("change",e=>{const t=e.target;if(t&&t.id==="etdr_std")
  .eb-detail .field.ez,.eb-detail .field.ez.ez-text{grid-template-columns:minmax(0,1fr) minmax(110px,44%)}
  .eb-detail .field.ez.ez-breit{grid-template-columns:1fr;grid-template-areas:"t" "h" "c";row-gap:6px}
  .eb-detail .field.ez.ez-breit .ez-seg,.eb-detail .field.ez.ez-breit>.tabtg.ez-seg{width:100%}
+ .eb-detail .field.ez.ez-text{grid-template-columns:1fr;grid-template-areas:"t" "h" "c";row-gap:4px}
+ .eb-detail .field.ez.ez-text>input{margin-top:4px}
+ .eb-detail .setlist>.sr-pr{display:block!important;padding:0!important;border-top:1px solid var(--line)}
+ .eb-detail .setlist>.sr-pr:first-child{border-top:0}
+ .eb-detail .setlist>.sr-pr>.ez-zu{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:0;background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
+ .eb-detail .setlist>.sr-pr>.ez-zu>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+ .eb-detail .setlist>.sr-pr>.ez-zu b{font-weight:600;font-size:15px}.eb-detail .setlist>.sr-pr>.ez-zu small{color:var(--fg-3);font-size:12.5px}
+ .eb-detail .setlist>.sr-pr>.ez-zu i{font-style:normal;color:var(--fg-3);font-size:20px;transition:transform .15s}
+ .eb-detail .setlist>.sr-pr.offen>.ez-zu i{transform:rotate(90deg)}
+ .eb-detail .setlist>.sr-pr:not(.offen)>:not(.ez-zu){display:none!important}
+ .eb-detail .setlist>.sr-pr.offen{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:12px!important}
+ .eb-detail .setlist>.sr-pr.offen>.ez-zu,.eb-detail .setlist>.sr-pr.offen>.field:nth-child(2){grid-column:1/-1}
+ .eb-detail .setlist>.sr-pr.offen>.field>span:first-child{display:block!important}
  .eb-detail .field.ez.ez-breit>.tabtg.ez-seg>.chip{flex:1}
  .eb-detail .field.ez:has(>select:not(.ez-weg)){grid-template-columns:minmax(0,1fr) minmax(140px,52%)}
  .eb-detail .setlist>.sr-mt{grid-template-columns:44px repeat(3,minmax(0,1fr)) 30px;align-items:end}
