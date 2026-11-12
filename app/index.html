@@ -1385,22 +1385,24 @@ const STILE={
   wuerth:["Modern",{bg:"#e9ecf0",k:"#ffffff",k2:"#f6f7f9",l:"#d6dbe1",l2:"#c3c9d0",fg:"#333333",fg2:"#5f6670",fg3:"#8a9099",a:"#cc0000",as:"rgba(204,0,0,.09)",ok:"#2e9e3a",w:"#e89a00",b:"#cc0000",h:"#ffffff",st:"#f6f7f9",su:"#eef0f3",cs:"light"},
     {bg:"#1b1d21",k:"#24272c",k2:"#2d3137",l:"#383c43",l2:"#4a4f57",fg:"#ececec",fg2:"#aab0b8",fg3:"#7d838c",a:"#e30613",as:"rgba(227,6,19,.18)",ok:"#4cb85a",w:"#f0a400",b:"#ff4d4d",h:"#24272c",st:"#2d3137",su:"#1f2226",cs:"dark"},3]};
 /* Zusätzliche Formen je Stil (nicht nur Farben). Türkis: Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen, dickere Füllbalken */
-const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
-  const streifen=(sel)=>z.map((c,i)=>`${R} ${sel}:nth-child(5n+${i+1})::before{background:${c}}`).join("");
-  return `${R} .brand small{color:var(--accent);letter-spacing:.14em}
-${R} .h-z div,${R} .lgbest .dv:not(.lgmon){position:relative;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:10px 10px 10px 16px}
+/* Kennzahlen als Kacheln mit farbigem Streifen (Türkis und Modern) */
+const KACHELN=(R,z,rad)=>{const streifen=(sel)=>z.map((c,i)=>`${R} ${sel}:nth-child(5n+${i+1})::before{background:${c}}`).join("");
+  return `${R} .h-z div,${R} .lgbest .dv:not(.lgmon){position:relative;background:var(--glass);border:1px solid var(--line);border-radius:${rad}px;padding:10px 10px 10px 16px}
 ${R} .lgbest .dv:not(.lgmon){background:var(--sunken)}
 ${R} .h-z div::before,${R} .lgbest .dv:not(.lgmon)::before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;border-radius:2px}
 ${streifen(".h-z div")}${streifen(".lgbest .dv:not(.lgmon)")}
 ${R} .lgbest .dvs{gap:8px}
 ${R} .lgbest .dv b{font-size:20px}
-${[".lgfeu .dv",".lstat .dcard .dv:not(.dv-sys)"].map(k=>`${R} ${k}{position:relative;background:var(--sunken);border:1px solid var(--line);border-radius:14px;padding:10px 6px 10px 15px;min-width:0;margin:0;align-self:stretch}
+${[".lgfeu .dv",".lstat .dcard .dv:not(.dv-sys)"].map(k=>`${R} ${k}{position:relative;background:var(--sunken);border:1px solid var(--line);border-radius:${rad}px;padding:10px 6px 10px 15px;min-width:0;margin:0;align-self:stretch}
 ${R} ${k}::before{content:"";position:absolute;left:6px;top:10px;bottom:10px;width:3px;border-radius:2px}
 ${streifen(k)}${R} ${k} b{font-size:19px;white-space:normal}${R} ${k} b small{display:inline;font-size:10.5px;font-weight:500;margin-left:2px;letter-spacing:-.2px;white-space:nowrap}`).join("\n")}
 ${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,130px),1fr));align-items:stretch;gap:6px;width:100%;min-width:0}
 ${R} .lstat .dcard .dv-nfcw{grid-column:1/-1}${R} .lstat .dcard .dv.dv-nfcw:not(.dv-sys) b{font-size:15px;white-space:nowrap}
 @media (max-width:700px){${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{grid-template-columns:repeat(2,minmax(0,1fr))}}
-${R} nav.tabs{gap:6px}
+`};
+const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
+  return `${R} .brand small{color:var(--accent);letter-spacing:.14em}
+${KACHELN(R,z,14)}${R} nav.tabs{gap:6px}
 ${R} nav.tabs button{border:1px solid var(--line);background:var(--glass);border-radius:12px}
 ${R} nav.tabs button.on,${R} nav.tabs button[aria-current="page"],${R} nav.tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft)!important;color:var(--accent)!important}
 ${R} .bnav button.on::before{display:none}
@@ -1421,6 +1423,7 @@ ${R} nav.tabs button{border:0;border-bottom:3px solid transparent;border-radius:
 ${R} nav.tabs button:hover{border-bottom-color:var(--line-2)}
 ${R} nav.tabs button[aria-current="page"]{border-bottom-color:var(--accent);font-weight:600;color:var(--fg)!important;background:none!important}
 ${R} .btn,${R} .chip,${R} .seg,${R} .seg button,${R} input,${R} select,${R} textarea{border-radius:3px}
+${KACHELN(R,["var(--accent)","#f0a400","#1e88e5","#2e9e3a","#8a9099"],4)}
 ${R} :is(.panel,.dcard,.rx-k,.rx-seg,.job,.grp,.spanel,.lgsil,.kpi,.hk,.hz,.pvs,.pvseg,.pvw-sh,.modal,.na-leer,.na-k){border-radius:4px!important}
 ${R} .bs{border-radius:6px 6px 0 0}
 ${R} .btn.pri{text-transform:uppercase;letter-spacing:.04em;font-weight:700}
