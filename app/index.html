@@ -1391,7 +1391,7 @@ ${streifen(k)}${R} ${k} b{font-size:19px;white-space:normal}${R} ${k} b small{di
 ${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,130px),1fr));align-items:stretch;gap:6px;width:100%;min-width:0}
 ${R} .lstat .dcard .dv-nfcw{grid-column:1/-1}${R} .lstat .dcard .dv.dv-nfcw:not(.dv-sys) b{font-size:15px;white-space:nowrap}
 @media (max-width:700px){${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (min-width:701px){${R} .lgtop[data-n] .lgbest .dvs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}${R} .lgtop[data-n] .lgbest .dvs>.lgmon{grid-column:1/-1}${R} .lgtop .lgbest .dv:not(.lgmon),${R} .lgtop .lgfeu .dv,${R} .lgtop .lstat .dcard .dv:not(.dv-sys){height:62px;box-sizing:border-box;padding-block:9px!important;display:flex;flex-direction:column;justify-content:center}${R} .lgtop .lstat .dcard .dv-gw,${R} .lgtop .lstat .dcard .dv-nfcw{display:grid!important}${R} .lgtop .lgbest .dv:not(.lgmon) b,${R} .lgtop .lgfeu .dv b{font-size:19px}${R} .lgtop .lgbest .dv:not(.lgmon)::before,${R} .lgtop .lgfeu .dv::before,${R} .lgtop .lstat .dcard .dv:not(.dv-sys)::before{top:9px;bottom:9px}${R} .lgtop[data-n] .lgfeu .dvs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}${R} .lgtop[data-n] .lstat .dcard .dvs{display:grid;grid-template-columns:1fr}${R} .lgtop .lstat .dcard .dv-gw{padding-block:8px}}
+@media (min-width:701px){${R} .lgtop[data-n] .lgbest .dvs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}${R} .lgtop[data-n] .lgbest .dvs>.lgmon{grid-column:1/-1}${R} .lgtop .lgbest .dv:not(.lgmon),${R} .lgtop .lgfeu .dv,${R} .lgtop .lstat .dcard .dv:not(.dv-sys){height:62px;box-sizing:border-box;padding-block:9px!important;display:flex;flex-direction:column;justify-content:center}${R} .lgtop .lstat .dcard .dv-gw,${R} .lgtop .lstat .dcard .dv-nfcw{display:grid!important}${R} .lgtop .lgbest .dv:not(.lgmon) b,${R} .lgtop .lgfeu .dv b{font-size:19px}${R} .lgtop .lgbest .dv:not(.lgmon)::before,${R} .lgtop .lgfeu .dv::before,${R} .lgtop .lstat .dcard .dv:not(.dv-sys)::before{top:9px;bottom:9px}${R} .lgtop[data-n] .lgfeu .dvs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}${R} .lgtop[data-n] .lstat .dcard .dvs{display:grid;grid-template-columns:1fr}}
 `};
 const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
   return `${R} .brand small{color:var(--accent);letter-spacing:.14em}
@@ -6360,7 +6360,7 @@ function feuchteCard(e){const alle=amsFeuchte();if(!alle.length)return "";const 
   const avg=werte.length?Math.round(werte.reduce((a,v)=>a+v,0)/werte.length):null;const max=alle.filter(f=>f.wert!=null).sort((a,b)=>b.wert-a.wert)[0];
   const hoch=alle.filter(f=>f.wert!=null&&f.wert>=e.feuchte_warnung).length;const trocknet=alle.some(f=>{const t=trockner(f);return t&&t.an});
   return `<div class="dcard kompakt lgfeu" data-act="lgSilica" role="button" tabindex="0" title="Silica & Feuchte öffnen"><span class="di">${SV.drop}</span><div class="dt"><span class="dn">AMS-Feuchte</span>${hoch?`<span class="ds warn"><i></i>${hoch} zu feucht</span>`:`<span class="ds"><i></i>alles trocken</span>`}${trocknet?`<span class="ds"><i style="background:var(--warn)"></i>trocknet</span>`:""}</div>
-    <div class="dvs"><div class="dv c${fStufe(avg,e)}"><span>Durchschnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div>${(()=>{const sk=Math.max(60,((max&&max.wert)||0)+5),p=v=>Math.max(0,Math.min(100,v/sk*100)).toFixed(1);
+    <div class="dvs"><div class="dv c${fStufe(avg,e)}" title="Durchschnitt aller AMS"><span>Schnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div>${(()=>{const sk=Math.max(60,((max&&max.wert)||0)+5),p=v=>Math.max(0,Math.min(100,v/sk*100)).toFixed(1);
       const nass=alle.filter(f=>f.wert!=null&&f.wert>=e.feuchte_warnung).sort((a,b)=>b.wert-a.wert);
       return `<div class="fbar" style="--g:${p(e.feuchte_gruen)}%;--w:${p(e.feuchte_warnung)}%" aria-hidden="true">${avg!=null?`<em style="left:${p(avg)}%" title="Durchschnitt ${avg} %"></em>`:""}${max?`<em class="hi" style="left:${p(max.wert)}%" title="Höchste ${max.wert} %"></em>`:""}</div>`
         +(nass.length?`<div class="fchips">${nass.slice(0,2).map(f=>`<span>${esc(f.drucker)} · ${esc(String(f.name||"").replace(/^AMS\s*/i,""))} ${f.wert} %</span>`).join("")}${nass.length>2?`<span class="m">+${nass.length-2} weitere</span>`:""}</div>`:"")})()}</div>`}
@@ -8206,16 +8206,16 @@ body.rx-einfach #mbar{display:none!important}
 .lgtop .lgbest{--ic:var(--accent)}.lgtop .lgfeu{--ic:#1e88e5}.lgtop .lstat .dcard{--ic:#2e9e3a}
 .lgtop .lgbest>.dt{padding-right:34px}
 .lgtop .dcard.kompakt.lgbest{flex:1.5 1 0}
-.lgtop .lgfeu .dv b{white-space:nowrap!important}.lgtop .lgfeu .dv b small{display:block!important;margin:2px 0 0!important;font-size:10.5px}
+.lgtop .lgfeu .dv b{white-space:nowrap!important}.lgtop .lgfeu .dv b small{display:none!important}
 .lgtop .dcard.kompakt>.dt .dn{letter-spacing:.02em}
 .lgtop .fbar{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--good) 0 var(--g),var(--warn) var(--g) var(--w),var(--bad) var(--w));margin:2px 0}
 .lgtop .fbar em{position:absolute;top:-3px;width:2px;height:12px;margin-left:-1px;background:var(--fg);border-radius:1px}.lgtop .fbar em.hi{background:var(--bad);box-shadow:0 0 0 1px var(--solid)}
 .lgtop .fchips{display:flex;flex-wrap:wrap;gap:6px}.lgtop .fchips span{font-size:11px;padding:2px 7px;border-radius:3px;background:var(--sunken);color:var(--bad);white-space:nowrap}.lgtop .fchips span.m{color:var(--fg-3)}
 .lstat .dcard .dv-gw,.lstat .dcard .dv-nfcw{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:center}
 .lstat .dcard .dv-gw>*:not(.dv-ic),.lstat .dcard .dv-nfcw>*:not(.dv-ic){grid-column:2}
-.lstat .dcard .dv-ic{grid-row:1/3;grid-column:1;display:grid;place-items:center;color:var(--fg-3)}
-.lstat .dcard .dv-gw .dv-ic svg{width:30px;height:30px}.lstat .dcard .dv-nfcw .dv-ic{color:var(--warn)}.lstat .dcard .dv-nfcw .dv-ic svg{width:20px;height:20px}
-.lstat .dcard .dv-gw b{font-size:24px!important}
+.lstat .dcard .dv-ic{grid-row:1/3;grid-column:1;display:grid;place-items:center;width:26px;color:var(--fg-3)}
+.lstat .dcard .dv-ic svg{width:22px;height:22px}.lstat .dcard .dv-nfcw .dv-ic{color:var(--warn)}
+.lstat .dcard .dv-gw b,.lstat .dcard .dv-nfcw b{font-size:19px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lgtop .wfuss{display:flex;align-items:center;gap:10px;margin-top:auto;font-size:11.5px;color:var(--fg-3)}
 .lgtop .wfuss .dv-sys{padding:0!important;flex:1 1 auto;order:0}.lgtop .wfuss .wst-k{margin-left:auto}
 .lgtop .lstat .dcard.kompakt{grid-template-rows:auto auto 1fr}
