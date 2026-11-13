@@ -2589,25 +2589,6 @@ function merken(){clearTimeout(markT);markT=setTimeout(()=>{if(S.tab!=="drucke"|
 function after(){merken();if(document.querySelector("#abu[data-warte]")){const B=book();if(B)B.start();warte()}}
 let wt=null;function warte(){if(wt)return;let n=0;wt=setInterval(()=>{n++;const B=book();if(B&&B.ready()||n>40){clearInterval(wt);wt=null;neu()}},300)}
 function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;window.slMorphAussen(alt,h)}
-/* ---- Leere-Platte-Prüfung (SchichtLohn-Server): Schild in der Zeile, Leiste unter der Kamera ---- */
-let PL={};const PL_ARB=new Set(),PL_MSG={};
-function plSchild(pre){const p=PL[pre];if(!p||!p.refs||p.druckt||p.dunkel||p.frei==null)return "";
-  return ` <span class="dl-pls ${p.frei?"frei":"belegt"}">${p.frei?"Platte frei":"Platte belegt"}</span>`}
-function plLeiste(pre){const p=PL[pre]||{},arb=PL_ARB.has(pre);
-  const st=!p.refs?["","Noch kein Bild der leeren Platte"]:p.druckt?["","Wird nach dem Druck geprüft"]:p.dunkel?["","Zu dunkel zum Prüfen – Licht einschalten"]:p.frei==null?["","Wird geprüft …"]:p.frei?["frei","Platte frei"]:["belegt","Platte belegt"];
-  const info=[p.frei===false&&p.teile?`${p.teile} ${p.teile===1?"Teil":"Teile"} erkannt`:"",p.refs?`${p.refs} ${p.refs===1?"Referenzbild":"Referenzbilder"}`:""].filter(Boolean).join(" · ");
-  return `<div class="dl-pl">${st[0]?`<b class="${st[0]}">${st[1]}</b>`:`<span>${esc(st[1])}</span>`}${info?`<span>${esc(info)}</span>`:""}${PL_MSG[pre]?`<span class="dl-plm">${esc(PL_MSG[pre])}</span>`:""}<span class="sp"></span>
-    ${p.refs&&!p.druckt?`<button type="button" class="btn sm" data-plp="${esc(pre)}"${arb?" disabled":""}>Neu prüfen</button>`:""}<button type="button" class="btn sm" data-plm="${esc(pre)}"${arb||p.druckt?" disabled":""}>Leere Platte merken</button></div>`}
-let plL=false;
-async function plHolen(){if(plL||S.tab!=="drucke"||document.hidden||!(S.srv&&window.SRV&&SRV.url()))return;plL=true;
-  try{const r=await SRV.req("GET","/api/platte");PL=r&&typeof r==="object"?r:{};letzt="";neu()}catch(e){}finally{plL=false}}
-setInterval(plHolen,30000);setTimeout(plHolen,1500);
-document.addEventListener("click",async e=>{const t=e.target.closest("[data-plm],[data-plp]");if(!t)return;e.preventDefault();
-  const pre=t.dataset.plm||t.dataset.plp,merken=!!t.dataset.plm;PL_ARB.add(pre);delete PL_MSG[pre];letzt="";neu();
-  try{const r=await SRV.req("POST","/api/platte/"+(merken?"merken":"pruefen"),{pre});PL[pre]=Object.assign({},PL[pre],{dunkel:false,frei:null},r);
-    if(merken&&typeof toast==="function")toast("Leere Platte gemerkt")}
-  catch(x){PL_MSG[pre]=x.status===404&&/Pfad/.test(x.message||"")?"Braucht Server-Version 3.17.8.":String(x&&x.message||x)}
-  finally{PL_ARB.delete(pre);letzt="";neu()}});
 document.addEventListener("click",e=>{if(e.target.closest("[data-abm]")){alle=!alle;letzt="";neu()}});
 /* Zurückbuchen: erster Tipp fragt nach, zweiter führt aus */
 let zbTimer=null;
@@ -2890,6 +2871,25 @@ function neu(){if(S.tab!=="drucke"){document.querySelectorAll("#dlive .dl-kam").
   document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){if(a!==el){el.replaceWith(a)}delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
 const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
 window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
+/* ---- Leere-Platte-Prüfung (SchichtLohn-Server): Schild in der Zeile, Leiste unter der Kamera ---- */
+let PL={};const PL_ARB=new Set(),PL_MSG={};
+function plSchild(pre){const p=PL[pre];if(!p||!p.refs||p.druckt||p.dunkel||p.frei==null)return "";
+  return ` <span class="dl-pls ${p.frei?"frei":"belegt"}">${p.frei?"Platte frei":"Platte belegt"}</span>`}
+function plLeiste(pre){const p=PL[pre]||{},arb=PL_ARB.has(pre);
+  const st=!p.refs?["","Noch kein Bild der leeren Platte"]:p.druckt?["","Wird nach dem Druck geprüft"]:p.dunkel?["","Zu dunkel zum Prüfen – Licht einschalten"]:p.frei==null?["","Wird geprüft …"]:p.frei?["frei","Platte frei"]:["belegt","Platte belegt"];
+  const info=[p.frei===false&&p.teile?`${p.teile} ${p.teile===1?"Teil":"Teile"} erkannt`:"",p.refs?`${p.refs} ${p.refs===1?"Referenzbild":"Referenzbilder"}`:""].filter(Boolean).join(" · ");
+  return `<div class="dl-pl">${st[0]?`<b class="${st[0]}">${st[1]}</b>`:`<span>${esc(st[1])}</span>`}${info?`<span>${esc(info)}</span>`:""}${PL_MSG[pre]?`<span class="dl-plm">${esc(PL_MSG[pre])}</span>`:""}<span class="sp"></span>
+    ${p.refs&&!p.druckt?`<button type="button" class="btn sm" data-plp="${esc(pre)}"${arb?" disabled":""}>Neu prüfen</button>`:""}<button type="button" class="btn sm" data-plm="${esc(pre)}"${arb||p.druckt?" disabled":""}>Leere Platte merken</button></div>`}
+let plL=false;
+async function plHolen(){if(plL||S.tab!=="drucke"||document.hidden||!(S.srv&&window.SRV&&SRV.url()))return;plL=true;
+  try{const r=await SRV.req("GET","/api/platte");PL=r&&typeof r==="object"?r:{};letzt="";neu()}catch(e){}finally{plL=false}}
+setInterval(plHolen,30000);setTimeout(plHolen,1500);
+document.addEventListener("click",async e=>{const t=e.target.closest("[data-plm],[data-plp]");if(!t)return;e.preventDefault();
+  const pre=t.dataset.plm||t.dataset.plp,merken=!!t.dataset.plm;PL_ARB.add(pre);delete PL_MSG[pre];letzt="";neu();
+  try{const r=await SRV.req("POST","/api/platte/"+(merken?"merken":"pruefen"),{pre});PL[pre]=Object.assign({},PL[pre],{dunkel:false,frei:null},r);
+    if(merken&&typeof toast==="function")toast("Leere Platte gemerkt")}
+  catch(x){PL_MSG[pre]=x.status===404&&/Pfad/.test(x.message||"")?"Braucht Server-Version 3.17.8.":String(x&&x.message||x)}
+  finally{PL_ARB.delete(pre);letzt="";neu()}});
 /* Online-Version mit eigener HA-Verbindung: Zustände alle 30 s holen, solange der Reiter offen ist */
 setInterval(()=>{if(S.tab!=="drucke"||document.hidden)return;if(S.backend==="ha"&&window.HAP&&window.__hass&&window.__hass.__ws)HAP.ensure().then(neu).catch(()=>{});else neu()},30000);
 window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},art};
