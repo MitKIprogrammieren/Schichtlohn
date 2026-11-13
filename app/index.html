@@ -1433,7 +1433,7 @@ ${R} .bnav button.on::before{height:3px;width:100%;border-radius:0;top:-7px}
   html.wu .wrap{max-width:1500px}
   html.wu .toast{left:calc(50% + 36px)}
   #wuRail{display:flex;flex-direction:column;align-items:stretch;position:fixed;left:0;top:0;bottom:0;width:72px;z-index:7;background:var(--solid);border-right:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-  #wuRail .wu-burg{height:64px;background:var(--accent);border:0;cursor:pointer;display:grid;place-items:center;color:#fff}
+  #wuRail .wu-burg{height:var(--wuh,64px);box-sizing:border-box;flex:none;background:var(--accent);border:0;cursor:pointer;display:grid;place-items:center;color:#fff}
   #wuRail .wu-burg i{display:block;width:22px;height:2px;background:currentColor;box-shadow:0 -7px currentColor,0 7px currentColor}
   #wuRail button.wu-b{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 8px;background:none;border:0;cursor:pointer;color:var(--fg-2);font:600 10.5px/1.1 var(--f-body)}
   #wuRail button.wu-b:hover{background:var(--strip);color:var(--fg)}
@@ -8654,6 +8654,8 @@ function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.tog
   const b=x=>`<button type="button" class="wu-b${S.tab===x?" on":""}" data-tab="${x}" title="${esc(x==="einstellungen"?"Einstellungen":TABNAMES[x]||x)}">${slIc(x,26)}<span>${esc(x==="einstellungen"?"Einst.":TABNAMES[x]||x)}</span></button>`;
   const h=`<button type="button" class="wu-burg" data-bn="mehr" aria-label="Mehr"><i></i></button>${k.map(b).join("")}<div class="wu-sp"></div>${b("einstellungen")}`;
   if(r.dataset.h!==h){r.innerHTML=h;r.dataset.h=h}
+  /* roter Menü-Block genau so hoch wie die Kopfleiste, damit die Linien bündig sind */
+  const kopf=document.querySelector("header.top");if(kopf){const kh=Math.round(kopf.getBoundingClientRect().height)+"px";if(r.style.getPropertyValue("--wuh")!==kh)r.style.setProperty("--wuh",kh)}
   if(!s){s=document.createElement("aside");s.id="wuSeite";s.setAttribute("aria-label","Meldungen");
     s.innerHTML=`<div class="wu-k"><button type="button" class="wu-r" data-wur="meld">Meldungen</button><button type="button" class="wu-r" data-wur="drucker">Drucker</button><button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
     document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSpeichern();wuSeite()});
@@ -8666,6 +8668,7 @@ new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.no
     if(n.classList.contains("toast"))new MutationObserver(()=>wuMerken(n.textContent,wuArt(n.textContent))).observe(n,{childList:true,characterData:true,subtree:true})}}}).observe(document.body,{childList:true});
 {const _n=navBauen;navBauen=function(){_n();try{wuRahmen()}catch(e){}}}
 try{wuRahmen()}catch(e){}
+window.addEventListener("resize",()=>{try{wuRahmen()}catch(e){}});
 })();
 </script>
 <style>
