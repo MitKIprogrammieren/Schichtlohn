@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.17.8 – 13.11.2026
+- Neu: Leere-Platte-Prüfung im Reiter „Drucker“. Kamera aufklappen, „Leere Platte merken“ tippen – danach prüft SchichtLohn im Leerlauf alle paar Minuten, ob die Druckplatte frei ist, und zeigt neben dem Drucker „Platte frei“ oder „Platte belegt“.
+- Für verschiedenes Licht oder andere Platten einfach mehrere Bilder merken (bis zu 6). Bei ausgeschaltetem Licht wird nicht geprüft.
+- Braucht IP-Adresse und Zugangscode des Druckers (wie die Kamera).
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.7 – 13.11.2026
 - Genauere Abbuchung: Bei mehreren gleichen Rollen im AMS (z. B. zweimal schwarzes PLA) wird jetzt die Rolle abgebucht, aus der der Drucker wirklich gedruckt hat. SchichtLohn nutzt dafür die Fach-Zuordnung, die der Drucker selbst meldet, und schätzt nur noch, wenn sie fehlt oder nicht passt.
 - SchichtRadar zeigt mehr Arbeitsschritte auf Deutsch, z. B. „Pause: Schrittverlust“, „Bett kühlt ab“ oder „Kalibrierlinien werden gedruckt“, statt englischer Fachbegriffe.

@@ -63,6 +63,7 @@ import produktbilder
 import web
 import radar
 import kamera as kamera_mod
+import platte as platte_mod
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
 try:
@@ -76,7 +77,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.7"
+VERSION = "3.17.8"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3038,6 +3039,27 @@ def speicher_auto():
 
 BAMBU = drucker_mod.Bambu(_Wirt())
 
+# Leere-Platte-Prüfung: Referenzbilder der leeren Platte je Drucker, Prüfung im Leerlauf
+PLATTE = platte_mod.Platte(os.path.join(os.path.dirname(DB_PFAD) or ".", "platte"))
+PLATTE_ALLE_S = 180
+
+
+def platte_stand():
+    """Prüfstand aller eigenen Drucker mit Kamera. Stößt im Leerlauf alle 3 Minuten eine neue Prüfung an."""
+    out = {}
+    for dr in eigene_drucker():
+        if not (dr.d.get("ip") and dr.d.get("code")):
+            continue
+        pre = drucker_mod.praefix(dr.d)
+        refs = PLATTE.refs(pre)
+        st = str(dr.p.get("gcode_state") or "")
+        druckt = st in drucker_mod.LAUFEND
+        erg = None if druckt else PLATTE.ergebnis.get(pre)
+        if refs and dr.online and not druckt and (not erg or time.time() - erg["zeit"] > PLATTE_ALLE_S):
+            PLATTE.im_hintergrund(pre, kamera_foto)
+        out[pre] = {"refs": len(refs), "druckt": druckt, **(erg or {})}
+    return out
+
 
 # ---------------------------------------------------------------- MCP-Anbindung für Claude (server/mcp.py)
 # Adresse: /mcp/<schlüssel>. Der Schlüssel steckt in der Adresse, weil claude.ai bei eigenen Konnektoren keine Kopfzeilen setzen kann;
@@ -3940,6 +3962,25 @@ class Handler(BaseHTTPRequestHandler):
             b = self._json_rumpf()
             neu = [x for x in (b.get("drucke") or []) if isinstance(x, dict) and x.get("id")]
             return self._json(200, drucke_importieren(neu))
+        if teile == ["platte"] and methode == "GET":
+            return self._json(200, platte_stand())
+        if len(teile) == 2 and teile[0] == "platte" and teile[1] in ("merken", "pruefen", "loeschen") and methode == "POST":
+            b = self._json_rumpf()
+            pre = re.sub(r"[^a-z0-9_]", "", str(b.get("pre") or "").lower())
+            if not pre:
+                raise Fehler(400, "Drucker fehlt")
+            try:
+                if teile[1] == "loeschen":
+                    return self._json(200, {"refs": PLATTE.loeschen(pre, str(b.get("name") or ""))})
+                foto = kamera_foto(pre)
+                if not foto:
+                    raise Fehler(409, "Kein Kamerabild – ist die Kamera erreichbar?")
+                if teile[1] == "merken":
+                    PLATTE.merken(pre, foto)
+                erg = PLATTE.pruefen(pre, foto)
+            except ValueError as ex:
+                raise Fehler(400, str(ex))
+            return self._json(200, {"refs": len(PLATTE.refs(pre)), **(erg or {})})
         if len(teile) >= 2 and teile[0] == "kamera" and methode == "GET":
             # Druckerkamera über Home Assistant: Einzelbild (…/<präfix>.jpg) oder Live-Bild (…/<präfix>/live, MJPEG)
             pre = re.sub(r"[^a-z0-9_]", "", teile[1].lower().removesuffix(".jpg"))

@@ -2589,6 +2589,25 @@ function merken(){clearTimeout(markT);markT=setTimeout(()=>{if(S.tab!=="drucke"|
 function after(){merken();if(document.querySelector("#abu[data-warte]")){const B=book();if(B)B.start();warte()}}
 let wt=null;function warte(){if(wt)return;let n=0;wt=setInterval(()=>{n++;const B=book();if(B&&B.ready()||n>40){clearInterval(wt);wt=null;neu()}},300)}
 function neu(){if(S.tab!=="drucke")return;const alt=document.getElementById("abu");if(!alt)return;const h=html();if(h===letzt)return;letzt=h;window.slMorphAussen(alt,h)}
+/* ---- Leere-Platte-Prüfung (SchichtLohn-Server): Schild in der Zeile, Leiste unter der Kamera ---- */
+let PL={};const PL_ARB=new Set(),PL_MSG={};
+function plSchild(pre){const p=PL[pre];if(!p||!p.refs||p.druckt||p.dunkel||p.frei==null)return "";
+  return ` <span class="dl-pls ${p.frei?"frei":"belegt"}">${p.frei?"Platte frei":"Platte belegt"}</span>`}
+function plLeiste(pre){const p=PL[pre]||{},arb=PL_ARB.has(pre);
+  const st=!p.refs?["","Noch kein Bild der leeren Platte"]:p.druckt?["","Wird nach dem Druck geprüft"]:p.dunkel?["","Zu dunkel zum Prüfen – Licht einschalten"]:p.frei==null?["","Wird geprüft …"]:p.frei?["frei","Platte frei"]:["belegt","Platte belegt"];
+  const info=[p.frei===false&&p.teile?`${p.teile} ${p.teile===1?"Teil":"Teile"} erkannt`:"",p.refs?`${p.refs} ${p.refs===1?"Referenzbild":"Referenzbilder"}`:""].filter(Boolean).join(" · ");
+  return `<div class="dl-pl">${st[0]?`<b class="${st[0]}">${st[1]}</b>`:`<span>${esc(st[1])}</span>`}${info?`<span>${esc(info)}</span>`:""}${PL_MSG[pre]?`<span class="dl-plm">${esc(PL_MSG[pre])}</span>`:""}<span class="sp"></span>
+    ${p.refs&&!p.druckt?`<button type="button" class="btn sm" data-plp="${esc(pre)}"${arb?" disabled":""}>Neu prüfen</button>`:""}<button type="button" class="btn sm" data-plm="${esc(pre)}"${arb||p.druckt?" disabled":""}>Leere Platte merken</button></div>`}
+let plL=false;
+async function plHolen(){if(plL||S.tab!=="drucke"||document.hidden||!(S.srv&&window.SRV&&SRV.url()))return;plL=true;
+  try{const r=await SRV.req("GET","/api/platte");PL=r&&typeof r==="object"?r:{};letzt="";neu()}catch(e){}finally{plL=false}}
+setInterval(plHolen,30000);setTimeout(plHolen,1500);
+document.addEventListener("click",async e=>{const t=e.target.closest("[data-plm],[data-plp]");if(!t)return;e.preventDefault();
+  const pre=t.dataset.plm||t.dataset.plp,merken=!!t.dataset.plm;PL_ARB.add(pre);delete PL_MSG[pre];letzt="";neu();
+  try{const r=await SRV.req("POST","/api/platte/"+(merken?"merken":"pruefen"),{pre});PL[pre]=Object.assign({},PL[pre],{dunkel:false,frei:null},r);
+    if(merken&&typeof toast==="function")toast("Leere Platte gemerkt")}
+  catch(x){PL_MSG[pre]=x.status===404&&/Pfad/.test(x.message||"")?"Braucht Server-Version 3.17.8.":String(x&&x.message||x)}
+  finally{PL_ARB.delete(pre);letzt="";neu()}});
 document.addEventListener("click",e=>{if(e.target.closest("[data-abm]")){alle=!alle;letzt="";neu()}});
 /* Zurückbuchen: erster Tipp fragt nach, zweiter führt aus */
 let zbTimer=null;
@@ -2683,7 +2702,7 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause";
   const fil=d.weight>0?(lauf?`<b class="num">${gr(d.weight*d.progress/100)} / ${gr(d.weight)}</b>${d.laenge>0?`<span>${m1(d.laenge)}</span>`:""}`:k!=="aus"?`<span>zuletzt ${gr(d.weight)}</span>`:""):"";
   return `<div class="dl-z dl-${k}"><div class="dl-bild" data-lc="${esc(d.key)}">${k==="aus"?ICON_AUS:ICON.cube}</div>
     <div class="dl-mitte"><div class="dl-name"><i class="dl-punkt"></i>${esc(d.name)}</div>
-      <div class="dl-info">${esc(info)}${lauf&&d.task?` <span class="dl-task" title="${esc(d.task)}">· ${esc(d.task)}</span>`:""}</div>
+      <div class="dl-info">${esc(info)}${!lauf&&k!=="aus"?plSchild(d.pre):""}${lauf&&d.task?` <span class="dl-task" title="${esc(d.task)}">· ${esc(d.task)}</span>`:""}</div>
       ${lauf?`<div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>`:""}</div>
     ${fil?`<div class="dl-fil">${fil}</div>`:""}
     ${window.SRV&&S.srv?`<button type="button" class="btn icon dl-nabtn${lauf?" lauf":""}" data-na="${esc(d.name)}" aria-label="Notaus ${esc(d.name)}" title="Notaus">${window.NOTAUS?NOTAUS.ICON:""}</button>`:""}
@@ -2806,10 +2825,11 @@ document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.tar
 function unten(d,lauf){rollenHolen();const A=amsDaten(d.pre),kam=OFFEN.has(d.key);if(!A.namen.length&&!kam)return "";
   const zu=(ZU.has(zk(d))||ZU.has(d.key))&&A.namen.length>0;
   const kamH=kam?`<div class="dl-kam" data-kam="${esc(d.key)}" data-pre="${esc(d.pre)}"><img alt="Kamera ${esc(d.name)}" data-dkv="${esc(d.key)}"><span class="dl-klade">Kamera wird verbunden …</span><span class="dl-live">${modus()==="live"?"Live":"alle "+modus()+" s"}</span></div>`:"";
+  const kamW=kam&&S.srv&&window.SRV&&PL[d.pre]?`<div class="dl-kw">${kamH}${plLeiste(d.pre)}</div>`:kamH;
   const einh=A.namen.reduce((s,g)=>s+(g==="AMS HT"?A.gr[g].l.length:1),0)-(A.gr.Extern?1:0);
   const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(zk(d))}" data-dzalt="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b><span>${einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
   const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${esc(g)}${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:""}</div><div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div></div>`}).join("")}</div>`;
-  return `<div class="dl-unten">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamH}</div></div>`}
+  return `<div class="dl-unten">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamW}</div></div>`}
 const ICON_KAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>';
 const ICON_AUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5M12 20h.01"/></svg>';
 function html(){const q=quelle();if(!q.l.length)return `<div id="dlive" hidden></div>`;
@@ -2914,6 +2934,13 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dl-live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff5a52;margin-right:6px;vertical-align:1px}
 .dl-ub.mitkam .dl-kam{max-width:none;margin:0;aspect-ratio:auto;height:100%;min-height:180px}.dl-ub.mitkam .dl-kam img{object-fit:cover}
 @media (max-width:760px){.dl-unten{padding-left:2px}.dl-ub.mitkam{grid-template-columns:minmax(0,1fr)}.dl-ub.mitkam .dl-kam{height:auto;aspect-ratio:16/9}}
+.dl-pls{display:inline-block;font-size:11.5px;line-height:1.5;padding:0 8px;border-radius:999px;margin-left:4px;vertical-align:1px}
+.dl-pls.frei,.dl-pl b.frei{color:var(--good)}.dl-pls.frei{background:var(--accent-soft)}
+.dl-pls.belegt,.dl-pl b.belegt{color:var(--warn)}.dl-pls.belegt{background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.dl-kw{display:flex;flex-direction:column;min-width:0}
+.dl-ub.mitkam .dl-kw .dl-kam{height:auto;flex:1 1 auto}
+.dl-pl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--fg-2);border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+.dl-pl b{font-weight:600}.dl-pl .sp{flex:1}.dl-plm{color:var(--bad)}
 .dl-kbtn{flex:none;width:34px;height:34px;color:var(--fg-3)}.dl-kbtn[aria-pressed="true"]{color:var(--accent,var(--fg));background:var(--sunken)}
 .dl-kam{position:relative;margin:0 0 6px;width:100%;max-width:560px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
 .dl-kam img{display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s}.dl-kam.ok img{opacity:1}
