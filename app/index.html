@@ -1391,6 +1391,7 @@ ${streifen(k)}${R} ${k} b{font-size:19px;white-space:normal}${R} ${k} b small{di
 ${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,130px),1fr));align-items:stretch;gap:6px;width:100%;min-width:0}
 ${R} .lstat .dcard .dv-nfcw{grid-column:1/-1}${R} .lstat .dcard .dv.dv-nfcw:not(.dv-sys) b{font-size:15px;white-space:nowrap}
 @media (max-width:700px){${R} .lgfeu .dvs,${R} .lstat .dcard .dvs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:701px){${R} .lgtop .lgfeu .dvs{grid-template-columns:repeat(3,minmax(0,1fr))}${R} .lgtop .lstat .dcard .dvs{grid-template-columns:1fr}${R} .lgtop .lstat .dcard .dv-gw{padding-block:8px}}
 `};
 const STIL_EXTRA={tuerkis:(()=>{const R=":root:root:root",z=["var(--accent)","#f59e0b","#a78bfa","#f472b6","#60a5fa"];
   return `${R} .brand small{color:var(--accent);letter-spacing:.14em}
@@ -1432,7 +1433,7 @@ ${R} .bnav button.on::before{height:3px;width:100%;border-radius:0;top:-7px}
   html.wu .wrap{max-width:1500px}
   html.wu .toast{left:calc(50% + 36px)}
   #wuRail{display:flex;flex-direction:column;align-items:stretch;position:fixed;left:0;top:0;bottom:0;width:72px;z-index:7;background:var(--solid);border-right:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-  #wuRail .wu-burg{height:64px;background:var(--accent);border:0;cursor:pointer;display:grid;place-items:center;color:#fff}
+  #wuRail .wu-burg{height:64px;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer;display:grid;place-items:center;color:var(--fg-2)}#wuRail .wu-burg:hover{background:var(--strip);color:var(--fg)}
   #wuRail .wu-burg i{display:block;width:22px;height:2px;background:currentColor;box-shadow:0 -7px currentColor,0 7px currentColor}
   #wuRail button.wu-b{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 8px;background:none;border:0;cursor:pointer;color:var(--fg-2);font:600 10.5px/1.1 var(--f-body)}
   #wuRail button.wu-b:hover{background:var(--strip);color:var(--fg)}
@@ -4451,6 +4452,8 @@ window.addEventListener("sl-zustand",()=>{if(S.tab==="lager")statusSoon();if(win
 function fmtVal(s){const u=(s.attributes||{}).unit_of_measurement||"";let v=s.state;const n=Number(v);
   if(isFinite(n)&&v!==""){if(/^(h|min|s|d)$/.test(u)){const mins=u==="h"?n*60:u==="d"?n*1440:u==="s"?n/60:n;return mins>=1440?N1.format(mins/1440)+" Tage":dur(mins)}v=N1.format(n)}
   return v+(u?" "+u:"")}
+const WIC={spule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.8"/></svg>',
+  nfc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20a3 3 0 0 1-3-3V6l5 5"/><path d="M13 4a3 3 0 0 1 3 3v11l-5-5"/><rect x="4" y="4" width="16" height="16" rx="3"/></svg>'};
 const DICON={
   filamentwaage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/></svg>',
   druckbruecke:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>'};
@@ -4467,6 +4470,7 @@ function status(){
   const aus=(S.cfg&&Array.isArray(S.cfg.lagerAus))?S.cfg.lagerAus:[];
   /* jede Waage eine eigene Kachel; der Schalter „Waage“ blendet alle aus */
   const geraete=[...(window.slWaagen?slWaagen(st):[]).map(w=>[w.pre,w.name,true]),["druckbruecke","Druckbrücke",false]];
+  const nWaagen=geraete.filter(g=>g[2]).length;
   el.innerHTML=geraete.filter(([pre,,ist])=>!aus.includes(ist?"filamentwaage":pre)).map(([pre,name,ist])=>{const ids=Object.keys(st).filter(id=>id.startsWith("sensor."+pre+"_"));if(!ids.length)return "";
     const off=ids.every(id=>["unavailable","unknown"].includes(st[id].state));
     const temp=pick(st,pre,[/^temperatur/,/temp/]);
@@ -4474,15 +4478,17 @@ function status(){
     const loadLabel=pre==="druckbruecke"?"Auslastung":"Speicher belegt";
     const wt=ist?st[`sensor.${pre}_gewicht`]:null;
     const vals=off?`<div class="dv"><span>Status</span><b class="dim">keine Verbindung</b></div>`:
-      (ist?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0).replace("<b>",`<b data-wl="${esc(pre)}" data-wlf="g">`):"")+(ist&&wt?(()=>{const v=Number(wt.state);if(!(v>20))return "";const n=window.slNfc?slNfc(pre):null;const leer=Number(n&&n.leer)||250;const rest=Math.max(0,Math.round(v-leer));const soll=(n&&n.e&&n.e.gewicht)||(n&&n.b&&n.b.gewicht)||0;
-      return `<div class="dv"><span>Filament übrig</span><b><span data-wl="${esc(pre)}" data-wlk="netto" data-wll="${leer}" data-wlf="g">${rest.toLocaleString("de-DE")} g</span> ${rest<=30?`<small class="slwarn">±10 g möglich</small>`:soll?`<small>${Math.min(100,Math.round(rest/soll*100))} % von ${soll>=1000?String(soll/1000).replace(".",",")+" kg":soll+" g"}</small>`:`<small>ohne Leerspule</small>`}</b></div>`})():"")+(ist&&window.slNfc?(()=>{const n=slNfc(pre);if(!n)return "";const t=!n.uid?'<b class="dim">kein Chip</b>':n.e?`<b class="dv-nfc">${window.slRolle?slRolle(n.e):""}${slRolleTitel(n.e)}</b>`:n.b?`<b class="dv-nfc">${window.slRolle?slRolle(null,"#"+String(n.b.farbe||"9e9e9e").slice(0,6)):""}Bambu ${esc(String(n.b.detail||n.b.typ||"").replace(/^bambu\s*/i,""))} <small class="dim">nicht im Lager</small></b>`:'<b>Chip ohne Sorte</b>';return `<div class="dv dv-nfcw"><span>Per NFC erkannt${n.seite?" ("+n.seite+")":""}</span>${t}</div>`})():"")+(ist?(()=>{/* Waage: Temperatur und Speicher nur klein ganz unten */const t=temp?Number(temp.state):NaN,l=load?Number(load.state):NaN;const teile=[isFinite(t)?`${N1.format(t)} °C`:"",isFinite(l)?`Speicher ${N1.format(l)} %`:""].filter(Boolean);
+      (ist?zahl("Auf der Waage",wt,"g",null,null,"Kommt mit Waagen-Firmware 2.14.1",0).replace("<b",`<b data-wl="${esc(pre)}" data-wlf="g"`).replace('<div class="dv','<div class="dv dv-gw').replace("<span>",`<i class="dv-ic">${WIC.spule}</i><span>`):"")+(ist&&wt?(()=>{const v=Number(wt.state);if(!(v>20))return "";const n=window.slNfc?slNfc(pre):null;const leer=Number(n&&n.leer)||250;const rest=Math.max(0,Math.round(v-leer));const soll=(n&&n.e&&n.e.gewicht)||(n&&n.b&&n.b.gewicht)||0;
+      return `<div class="dv"><span>Filament übrig</span><b><span data-wl="${esc(pre)}" data-wlk="netto" data-wll="${leer}" data-wlf="g">${rest.toLocaleString("de-DE")} g</span> ${rest<=30?`<small class="slwarn">±10 g möglich</small>`:soll?`<small>${Math.min(100,Math.round(rest/soll*100))} % von ${soll>=1000?String(soll/1000).replace(".",",")+" kg":soll+" g"}</small>`:`<small>ohne Leerspule</small>`}</b></div>`})():"")+(ist&&window.slNfc?(()=>{const n=slNfc(pre);if(!n)return "";const t=!n.uid?'<b class="dim">kein Chip</b>':n.e?`<b class="dv-nfc">${window.slRolle?slRolle(n.e):""}${slRolleTitel(n.e)}</b>`:n.b?`<b class="dv-nfc">${window.slRolle?slRolle(null,"#"+String(n.b.farbe||"9e9e9e").slice(0,6)):""}Bambu ${esc(String(n.b.detail||n.b.typ||"").replace(/^bambu\s*/i,""))} <small class="dim">nicht im Lager</small></b>`:'<b>Chip ohne Sorte</b>';return `<div class="dv dv-nfcw"><i class="dv-ic">${WIC.nfc}</i><span>Per NFC erkannt${n.seite?" ("+n.seite+")":""}</span>${t}</div>`})():"")+(ist?(()=>{/* Waage: Temperatur und Speicher nur klein ganz unten */const t=temp?Number(temp.state):NaN,l=load?Number(load.state):NaN;const teile=[isFinite(t)?`${N1.format(t)} °C`:"",isFinite(l)?`Speicher ${N1.format(l)} %`:""].filter(Boolean);
         return teile.length?`<div class="dv dv-sys${(isFinite(t)&&t>=65)||(isFinite(l)&&l>=90)?" warn":""}">${teile.join(" · ")}</div>`:""})():zahl("Temperatur",temp,"°C",65,80)+zahl(loadLabel,load,"%",75,90))+(pre==="druckbruecke"?m20vals(st):"");
     const m20=pre==="druckbruecke"?st["binary_sensor.m20_pro_verbunden"]:null;
+    let sysH="";const vals2=ist?vals.replace(/<div class="dv dv-sys[^"]*">[^<]*<\/div>/,m=>{sysH=m;return ""}):vals;
+    const titel=ist?(nWaagen===1?"Filamentwaage":String(name).replace(/([a-zäöüß])([A-ZÄÖÜ])/g,"$1 $2")):name;
     return `<div class="dcard kompakt${off?" off":""}"><span class="di">${DICON[ist?"filamentwaage":pre]||ICON.cube}</span>
-      <div class="dt"><span class="dn">${esc(name)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span>${m20?`<span class="ds m20${m20.state==="on"?"":" weg"}" title="${m20.state==="on"?"Etikettendrucker verbunden":"Etikettendrucker nicht verbunden – Werte vom letzten Kontakt"}"><i></i>M20 Pro</span>`:""}</div>
-      <div class="dvs">${vals}</div>
+      <div class="dt"><span class="dn" title="${esc(name)}">${esc(titel)}</span><span class="ds"><i></i>${off?"Offline":"Online"}</span>${m20?`<span class="ds m20${m20.state==="on"?"":" weg"}" title="${m20.state==="on"?"Etikettendrucker verbunden":"Etikettendrucker nicht verbunden – Werte vom letzten Kontakt"}"><i></i>M20 Pro</span>`:""}</div>
+      <div class="dvs">${vals2}</div>
       ${pre==="druckbruecke"&&L.link?`<a class="btn icon ghost" href="${esc(L.link)}" target="_blank" rel="noopener" title="Druckbrücke öffnen (nur im Heimnetz)" aria-label="Druckbrücke öffnen">${ICON.link}</a>`:""}
-      ${ist&&!off?(()=>{const ip=((st[`sensor.${pre}_laufzeit`]||{}).attributes||{}).ip;return `<div class="wst-k"><button class="btn sm" data-wst="${esc(pre)}" data-wstn="${esc(name)}">Einstellen</button>${ip?`<a class="btn icon ghost" href="http://${esc(ip)}/" target="_blank" rel="noopener" title="Weboberfläche der Waage öffnen (Heimnetz oder Tailscale)" aria-label="Weboberfläche der Waage öffnen">${ICON.link}</a>`:""}</div>`})():""}</div>`}).join("");
+      ${ist&&!off?(()=>{const ip=((st[`sensor.${pre}_laufzeit`]||{}).attributes||{}).ip;return `<div class="wfuss">${sysH}<div class="wst-k"><button class="btn sm" data-wst="${esc(pre)}" data-wstn="${esc(name)}">Einstellen</button>${ip?`<a class="btn icon ghost" href="http://${esc(ip)}/" target="_blank" rel="noopener" title="Weboberfläche der Waage öffnen (Heimnetz oder Tailscale)" aria-label="Weboberfläche der Waage öffnen">${ICON.link}</a>`:""}</div></div>`})():""}</div>`}).join("");
 }
 /* ===== Waage aus SchichtLohn einstellen: der Server reicht die Aufrufe an die Waage weiter ===== */
 async function waageEinst(pre,name){
@@ -6329,7 +6335,10 @@ function feuchteCard(e){const alle=amsFeuchte();if(!alle.length)return "";const 
   const avg=werte.length?Math.round(werte.reduce((a,v)=>a+v,0)/werte.length):null;const max=alle.filter(f=>f.wert!=null).sort((a,b)=>b.wert-a.wert)[0];
   const hoch=alle.filter(f=>f.wert!=null&&f.wert>=e.feuchte_warnung).length;const trocknet=alle.some(f=>{const t=trockner(f);return t&&t.an});
   return `<div class="dcard kompakt lgfeu" data-act="lgSilica" role="button" tabindex="0" title="Silica & Feuchte öffnen"><span class="di">${SV.drop}</span><div class="dt"><span class="dn">AMS-Feuchte</span>${hoch?`<span class="ds warn"><i></i>${hoch} zu feucht</span>`:`<span class="ds"><i></i>alles trocken</span>`}${trocknet?`<span class="ds"><i style="background:var(--warn)"></i>trocknet</span>`:""}</div>
-    <div class="dvs"><div class="dv c${fStufe(avg,e)}"><span>Durchschnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div></div>`}
+    <div class="dvs"><div class="dv c${fStufe(avg,e)}"><span>Durchschnitt</span><b>${avg==null?"–":avg+" %"}</b></div>${max?`<div class="dv c${fStufe(max.wert,e)}" title="${esc(max.drucker+" · "+max.name)}"><span>Höchste</span><b>${max.wert} %<small> ${esc(max.drucker)}</small></b></div>`:""}<div class="dv"><span>AMS</span><b>${alle.length}</b></div></div>${(()=>{const sk=Math.max(60,((max&&max.wert)||0)+5),p=v=>Math.max(0,Math.min(100,v/sk*100)).toFixed(1);
+      const nass=alle.filter(f=>f.wert!=null&&f.wert>=e.feuchte_warnung).sort((a,b)=>b.wert-a.wert);
+      return `<div class="fbar" style="--g:${p(e.feuchte_gruen)}%;--w:${p(e.feuchte_warnung)}%" aria-hidden="true">${avg!=null?`<em style="left:${p(avg)}%" title="Durchschnitt ${avg} %"></em>`:""}${max?`<em class="hi" style="left:${p(max.wert)}%" title="Höchste ${max.wert} %"></em>`:""}</div>`
+        +(nass.length?`<div class="fchips">${nass.slice(0,2).map(f=>`<span>${esc(f.drucker)} · ${esc(String(f.name||"").replace(/^AMS\s*/i,""))} ${f.wert} %</span>`).join("")}${nass.length>2?`<span class="m">+${nass.length-2} weitere</span>`:""}</div>`:"")})()}</div>`}
 function silicaModal(keepOpen){const e=einVoll(),alle=amsFeuchte(),w=silica();silicaStatsLaden();
   let h=`<div class="lgform" id="lgSil"><div class="lghint">Grün unter ${e.feuchte_gruen} % · Warnung ab ${e.feuchte_warnung} %. Nach einem Silica-Tausch sucht SchichtLohn den Tiefpunkt selbst. Trocknungen im AMS Pro/HT werden automatisch erkannt.</div>`;
   if(!alle.length)h+=`<div class="panel empty">Kein AMS mit Feuchtesensor gefunden.</div>`;
@@ -8162,7 +8171,26 @@ body.rx-einfach #mbar{display:none!important}
 .lgtop .dcard.kompakt{border:0;border-radius:0;background:none;padding:12px 18px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;align-content:flex-start;flex-wrap:nowrap;gap:8px;flex:1 1 0;min-width:0;position:relative}
 .lgtop .dcard.kompakt+.dcard.kompakt,.lgtop .lstat>.dcard.kompakt{border-left:1px solid var(--line)}
 .lgtop .dcard.kompakt.lgbest{flex:2.2 1 0}
-.lgtop .dcard.kompakt .di{display:none}
+.lgtop .dcard.kompakt{display:grid;grid-template-columns:28px minmax(0,1fr);align-content:start;column-gap:10px;row-gap:12px}
+.lgtop .dcard.kompakt>*{grid-column:1/-1}
+.lgtop .dcard.kompakt>.di{grid-column:1;grid-row:1;display:grid;place-items:center;width:28px;height:28px;border-radius:6px;background:color-mix(in srgb,var(--ic) 18%,transparent);color:var(--ic)}
+.lgtop .dcard.kompakt>.di svg{width:16px;height:16px}
+.lgtop .dcard.kompakt>.dt{grid-column:2;grid-row:1;align-self:center;flex-wrap:nowrap}
+.lgtop .dcard.kompakt>.dt .dn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lgtop .dcard.kompakt>.dt .ds:first-of-type{margin-left:auto}
+.lgtop .lgbest{--ic:var(--accent)}.lgtop .lgfeu{--ic:#1e88e5}.lgtop .lstat .dcard{--ic:#2e9e3a}
+.lgtop .lgbest>.dt{padding-right:34px}
+.lgtop .fbar{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--good) 0 var(--g),var(--warn) var(--g) var(--w),var(--bad) var(--w));margin:2px 0}
+.lgtop .fbar em{position:absolute;top:-3px;width:2px;height:12px;margin-left:-1px;background:var(--fg);border-radius:1px}.lgtop .fbar em.hi{background:var(--bad);box-shadow:0 0 0 1px var(--solid)}
+.lgtop .fchips{display:flex;flex-wrap:wrap;gap:6px}.lgtop .fchips span{font-size:11px;padding:2px 7px;border-radius:3px;background:var(--sunken);color:var(--bad);white-space:nowrap}.lgtop .fchips span.m{color:var(--fg-3)}
+.lstat .dcard .dv-gw,.lstat .dcard .dv-nfcw{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:center}
+.lstat .dcard .dv-gw>*:not(.dv-ic),.lstat .dcard .dv-nfcw>*:not(.dv-ic){grid-column:2}
+.lstat .dcard .dv-ic{grid-row:1/3;grid-column:1;display:grid;place-items:center;color:var(--fg-3)}
+.lstat .dcard .dv-gw .dv-ic svg{width:30px;height:30px}.lstat .dcard .dv-nfcw .dv-ic{color:var(--warn)}.lstat .dcard .dv-nfcw .dv-ic svg{width:20px;height:20px}
+.lstat .dcard .dv-gw b{font-size:24px!important}
+.lgtop .wfuss{display:flex;align-items:center;gap:10px;margin-top:auto;font-size:11.5px;color:var(--fg-3)}
+.lgtop .wfuss .dv-sys{padding:0!important;flex:1 1 auto}.lgtop .wfuss .wst-k{margin-left:auto}
+.lgtop .lstat .dcard.kompakt{grid-template-rows:auto auto 1fr}
 .lgtop .dcard.kompakt .dt{gap:8px;padding-right:0;min-height:20px;flex:none}
 .lgtop .dcard .dn{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-3)}
 .lgtop .dcard.kompakt .dt .ds{font-size:10.5px}
