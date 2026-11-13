@@ -1455,6 +1455,7 @@ ${R} .bnav button.on::before{height:3px;width:100%;border-radius:0;top:-7px}
   #wuSeite .wu-m{margin-top:10px;background:#2d3137;border-left:3px solid #2e9e3a;padding:9px 11px;line-height:1.4;word-break:break-word}
   #wuSeite .wu-m.r{border-color:#e30613}#wuSeite .wu-m.b{border-color:#1e88e5}
   #wuSeite .wu-m small{display:block;opacity:.55;font-size:11px;margin-top:3px}
+  #wuSeite button.wu-m{display:block;width:100%;text-align:left;border-top:0;border-right:0;border-bottom:0;color:inherit;font:inherit;cursor:pointer}#wuSeite button.wu-m:hover{background:#363b42}#wuSeite button.wu-m:focus-visible{outline:2px solid #e30613;outline-offset:1px}
   #wuSeite .wu-leer{display:grid;place-items:center;height:60%;opacity:.6;text-align:center;padding:0 20px}
 }`})();
 function stilCss(d){const x=STILE[d.stil];if(!x)return "";return stilFarben(d,x)+(STIL_EXTRA[d.stil]||"")}
@@ -8563,11 +8564,19 @@ new MutationObserver(()=>{try{navBauen();lagerExtras()}catch(e){}}).observe(docu
 setInterval(()=>{try{navBauen();lagerExtras()}catch(e){}},1500);
 try{navBauen()}catch(e){}
 /* ---- Stil „Modern“: Leiste links und Meldungsspalte rechts (nur im Browser, nicht in HA) ---- */
-const WU_KEY="sl_wu_meldungen";let WU_LOG=[];try{WU_LOG=JSON.parse(localStorage.getItem(WU_KEY)||"[]").filter(m=>m&&m.t&&Date.now()-m.ms<7*864e5)}catch(e){WU_LOG=[]}let wuReiter="meld";
+const WU_KEY="sl_wu_meldungen";let WU_LOG=[];try{WU_LOG=JSON.parse(localStorage.getItem(WU_KEY)||"[]").filter(m=>m&&m.t&&Date.now()-m.ms<7*864e5)}catch(e){WU_LOG=[]}
+WU_LOG.forEach(m=>{if(/Abbuchung/.test(m.t))m.t=m.t.replace(/^✓\s*/,"").replace(/✕$/,"").replace(/Besuchzusammen/,"Besuch · zusammen").trim()});
+let wuReiter="meld";
 const wuSpeichern=()=>{try{localStorage.setItem(WU_KEY,JSON.stringify(WU_LOG))}catch(e){}};const wuZeit=()=>new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 function wuAn(){try{return designCfg().stil==="wuerth"&&!window.__PW_HA&&!document.documentElement.classList.contains("eingebettet")}catch(e){return false}}
-function wuMerken(t,art){t=String(t||"").replace(/\s+/g," ").trim();if(!t)return;if(WU_LOG[0]&&WU_LOG[0].t===t&&Date.now()-WU_LOG[0].ms<4000)return;
-  WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now()});WU_LOG.length=Math.min(WU_LOG.length,40);wuSpeichern();wuSeite()}
+function wuMerken(t,art,ziel){t=String(t||"").replace(/\s+/g," ").trim();if(!t)return;if(WU_LOG[0]&&WU_LOG[0].t===t&&Date.now()-WU_LOG[0].ms<4000)return;
+  WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now(),ziel:ziel||""});WU_LOG.length=Math.min(WU_LOG.length,40);wuSpeichern();wuSeite()}
+/* Wohin eine Meldung führt: Abbuchungen → Reiter Drucker, „Zuletzt abgebucht“; fertige Drucke → Reiter Drucker */
+function wuZiel(m){if(m.ziel)return m.ziel;return /abbuchung|abgebucht|nicht zugeordnet/i.test(m.t||"")?"abu":/druck (fertig|abgebrochen)|fertig gedruckt/i.test(m.t||"")?"drucke":""}
+function wuOeffnen(z){if(S.tab!=="drucke"){S.tab="drucke";try{LS.set("lasttab","drucke")}catch(x){}render()}
+  if(z==="abu"){let n=0;const f=()=>{const a=document.getElementById("abu");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});else if(++n<20)setTimeout(f,150)};setTimeout(f,150)}}
+/* Text einer Abbuchungsmeldung ohne Symbole und Schließen-Knopf, Zeilen mit Leerzeichen getrennt */
+function wuText(n){const c=n.cloneNode(true);c.querySelectorAll(".ab-zu,.ab-ti,button").forEach(x=>x.remove());c.querySelectorAll("br").forEach(b=>b.replaceWith(" "));c.querySelectorAll("b,div,span").forEach(x=>x.append(" "));return c.textContent}
 function wuArt(t){return /fehl|nicht|leer|warn|abgebrochen|offline|getrennt/i.test(t)?"r":/erkannt|waage|spule/i.test(t)?"b":""}
 const wuTag=ms=>{const d=new Date(ms),h=new Date();return d.toDateString()===h.toDateString()?"":d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})+" "};
 function wuDrucker(){const L=(window.DLIVE&&DLIVE.liste())||[];if(!L.length)return `<div class="wu-leer">Keine Drucker verbunden.</div>`;
@@ -8579,7 +8588,7 @@ function wuDrucker(){const L=(window.DLIVE&&DLIVE.liste())||[];if(!L.length)retu
 function wuSeite(){const s=document.getElementById("wuSeite");if(!s)return;const l=s.querySelector(".wu-l");
   s.querySelectorAll("[data-wur]").forEach(b=>b.classList.toggle("on",b.dataset.wur===wuReiter));
   const lz=s.querySelector("#wuLeeren");if(lz)lz.hidden=wuReiter!=="meld"||!WU_LOG.length;
-  const h=wuReiter==="drucker"?wuDrucker():WU_LOG.length?WU_LOG.map(m=>`<div class="wu-m ${m.art}">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></div>`).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
+  const h=wuReiter==="drucker"?wuDrucker():WU_LOG.length?WU_LOG.map((m,i)=>{const z=wuZiel(m);return z?`<button type="button" class="wu-m ${m.art}" data-wuziel="${z}" title="Öffnen">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></button>`:`<div class="wu-m ${m.art}">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></div>`}).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
   if(l.dataset.h!==h){l.innerHTML=h;l.dataset.h=h}}
 function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.toggle("wu",an);de.classList.toggle("wu-s",an);
   let r=document.getElementById("wuRail"),s=document.getElementById("wuSeite");
@@ -8592,11 +8601,12 @@ function wuRahmen(){const an=wuAn(),de=document.documentElement;de.classList.tog
   if(!s){s=document.createElement("aside");s.id="wuSeite";s.setAttribute("aria-label","Meldungen");
     s.innerHTML=`<div class="wu-k"><button type="button" class="wu-r" data-wur="meld">Meldungen</button><button type="button" class="wu-r" data-wur="drucker">Drucker</button><button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
     document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSpeichern();wuSeite()});
-    s.querySelectorAll("[data-wur]").forEach(b=>b.addEventListener("click",()=>{wuReiter=b.dataset.wur;wuSeite()}))}
+    s.querySelectorAll("[data-wur]").forEach(b=>b.addEventListener("click",()=>{wuReiter=b.dataset.wur;wuSeite()}));
+    s.querySelector(".wu-l").addEventListener("click",e=>{const b=e.target.closest("[data-wuziel]");if(b){e.preventDefault();wuOeffnen(b.dataset.wuziel)}})}
   wuSeite()}
 /* Hinweise (Toast) und Druck-/Abbuchungsmeldungen mitschreiben */
 new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;
-  if(n.classList.contains("toast")||n.id==="abtoast"){const t=n.textContent;wuMerken(t,n.id==="abtoast"?"":wuArt(t));
+  if(n.classList.contains("toast")||n.id==="abtoast"){const ab=n.id==="abtoast",t=ab?wuText(n):n.textContent;wuMerken(t,ab?"":wuArt(t),ab?"abu":"");
     if(n.classList.contains("toast"))new MutationObserver(()=>wuMerken(n.textContent,wuArt(n.textContent))).observe(n,{childList:true,characterData:true,subtree:true})}}}).observe(document.body,{childList:true});
 {const _n=navBauen;navBauen=function(){_n();try{wuRahmen()}catch(e){}}}
 try{wuRahmen()}catch(e){}
