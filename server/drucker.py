@@ -182,8 +182,12 @@ SCHRITTE = {0: "printing", 1: "auto_bed_leveling", 2: "heatbed_preheating", 3: "
             25: "calibrating_motor_noise", 26: "paused_ams_lost", 27: "paused_low_fan_speed_heat_break",
             28: "paused_chamber_temperature_control_error", 29: "cooling_chamber", 30: "paused_user_gcode", 31: "motor_noise_showoff",
             32: "paused_nozzle_filament_covered_detected", 33: "paused_cutter_error", 34: "paused_first_layer_error",
-            35: "paused_nozzle_clog", 39: "calibrate_nozzle_offset", 40: "bed_level_high_temperature", 41: "check_quick_release",
-            42: "check_door_and_cover", 47: "bed_level_phase_1", 48: "bed_level_phase_2"}
+            35: "paused_nozzle_clog", 36: "measuring_motion_precision", 37: "enhancing_motion_precision",
+            38: "measuring_motion_precision", 39: "calibrate_nozzle_offset", 40: "bed_level_high_temperature", 41: "check_quick_release",
+            42: "check_door_and_cover", 47: "bed_level_phase_1", 48: "bed_level_phase_2",
+            49: "heating_chamber", 50: "cooling_heatbed", 51: "printing_calibration_lines", 52: "check_material",
+            54: "waiting_for_heatbed_temperature", 58: "thermal_preconditioning", 62: "hotend_pick_place_test",
+            63: "waiting_for_chamber_temperature", 64: "preparing_hotend", 66: "purifying_chamber_air", 77: "preparing_ams"}
 PROFILE = {1: "silent", 2: "standard", 3: "sport", 4: "ludicrous"}
 TUER_BIT = 0x00800000
 DUESEN_MATERIAL = {"00": "stainless_steel", "01": "hardened_steel", "05": "tungsten_carbide"}
@@ -710,11 +714,45 @@ def hochladen(ip, code, name, daten, timeout=60):
             pass
 
 
-def zuordnen(filamente, faecher_liste):
-    """Filament aus der Druckdatei → Fach im AMS (gleiche Bambu-ID, gleiches Material, nächste Farbe)."""
+def grundmaterial(m):
+    """PLA+ / PLA Basic → PLA, PETG-HF → PETG, PA6-CF → PA …"""
+    u = "".join(c if c.isalpha() else " " for c in (m or "").upper()).split()
+    if not u:
+        return ""
+    for b in ("PETG", "PCTG", "PLA", "ABS", "ASA", "TPU", "PVA", "HIPS", "PPS", "PET", "PC", "PA", "PP", "PE"):
+        if u[0].startswith(b):
+            return b
+    return u[0]
+
+
+def fach_laut_drucker(wert, nach_global):
+    """Eintrag aus dem Druckerbericht „mapping“ → Fach (oder None).
+    Ältere Firmware: globale Fachnummer (AMS*4+Fach, AMS HT 128…, 254/255 extern);
+    neuere (H2): AMS-Nummer * 256 + Fach."""
+    v = _int(wert)
+    if v is None or v < 0 or v == 65535:
+        return None
+    if v < 256:
+        return nach_global.get(v)
+    aid, fach = v >> 8, v & 0xFF
+    if aid in (254, 255):
+        return nach_global.get(254 if fach == 0 else 255) or nach_global.get(aid)
+    return nach_global.get(aid * 4 + fach if aid < 128 else aid)
+
+
+def zuordnen(filamente, faecher_liste, mapping=None):
+    """Filament aus der Druckdatei → Fach im AMS.
+    1. Zuordnung, die der Drucker selbst meldet („mapping“) – wenn das Fach belegt ist und das Material passt
+    2. sonst Schätzung: gleiche Bambu-ID, gleiches Material, nächste Farbe"""
     belegt = [f for f in faecher_liste if not f["leer"]]
+    nach_global = {f["global"]: f for f in belegt}
     out = []
     for fi in filamente:
+        if isinstance(mapping, list) and 0 < fi["id"] <= len(mapping):
+            f = fach_laut_drucker(mapping[fi["id"] - 1], nach_global)
+            if f and (not fi["typ"] or not f["typ"] or grundmaterial(f["typ"]) == grundmaterial(fi["typ"])):
+                out.append((fi, f))
+                continue
         bester, wert = None, -1e9
         for f in belegt:
             w = 0
@@ -722,6 +760,8 @@ def zuordnen(filamente, faecher_liste):
                 w += 50
             if fi["typ"] and f["typ"].upper() == fi["typ"].upper():
                 w += 20
+            elif fi["typ"] and grundmaterial(f["typ"]) == grundmaterial(fi["typ"]):
+                w += 10
             if fi["farbe"] and f["farbe"]:
                 w -= farbabstand(fi["farbe"], f["farbe"]) / 1000
             if w > wert:
@@ -1150,6 +1190,8 @@ class Drucker:
                                 "max": 0, "schicht": 0, "skip": {}, "datei": None, "gcode": None, "objekte": None}
                 if self.d.get("ip") and self.d.get("code"):  # auch bei Cloud-Druckern, wenn die IP eingetragen ist
                     threading.Thread(target=self._datei_vorab, daemon=True).start()
+            if isinstance(self.p.get("mapping"), list) and self.p["mapping"]:
+                self.auftrag["mapping"] = list(self.p["mapping"])
             self.auftrag["max"] = max(self.auftrag["max"], _int(self.p.get("mc_percent"), 0))
             self.auftrag["schicht"] = max(self.auftrag.get("schicht", 0), _int(self.p.get("layer_num"), 0) or 0)
             self._skip_merken(self.auftrag)
@@ -1260,7 +1302,8 @@ class Drucker:
             faktoren, genau = self._ueberspringen(a, st, anteil, datei)
             a["skip_genau"] = genau
             out = []
-            for fi, f in zuordnen(datei, fl):
+            mapping = a.get("mapping") or (p.get("mapping") if isinstance(p.get("mapping"), list) else None)
+            for fi, f in zuordnen(datei, fl, mapping):
                 fk = faktoren.get(fi["id"], anteil) if faktoren else anteil
                 out.append({"gramm": round(fi["gramm"] * fk, 2), "gramm_voll": round(fi["gramm"] * anteil, 2), "gramm_datei": round(fi["gramm"], 2), "ort": f["ort"] if f else "Druckdatei",
                             "fid": (f["fid"] if f and f["fid"] else fi["fid"]), "col": (f["farbe"] if f and f["farbe"] else fi["farbe"]),

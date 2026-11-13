@@ -209,7 +209,7 @@ def aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, s
     posten, fil_kosten, fehlt = [], 0.0, False
     anteil = 1.0 if status == "finish" else max(0.0, min(1.0, pct / 100))
     if a and a.get("datei") and not wartung and (laeuft or status in ("finish", "failed")):
-        for fi, f in drucker_mod.zuordnen(a["datei"], drucker_mod.faecher(p)):
+        for fi, f in drucker_mod.zuordnen(a["datei"], drucker_mod.faecher(p), a.get("mapping") or (p.get("mapping") if isinstance(p.get("mapping"), list) else None)):
             ort = f["ort"] if f else "Druckdatei"
             fid, farbe = (f["fid"] if f and f["fid"] else fi["fid"]), (f["farbe"] if f and f["farbe"] else fi["farbe"])
             preis = preis_fn(fid, farbe, name, ort)
