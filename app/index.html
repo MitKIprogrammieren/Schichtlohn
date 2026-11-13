@@ -4754,6 +4754,25 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgfx{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lgfx select{width:auto;flex:0 1 auto;max-width:190px}
 .lgfx select.on{border-color:var(--accent);color:var(--accent)}
+.lgscw{position:relative;display:inline-flex}
+.lgscm{position:absolute;top:calc(100% + 4px);right:0;z-index:30;display:flex;flex-direction:column;gap:2px;min-width:210px;padding:4px;background:var(--solid);border:1px solid var(--line-2);border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+.lgscm[hidden]{display:none}
+.lgscm .btn{justify-content:flex-start;border:0;background:none;height:auto;min-height:34px;padding:6px 10px;gap:8px;flex-wrap:wrap;text-align:left;font-size:13px}
+.lgscm .btn:hover{background:var(--sunken)}.lgscm .btn svg{width:15px;height:15px}
+.lgscm .btn small{flex-basis:100%;padding-left:23px;font-size:11px;color:var(--fg-3);font-weight:400}
+@media (min-width:621px){
+.lgbar{flex-wrap:nowrap;gap:6px}
+.lgbar .lgtb,.lgbar select.lgsort,.lgsearch input[type=search]{height:32px!important;min-height:0!important;font-size:13px!important}
+.lgbar select.lgsort{padding-block:0!important}
+.lgbar .lgzu{width:32px;padding:0!important;justify-content:center}.lgbar .lgzu .lgtx{display:none}
+.lgbar .lgact2{margin-left:auto!important;width:auto!important;gap:6px;flex-wrap:nowrap!important}
+.lgbar .lgact2>.lgtb:not(.pri),.lgbar .lgscw>.lgtb{width:32px;padding:0!important;justify-content:center;font-size:0!important;flex:0 0 32px!important;gap:0}
+.lgbar .lgact2 .lgtb svg{width:16px;height:16px}
+.lgbar .lgact2>.btn.pri{margin-left:8px;padding:0 12px!important;flex:0 0 auto!important;position:relative}
+.lgbar .lgact2>.btn.pri::before{content:"";position:absolute;left:-8px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.lgfx{gap:6px}
+.lgfx select{height:28px!important;min-height:0!important;font-size:12.5px!important;padding:0 26px 0 10px!important;flex:0 0 auto!important}
+}
 .lghead{display:flex;justify-content:flex-end;align-items:center;gap:10px}
 .lgtop{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .lgtop[data-n="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}.lgtop[data-n="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}.lgtop[data-n="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}.lgtop[data-n="1"]{grid-template-columns:1fr}
@@ -5525,6 +5544,11 @@ function rowHTML(e,orte,fu,E){
   return `<div class="lgr${e.spulen<=0?" leer":""}" data-act="lgEdit" data-uid="${esc(e.uid)}">${spool(e.hex,undefined,e.besonderheiten,e)}
     <div style="min-width:0"><div class="lgn">${esc(name(e))}${deF(e.farbe)}</div>${tech?`<div class="lgs">${esc(tech)}</div>`:""}${ch?`<div class="lgc">${ch}</div>`:""}</div>
     <div class="lgrt"><b>${kg(tot)}</b><div class="lgbarx"><i style="width:${pct}%;background:${col}"></i></div></div></div>`}
+/* Scannen und Serienscan: ein Knopf mit kleinem Menü */
+document.addEventListener("click",e=>{const k=e.target.closest&&e.target.closest("[data-lgscm]");const offen=document.querySelector(".lgscm:not([hidden])");
+  if(k){const m=k.parentElement.querySelector(".lgscm");const auf=m.hidden;if(offen&&offen!==m)offen.hidden=true;m.hidden=!auf;k.setAttribute("aria-expanded",auf?"true":"false");return}
+  if(offen){offen.hidden=true;const b=offen.parentElement.querySelector("[data-lgscm]");if(b)b.setAttribute("aria-expanded","false")}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const o=document.querySelector(".lgscm:not([hidden])");if(o)o.hidden=true}});
 function body(){return body0().replace("__ALLZU__",G._allZu?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg><span class="lgtx">Alle aufklappen</span>`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5-5 5 5"/></svg><span class="lgtx">Alle einklappen</span>`)}
 function body0(){G._allZu=false;
   const E=ein();const all=entries();const sl=slots();const fu=feuchte();
@@ -5553,7 +5577,7 @@ function body0(){G._allZu=false;
       <button class="btn sm lgtb lgfb${G.showF||nF?" on":""}" data-act="lgFilt" aria-expanded="${G.showF?"true":"false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter${nF?`<b>${nF}</b>`:""}</button>
       <button class="btn sm lgtb lgzu" data-act="lgAllZu" title="${G._allZu?"Alle aufklappen":"Alle einklappen"}" aria-label="${G._allZu?"Alle aufklappen":"Alle einklappen"}">__ALLZU__</button>
       ${(q||nF)?`<button class="btn ghost sm" data-act="lgReset">Zurücksetzen</button>`:""}
-      <span class="lgact2"><button class="btn sm lgtb" data-act="lgScan" title="Strichcode scannen (Kamera). Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick: einfach scannen.">${BC} Scannen</button><button class="btn sm lgtb" data-act="lgSerie" title="Viele Kartons nacheinander scannen">${BCS} Serienscan</button><button class="btn sm lgtb" data-act="lgFoto" title="Spule fotografieren oder Fotos hochladen: Etikett, Barcode und Farbe werden erkannt">${CAMI} Foto</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
+      <span class="lgact2"><span class="lgscw"><button type="button" class="btn sm lgtb" data-lgscm aria-haspopup="menu" aria-expanded="false" title="Scannen: einzeln oder viele Kartons nacheinander. Ein Handscanner per USB oder Bluetooth geht im Lager auch ohne Klick.">${BC} Scannen</button><span class="lgscm" role="menu" hidden><button type="button" class="btn sm" data-act="lgScan" role="menuitem">${BC} Einzeln scannen</button><button type="button" class="btn sm" data-act="lgSerie" role="menuitem">${BCS} Serienscan<small>viele Kartons nacheinander</small></button></span></span><button class="btn sm lgtb" data-act="lgFoto" title="Spule fotografieren oder Fotos hochladen: Etikett, Barcode und Farbe werden erkannt">${CAMI} Foto</button>${window.SYNC?`<button class="btn sm lgtb" data-act="syHandy" title="Mit dem Handy scannen: Codes landen hier am PC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg> Handy</button>`:""}<button class="btn pri sm lgtb" data-act="lgNew">${ICON.plus} Filament</button></span></div>
     ${G.showF?`<div class="lgfx">${opt("material",uniq(all.map(e=>e.material)).map(x=>[x,x]),"Alle Materialien")}${opt("hersteller",uniq(all.map(e=>e.hersteller)).map(x=>[x,x]),"Alle Marken")}
       ${opt("farbe",FAM.filter(f=>all.some(e=>fam(e.hex)===f)).map(x=>[x,x]),"Alle Farben")}
       ${(()=>{const m=new Map();all.forEach(e=>(e.besonderheiten||[]).forEach(b=>{const k=besKey(b);if(k&&!m.has(k))m.set(k,besName(b))}));
