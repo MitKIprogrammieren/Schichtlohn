@@ -121,8 +121,9 @@ class Kamera:
             except Exception as e:
                 fehlversuche += 1
                 text = str(e) or e.__class__.__name__
-                if text != self.fehler:
-                    self.log(f"Kamera {self.ip}: {text}")
+                if text != self.fehler or time.time() - getattr(self, "_gemeldet", 0) > 300:
+                    self.log(f"Kamera {self.ip} ({self.modell}): {text}")
+                    self._gemeldet = time.time()
                 self.fehler = text
             finally:
                 self._proc_beenden()
@@ -193,6 +194,8 @@ class Kamera:
                 letzte = fehler[-1] if fehler else ""
                 if "401" in letzte or "Unauthorized" in letzte:
                     letzte = "Zugangscode abgelehnt"
+                elif "timed out" in letzte.lower() or "No route" in letzte or "Network is unreachable" in letzte:
+                    letzte = f"Drucker unter {self.ip} nicht erreichbar – IP-Adresse noch richtig?"
                 elif "Connection refused" in letzte:
                     letzte = "Videostrom aus – am Drucker „LAN-Modus Liveansicht“ einschalten"
                 raise ConnectionError(letzte or "Videostrom beendet")

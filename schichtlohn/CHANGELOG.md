@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.11 – 14.11.2026
+- Kamera: Kommt kein Bild, steht jetzt im Kamerafeld, warum (z. B. Drucker nicht erreichbar, Zugangscode abgelehnt, IP fehlt, „LAN-Modus Liveansicht“ aus) – statt endlos „Kamera wird verbunden …“.
+- Enthält auch alle Verbesserungen aus 3.17.10.
+
 ## 3.17.10 – 14.11.2026
 - Kopfleiste auf dem Handy aufgeräumt: Suche und Bambu-Knopf sind gleich hohe, runde Felder, die Leiste hat eine feine Trennlinie und wird beim Scrollen leicht durchscheinend.
 - Fehler behoben: Das Menü auf dem Handy schloss nach der Auswahl nicht – man musste zweimal tippen.

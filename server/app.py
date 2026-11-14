@@ -77,7 +77,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.10"
+VERSION = "3.17.11"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1984,6 +1984,19 @@ def ha_bild(pfad):
     except Exception:
         return None
     return b if b and len(b) > 500 and b[:1] in (b"\xff", b"\x89") else None
+
+
+def kamera_grund(pre):
+    """Warum kein Kamerabild kommt – in Worten für die App."""
+    dr = eigener_drucker(pre)
+    if not dr:
+        return "Drucker ist nicht direkt im SchichtLohn-Server eingetragen (Einstellungen → Drucker)"
+    if not (dr.d.get("ip") and dr.d.get("code")):
+        return "IP-Adresse oder Zugangscode des Druckers fehlt (Einstellungen → Drucker)"
+    k = dr.kamera
+    if k and k.fehler:
+        return k.fehler + f" (Drucker {dr.d.get('ip')})"
+    return f"Drucker {dr.d.get('ip')} schickt kein Bild – erreichbar? „LAN-Modus Liveansicht“ am Drucker an?"
 
 
 def kamera_foto(pre):
@@ -3990,7 +4003,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._kamera_live(pre)
             bild = kamera_foto(pre)
             if not bild:
-                return self._senden(404, b"", "image/jpeg", "no-store")
+                raise Fehler(404, kamera_grund(pre))
             return self._senden(200, bild, "image/jpeg" if bild[:1] == b"\xff" else "image/png", "no-store")
         if teile == ["drucke", "entfernen"] and methode == "POST":
             b = self._json_rumpf()
@@ -4225,13 +4238,13 @@ class Handler(BaseHTTPRequestHandler):
         dr = eigener_drucker(pre)
         k = drucker_kamera(dr) if dr else None
         if k:
-            return self._kamera_live_eigen(k, dauer)
+            return self._kamera_live_eigen(k, dauer, pre)
         url, token = ha_cfg()
         if not (url and token):
             raise Fehler(503, "Kamera braucht Home Assistant")
         erstes = kamera_foto(pre)
         if not erstes:
-            raise Fehler(404, "Kein Kamerabild")
+            raise Fehler(404, kamera_grund(pre))
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", "multipart/x-mixed-replace;boundary=frame")
@@ -4256,10 +4269,10 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
 
-    def _kamera_live_eigen(self, k, dauer):
+    def _kamera_live_eigen(self, k, dauer, pre=""):
         erstes = k.holen()
         if not erstes:
-            raise Fehler(404, "Kein Kamerabild" + (" – " + k.fehler if k.fehler else ""))
+            raise Fehler(404, kamera_grund(pre))
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", "multipart/x-mixed-replace;boundary=frame")

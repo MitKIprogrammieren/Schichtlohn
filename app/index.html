@@ -2943,10 +2943,13 @@ const LAUF=new Set();
 function kStop(box){if(!box)return;LAUF.delete(box);clearInterval(box._t);clearInterval(box._r);clearTimeout(box._w);box._t=box._r=box._w=0;const img=box.querySelector("img");if(img){img.onload=img.onerror=null;if(img.getAttribute("src"))img.src="data:,"}}
 function kStart(box){kStop(box);LAUF.add(box);const img=box.querySelector("img"),q=kQuelle(box.dataset.pre);
   const fertig=()=>box.classList.add("ok");
+  /* kommt kein Bild, den Grund vom Server holen und im Kamerabild anzeigen (höchstens alle 10 s) */
+  let grundT=0;const grund=u=>{if(box.classList.contains("ok")||Date.now()-grundT<10000)return;grundT=Date.now();
+    fetch(u,{cache:"no-store"}).then(r=>r.ok?null:r.json().catch(()=>null)).then(j=>{const t=j&&j.fehler;const el=box.querySelector(".dl-klade");if(t&&el&&!box.classList.contains("ok")){el.textContent=t;box.classList.add("fehl")}}).catch(()=>{})};
   if(!q){box.classList.add("fehl");box.querySelector(".dl-klade").textContent="Keine Kamera gefunden";return}
   /* Einzelbilder: nie mehrere Anfragen gleichzeitig offen (sonst stauen sie sich, wenn der Drucker langsam antwortet) */
   const takt=ms=>{let offen=0;const lade=()=>{if(!box.isConnected){kStop(box);return}if(document.hidden||(offen&&Date.now()-offen<15000))return;const u=q.bild();if(!u)return;
-    offen=Date.now();const n=new Image();n.onload=()=>{offen=0;img.src=n.src;fertig()};n.onerror=()=>{offen=0};n.src=u};lade();box._t=setInterval(lade,ms)};
+    offen=Date.now();const n=new Image();n.onload=()=>{offen=0;img.src=n.src;box.classList.remove("fehl");fertig()};n.onerror=()=>{offen=0;grund(u)};n.src=u};lade();box._t=setInterval(lade,ms)};
   const m=modus();if(m!=="live")return takt(+m*1000);
   /* Live: fortlaufender Bildstrom; klappt er nicht, ersatzweise jede Sekunde ein Bild und alle 2 Minuten wieder Live versuchen */
   let seit=0;
@@ -3064,7 +3067,7 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dl-kbtn{flex:none;width:34px;height:34px;color:var(--fg-3)}.dl-kbtn[aria-pressed="true"]{color:var(--accent,var(--fg));background:var(--sunken)}
 .dl-kam{position:relative;margin:0 0 6px;width:100%;max-width:560px;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:16/9;cursor:zoom-in}
 .dl-kam img{display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s}.dl-kam.ok img{opacity:1}
-.dl-klade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:13px;pointer-events:none}.dl-kam.ok .dl-klade{display:none}
+.dl-klade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:13px;pointer-events:none;padding:0 18px;text-align:center;line-height:1.4}.dl-kam.fehl:not(.ok) .dl-klade{color:#f0a020}.dl-kam.ok .dl-klade{display:none}
 .dl-kmod{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--fg-3);border-top:1px solid var(--line);padding-top:8px}
 .dl-voll .jlb-in{width:min(1100px,100%,calc((100vh - 80px)*16/9))}.dl-voll .dl-kam{aspect-ratio:16/9;width:100%;max-width:none;max-height:calc(100vh - 80px);cursor:zoom-out;margin:0}
 .dl-z{display:flex;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid var(--line)}
