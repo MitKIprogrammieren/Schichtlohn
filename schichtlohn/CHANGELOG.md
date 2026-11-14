@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.17.9 – 14.11.2026
+- Reiter „Drucker“ neu gestaltet: Jeder Drucker hat eine eigene Karte mit farbigem Zustand (Druckt, Bereit, Pausiert, Offline), großem Fortschrittsbalken mit Restzeit und Fertig-Uhrzeit, Schicht-Anzeige und einem Fortschrittsring ums Vorschaubild.
+- AMS übersichtlicher: größere Rollen, Füllstand in der Filamentfarbe, „aktiv“ am Fach, aus dem gerade gedruckt wird, und die Luftfeuchte je AMS.
+- Neu: Knopf für das Druckerlicht (an/aus) direkt an jedem Drucker.
+- Neu: Knopf „SchichtRadar“ oben im Reiter „Drucker“.
+- Neu: Vollbild-Knopf im Kamerabild.
+- Fehler behoben: Die Kamera wurde nach dem Laden nach ein paar Sekunden wieder schwarz.
+- Server-Änderung (für Licht und Schicht-Anzeige): Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.8 – 13.11.2026
 - Neu: Leere-Platte-Prüfung im Reiter „Drucker“. Kamera aufklappen, „Leere Platte merken“ tippen – danach prüft SchichtLohn im Leerlauf alle paar Minuten, ob die Druckplatte frei ist, und zeigt neben dem Drucker „Platte frei“ oder „Platte belegt“.
 - Für verschiedenes Licht oder andere Platten einfach mehrere Bilder merken (bis zu 6). Bei ausgeschaltetem Licht wird nicht geprüft.

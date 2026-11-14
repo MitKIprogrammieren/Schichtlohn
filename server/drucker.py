@@ -316,6 +316,14 @@ def zustaende(d, p, online):
         f"sensor.{pre}_verbleibende_zeit": (str(_int(p.get("mc_remaining_time"), 0)), {"unit_of_measurement": "min", "friendly_name": f"{name} Restzeit"}),
         f"sensor.{pre}_aktuelle_aufgabe": (str(p.get("subtask_name") or ""), {"friendly_name": f"{name} Aufgabe"}),
     }
+    if online:
+        licht = licht_an(p)
+        if licht is not None:
+            z[f"light.{pre}_druckraumbeleuchtung"] = ("on" if licht else "off", {"friendly_name": f"{name} Druckraumbeleuchtung"})
+        schicht, schichten = _int(p.get("layer_num")), _int(p.get("total_layer_num"))
+        if schichten:
+            z[f"sensor.{pre}_aktuelle_schicht"] = (str(schicht or 0), {"friendly_name": f"{name} Aktuelle Schicht"})
+            z[f"sensor.{pre}_gesamtzahl_der_schichten"] = (str(schichten), {"friendly_name": f"{name} Schichten gesamt"})
     tray_now = _int((p.get("ams") or {}).get("tray_now"), 255)
     gesehen = set()
     for f in faecher(p):
