@@ -3324,7 +3324,9 @@ async function loadSrv(force){
   J.srvLoading=true;J.srvErr="";redraw();
   try{const d=await SRV.req("GET","/api/drucke");J.srv=(d.drucke||[]).map(fromSrv);J.speicherInfo=d.speicher||{};J.srvLaeuft=!!d.laeuft;J.speicherAnz=(d.archiv&&d.archiv.anzahl)||0;
     J.speicher=[];for(const [sn,x] of Object.entries(d.speicher||{}))(x.dateien||[]).forEach(f=>{if(!f.fehler)J.speicher.push(fromSpeicher(sn,x.drucker||sn,f))});J.srvAt=Date.now()}
-  catch(e){J.srvErr=e.status===404?"Braucht Server-Version 3.3":String(e&&e.message||e)}
+  catch(e){J.srvErr=e.status===404?"Braucht Server-Version 3.3":String(e&&e.message||e);
+    /* nicht sofort wieder anfragen: sonst fragt jedes Neuzeichnen erneut und hält Browser und Server dauerhaft beschäftigt – nächster Versuch in 15 s */
+    J.srvAt=Date.now()-45000}
   J.srvLoading=false;redraw();
 }
 window.addEventListener("sl-drucke",e=>{const d=e.detail||{};if(d.laeuft!=null)J.srvLaeuft=!!d.laeuft;J.srvAt=0;if(S.tab==="drucke")loadSrv(true)});
