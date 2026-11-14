@@ -4,7 +4,6 @@
 - Reiter „Drucker“ neu gestaltet: Jeder Drucker hat eine eigene Karte mit farbigem Zustand (Druckt, Bereit, Pausiert, Offline), großem Fortschrittsbalken mit Restzeit und Fertig-Uhrzeit, Schicht-Anzeige und einem Fortschrittsring ums Vorschaubild.
 - AMS übersichtlicher: größere Rollen, Füllstand in der Filamentfarbe, „aktiv“ am Fach, aus dem gerade gedruckt wird, und die Luftfeuchte je AMS.
 - Neu: Knopf für das Druckerlicht (an/aus) direkt an jedem Drucker.
-- Neu: Knopf „SchichtRadar“ oben im Reiter „Drucker“.
 - Neu: Vollbild-Knopf im Kamerabild.
 - Fehler behoben: Die Kamera wurde nach dem Laden nach ein paar Sekunden wieder schwarz.
 - Server-Änderung (für Licht und Schicht-Anzeige): Update der SchichtLohn-App in Home Assistant einspielen.
