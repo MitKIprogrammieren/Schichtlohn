@@ -3066,6 +3066,23 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dl-aus .dl-punkt{background:none;border:1.5px solid var(--fg-3)}.dl-aus .dl-name,.dl-aus .dl-info{color:var(--fg-3)}.dl-aus .dl-bild{border-style:dashed;background-color:transparent}
 
 /* ---- Druckerkarten (Reiter „Drucker“) ---- */
+
+/* ---- Info-Spalte rechts einklappbar (Modern und Cloud) ---- */
+#wuSeite #wuZu{flex:none;width:30px;height:30px;margin-left:4px;display:grid;place-items:center;border-radius:8px;border:0;background:none;color:inherit;opacity:.65;cursor:pointer;padding:0}
+#wuSeite #wuZu:hover{opacity:1;background:rgba(127,127,127,.16)}#wuSeite #wuZu svg{width:18px;height:18px}
+#wuSeite .wu-auf{display:none}
+@media (min-width:1280px){
+  html.wu-s.wu-zu body{padding-right:52px!important}
+  html.wu.wu-s.wu-zu .toast{left:calc(50% + 10px)}html.cl.wu-s.wu-zu .toast{left:calc(50% + 104px)}
+  html.wu-s.wu-zu #wuSeite{width:52px!important;padding-top:0}
+  html.wu-s.wu-zu #wuSeite>:not(.wu-auf){display:none!important}
+  html.wu-s.wu-zu #wuSeite .wu-auf{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;height:100%;padding:18px 0;background:none;border:0;color:inherit;cursor:pointer;font:inherit}
+  html.wu-s.wu-zu #wuSeite .wu-auf:hover{background:rgba(127,127,127,.12)}
+  #wuSeite .wu-auf svg{width:20px;height:20px;opacity:.75}
+  #wuSeite .wu-auf-t{writing-mode:vertical-rl;transform:rotate(180deg);font-size:13px;font-weight:600;letter-spacing:.04em;opacity:.8}
+  #wuSeite .wu-n{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--bad,#e30613);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;box-sizing:border-box}
+  #wuSeite .wu-n:empty{display:none}
+}
 .drjetzt .dlive{background:none;border:0;box-shadow:none;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none}
 .drjetzt .pvh{flex-direction:row;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px}
 .drjetzt .pvh-m{gap:8px}.drjetzt .pvh-m>span{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;background:var(--glass,var(--sunken));border:1px solid var(--line)}
@@ -8821,7 +8838,13 @@ function wuDrucker(){const L=(window.DLIVE&&DLIVE.liste())||[];if(!L.length)retu
   return L.slice().sort((a,b)=>rang[DLIVE.art(a)]-rang[DLIVE.art(b)]).map(d=>{const k=DLIVE.art(d),lauf=k==="druckt"||k==="pause";
     const zeile=lauf?[k==="pause"?"pausiert":"",`${Math.round(Number(d.progress)||0)} %`,d.remaining>0?"noch "+(d.remaining>=60?Math.floor(d.remaining/60)+" h "+(d.remaining%60)+" min":d.remaining+" min"):""].filter(Boolean).join(" · "):T[k];
     return `<button type="button" class="wu-d ${F[k]}" data-tab="drucke"><b>${esc(d.name||"Drucker")}</b><span>${esc(zeile)}</span>${lauf&&d.task?`<small>${esc(d.task)}</small>`:""}${lauf?`<i style="--p:${Math.max(0,Math.min(100,Number(d.progress)||0))}%"></i>`:""}</button>`}).join("")}
+/* Info-Spalte ein-/ausklappen (je Gerät gemerkt); eingeklappt zählt die schmale Leiste neue Meldungen */
+const WU_ZU="sl_wu_zu",WU_GES="sl_wu_gesehen";
+const wuZu=()=>{try{return localStorage.getItem(WU_ZU)==="1"}catch(e){return false}};
+function wuEinklappen(z){try{localStorage.setItem(WU_ZU,z?"1":"0");localStorage.setItem(WU_GES,String(Date.now()))}catch(e){}
+  document.documentElement.classList.toggle("wu-zu",z);wuSeite();try{window.dispatchEvent(new Event("resize"))}catch(e){}}
 function wuSeite(){const s=document.getElementById("wuSeite");if(!s)return;const l=s.querySelector(".wu-l");
+  const nz=s.querySelector(".wu-n");if(nz){let g=0;try{g=Number(localStorage.getItem(WU_GES))||0}catch(e){}const n=wuZu()?WU_LOG.filter(m=>m.ms>g).length:0;const t=n?(n>9?"9+":String(n)):"";if(nz.textContent!==t)nz.textContent=t}
   s.querySelectorAll("[data-wur]").forEach(b=>b.classList.toggle("on",b.dataset.wur===wuReiter));
   const lz=s.querySelector("#wuLeeren");if(lz)lz.hidden=wuReiter!=="meld"||!WU_LOG.length;
   const h=wuReiter==="drucker"?wuDrucker():WU_LOG.length?WU_LOG.map((m,i)=>{const z=wuZiel(m);return z?`<button type="button" class="wu-m ${m.art}" data-wuziel="${z}" title="Öffnen">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></button>`:`<div class="wu-m ${m.art}">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></div>`}).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
@@ -8830,7 +8853,7 @@ function wuRahmen(){const an=wuAn(),de=document.documentElement,cl=an&&designCfg
   let r=document.getElementById("wuRail"),s=document.getElementById("wuSeite");
   /* Wechsel zwischen „Modern“ und „Cloud“: Leiste und Spalte neu aufbauen */
   if(de.classList.contains("cl")!==cl){if(r)r.remove();if(s)s.remove();r=s=null}
-  de.classList.toggle("wu",an&&!cl);de.classList.toggle("wu-s",an);de.classList.toggle("cl",cl);
+  de.classList.toggle("wu",an&&!cl);de.classList.toggle("wu-s",an);de.classList.toggle("cl",cl);de.classList.toggle("wu-zu",an&&wuZu());
   clKopf(cl);
   if(!an){if(r)r.remove();if(s)s.remove();return}
   if(cl){clLeiste(r);if(!s)wuSeiteBauen(true);else wuSeite();return}
@@ -8844,8 +8867,10 @@ function wuRahmen(){const an=wuAn(),de=document.documentElement,cl=an&&designCfg
   if(!s)wuSeiteBauen(false);
   wuSeite()}
 function wuSeiteBauen(cl){const s=document.createElement("aside");s.id="wuSeite";s.setAttribute("aria-label","Meldungen");
-    s.innerHTML=(cl?`<b class="wu-t">Info</b>`:"")+`<div class="wu-k"><button type="button" class="wu-r" data-wur="meld">Meldungen</button><button type="button" class="wu-r" data-wur="drucker">Drucker</button><button type="button" id="wuLeeren">Leeren</button></div><div class="wu-l"></div>`;
+    s.innerHTML=(cl?`<b class="wu-t">Info</b>`:"")+`<div class="wu-k"><button type="button" class="wu-r" data-wur="meld">Meldungen</button><button type="button" class="wu-r" data-wur="drucker">Drucker</button><button type="button" id="wuLeeren">Leeren</button><button type="button" id="wuZu" aria-label="Info-Spalte einklappen" title="Einklappen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button></div><div class="wu-l"></div>
+      <button type="button" class="wu-auf" id="wuAuf" aria-label="Info-Spalte ausklappen" title="Ausklappen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span class="wu-n"></span><span class="wu-auf-t">Info</span></button>`;
     document.body.appendChild(s);s.querySelector("#wuLeeren").addEventListener("click",()=>{WU_LOG.length=0;wuSpeichern();wuSeite()});
+    s.querySelector("#wuZu").addEventListener("click",()=>wuEinklappen(true));s.querySelector("#wuAuf").addEventListener("click",()=>wuEinklappen(false));
     s.querySelectorAll("[data-wur]").forEach(b=>b.addEventListener("click",()=>{wuReiter=b.dataset.wur;wuSeite()}));
     s.querySelector(".wu-l").addEventListener("click",e=>{const b=e.target.closest("[data-wuziel]");if(b){e.preventDefault();wuOeffnen(b.dataset.wuziel)}});
   wuSeite()}
