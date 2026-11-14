@@ -77,7 +77,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.9"
+VERSION = "3.17.10"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -4267,7 +4267,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
         self.close_connection = True
-        ende, bild, t = time.time() + dauer, erstes, k.t
+        ende, bild, t, gesendet = time.time() + dauer, erstes, k.t, time.time()
         try:
             while time.time() < ende:
                 if bild:
@@ -4275,9 +4275,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.flush()
                 neu, t_neu = k.naechstes(t)
                 if t_neu > t:
-                    bild, t = neu, t_neu
+                    bild, t, gesendet = neu, t_neu, time.time()
+                elif time.time() - gesendet > 4 and neu:
+                    # nichts Neues: alle paar Sekunden das letzte Bild nochmal – so merkt der Server, wenn niemand mehr zuschaut
+                    bild, gesendet = neu, time.time()
                 else:
-                    bild = None  # nichts Neues: nicht dasselbe Bild nochmal schicken
+                    bild = None
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
 

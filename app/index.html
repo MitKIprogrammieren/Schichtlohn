@@ -1535,6 +1535,16 @@ html.cl #wuRail .cl-fuss small{display:block;text-align:center;color:var(--fg-3)
   html.cl.cl-auf #wuRail{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.25)}
   html.cl #clDim{display:block;position:fixed;inset:0;z-index:59;background:rgba(15,23,42,0);pointer-events:none;transition:background .22s}
   html.cl.cl-auf #clDim{background:rgba(15,23,42,.45);pointer-events:auto}
+  /* Kopfleiste Handy: Suche und Cloud-Knopf als gleich hohe Pillen, Leiste mit Weichzeichner und feiner Linie */
+  html.cl header.top{background:color-mix(in srgb,var(--bg,#111827) 82%,transparent)!important;-webkit-backdrop-filter:blur(18px) saturate(1.4)!important;backdrop-filter:blur(18px) saturate(1.4)!important;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)!important}
+  html.cl .topin{gap:8px!important;padding-block:10px!important}
+  html.cl #clBurg{width:42px;height:42px;margin-left:-4px;border-radius:12px}
+  html.cl #clBurg:active{background:var(--glass)}
+  html.cl .cl-such{height:42px;padding:0 14px 0 12px;border-color:transparent;border-radius:999px;background:color-mix(in srgb,var(--fg) 7%,transparent);max-width:none}
+  html.cl .cl-such input{font-size:16px}
+  html.cl .cl-such:focus-within{background:var(--glass)}
+  html.cl .cl-such svg{width:18px;height:18px;opacity:.8}
+  html.cl .syncs .sync{height:42px;border-radius:999px;padding:0 12px}
 }`})();
 function stilCss(d){const x=STILE[d.stil];if(!x)return "";return stilFarben(d,x)+(STIL_EXTRA[d.stil]||"")}
 function stilFarben(d,x){const r=`--r:${x[3]}px;--r-s:${Math.max(2,Math.round(x[3]*0.6))}px;`;const sel=":root:root:root";
@@ -2934,13 +2944,20 @@ function kStop(box){if(!box)return;LAUF.delete(box);clearInterval(box._t);clearI
 function kStart(box){kStop(box);LAUF.add(box);const img=box.querySelector("img"),q=kQuelle(box.dataset.pre);
   const fertig=()=>box.classList.add("ok");
   if(!q){box.classList.add("fehl");box.querySelector(".dl-klade").textContent="Keine Kamera gefunden";return}
-  const takt=ms=>{const lade=()=>{if(!box.isConnected){kStop(box);return}if(document.hidden)return;const u=q.bild();if(!u)return;const n=new Image();n.onload=()=>{img.src=n.src;fertig()};n.src=u};lade();box._t=setInterval(lade,ms)};
+  /* Einzelbilder: nie mehrere Anfragen gleichzeitig offen (sonst stauen sie sich, wenn der Drucker langsam antwortet) */
+  const takt=ms=>{let offen=0;const lade=()=>{if(!box.isConnected){kStop(box);return}if(document.hidden||(offen&&Date.now()-offen<15000))return;const u=q.bild();if(!u)return;
+    offen=Date.now();const n=new Image();n.onload=()=>{offen=0;img.src=n.src;fertig()};n.onerror=()=>{offen=0};n.src=u};lade();box._t=setInterval(lade,ms)};
   const m=modus();if(m!=="live")return takt(+m*1000);
-  /* Live: fortlaufender Bildstrom; klappt er nicht, ersatzweise jede Sekunde ein Bild */
-  const ersatz=()=>{if(box._t)return;img.onload=img.onerror=null;clearTimeout(box._w);clearInterval(box._r);box._r=0;takt(1000)};
-  img.onload=fertig;img.onerror=ersatz;img.src=q.live();
-  box._w=setTimeout(()=>{if(!img.naturalWidth)ersatz()},9000);
-  box._r=setInterval(()=>{if(!box.isConnected)return kStop(box);if(!document.hidden)img.src=q.live()},540000)}
+  /* Live: fortlaufender Bildstrom; klappt er nicht, ersatzweise jede Sekunde ein Bild und alle 2 Minuten wieder Live versuchen */
+  let seit=0;
+  const live=()=>{clearInterval(box._t);box._t=0;clearTimeout(box._w);seit=Date.now();img.onload=fertig;img.onerror=ersatz;
+    img.src=q.live()+(q.live().includes("?")?"&":"?")+"n="+seit;box._w=setTimeout(()=>{if(!img.naturalWidth)ersatz()},20000)};
+  const ersatz=()=>{if(box._t)return;img.onload=img.onerror=null;clearTimeout(box._w);seit=Date.now();takt(1000)};
+  live();
+  box._r=setInterval(()=>{if(!box.isConnected)return kStop(box);if(document.hidden)return;
+    /* Safari meldet bei Live-Strömen kein „load“ – am ersten Bild erkennen */
+    if(img.naturalWidth)fertig();
+    const alt=Date.now()-seit;if((box._t&&alt>120000)||(!box._t&&alt>540000))live()},1000)}
 function kAlle(){document.querySelectorAll("#dlive .dl-kam").forEach(kStart)}
 let voll=null;
 function kVoll(key){const box=document.querySelector(`#dlive .dl-kam[data-kam="${CSS.escape(key)}"]`);if(!box)return;kZu();kStop(box);
@@ -8897,7 +8914,8 @@ function clKopf(an){const in_=document.querySelector("header.top .topin");if(!in
       if(S.tab!=="lager"){S.tab="lager";try{LS.set("lasttab","lager")}catch(x){}render()}setz()});
     q.addEventListener("keydown",e=>{if(e.key==="Escape"){q.value="";q.dispatchEvent(new Event("input"))}})}
   if(!dim){dim=document.createElement("div");dim.id="clDim";dim.addEventListener("click",clZu);document.body.appendChild(dim)}}
-document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#wuRail [data-tab]"))clZu()});
+/* in der Einfangphase schließen – der Reiterwechsel baut die Leiste neu, danach hängt der getippte Knopf nicht mehr darin */
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#wuRail [data-tab]"))clZu()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")clZu()});
 /* Hinweise (Toast) und Druck-/Abbuchungsmeldungen mitschreiben */
 new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;

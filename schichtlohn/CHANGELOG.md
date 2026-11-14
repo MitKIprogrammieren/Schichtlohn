@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.17.10 – 14.11.2026
+- Kopfleiste auf dem Handy aufgeräumt: Suche und Bambu-Knopf sind gleich hohe, runde Felder, die Leiste hat eine feine Trennlinie und wird beim Scrollen leicht durchscheinend.
+- Fehler behoben: Das Menü auf dem Handy schloss nach der Auswahl nicht – man musste zweimal tippen.
+- Kamera zuverlässiger: Der Server wartet beim Verbinden länger aufs erste Bild, verbindet von selbst neu, wenn das Bild einfriert, und die App versucht nach einem Aussetzer wieder Live statt dauerhaft nur Einzelbilder zu holen.
+- Server-Änderung: Update der SchichtLohn-App in Home Assistant einspielen.
+
 ## 3.17.9 – 14.11.2026
 - Reiter „Drucker“ neu gestaltet: Jeder Drucker hat eine eigene Karte mit farbigem Zustand (Druckt, Bereit, Pausiert, Offline), großem Fortschrittsbalken mit Restzeit und Fertig-Uhrzeit, Schicht-Anzeige und einem Fortschrittsring ums Vorschaubild.
 - AMS übersichtlicher: größere Rollen, Füllstand in der Filamentfarbe, „aktiv“ am Fach, aus dem gerade gedruckt wird, und die Luftfeuchte je AMS.

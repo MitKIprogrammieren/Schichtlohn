@@ -8,6 +8,7 @@ Zwei Wege, je nach Modell (beide brauchen IP-Adresse und Zugangscode aus den Sch
 Die Verbindung läuft nur, solange jemand Bilder abholt; 90 s nach der letzten Anfrage wird sie getrennt,
 damit der Drucker nicht dauerhaft eine Kameraverbindung offen hat.
 """
+import collections
 import shutil
 import socket
 import ssl
@@ -69,7 +70,7 @@ class Kamera:
         self.proc = None
 
     # ---- abholen
-    def holen(self, warten=8.0, max_alter=15.0):
+    def holen(self, warten=15.0, max_alter=15.0):
         """Neuestes Bild (JPEG) oder None. Startet die Verbindung bei Bedarf und wartet kurz aufs erste Bild."""
         self.anfrage = time.time()
         self._starten()
@@ -151,14 +152,44 @@ class Kamera:
         if not ffmpeg:
             raise RuntimeError("ffmpeg fehlt im Server")
         url = f"rtsps://bblp:{urllib.parse.quote(str(self.code), safe='')}@{self.ip}:322/streaming/live/1"
-        self.proc = subprocess.Popen([ffmpeg, "-hide_banner", "-loglevel", "error", "-rtsp_transport", "tcp", "-timeout", "10000000",
-                                      "-i", url, "-an", "-vf", "fps=2", "-q:v", "5", "-f", "image2pipe", "-c:v", "mjpeg", "-"],
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        # kurze Anlaufprüfung (sonst dauert das erste Bild oft 5–10 s), wenig Puffer
+        proc = self.proc = subprocess.Popen([ffmpeg, "-hide_banner", "-loglevel", "error", "-rtsp_transport", "tcp", "-timeout", "10000000",
+                                             "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "500000", "-analyzeduration", "1000000",
+                                             "-i", url, "-an", "-vf", "fps=2", "-q:v", "5", "-f", "image2pipe", "-c:v", "mjpeg", "-"],
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        # Fehlerausgabe laufend mitlesen – bleibt sie liegen, läuft die Leitung voll und ffmpeg hängt (Bild friert ein)
+        fehler = collections.deque(maxlen=20)
+
+        def stderr_lesen():
+            try:
+                for z in proc.stderr:
+                    fehler.append(z.decode("utf-8", "replace").strip())
+            except Exception:
+                pass
+        threading.Thread(target=stderr_lesen, daemon=True).start()
+        # Wächter: kommt länger kein Bild, ffmpeg beenden – die Schleife unten verbindet dann neu
+        start = time.time()
+
+        def waechter():
+            while proc.poll() is None:
+                time.sleep(2)
+                if time.time() - max(self.t, start) > (25 if self.t < start else 15):
+                    fehler.append("kein Bild mehr vom Drucker – verbinde neu")
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                    return
+        threading.Thread(target=waechter, daemon=True).start()
         puffer = b""
         while not self._leerlauf():
-            b = self.proc.stdout.read1(65536)
+            b = proc.stdout.read1(65536)
             if not b:
-                fehler = (self.proc.stderr.read() or b"").decode("utf-8", "replace").strip().splitlines()
+                try:
+                    proc.wait(3)
+                except Exception:
+                    pass
+                fehler = [z for z in fehler if z]
                 letzte = fehler[-1] if fehler else ""
                 if "401" in letzte or "Unauthorized" in letzte:
                     letzte = "Zugangscode abgelehnt"
