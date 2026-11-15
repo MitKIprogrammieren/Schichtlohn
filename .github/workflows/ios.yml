@@ -1,0 +1,70 @@
+name: iOS-App
+
+# Baut die SchichtLohn-iPhone-App ohne Signatur. SideStore signiert sie beim Installieren mit der eigenen Apple-ID.
+# Die fertige SchichtLohn.ipa liegt danach unter Releases → „iOS-App (neueste)“.
+on:
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-app
+  cancel-in-progress: true
+
+jobs:
+  bauen:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: XcodeGen installieren
+        run: brew install xcodegen
+
+      - name: Xcode-Projekt erzeugen
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: App bauen (ohne Signatur)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SchichtLohn.xcodeproj \
+            -scheme SchichtLohn \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee build.log | grep -E "error:|warning: .*SchichtLohn/|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/SchichtLohn.app
+
+      - name: IPA packen
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/SchichtLohn.app Payload/
+          zip -qry SchichtLohn.ipa Payload
+          ls -la SchichtLohn.ipa
+
+      - name: Als Artefakt ablegen
+        uses: actions/upload-artifact@v4
+        with:
+          name: SchichtLohn-ipa
+          path: ios/SchichtLohn.ipa
+
+      - name: Release „iOS-App (neueste)“ aktualisieren
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ios-neueste >/dev/null 2>&1 || \
+            gh release create ios-neueste --prerelease --title "iOS-App (neueste)" \
+              --notes "Neueste SchichtLohn-iPhone-App. Auf dem iPhone herunterladen und in SideStore öffnen (Teilen → SideStore)."
+          gh release upload ios-neueste ios/SchichtLohn.ipa --clobber

@@ -1,0 +1,5 @@
+SchichtLohn.xcodeproj/
+SchichtLohn/Info.plist
+build/
+Payload/
+*.ipa
