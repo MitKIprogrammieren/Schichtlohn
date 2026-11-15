@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.17.12 – 15.11.2026
+- Preisvergleich: Ein kurzer Netzaussetzer bricht den Abruf nicht mehr ab. SchichtLohn versucht es zweimal erneut und macht dann mit der nächsten Sorte weiter. Erst wenn das Netz länger weg ist, wird der Händler für diesen Lauf ausgelassen.
+- AliExpress findet mehr: Gesucht wird jetzt mit englischen Farbnamen. Findet sich nichts, schaut SchichtLohn alle Angebote der Marke mit diesem Material durch und sucht dort die passende Farbe.
+- Einstellungen neu geordnet: neuer Bereich „Zugänge“ mit allem, was der Server braucht, auf einen Blick.
+
 ## 3.17.11 – 14.11.2026
 - Kamera: Kommt kein Bild, steht jetzt im Kamerafeld, warum (z. B. Drucker nicht erreichbar, Zugangscode abgelehnt, IP fehlt, „LAN-Modus Liveansicht“ aus) – statt endlos „Kamera wird verbunden …“.
 - Enthält auch alle Verbesserungen aus 3.17.10.

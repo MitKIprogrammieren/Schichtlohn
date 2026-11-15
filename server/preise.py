@@ -9,10 +9,13 @@ Treffer zählen nur, wenn Marke und Farbe im Titel stehen – lieber kein Preis 
 """
 import base64
 import hashlib
+import socket
+import ssl
 import hmac
 import json
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -25,10 +28,24 @@ FARBE_DE_EN = {"schwarz": "black", "weiß": "white", "weiss": "white", "grau": "
                "braun": "brown", "beige": "beige", "silber": "silver", "gold": "gold", "transparent": "transparent", "natur": "natural"}
 
 
-def _anfrage(url, daten=None, kopf=None, timeout=25):
-    req = urllib.request.Request(url, data=daten, headers=dict({"User-Agent": UA}, **(kopf or {})))
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8") or "{}")
+def netzfehler(ex):
+    """Kurzer Aussetzer (Name nicht auflösbar, Zeitüberschreitung, Verbindung abgebrochen) – nicht der Zugang."""
+    if isinstance(ex, urllib.error.HTTPError):
+        return ex.code >= 500 or ex.code == 429
+    return isinstance(ex, (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, ssl.SSLError, OSError))
+
+
+def _anfrage(url, daten=None, kopf=None, timeout=25, versuche=3):
+    """Abfrage mit Wiederholung bei Netzaussetzern (2 s, dann 6 s warten)."""
+    for i in range(versuche):
+        req = urllib.request.Request(url, data=daten, headers=dict({"User-Agent": UA}, **(kopf or {})))
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8") or "{}")
+        except Exception as ex:
+            if i == versuche - 1 or not netzfehler(ex):
+                raise
+            time.sleep(2 if i == 0 else 6)
 
 
 def _norm(s):
@@ -145,19 +162,23 @@ def _ali_signieren(params, secret):
     return hmac.new(secret.encode(), roh.encode(), hashlib.sha256).hexdigest().upper()
 
 
+def _farbe_en(farbe):
+    return " ".join(FARBE_DE_EN.get(w, w) for w in _norm(farbe).split())
+
+
+_ali_breit = {}  # Marke + Material → Angebote, einmal je Abruf (viele Farben teilen sich eine Suche)
+
+
 def ali_angebot(cfg, e):
-    params = {"app_key": cfg["key"], "method": "aliexpress.affiliate.product.query", "sign_method": "sha256",
-              "timestamp": str(int(time.time() * 1000)), "v": "2.0", "format": "json",
-              "keywords": suchtext(e), "target_currency": "EUR", "target_language": "DE", "ship_to_country": "DE",
-              "page_size": "20", "sort": "SALE_PRICE_ASC"}
-    if cfg.get("tracking"):
-        params["tracking_id"] = cfg["tracking"]
-    params["sign"] = _ali_signieren(params, cfg["secret"])
-    d = _anfrage("https://api-sg.aliexpress.com/sync?" + urllib.parse.urlencode(params))
-    if d.get("error_response"):
-        raise RuntimeError("AliExpress: " + str(d["error_response"].get("msg") or d["error_response"]))
-    res = ((d.get("aliexpress_affiliate_product_query_response") or {}).get("resp_result") or {})
-    prods = ((res.get("result") or {}).get("products") or {}).get("product") or []
+    """AliExpress sucht auf Englisch: erst „Marke Material Farbe filament“, ohne Treffer dann alle Angebote von Marke + Material."""
+    bes = [b for b in (e.get("besonderheiten") or []) if str(b).lower() not in ("basic",)]
+    genau = " ".join(str(x) for x in [e.get("hersteller"), e.get("material"), *bes, _farbe_en(e.get("farbe")), "filament"] if x)
+    prods = _ali_produkte(cfg, genau, 20)
+    if not any(_passt(p.get("product_title"), e) for p in prods):
+        k = _norm(f"{e.get('hersteller')} {e.get('material')}")
+        if k not in _ali_breit:
+            _ali_breit[k] = _ali_produkte(cfg, f"{e.get('hersteller')} {e.get('material')} filament", 50)
+        prods = prods + _ali_breit[k]
     beste = None
     _letzte["treffer"] = sum(1 for p in prods if _passt(p.get("product_title"), e))
     for p in prods:
@@ -178,11 +199,11 @@ def ali_angebot(cfg, e):
 _such_cache = {}
 
 
-def _ali_produkte(cfg, keywords):
+def _ali_produkte(cfg, keywords, anzahl=40):
     params = {"app_key": cfg["key"], "method": "aliexpress.affiliate.product.query", "sign_method": "sha256",
               "timestamp": str(int(time.time() * 1000)), "v": "2.0", "format": "json",
               "keywords": keywords, "target_currency": "EUR", "target_language": "DE", "ship_to_country": "DE",
-              "page_size": "40", "sort": "SALE_PRICE_ASC"}
+              "page_size": str(anzahl), "sort": "SALE_PRICE_ASC"}
     if cfg.get("tracking"):
         params["tracking_id"] = cfg["tracking"]
     params["sign"] = _ali_signieren(params, cfg["secret"])
@@ -272,6 +293,8 @@ def abrufen(cfg, sorten, alt=None, melde=print):
     al = (cfg or {}).get("ali") or {}
     eb_an = bool(eb.get("id") and eb.get("secret"))
     al_an = bool(al.get("key") and al.get("secret"))
+    _ali_breit.clear()
+    in_folge = {"ebay": 0, "ali": 0}  # Netzfehler hintereinander – erst nach 3 wird der Händler für diesen Lauf aufgegeben
     for uid, e in sorten:
         if not (e.get("hersteller") and e.get("material")):
             continue
@@ -286,6 +309,7 @@ def abrufen(cfg, sorten, alt=None, melde=print):
             _letzte["treffer"] = 0
             try:
                 a = f()
+                in_folge[name] = 0
                 if a:
                     z[name] = a
                     stat[name] += 1
@@ -294,14 +318,21 @@ def abrufen(cfg, sorten, alt=None, melde=print):
                 else:
                     z.pop(name, None)
                     zeile[name] = {"s": "keiner", "treffer": _letzte["treffer"]}
-            except Exception as ex:  # Zugang falsch o. Ä.: einmal melden und diesen Händler für diesen Lauf aufgeben
+            except Exception as ex:
                 msg = str(getattr(ex, "reason", None) or ex)[:200]
-                stat["fehler"].append(msg)
+                netz = netzfehler(ex)
+                if netz:
+                    msg = "Netz kurz weg (" + msg + ")"
+                    in_folge[name] += 1
                 zeile[name] = {"s": "fehler", "text": msg}
-                if name == "ebay":
-                    eb_an = False
-                else:
-                    al_an = False
+                # Zugang falsch o. Ä. oder Netz dauerhaft weg: diesen Händler für diesen Lauf aufgeben
+                if not netz or in_folge[name] >= 3:
+                    stat["fehler"].append(msg)
+                    if name == "ebay":
+                        eb_an = False
+                    else:
+                        al_an = False
+                # sonst: alten Preis behalten und mit der nächsten Sorte weitermachen
             time.sleep(0.3)
         stat["zeilen"].append(zeile)
         z["zeit"] = time.strftime("%Y-%m-%d %H:%M")
