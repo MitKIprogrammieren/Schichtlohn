@@ -1379,7 +1379,9 @@ const STILE={
   cloud:["Cloud",{bg:"#ffffff",k:"#ffffff",k2:"#f5f7fb",l:"#e3e8f0",l2:"#cfd6e2",fg:"#111827",fg2:"#4b5563",fg3:"#8a94a6",a:"#1f4fd1",as:"rgba(31,79,209,.10)",ok:"#16a34a",w:"#e8a317",b:"#e5484d",h:"#ffffff",st:"#f4f6fb",su:"#f5f7fb",cs:"light"},
     {bg:"#0f1420",k:"#171d2b",k2:"#1e2536",l:"#2a3245",l2:"#3a4459",fg:"#e8ecf3",fg2:"#a3acbd",fg3:"#79839a",a:"#4f7cff",as:"rgba(79,124,255,.18)",ok:"#3ecf7a",w:"#f2b84b",b:"#ff6b5e",h:"#0f1420",st:"#131a28",su:"#121827",cs:"dark"},14],
   fritz:["Box",{bg:"#ffffff",k:"#ffffff",k2:"#f4f6f8",l:"#d9dfe6",l2:"#c3ccd6",fg:"#2b2b2b",fg2:"#555b62",fg3:"#80868d",a:"#1a73c9",as:"rgba(26,115,201,.10)",ok:"#5fae2e",w:"#e89a00",b:"#d0312d",h:"#1667b8",st:"#f4f6f8",su:"#f6f8fa",cs:"light"},
-    {bg:"#16202b",k:"#1d2935",k2:"#243241",l:"#2e3d4d",l2:"#3c4e61",fg:"#e6ebf0",fg2:"#a6b1bd",fg3:"#7b8794",a:"#4a9be8",as:"rgba(74,155,232,.18)",ok:"#6cc23a",w:"#f0a400",b:"#ff5a52",h:"#0f4f8f",st:"#1a2531",su:"#141d27",cs:"dark"},4]};
+    {bg:"#16202b",k:"#1d2935",k2:"#243241",l:"#2e3d4d",l2:"#3c4e61",fg:"#e6ebf0",fg2:"#a6b1bd",fg3:"#7b8794",a:"#4a9be8",as:"rgba(74,155,232,.18)",ok:"#6cc23a",w:"#f0a400",b:"#ff5a52",h:"#0f4f8f",st:"#1a2531",su:"#141d27",cs:"dark"},4],
+  slicer:["Slicer",{bg:"#f3f4f2",k:"#ffffff",k2:"#f7f8f6",l:"#e2e4e0",l2:"#cfd3cc",fg:"#1d2320",fg2:"#59615c",fg3:"#8a918c",a:"#1f9d55",as:"rgba(31,157,85,.11)",ok:"#1f9d55",w:"#d9902a",b:"#d9483b",h:"#ffffff",st:"#f7f8f6",su:"#eef0ec",cs:"light"},
+    {bg:"#16191b",k:"#1e2225",k2:"#252a2e",l:"#2f3539",l2:"#3d444a",fg:"#e9ecea",fg2:"#a3aba6",fg3:"#768079",a:"#3ccf7a",ai:"#06210f",as:"rgba(60,207,122,.14)",ok:"#3ccf7a",w:"#f0ac45",b:"#ff6b5e",h:"#16191b",st:"#1b1f22",su:"#131618",cs:"dark"},12]};
 /* Zusätzliche Formen je Stil (nicht nur Farben). Türkis: Kennzahlen als Kacheln mit farbigem Streifen, Reiter als umrandete Pillen, dickere Füllbalken */
 /* Kennzahlen als Kacheln mit farbigem Streifen (Türkis und Modern) */
 const KACHELN=(R,z,rad)=>{const streifen=(sel)=>z.map((c,i)=>`${R} ${sel}:nth-child(5n+${i+1})::before{background:${c}}`).join("");
@@ -1532,6 +1534,53 @@ ${R} .fz-sb .fz-li b{color:var(--fg)}
   html.fz #wuRail .cl-fuss b{font-weight:600;color:var(--fg)}
   html.fz #wuRail .cl-bar{height:4px;border-radius:2px;margin:8px 0;background:#7cbf3a}
   html.fz #wuRail .cl-fuss small{display:block;text-align:center;color:var(--fg-3);margin-top:10px}
+}`})();
+/* Stil „Slicer“ (nach Vorbild PancakeSlicer): ruhige Grafitflächen, feine Linien, Seitenleiste mit Text, Auswahl als Karten mit grünem Rand */
+STIL_EXTRA.slicer=(()=>{const R=":root:root:root";
+  return `${R}{--f-display:Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--f-body:var(--f-display);--body-bg:var(--bg)}
+${R} body{background:var(--bg)!important}
+${R} header.top{background:var(--header-bg);border-bottom:1px solid var(--line);backdrop-filter:none;-webkit-backdrop-filter:none}
+${R} .brand{font-weight:600;letter-spacing:-.01em}
+${R} .brand svg{color:var(--accent)}
+${R} .panel{backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+${R} :is(.panel,.dcard,.rx-k,.job,.grp,.spanel,.lgsil,.kpi,.hk,.pvs,.na-leer,.na-k){border-radius:12px!important}
+${R} .modal{border-radius:16px!important}
+${R} :is(.btn,input,select,textarea){border-radius:8px}
+${R} .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff);font-weight:600}
+${R} .chip{border-radius:8px;font-weight:500}
+${R} input,${R} select,${R} textarea{background:var(--glass)}
+${R} :is(input,select,textarea):focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+${R} :is(.seg,.rx-seg){gap:8px;padding:0;border:0;background:none;border-radius:0}
+${R} :is(.seg,.rx-seg) button{flex:1 1 0;min-height:40px;border:1px solid var(--line)!important;border-radius:10px!important;background:var(--glass)!important;color:var(--fg-2)!important;font-weight:500}
+${R} :is(.seg,.rx-seg) button:hover{border-color:var(--line-2)!important}
+${R} :is(.seg,.rx-seg) button:is(.on,[aria-pressed="true"],[aria-checked="true"]){border:2px solid var(--accent)!important;background:var(--accent-soft)!important;color:var(--accent)!important;font-weight:600}
+${R} nav.tabs button{border-radius:8px}
+${R} nav.tabs button[aria-current="page"]{background:var(--accent-soft)!important;color:var(--accent)!important}
+${R} table th{font-size:12px;color:var(--fg-3);background:none;border-bottom:1px solid var(--line)}
+${R} .h-z div{border-radius:10px;background:var(--sunken);border:1px solid var(--line)}
+${R} .toast{border-radius:10px;border:1px solid var(--line);background:var(--glass);color:var(--fg)}
+${R} .bnav button.on::before{display:none}
+${R} .bnav button.on svg{background:var(--accent-soft);border-radius:8px;padding:3px 12px;box-sizing:content-box}
+#wuRail,#wuSeite{display:none}
+@media (min-width:701px){
+  html.sc body{padding-left:232px}
+  html.sc nav.tabs{display:none!important}
+  html.sc .brand{display:none!important}
+  html.sc .wrap{max-width:1500px}
+  html.sc .toast{left:calc(50% + 116px)}
+  html.sc #wuRail{display:flex;flex-direction:column;gap:2px;position:fixed;left:0;top:0;bottom:0;width:232px;box-sizing:border-box;z-index:7;background:var(--strip);border-right:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 16px) 12px calc(env(safe-area-inset-bottom,0px) + 14px);overflow:auto}
+  html.sc #wuRail .cl-logo{display:flex;align-items:center;gap:10px;padding:2px 10px 18px;font:600 18px/1 var(--f-display);color:var(--fg)}
+  html.sc #wuRail .cl-logo svg{width:26px;height:26px;flex:none;color:var(--accent)}
+  html.sc #wuRail button.wu-b{display:flex;align-items:center;gap:12px;padding:9px 12px;border:0;border-radius:8px;background:none;color:var(--fg-2);font:500 14.5px/1.2 var(--f-body);text-align:left;cursor:pointer}
+  html.sc #wuRail button.wu-b svg{flex:none;width:20px;height:20px}
+  html.sc #wuRail button.wu-b:hover{background:color-mix(in srgb,var(--fg) 6%,transparent);color:var(--fg)}
+  html.sc #wuRail button.wu-b.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  html.sc #wuRail .wu-sp{flex:1;min-height:14px}
+  html.sc #wuRail .cl-fuss{padding:12px 10px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--fg-2)}
+  html.sc #wuRail .cl-fuss div{display:flex;justify-content:space-between;gap:8px}
+  html.sc #wuRail .cl-fuss b{font-weight:600;color:var(--fg)}
+  html.sc #wuRail .cl-bar{height:5px;border-radius:3px;margin:8px 0;background:var(--accent)}
+  html.sc #wuRail .cl-fuss small{display:block;text-align:center;color:var(--fg-3);margin-top:10px}
 }`})();
 /* Stil „Cloud“ (nach Vorbild ddownload): helle Seitenleiste mit Logo, Suche oben, Info-Spalte rechts; Handy: Menü von links */
 STIL_EXTRA.cloud=(()=>{const R=":root:root:root";
@@ -8963,7 +9012,7 @@ const WU_KEY="sl_wu_meldungen";let WU_LOG=[];try{WU_LOG=JSON.parse(localStorage.
 WU_LOG.forEach(m=>{if(/Abbuchung/.test(m.t))m.t=m.t.replace(/^✓\s*/,"").replace(/✕$/,"").replace(/Besuchzusammen/,"Besuch · zusammen").trim()});
 let wuReiter="meld";
 const wuSpeichern=()=>{try{localStorage.setItem(WU_KEY,JSON.stringify(WU_LOG))}catch(e){}};const wuZeit=()=>new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
-function wuAn(){try{return ["wuerth","cloud","fritz"].includes(designCfg().stil)&&!window.__PW_HA&&!document.documentElement.classList.contains("eingebettet")}catch(e){return false}}
+function wuAn(){try{return ["wuerth","cloud","fritz","slicer"].includes(designCfg().stil)&&!window.__PW_HA&&!document.documentElement.classList.contains("eingebettet")}catch(e){return false}}
 function wuMerken(t,art,ziel){t=String(t||"").replace(/\s+/g," ").trim();if(!t)return;if(WU_LOG[0]&&WU_LOG[0].t===t&&Date.now()-WU_LOG[0].ms<4000)return;
   WU_LOG.unshift({t,art,z:wuZeit(),ms:Date.now(),ziel:ziel||""});WU_LOG.length=Math.min(WU_LOG.length,40);wuSpeichern();wuSeite()}
 /* Wohin eine Meldung führt: Abbuchungen → Reiter Drucker, „Zuletzt abgebucht“; fertige Drucke → Reiter Drucker */
@@ -8991,16 +9040,18 @@ function wuSeite(){const s=document.getElementById("wuSeite");if(!s)return;const
   const lz=s.querySelector("#wuLeeren");if(lz)lz.hidden=wuReiter!=="meld"||!WU_LOG.length;
   const h=wuReiter==="drucker"?wuDrucker():WU_LOG.length?WU_LOG.map((m,i)=>{const z=wuZiel(m);return z?`<button type="button" class="wu-m ${m.art}" data-wuziel="${z}" title="Öffnen">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></button>`:`<div class="wu-m ${m.art}">${esc(m.t)}<small>${wuTag(m.ms)}${m.z}</small></div>`}).join(""):`<div class="wu-leer">Keine Meldungen.<br>Hinweise, Abbuchungen und fertige Drucke erscheinen hier.</div>`;
   if(l.dataset.h!==h){l.innerHTML=h;l.dataset.h=h}}
-function wuRahmen(){const an=wuAn(),de=document.documentElement,cl=an&&designCfg().stil==="cloud",fz=an&&designCfg().stil==="fritz";
+function wuRahmen(){const an=wuAn(),de=document.documentElement,cl=an&&designCfg().stil==="cloud",fz=an&&designCfg().stil==="fritz",sc=an&&designCfg().stil==="slicer";
   let r=document.getElementById("wuRail"),s=document.getElementById("wuSeite");
   /* Wechsel zwischen „Modern“, „Cloud“ und „Box“: Leiste und Spalte neu aufbauen */
-  if(de.classList.contains("cl")!==cl||de.classList.contains("fz")!==fz){if(r)r.remove();if(s)s.remove();r=s=null}
-  de.classList.toggle("wu",an&&!cl&&!fz);de.classList.toggle("wu-s",an&&!fz);de.classList.toggle("cl",cl);de.classList.toggle("fz",fz);de.classList.toggle("wu-zu",an&&!fz&&wuZu());
+  if(de.classList.contains("cl")!==cl||de.classList.contains("fz")!==fz||de.classList.contains("sc")!==sc){if(r)r.remove();if(s)s.remove();r=s=null}
+  de.classList.toggle("wu",an&&!cl&&!fz&&!sc);de.classList.toggle("wu-s",an&&!fz&&!sc);de.classList.toggle("cl",cl);de.classList.toggle("fz",fz);de.classList.toggle("sc",sc);de.classList.toggle("wu-zu",an&&!fz&&!sc&&wuZu());
   clKopf(cl);
   if(!an){if(r)r.remove();if(s)s.remove();return}
   /* „Box“: Seitenleiste mit Text, weißer Logo-Block so hoch wie die blaue Kopfleiste, keine Meldungsspalte */
   if(fz){if(s)s.remove();clLeiste(r);r=document.getElementById("wuRail");const kopf=document.querySelector("header.top");
     if(r&&kopf){const kh=Math.round(kopf.getBoundingClientRect().height)+"px";if(r.style.getPropertyValue("--wuh")!==kh)r.style.setProperty("--wuh",kh)}return}
+  /* „Slicer“: Seitenleiste mit Logo und Text, keine Meldungsspalte */
+  if(sc){if(s)s.remove();clLeiste(r);return}
   if(cl){clLeiste(r);if(!s)wuSeiteBauen(true);else wuSeite();return}
   if(!r){r=document.createElement("nav");r.id="wuRail";r.setAttribute("aria-label","Bereiche");document.body.appendChild(r)}
   const k=["heute","lager","drucke","rechner","preise","auftraege","portfolio","geschaeft"].filter(sichtbar);

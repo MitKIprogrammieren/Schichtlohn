@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.17.13 – 19.11.2026
+- Neuer Design-Stil „Slicer“ (nach Vorbild von PancakeSlicer): ruhige Grafitflächen mit grünem Akzent, Seitenleiste links mit Logo, Bereichen und Lagerstand. Auswahlknöpfe (z. B. „Einfach/Ausführlich“, „Freundschaft/Normal/Gut verdienen“) erscheinen als Karten, die gewählte ist grün umrandet. Einstellen unter Einstellungen → Design → Stil, hell und dunkel möglich. Dein bisheriger Stil bleibt unverändert.
+
 ## 3.17.12 – 15.11.2026
 - Preisvergleich: Ein kurzer Netzaussetzer bricht den Abruf nicht mehr ab. SchichtLohn versucht es zweimal erneut und macht dann mit der nächsten Sorte weiter. Erst wenn das Netz länger weg ist, wird der Händler für diesen Lauf ausgelassen.
 - AliExpress findet mehr: Gesucht wird jetzt mit englischen Farbnamen. Findet sich nichts, schaut SchichtLohn alle Angebote der Marke mit diesem Material durch und sucht dort die passende Farbe.
