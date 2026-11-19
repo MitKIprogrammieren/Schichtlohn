@@ -1,0 +1,1728 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#00a33e">
+<title>Gridwerk – Gridfinity-Generator</title>
+<script type="importmap">
+{ "imports": {
+"three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+"manifold-3d": "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.5/manifold.js",
+"opentype": "https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.module.js",
+"fflate": "https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js",
+"qrcode": "https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
+} }
+</script>
+<style>
+:root{--gruen:#00a33e;--gruen2:#e6f6ec;--bg:#f4f5f3;--karte:#fff;--text:#1d1f1c;--grau:#6b716a;--linie:#e1e4df;--r:14px;--planerRand:#c9cec6;--planerZelle:#e9ece6}
+@media (prefers-color-scheme:dark){:root{--bg:#141614;--karte:#1e211e;--text:#eef0ec;--grau:#9aa198;--linie:#2f332f;--gruen2:#183322;--planerRand:#3a3f3a;--planerZelle:#2a2e2a}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--karte);border-bottom:1px solid var(--linie);position:sticky;top:0;z-index:5}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--gruen);display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:6px}
+.logo i{background:#fff;border-radius:2px;opacity:.95}
+h1{font-size:18px;margin:0;font-weight:700}
+h1 small{display:block;font-size:12px;color:var(--grau);font-weight:500}
+header .rechts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.modus{display:flex;background:var(--bg);border-radius:11px;padding:3px;gap:2px;margin-left:14px;border:1px solid var(--linie)}
+.modus button{border:none;background:none;padding:6px 14px;border-radius:8px}
+.modus button.aktiv{background:var(--karte);color:var(--gruen);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.eintrag svg.binsvg{flex:0 0 auto;width:64px;height:64px}
+.planerBox{grid-column:1/-1;background:var(--bg);border-radius:12px;padding:8px;touch-action:none}
+.planer{width:100%;height:auto;max-height:60vh;display:block}
+.planerBin{cursor:grab}
+.logos{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.logoKachel{width:72px;height:56px;padding:4px;display:grid;place-items:center;background:var(--bg)}
+.logoKachel img{max-width:100%;max-height:100%}
+.logoKachel.aktiv{border-color:var(--gruen);border-width:2px}
+.warnung{grid-column:1/-1;font-size:12px;color:#b45309;background:#fff7e6;border-radius:8px;padding:8px 10px}
+button,.btn{font:inherit;border:1px solid var(--linie);background:var(--karte);color:var(--text);border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600;white-space:nowrap}
+button:hover{border-color:var(--gruen)}
+button.primaer{background:var(--gruen);border-color:var(--gruen);color:#fff}
+button.klein{padding:5px 10px;font-size:13px}
+button.gefahr{color:#c62828}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+.karte{background:var(--karte);border:1px solid var(--linie);border-radius:var(--r)}
+.liste{display:flex;flex-direction:column;min-height:0}
+.liste .kopf{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--linie)}
+.liste .kopf b{flex:1}
+#eintraege{overflow:auto;max-height:calc(100vh - 190px);padding:8px}
+.eintrag{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:2px solid transparent}
+.eintrag:hover{background:var(--bg)}
+.eintrag.aktiv{border-color:var(--gruen);background:var(--gruen2)}
+.eintrag svg{flex:0 0 auto;width:150px;height:auto;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+.eintrag .info{min-width:0;font-size:13px;color:var(--grau)}
+.eintrag .info b{display:block;color:var(--text);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eintrag .anz{margin-left:auto;font-size:12px;background:var(--bg);border-radius:20px;padding:2px 8px;color:var(--grau)}
+.rechtsSpalte{display:flex;flex-direction:column;gap:16px;min-width:0}
+#ansicht{position:relative;height:360px;overflow:hidden}
+#ansicht canvas{display:block;width:100%;height:100%;border-radius:var(--r)}
+#status{position:absolute;left:14px;bottom:12px;font-size:12px;color:var(--grau);background:var(--karte);padding:4px 10px;border-radius:20px;border:1px solid var(--linie)}
+.felder{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px 14px}
+.felder h3{grid-column:1/-1;margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--grau)}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--grau);font-weight:600}
+input,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--linie);border-radius:9px;padding:8px 10px;width:100%}
+input[type=color]{padding:2px;height:38px}
+input:focus,select:focus{outline:2px solid var(--gruen);outline-offset:-1px}
+.check{flex-direction:row;align-items:center;gap:8px;padding-top:20px}
+.check input{width:auto}
+.aktionen{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.wahlKnopf{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--bg);font-weight:500;padding:5px 8px;min-height:40px}
+.wahlKnopf .bild{flex:0 0 52px;height:28px}
+.wahlKnopf span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wahlKnopf.offen{border-color:var(--gruen)}
+.bild{border-radius:6px;display:grid;place-items:center;overflow:hidden}
+.bild svg{width:92%;height:88%}
+.bild b{color:#fff;font-size:13px}
+.kacheln{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;padding:10px;background:var(--bg);border-radius:12px;border:1px solid var(--linie)}
+.kachel{display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:5px;border-radius:10px;border:2px solid transparent;background:var(--karte);font-size:11px;font-weight:600;line-height:1.2;text-align:center;white-space:normal}
+.kachel .bild{aspect-ratio:2.1;width:100%}
+.kachel.aktiv{border-color:var(--gruen);background:var(--gruen2)}
+dialog{border:none;border-radius:var(--r);padding:0;max-width:560px;width:calc(100% - 32px);background:var(--karte);color:var(--text)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .felder{grid-template-columns:1fr}
+dialog textarea{font:13px/1.4 ui-monospace,Menlo,monospace;width:100%;height:180px;background:var(--bg);color:var(--text);border:1px solid var(--linie);border-radius:9px;padding:8px}
+.hinweis{font-size:12px;color:var(--grau);font-weight:400}
+#laden{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:20;font-weight:600;color:var(--grau)}
+@media (max-width:820px){
+main{grid-template-columns:1fr;padding:10px}
+.rechtsSpalte{order:-1}
+#ansicht{height:260px}
+#eintraege{max-height:none}
+header{padding:10px 12px;flex-wrap:wrap}
+.felder{grid-template-columns:1fr 1fr;gap:10px}
+#ansicht{height:200px}
+}
+</style>
+</head>
+<body>
+<div id="laden">Gridwerk wird geladen …</div>
+<header>
+<div class="logo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<h1>Gridwerk<small id="untertitel">Gridfinity-Generator</small></h1>
+<div class="modus"><button id="mEtik" class="aktiv">Etiketten</button><button id="mBins">Behälter</button><button id="mPlatten">Schublade</button></div>
+<div class="rechts">
+<button id="bStl">STL</button>
+<button id="b3mf" class="primaer">3MF für Bambu</button>
+</div>
+</header>
+<main>
+<section class="karte liste">
+<div class="kopf"><b id="zaehler">Etiketten</b>
+<button class="klein nurEtik" id="bImport" title="batch_label_data aus der SCAD-Datei einfügen">Import</button>
+<button class="klein nurEtik" id="bSerie">Serie</button>
+<button class="klein primaer" id="bNeu">+ Etikett</button>
+</div>
+<div id="eintraege"></div>
+</section>
+<section class="rechtsSpalte">
+<div class="karte" id="ansicht"><div id="status">bereit</div></div>
+<div class="karte"><div class="felder" id="editor"></div></div>
+<details class="karte" id="einstBox"><summary id="einstTitel" style="padding:14px 16px;cursor:pointer;font-weight:700">Einstellungen für alle Etiketten</summary><div class="felder" id="einst"></div></details>
+</section>
+</main>
+<dialog id="dSerie"><form method="dialog" class="felder">
+<h3>Serie aus dem gewählten Etikett</h3>
+<p class="hinweis">Übernimmt Teil, Kopf und Antrieb vom gewählten Etikett und legt alle Kombinationen an.</p>
+<label>Durchmesser (durch Komma getrennt)<input id="sD" value="M2, M3, M4, M5"></label>
+<label>Längen in mm (leer = ohne Länge)<input id="sL" value="8, 12, 16, 20"></label>
+<div class="aktionen"><button value="ok" class="primaer">Anlegen</button><button value="abbruch">Abbrechen</button></div>
+</form></dialog>
+<dialog id="dImport"><form method="dialog" class="felder">
+<h3>Liste importieren</h3>
+<p class="hinweis">Den Block <code>batch_label_data = [ … ]</code> aus der SCAD-Datei einfügen, oder pro Zeile: <code>Bolt; Pan head; Hex socket; M3; 8</code></p>
+<textarea id="iText"></textarea>
+<label class="check"><input type="checkbox" id="iErsetzen"> bestehende Liste ersetzen</label>
+<div class="aktionen"><button value="ok" class="primaer">Importieren</button><button value="abbruch">Abbrechen</button></div>
+</form></dialog>
+<script type="module">
+import Module from 'manifold-3d';
+import opentype from 'opentype';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { zipSync, strToU8 } from 'fflate';
+import qrcode from 'qrcode';
+const KATALOG = {
+Bolt:      { de: 'Schraube' },
+Nut:       { de: 'Mutter', typen: ['Standard', 'Tall', 'Square', 'Lock', 'Castle', 'Cap', 'Eye', 'Disc', 'Wing', 'Slide-in T-nut', 'Hammer'] },
+Washer:    { de: 'Scheibe', typen: ['Standard', 'Spring', 'Spacer'] },
+Standoff:  { de: 'Abstandshalter', typen: ['Male-female', 'Female-female', 'Male-male'] },
+Furniture: { de: 'Möbelbeschlag', typen: ['Wooden dowel', 'Expansion sleeve', 'Cam lock nut', 'Cam lock bolt'] },
+Other:     { de: 'Sonstiges', typen: ['Wall anchor', 'Heat set insert', 'Threaded rod', 'Compression spring', 'Custom text', 'None'] },
+Electronics: { de: 'Elektronik', typen: ['Resistor', 'Electrolytic', 'Ceramic cap', 'LED', 'Diode', 'Fuse', 'Pin header', 'Ring terminal', 'Ferrule', 'Heat shrink', 'Cable tie', 'Battery', 'Coin cell'] },
+Tools:     { de: 'Werkzeug & Zubehör', typen: ['Bit', 'Drill', 'Magnet', 'Spring clip', 'O-ring', 'Rivet'] },
+};
+const KOEPFE = ['Socket head', 'Pan head', 'Mushroom head', 'Flat head', 'Countersunk', 'Raised countersunk', 'Wafer head', 'Hex head', 'Hex flange', 'Grub screw'];
+const ANTRIEBE = ['Hex socket', 'Phillips', 'Pozidriv', 'Torx', 'Torx TR', 'AW', 'RW', 'Slotted'];
+const SPITZEN = ['Machine', 'Wood', 'Drill'];
+const GEWINDE = ['Full', 'Partial'];
+const DE = {
+'Socket head': 'Zylinderkopf', 'Pan head': 'Linsenkopf', 'Mushroom head': 'Flachrundkopf', 'Flat head': 'Flachkopf',
+'Countersunk': 'Senkkopf', 'Raised countersunk': 'Linsensenkkopf', 'Wafer head': 'Tellerkopf', 'Hex head': 'Sechskant', 'Hex flange': 'Sechskant mit Bund', 'Grub screw': 'Gewindestift',
+'Pozidriv': 'Pozidriv (PZ)', 'AW': 'AW (Würth)', 'RW': 'RW (Würth ASSY 4.0)', 'Drill': 'Bohrspitze', 'Full': 'Vollgewinde', 'Partial': 'Teilgewinde',
+'Hex socket': 'Innensechskant', 'Phillips': 'Kreuzschlitz', 'Torx': 'Torx', 'Torx TR': 'Torx TR', 'Slotted': 'Schlitz',
+'Machine': 'stumpf (metrisch)', 'Wood': 'Spitze (Holz)',
+'Standard': 'Standard', 'Tall': 'Hoch (DIN 6330)', 'Square': 'Vierkant', 'Lock': 'Sicherungsmutter', 'Castle': 'Kronenmutter',
+'Cap': 'Hutmutter', 'Eye': 'Ringmutter', 'Disc': 'Tellermutter', 'Wing': 'Flügelmutter', 'Slide-in T-nut': 'Nutenstein (Schiebe)', 'Hammer': 'Hammermutter',
+'Spring': 'Federring', 'Spacer': 'Distanzhülse',
+'Male-female': 'Außen-Innen', 'Female-female': 'Innen-Innen', 'Male-male': 'Außen-Außen',
+'Wooden dowel': 'Holzdübel', 'Expansion sleeve': 'Spreizhülse', 'Cam lock nut': 'Exzenter', 'Cam lock bolt': 'Verbindungsbolzen',
+'Wall anchor': 'Dübel', 'Heat set insert': 'Gewindeeinsatz', 'Threaded rod': 'Gewindestange', 'Compression spring': 'Druckfeder',
+'Custom text': 'Eigener Text', 'None': 'Ohne Icon',
+'Resistor': 'Widerstand', 'Electrolytic': 'Elko', 'Ceramic cap': 'Keramik-Kondensator', 'LED': 'LED', 'Diode': 'Diode', 'Fuse': 'Sicherung',
+'Pin header': 'Stiftleiste', 'Ring terminal': 'Ringkabelschuh', 'Ferrule': 'Aderendhülse', 'Heat shrink': 'Schrumpfschlauch', 'Cable tie': 'Kabelbinder',
+'Battery': 'Batterie', 'Coin cell': 'Knopfzelle', 'Bit': 'Bit', 'Drill': 'Bohrer', 'Magnet': 'Magnet', 'Spring clip': 'Sicherungsring', 'O-ring': 'O-Ring', 'Rivet': 'Niete',
+};
+const PARTS = [
+['Bolt', '*', 16, 'size'], ['Nut', '*', undefined, 'diameter'], ['Washer', '*', undefined, 'diameter'],
+['Washer', 'Spacer', 5, 'size'], ['Standoff', '*', 10, 'size'], ['Furniture', '*', 16, 'size'],
+['Other', 'Wall anchor', undefined, 'size'], ['Other', 'Heat set insert', undefined, 'size'],
+['Other', 'Threaded rod', 1000, 'optional'], ['Other', 'Compression spring', 16, 'size'],
+['Other', 'Custom text', undefined, 'custom'], ['Other', 'None', undefined, 'centered'],
+['Electronics', '*', undefined, 'optional'], ['Tools', '*', undefined, 'optional'],
+];
+const partRow = (c, t) => PARTS.find(p => p[0] === c && p[1] === t) || PARTS.find(p => p[0] === c && p[1] === '*');
+const laengeAusY = y => ({ 1: 35.8, 2: 77.8, 3: 119.8 }[y] || 35.8);
+function makeLabels(wasm) {
+const { Manifold, CrossSection: C } = wasm;
+const LEER = () => new C([]);
+const U = (...a) => { const l = a.flat().filter(Boolean); return l.length ? C.union(l) : LEER(); };
+const ci = (d, fn = 64, x = 0, y = 0) => C.circle(d / 2, fn).translate([x, y]);
+const re = (x, y, w, h) => (w > 1e-6 && h > 1e-6) ? C.square([w, h]).translate([x, y]) : null;
+const po = pts => new C([pts], 'NonZero');
+const hull = (...a) => C.hull(a.flat().filter(Boolean));
+const ring = (a, b) => ci(a).subtract(ci(b));
+const hex = d => ci(d, 6);
+function labelGeo(o, ein, nur2D = false) {
+const Y = o.Y_units || ein.Y_units || 1, length = laengeAusY(Y);
+const width = +o.width || 11.5, height = +o.height || 0.8, ch = Math.min(Math.max(+(o.champfer ?? 0.2), 0), height / 2 - 0.05);
+const radius = Math.max(+(o.radius ?? 0.9), ch + 0.05);
+const maxLen = 20 * Y;
+const stem = (len, x, y, th = 2.5) => {
+if (len > maxLen) { const seg = (maxLen - 2) / 2; return U(re(x, y, seg, th), re(x + seg + 2, y, seg, th)); }
+return U(re(x, y, len, th));
+};
+const chamf = (x, h, s, dir) => U(po([[x, h], [x + dir * s, h], [x, h - s]]), po([[x, -h], [x + dir * s, -h], [x, -h + s]]));
+const phillips = () => U(re(-0.5, -2, 1, 4), re(-2, -0.5, 4, 1));
+const torx = () => {
+const d = 15 * Math.PI / 180, l = 2, p = [];
+const spitze = hull(ci(0.1, 12), ci(0.1, 12, Math.sin(d) * l, Math.cos(d) * l), ci(0.1, 12, -Math.sin(d) * l, Math.cos(d) * l)).translate([0, -l]);
+for (let i = 0; i < 6; i++) p.push(spitze.rotate(i * 60));
+return U(p);
+};
+const sechsrund = (ri, rl, dl) => U(ci(ri * 2), ...[0, 60, 120, 180, 240, 300].map(a => ci(rl * 2, 32, dl * Math.cos(a * Math.PI / 180), dl * Math.sin(a * Math.PI / 180))));
+const pozi = () => U(phillips(), ...[45, 135, 225, 315].map(a => re(-0.13, 0.55, 0.26, 1.0).rotate(a)));
+const stroke = (pts, th) => U(pts.slice(0, -1).map((p, i) => hull(ci(th, 12, p[0], p[1]), ci(th, 12, pts[i + 1][0], pts[i + 1][1]))));
+const icons = {
+'Nut/Standard': () => U(hex(5).subtract(ci(3)), re(4, -2.5, 2.8, 5)).translate([-2.5, 0]),
+'Nut/Tall': () => U(hex(5).subtract(ci(3)), U(re(4, -2.5, 5.6, 5)).subtract(U(re(4, -1.05, 5.6, 0.4), re(4, 0.65, 5.6, 0.4)))).translate([-3.9, 0]),
+'Nut/Square': () => U(re(-2.2, -2.2, 4.4, 4.4).subtract(ci(2.6)), re(4, -2.2, 2.8, 4.4)).translate([-2.5, 0]),
+'Nut/Lock': () => U(hex(5).subtract(ci(3)), re(4, -2.5, 2.8, 5), re(4, -2, 3.5, 4)).translate([-2.5, 0]),
+'Nut/Castle': () => U(
+hex(5).subtract(ci(2.4)).subtract(U([0, 60, 120].map(a => re(-2.1, -0.35, 4.2, 0.7).rotate(a)))),
+re(4, -2.5, 2.2, 5), re(6.2, -2.1, 2.2, 4.2).subtract(re(7.2, -0.4, 1.2, 0.8))).translate([-3.3, 0]),
+'Nut/Cap': () => U(hex(5).subtract(ring(3.8, 2.8)), re(4, -2.5, 2.2, 5), ci(4).intersect(re(0, -2, 2, 4)).translate([6.2, 0])).translate([-2.5, 0]),
+'Nut/Eye': () => U(ring(5, 3.8), re(-0.6, -2.5, 1.2, 5), hull(re(4, -2, 1.2, 4), re(5.2, -1, 1, 2)), ring(5, 2.8).translate([8.2, 0])).translate([-4, 0]),
+'Nut/Disc': () => U(ci(5.6).subtract(hex(4.8)), hex(4).subtract(ci(2.2)), re(4, -2.8, 0.8, 5.6), re(4.8, -2, 2.2, 4)).translate([-3, 0]),
+'Nut/Wing': () => {
+const fl = hull(re(0.9, -2.2, 0.5, 1.5), ci(1.2, 24, 2.8, 1.9));
+return U(U(ci(3.2), hull(ci(1, 24, -3, 0), ci(1, 24, 3, 0))).subtract(ci(1.8)),
+U(po([[-1.5, -2.5], [1.5, -2.5], [1.1, 0.3], [-1.1, 0.3]]), fl, fl.mirror([1, 0])).translate([8.5, 0])).translate([-4.25, 0]);
+},
+'Nut/Slide-in T-nut': () => U(re(-3.5, -2, 7, 4).subtract(ci(2.5)), re(5, -2.5, 6, 2), re(6.75, -0.5, 2.5, 1.5)).translate([-4, 0]),
+'Nut/Hammer': () => U(hull(ci(4, 64, 1.5, 0), ci(4, 64, -1.5, 0), re(3, -2, 0.5, 0.5), re(-3.5, 1.5, 0.5, 0.5)).subtract(ci(2.5)),
+po([[6.5, -2.5], [9.5, -2.5], [11, 0.5], [5, 0.5]]), re(6.75, 0.5, 2.5, 1.5)).translate([-4, 0]),
+'Washer/Standard': () => U(ring(5, 3), re(4, -2.5, 1, 5)).translate([-1.5, 0]),
+'Washer/Spring': () => U(ring(5, 3).subtract(re(0, 0, 5, 0.8)), re(4, -2.5, 1, 5)).translate([-1.5, 0]),
+'Washer/Spacer': L => { const dl = Math.min(L, maxLen); return U(ring(5, 3), stem(L, 4, -2.5, 5)).translate([-(dl + 1.5) / 2, 0]); },
+'Standoff': (L, typ) => {
+const dl = Math.min(L, maxLen), st = 2.5, ms = typ === 'Male-male', me = typ !== 'Female-female';
+const bx = 4 + (ms ? st : 0), rechts = bx + dl + (me ? st : 0);
+return U(hex(5).subtract(ci(ms ? 3.4 : 2.6)), ms && ci(2.4),
+stem(L, bx, -2, 4).subtract(U(re(bx, -1.05, dl, 0.4), re(bx, 0.65, dl, 0.4))),
+ms && re(bx - st, -1, st, 2), me && re(bx + dl, -1, st, 2)).translate([-(rechts - 2.5) / 2, 0]);
+},
+'Other/Compression spring': L => {
+const turns = 7, rx = 1.3, ry = 2.25, gap = 0.25, dl = Math.min(L, maxLen);
+const pitch = Math.max((dl - 2 * (gap + 2 * rx)) / turns, 0.9);
+const sx = -turns * pitch / 2, ex = sx + turns * pitch, lt = sx - gap - rx, rt = ex + gap + rx, cxo = rx * 0.5, cy = -ry * 0.87;
+const ell = cx => Array.from({ length: 37 }, (_, i) => { const t = 2 * Math.PI * i / 36; return [cx + rx * Math.cos(t), ry * Math.sin(t)]; });
+const helix = Array.from({ length: turns * 20 + 1 }, (_, i) => { const t = 2 * Math.PI * turns * i / (turns * 20); return [sx + pitch * t / (2 * Math.PI) + rx * Math.sin(t), -ry * Math.cos(t)]; });
+return U(stroke(ell(lt), 0.6), stroke([[lt + cxo, cy], [sx, -ry]], 0.6), stroke(helix, 0.6), stroke([[ex, -ry], [rt - cxo, cy]], 0.6), stroke(ell(rt), 0.6));
+},
+'Other/Heat set insert': () => U(U(ci(5, 5), ci(5, 5).rotate(36)).subtract(ci(3, 80)),
+re(4, -2, 1, 4), re(5, -2.5, 2, 5), re(7, -2, 1, 4), re(8, -2.5, 2, 5)).translate([-4, 0]),
+'Other/Threaded rod': L => {
+const rl = L > 0 ? L : 1000, dl = Math.min(rl, maxLen), pitch = 1.2, k = [];
+for (let x = 4 + pitch / 2; x <= 4 + dl - pitch / 2 + 1e-9; x += pitch) for (const y of [-1.5, 1]) k.push(re(x - 0.25, y, 0.5, 0.5));
+return U(ci(5).subtract(ring(4.2, 3.4)), stem(rl, 4, -1.5, 3).subtract(U(k))).translate([-(dl + 1.5) / 2, 0]);
+},
+'Other/Wall anchor': () => {
+const z = [[0, 2], [-1.5, 1.5], [-1.5, -1.5], [0, -2]];
+return U(po([[0, 2], [-2, 1], [-2, -1], [0, -2]]).translate([-2, 0]), ...[-0.5, 1, 2.5, 4].map(x => po(z).translate([x, 0])),
+re(4, -1.5, 7, 3), re(11, -2, 1, 4)).subtract(re(-4, -0.25, 10, 0.5)).translate([-4, 0]);
+},
+'Furniture/Wooden dowel': L => {
+const dl = Math.min(L, maxLen), fl = Math.min(L, maxLen), be = 4 + fl, flute = fl > 3 ? fl - 2 : 0;
+return U(ci(5).subtract(ring(4.4, 3.6)),
+stem(L, 4, -2, 4).subtract(U(chamf(4, 2, 0.7, 1), chamf(be, 2, 0.7, -1), flute && re(5, 0.6, flute, 0.4), flute && re(5, -1, flute, 0.4)))).translate([-dl / 2 - 2, 0]);
+},
+'Furniture/Expansion sleeve': L => {
+const dl = Math.min(L, maxLen), fl = Math.min(L, maxLen), be = 4 + fl, ss = 4 + fl * 0.4;
+return U(ci(5).subtract(ci(2.6)), U(re(3, -2.5, 1.2, 5), stem(L, 4, -2, 4)).subtract(U(re(ss, -0.5, be - ss, 1), chamf(be, 2, 0.7, -1)))).translate([-dl / 2 - 2, 0]);
+},
+'Furniture/Cam lock nut': () => U(ci(5).subtract(phillips()), U(re(0, 0, 4, 5)).subtract(U(ci(2.4, 64, 2, 2.5), re(1.4, 0, 1.2, 2.5))).translate([4, -2.5])).translate([-3, 0]),
+'Furniture/Cam lock bolt': L => {
+const dl = Math.min(L, maxLen);
+return U(ci(5).subtract(phillips()), ci(5).subtract(re(0, -2.5, 4, 5)).translate([5.5, 0]), re(5.5, -0.9, 1.2, 1.8), re(6.7, -2.2, 1, 4.4), stem(L, 7.7, -1.25)).translate([-dl / 2 - 2, 0]);
+},
+'Electronics/Resistor': () => U(re(-10, -0.3, 20, 0.6), C.square([10, 3.4], true).offset(0, 'Round').subtract(U(re(-3.1, -2, 0.7, 4), re(-1.3, -2, 0.7, 4), re(0.5, -2, 0.7, 4), re(2.6, -2, 0.7, 4)))
+.intersect(hull(ci(3.4, 32, -3.4, 0), ci(3.4, 32, 3.4, 0)))),
+'Electronics/Electrolytic': () => U(hull(ci(1.4, 24, -6.3, 2.3), ci(1.4, 24, -6.3, -2.3), ci(1.4, 24, 2.3, 2.3), ci(1.4, 24, 2.3, -2.3)).subtract(U(re(0.6, -3, 0.7, 6), re(-5.6, -0.25, 2, 0.5))), re(3, 1.2, 7, 0.6), re(3, -1.8, 5.5, 0.6)),
+'Electronics/Ceramic cap': () => U(ci(5.2, 48, -5, 0).subtract(ci(2.2, 32, -5, 0).subtract(re(-6.2, -0.3, 2.4, 0.6))), re(-2.6, 0.9, 11, 0.6), re(-2.6, -1.5, 11, 0.6)),
+'Electronics/LED': () => U(hull(ci(3.6, 40, -4, 0), re(-4, -1.8, 4.5, 3.6)), re(0.5, -2.4, 0.8, 4.8), re(1.3, 0.6, 8.5, 0.6), re(1.3, -1.2, 7, 0.6)).translate([-0.5, 0]),
+'Electronics/Diode': () => U(re(-10, -0.3, 20, 0.6), re(-4, -1.6, 8, 3.2).subtract(re(1.9, -2, 0.9, 4))),
+'Electronics/Fuse': () => U(re(-7, -1.7, 2.6, 3.4), re(4.4, -1.7, 2.6, 3.4), re(-4.4, -1.4, 8.8, 2.8).subtract(re(-4.4, -0.9, 8.8, 1.8)), po([[-4.4, -0.2], [-1.5, -0.2], [0, 0.6], [1.5, -0.2], [4.4, -0.2], [4.4, 0.2], [1.6, 0.2], [0, 1], [-1.6, 0.2], [-4.4, 0.2]])),
+'Electronics/Pin header': () => { const p = [re(-9, -1.2, 18, 2.4)]; for (let i = 0; i < 7; i++) { const x = -7.62 + i * 2.54; p.push(re(x - 0.32, 1.2, 0.64, 1.3), re(x - 0.32, -2.5, 0.64, 1.3)); } return U(p); },
+'Electronics/Ring terminal': () => U(ci(5, 48, -7, 0).subtract(ci(2.2, 32, -7, 0)), po([[-5, -1.1], [-2.6, -1.4], [-2.6, 1.4], [-5, 1.1]]), re(-2.6, -1.4, 6, 2.8).subtract(re(0.2, -1.6, 0.5, 3.2)), re(3.4, -1, 5.6, 2)),
+'Electronics/Ferrule': () => U(po([[-3.5, -2.3], [-1.8, -1.3], [-1.8, 1.3], [-3.5, 2.3]]), re(-1.8, -1.1, 6.5, 2.2), re(-9.5, -1.2, 6, 2.4).subtract(U(re(-9.5, -0.5, 6, 0.25), re(-9.5, 0.3, 6, 0.25))), re(4.7, -0.7, 4, 1.4).subtract(U(re(4.7, -0.15, 4, 0.3)))),
+'Electronics/Heat shrink': () => U(re(-8, -1.6, 15, 3.2).subtract(re(-6, -0.3, 11, 0.6)), ci(3.2, 40, -8, 0).subtract(ci(2, 32, -8, 0)).subtract(re(-8, -2, 3, 4)).add(ci(3.2, 40, -8, 0).subtract(ci(2, 32, -8, 0)).intersect(re(-10, -2, 2, 4)))),
+'Electronics/Cable tie': () => { const z = []; for (let x = -8.5; x < 5.5; x += 1.1) z.push(re(x, 0.25, 0.5, 0.4)); return U(re(-10, -0.65, 16, 1.3).subtract(U(z)), re(6, -2, 3.6, 4).subtract(re(7, -0.9, 1.6, 1.8))); },
+'Electronics/Battery': () => U(hull(ci(1.2, 24, -8, 1.9), ci(1.2, 24, -8, -1.9), ci(1.2, 24, 6.4, 1.9), ci(1.2, 24, 6.4, -1.9)).subtract(U(re(1.6, -0.3, 3, 0.6), re(2.8, -1.5, 0.6, 3), re(-6.2, -0.3, 3, 0.6))), re(7, -0.9, 1.3, 1.8)),
+'Electronics/Coin cell': () => U(ci(5.4, 64, -6, 0).subtract(ci(4.2, 64, -6, 0)), ci(3.2, 48, -6, 0).subtract(U(re(-7, -0.25, 2, 0.5), re(-6.25, -1, 0.5, 2))), re(-1.6, -2.7, 9.5, 1.1), re(-1.6, 1.6, 9.5, 1.1), re(-1.6, -1.6, 9.5, 3.2).subtract(re(-1.6, -1.2, 9.5, 2.4))),
+'Tools/Bit': () => U(hull(re(-10, -1.7, 9, 3.4), re(-10.3, -1.4, 0.3, 2.8)).subtract(re(-6.5, -2, 1, 4).subtract(re(-6.5, -1.2, 1, 2.4))), po([[-1, -1.2], [5, -0.7], [8, 0], [5, 0.7], [-1, 1.2]])),
+'Tools/Drill': () => { const n = []; for (let x = -1; x < 7.5; x += 1.6) n.push(re(x, -3, 0.55, 6).rotate(-25).translate([0, 0])); const fl = re(-2, -1.3, 9.6, 2.6).subtract(U(n.map((r, i) => re(-2 + i * 1.6, -3, 0.5, 6).rotate(25).translate([1.2, 0])))); return U(re(-10, -1.3, 8, 2.6), fl, po([[7.6, -1.3], [9.6, 0], [7.6, 1.3]])); },
+'Tools/Magnet': () => U(ci(5, 48, -2, 0).subtract(ci(2.4, 40, -2, 0)).subtract(re(-2, -3, 6, 6)), re(-2, 1.2, 6, 1.3), re(-2, -2.5, 6, 1.3), re(4, 1.2, 1.8, 1.3), re(4, -2.5, 1.8, 1.3)).translate([-1.5, 0]),
+'Tools/Spring clip': () => U(ci(5, 64).subtract(ci(3.4, 64)).subtract(po([[0, 0], [3, -1.2], [3, 1.2]])), ci(1.3, 24, 1.85, 0.95).subtract(ci(0.5, 16, 1.85, 0.95)), ci(1.3, 24, 1.85, -0.95).subtract(ci(0.5, 16, 1.85, -0.95)), re(4.5, -0.5, 6, 1)).translate([-3.5, 0]),
+'Tools/O-ring': () => U(ci(5, 64, -4, 0).subtract(ci(3.2, 64, -4, 0)), re(1, -0.9, 9, 1.8).subtract(re(1.5, -0.3, 8, 0.6))),
+'Tools/Rivet': () => U(hull(ci(1.6, 24, -6.5, 1.6), ci(1.6, 24, -6.5, -1.6), re(-5.7, -2.4, 0.8, 4.8)), re(-4.9, -1.1, 7.5, 2.2), re(-4.9, -0.35, 13, 0.7), ci(1.2, 24, 8.1, 0)),
+'Bolt': (L, head, drive, tip, gewinde) => {
+const dl = Math.min(L, maxLen), t = [];
+if (head === 'Hex head') t.push(hex(5));
+else {
+const rec = drive === 'Phillips' ? phillips() : drive === 'Pozidriv' ? pozi() : (drive === 'Torx' || drive === 'Torx TR') ? torx()
+: drive === 'AW' ? sechsrund(1.25, 0.5, 1.4) : drive === 'RW' ? sechsrund(1.35, 0.42, 1.5) : drive === 'Slotted' ? U(re(-0.5, -2, 1, 4)) : ci(3.2, 6);
+t.push(ci(5).subtract(rec));
+if (drive === 'Torx TR') t.push(ci(1.2));
+if (drive === 'AW') t.push(ci(0.8));
+}
+if (head === 'Grub screw') t.push(stem(L, 4, -2, 4).subtract(U(re(4, -0.8, 1.5, 1.6))));
+else {
+const sx = { 'Socket head': 7, 'Countersunk': 5, 'Raised countersunk': 5, 'Hex flange': 6.6 }[head] || 6;
+const kopf = {
+'Socket head': () => re(3, -2.5, 4, 5),
+'Hex head': () => re(3, -2.5, 3, 5),
+'Hex flange': () => U(re(3, -2, 3, 4), re(6, -2.7, 0.6, 5.4)),
+'Wafer head': () => hull(re(4.4, -3, 0.5, 6), re(4.9, -1.5, 1.1, 3)),
+'Raised countersunk': () => U(ci(6, 3).translate([5, 0]), ci(5.2, 48).scale([0.3, 1]).intersect(re(-1, -3, 1, 6)).translate([3.5, 0])),
+'Countersunk': () => ci(6, 3).translate([5, 0]),
+'Pan head': () => ci(5).subtract(re(0, -2.5, 4, 5)).translate([6, 0]),
+'Mushroom head': () => ci(5).scale([0.55, 1.1]).subtract(re(0, -3, 4, 6)).translate([6, 0]),
+'Flat head': () => hull(ci(0.6, 24, 0.3, 0.3), ci(0.6, 24, 0.3, 5.2), re(1, 0, 0.4, 5.5)).translate([4.6, -2.75]),
+}[head];
+if (kopf) t.push(kopf());
+let schaft, sl = L;
+if (tip === 'Wood') {
+sl = Math.max(L - 1.5, 0);
+schaft = U(stem(sl, sx, -1.25), po([[0, 1.25], [2, 0], [0, -1.25]]).translate([sx + Math.min(sl, maxLen), 0]));
+} else if (tip === 'Drill') {
+sl = Math.max(L - 3, 0);
+schaft = U(stem(sl, sx, -1.25), po([[0, 0.9], [1.4, 0.9], [3, 0], [1.4, -0.9], [0, -0.9]]).translate([sx + Math.min(sl, maxLen), 0]));
+} else schaft = stem(L, sx, -1.25);
+if (gewinde === 'Partial') {
+const dsl = Math.min(sl, maxLen), grenze = sx + dsl * 0.45, k = [];
+for (let x = grenze + 0.5; x <= sx + dsl - 0.4; x += 1.0) for (const y of [-1.25, 0.9]) k.push(re(x - 0.2, y, 0.4, 0.35));
+schaft = schaft.subtract(U(re(sx, 0.95, grenze - sx, 0.4), re(sx, -1.35, grenze - sx, 0.4), ...k));
+}
+t.push(schaft);
+}
+return U(t).translate([-dl / 2 - 2, 0]);
+},
+};
+const kat = ein.kat, typ = ein.typ;
+const row = partRow(kat, typ);
+const iconLen = (o.Icon_length === 'Real length' || !row || row[2] === undefined) ? (+ein.laenge || 0) : row[2];
+let icon = null;
+if (kat === 'Bolt') icon = icons.Bolt(iconLen, ein.kopf || 'Pan head', ein.antrieb || 'Hex socket', ein.spitze || 'Machine', ein.gewinde || 'Full');
+else if (kat === 'Standoff') icon = icons.Standoff(iconLen, typ);
+else if (icons[kat + '/' + typ]) icon = icons[kat + '/' + typ](iconLen);
+if (ein.logoPolys && ein.logoPolys.length) {
+let lg = new C(ein.logoPolys, 'Positive');
+const b = lg.bounds(), lw = b.max[0] - b.min[0], lh = b.max[1] - b.min[1];
+const bw = length - 6, bh = ein.logoGross ? width - 2 : 5.2;
+const sk = Math.min(bw / lw, bh / lh);
+icon = lg.translate([-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2]).scale([sk, sk]);
+if (ein.logoGross) icon = icon.translate([0, -2.5]);
+}
+if (ein.ohneIcon) icon = null;
+if (icon) icon = icon.translate([0, 2.5]);
+const d = String(ein.durchmesser ?? ''), L = +ein.laenge || 0;
+const groesse = `${d}x${fmt(L)}`;
+const zeilen = [];
+const stil = row ? row[3] : 'none';
+const eigen = (ein.text || '').trim();
+if (stil === 'custom') {
+const l1 = (ein.zeile1 || '').trim(), l2 = (ein.zeile2 || '').trim();
+if (l1 && l2) zeilen.push([l1, 2.5], [l2, -3]); else if (l1 || l2) zeilen.push([l1 || l2, 0]);
+} else if (eigen) zeilen.push([eigen, icon ? -3 : 0]);
+else if (stil === 'size') zeilen.push([groesse, -3]);
+else if (stil === 'diameter') zeilen.push([d, -3]);
+else if (stil === 'optional') zeilen.push([L > 0 ? groesse : d, -3]);
+else if (stil === 'centered') zeilen.push([groesse, 0]);
+if (ein.logoGross && ein.logoPolys && ein.logoPolys.length) zeilen.length = 0;
+const textCS = ein.ohneText ? [] : zeilen.filter(z => z[0]).map(([s, y]) => textZeile(o.font, s, o.text_size || 4.2, length - 5, o.fontFallback, y === 0 ? width - 1.4 : 4.7).translate([0, y]));
+let inhalt = U(icon, ...textCS);
+const info = {};
+if (ein.qr && String(ein.qr).trim() && o.qrcode && !ein.ohneText) {
+try {
+const q = o.qrcode(0, 'L'); q.addData(String(ein.qr).trim()); q.make();
+const n = q.getModuleCount(), rand = 1;
+const mod = Math.min(+o.qrModul || 0.5, (width - 2 * ch - 0.1) / (n + 2 * rand));
+const sQ = (n + 2 * rand) * mod, cxq = length / 2 - 2.2 - sQ / 2;
+const dunkel = [];
+for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c))
+dunkel.push(C.square([mod + 0.002, mod + 0.002]).translate([cxq - sQ / 2 + (c + rand) * mod - 0.001, sQ / 2 - (r + rand + 1) * mod - 0.001]));
+const qrCS = C.square([sQ, sQ], true).translate([cxq, 0]).subtract(U(dunkel));
+Object.assign(info, { qrModul: mod, qrModule: n });
+if (!inhalt.isEmpty()) {
+const b = inhalt.bounds(), x0 = -length / 2 + 2.3, x1 = cxq - sQ / 2 - 0.8;
+const w = b.max[0] - b.min[0], sk = Math.min(1, (x1 - x0) / w);
+inhalt = inhalt.translate([-(b.min[0] + b.max[0]) / 2, 0]).scale([sk, sk]).translate([(x0 + x1) / 2, 0]);
+}
+inhalt = U(inhalt, qrCS);
+} catch (e) { info.qrFehler = 'Link zu lang für einen QR-Code'; }
+}
+if (nur2D) return { cs: inhalt, length, info };
+const slab = (w, h, r, ins, z) => {
+const rr = r - ins;
+const cs = rr > 0.02 ? C.square([w - 2 * r, h - 2 * r], true).offset(rr, 'Round', 2, 32) : C.square([w - 2 * ins, h - 2 * ins], true);
+return Manifold.extrude(cs, 0.001).translate([0, 0, z]);
+};
+const form = (w, h, r) => Manifold.hull([slab(w, h, r, ch, 0), slab(w, h, r, 0, ch), slab(w, h, r, 0, height - ch - 0.001), slab(w, h, r, ch, height - 0.001)]);
+let basis = Manifold.union(form(length + 2, 5.7, 0.2), form(length, width, radius));
+const loch = Manifold.cylinder(height + 1, 0.75, 0.75, 32).translate([0, 0, -0.5]);
+basis = basis.subtract(Manifold.union(loch.translate([(length - 1) / 2, 0, 0]), loch.translate([-(length - 1) / 2, 0, 0])));
+let inh = null;
+if (!inhalt.isEmpty()) {
+if (o.text_type === 'Flush Skin') {
+inh = Manifold.extrude(inhalt, 0.01).translate([0, 0, height]);
+} else if (o.text_type === 'Flush Text') {
+const t = Math.min(o.flush_tiefe ?? 0.4, height - 0.2);
+const k = Manifold.extrude(inhalt, t).translate([0, 0, height - t]);
+basis = basis.subtract(k);
+inh = k;
+} else {
+inh = Manifold.extrude(inhalt, (o.raised_text_height ?? 0.2) + 0.001).translate([0, 0, height - 0.001]);
+}
+}
+return { basis, inhalt: inh, length, info };
+}
+function textZeile(font, s, size, maxW, fb, maxH) {
+s = String(s).replace(/\u2126/g, '\u03A9');
+const capH = (font.tables.os2 && font.tables.os2.sCapHeight) || font.charToGlyph('H').getBoundingBox().y2 || 0.7 * font.unitsPerEm;
+const em = size * 1.016 / (capH / font.unitsPerEm);
+const fehlt = fb && [...s].some(ch => ch.trim() && font.charToGlyph(ch).index === 0);
+let polys;
+if (!fehlt) polys = pfadZuPolys(font.getPath(s, 0, 0, em));
+else {
+polys = []; let x = 0;
+const capFb = (fb.tables.os2 && fb.tables.os2.sCapHeight) || 0.714 * fb.unitsPerEm;
+const emFb = size * 1.016 / (capFb / fb.unitsPerEm);
+for (const ch of s) {
+let f = font, g = font.charToGlyph(ch), gr = em;
+if (g.index === 0 && ch.trim()) { f = fb; g = fb.charToGlyph(ch); gr = emFb; }
+polys.push(...pfadZuPolys(g.getPath(x, 0, gr)));
+x += g.advanceWidth * gr / f.unitsPerEm;
+}
+}
+polys = polys.map(pl => pl.map(([x, y]) => [x, -y]));
+if (!polys.length) return LEER();
+let cs = new C(polys, 'NonZero');
+const b = cs.bounds();
+cs = cs.translate([-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2]);
+const w = b.max[0] - b.min[0], h = b.max[1] - b.min[1];
+const sk = Math.min(maxW && w > maxW ? maxW / w : 1, maxH && h > maxH ? maxH / h : 1);
+if (sk < 1) cs = cs.scale([sk, sk]);
+return cs;
+}
+return { labelGeo };
+}
+const fmt = v => (Math.round(v * 10) / 10).toString();
+function pfadZuPolys(path) {
+const polys = []; let cur = [], px = 0, py = 0;
+const N = 6;
+for (const c of path.commands) {
+if (c.type === 'M') { if (cur.length > 2) polys.push(cur); cur = [[c.x, c.y]]; px = c.x; py = c.y; }
+else if (c.type === 'L') { cur.push([c.x, c.y]); px = c.x; py = c.y; }
+else if (c.type === 'Q') {
+for (let i = 1; i <= N; i++) { const t = i / N, u = 1 - t; cur.push([u * u * px + 2 * u * t * c.x1 + t * t * c.x, u * u * py + 2 * u * t * c.y1 + t * t * c.y]); }
+px = c.x; py = c.y;
+} else if (c.type === 'C') {
+for (let i = 1; i <= N; i++) { const t = i / N, u = 1 - t;
+cur.push([u*u*u*px + 3*u*u*t*c.x1 + 3*u*t*t*c.x2 + t*t*t*c.x, u*u*u*py + 3*u*u*t*c.y1 + 3*u*t*t*c.y2 + t*t*t*c.y]); }
+px = c.x; py = c.y;
+} else if (c.type === 'Z') { if (cur.length > 2) polys.push(cur); cur = []; }
+}
+if (cur.length > 2) polys.push(cur);
+return polys;
+}
+function meshDaten(m) {
+const mesh = m.getMesh();
+const np = mesh.numProp, vp = mesh.vertProperties, n = vp.length / np;
+const pos = new Float32Array(n * 3);
+for (let i = 0; i < n; i++) { pos[i * 3] = vp[i * np]; pos[i * 3 + 1] = vp[i * np + 1]; pos[i * 3 + 2] = vp[i * np + 2]; }
+return { pos, idx: new Uint32Array(mesh.triVerts) };
+}
+function stl(teile) {
+let tris = 0; for (const t of teile) tris += t.idx.length / 3;
+const buf = new ArrayBuffer(84 + tris * 50), dv = new DataView(buf);
+let o = 84; dv.setUint32(80, tris, true);
+for (const { pos, idx, dx = 0, dy = 0 } of teile) for (let i = 0; i < idx.length; i += 3) {
+const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+const vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1;
+dv.setFloat32(o, nx / l, true); dv.setFloat32(o + 4, ny / l, true); dv.setFloat32(o + 8, nz / l, true); o += 12;
+for (const p of [a, b, c]) { dv.setFloat32(o, pos[p] + dx, true); dv.setFloat32(o + 4, pos[p + 1] + dy, true); dv.setFloat32(o + 8, pos[p + 2], true); o += 12; }
+o += 2;
+}
+return new Uint8Array(buf);
+}
+function bambu3mf(objekte, zipSync, strToU8, mitte = [128, 128]) {
+const f = v => +v.toFixed(5);
+const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const uuid = (a, b) => `${a.toString(16).padStart(8, '0')}-61cb-4c03-9d28-${b.toString(16).padStart(12, '0')}`;
+const files = {};
+let sub = 1, top = '', build = '', cfg = '', plate = '', rels = '';
+const datum = new Date().toISOString().slice(0, 10);
+objekte.forEach((ob, n) => {
+const pfad = `/3D/Objects/object_${n + 1}.model`;
+let res = '', comps = '', parts = '';
+for (const t of ob.teile) {
+const { pos, idx } = t.mesh;
+const v = [], tr = [];
+for (let i = 0; i < pos.length; i += 3) v.push(`<vertex x="${f(pos[i])}" y="${f(pos[i + 1])}" z="${f(pos[i + 2])}"/>`);
+for (let i = 0; i < idx.length; i += 3) tr.push(`<triangle v1="${idx[i]}" v2="${idx[i + 1]}" v3="${idx[i + 2]}"/>`);
+res += `  <object id="${sub}" p:UUID="${uuid(0x10000 + sub, sub)}" type="model">\n   <mesh>\n    <vertices>\n${v.join('\n')}\n    </vertices>\n    <triangles>\n${tr.join('\n')}\n    </triangles>\n   </mesh>\n  </object>\n`;
+comps += `    <component p:path="${pfad}" objectid="${sub}" p:UUID="${uuid(0x20000 + sub, sub)}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>\n`;
+parts += `    <part id="${sub}" subtype="normal_part">\n      <metadata key="name" value="${esc(t.name)}"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="${t.extruder}"/>\n      <mesh_stat face_count="${idx.length / 3}" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n    </part>\n`;
+sub++;
+}
+files[pfad.slice(1)] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" requiredextensions="p">\n <metadata name="BambuStudio:3mfVersion">1</metadata>\n <resources>\n${res} </resources>\n <build/>\n</model>\n`);
+rels += ` <Relationship Target="${pfad}" Id="rel-${n + 1}" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n`;
+const oid = 10000 + n;
+top += `  <object id="${oid}" p:UUID="${uuid(n + 1, oid)}" type="model">\n   <components>\n${comps}   </components>\n  </object>\n`;
+build += `  <item objectid="${oid}" p:UUID="${uuid(0x30000 + n, oid)}" transform="1 0 0 0 1 0 0 0 1 ${f(mitte[0] + ob.x)} ${f(mitte[1] + ob.y)} 0" printable="1"/>\n`;
+cfg += `  <object id="${oid}">\n    <metadata key="name" value="${esc(ob.name)}"/>\n    <metadata key="extruder" value="1"/>\n${parts}  </object>\n`;
+plate += `    <model_instance>\n      <metadata key="object_id" value="${oid}"/>\n      <metadata key="instance_id" value="0"/>\n      <metadata key="identify_id" value="${100 + n}"/>\n    </model_instance>\n`;
+});
+files['3D/3dmodel.model'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="de-DE" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" requiredextensions="p">
+<metadata name="Application">BambuStudio-02.04.00.70</metadata>
+<metadata name="BambuStudio:3mfVersion">1</metadata>
+<metadata name="CreationDate">${datum}</metadata>
+<metadata name="ModificationDate">${datum}</metadata>
+<metadata name="Title">Rasterwerk Etiketten</metadata>
+<resources>
+${top} </resources>
+<build p:UUID="2c7c17d8-22b5-4d84-8835-1976022ea369">
+${build} </build>
+</model>
+`);
+files['3D/_rels/3dmodel.model.rels'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n${rels}</Relationships>\n`);
+files['Metadata/model_settings.config'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<config>
+${cfg}  <plate>
+<metadata key="plater_id" value="1"/>
+<metadata key="plater_name" value="Etiketten"/>
+<metadata key="locked" value="false"/>
+${plate}  </plate>
+<assemble>
+</assemble>
+</config>
+`);
+files['[Content_Types].xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Default Extension="config" ContentType="text/xml"/>
+</Types>`);
+files['_rels/.rels'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+</Relationships>`);
+return zipSync(files, { level: 6 });
+}
+function anordnen(anzahl, laenge, plattenBreite = 240, breite = 11.5) {
+const dx = laenge + 2 + 3, dy = breite + 2.5;
+const spalten = Math.max(1, Math.min(anzahl, Math.floor(plattenBreite / dx)));
+const zeilen = Math.ceil(anzahl / spalten);
+return Array.from({ length: anzahl }, (_, i) => ({
+x: (i % spalten - (spalten - 1) / 2) * dx,
+y: ((zeilen - 1) / 2 - Math.floor(i / spalten)) * dy,
+}));
+}
+const BIN_STANDARD = {
+Bin_Width: 1, Bin_Depth: 1, Bin_Height: 6, Height_Mode: 0, Snap_Height_To_Grid: false,
+Compartments_Left_To_Right: 1, Compartments_Front_To_Back: 1,
+Top_Lip_Style: 0, Scoop_Size: 1, Corner_Holes_Only: false, Label_Holder: true, Base_Hole_Style: 0,
+Top_Edge_Color_Height: 1.0,
+};
+function makeBins(wasm) {
+const { Manifold, CrossSection: C } = wasm;
+const L_GRID = 42, H_BASE = 5, R_BASE = 4, R_C1 = 0.8, R_C2 = 2.4, H_BOT = 2.2;
+const R_FO1 = 8.5, R_FO2 = 3.2, R_FO3 = 1.6, R_HOLE1 = 1.5, R_HOLE2 = 3.25, D_HOLE = 26, D_HOLE_SIDE = 8, H_HOLE = 2.4, H_SLIT = 0.2;
+const R_F2 = 2.8, D_DIV = 1.2, D_WALL = 0.95, D_CLEAR = 0.25, A_TAB = 36, H_LIP = 3.548;
+const KLAR = 0.35, BACK_OFF = 3.4, HALTER_RAND = 3.0, CUT_TIEFE = 1.0, POS_Y = 1.0;
+const D_TABH = Math.max(15.85, 11.5 + 2 * KLAR + HALTER_RAND);
+const D_WALL2 = R_BASE - R_C1 - D_CLEAR * Math.SQRT2;
+const D_MAGIC = -2 * D_CLEAR - 2 * D_WALL + D_DIV;
+const E = 0.001;
+const rr2 = (w, d, r) => {
+r = Math.max(0.01, Math.min(r, w / 2 - 0.01, d / 2 - 0.01));
+return C.square([w - 2 * r, d - 2 * r], true).offset(r, 'Round', 2, 40);
+};
+const rrBox = (w, d, h, r, z = 0) => Manifold.extrude(rr2(w, d, r), h).translate([0, 0, z]);
+const scheibe = (w, d, r, z) => rrBox(w, d, E, r, z);
+function binHoehe(o) {
+const z = +o.Bin_Height, d = +o.Height_Mode, l = +o.Top_Lip_Style;
+let hf = (d === 0 ? z * 7 : d === 1 ? H_BOT + z + H_BASE : z - (l === 1 ? H_LIP : 0)) + (l === 2 ? H_LIP : 0);
+if (o.Snap_Height_To_Grid && Math.abs(hf) % 7 > 1e-6) hf = hf + 7 - Math.abs(hf) % 7;
+return hf - H_BASE;
+}
+function fussZelle(stil, ohneLoecher) {
+const xx = L_GRID - 0.05;
+const a = xx - 2 * R_C2 - 2 * R_C1, b = xx - 2 * R_C2;
+let f = Manifold.union([
+Manifold.hull([scheibe(a, a, R_FO3 / 2, 0), scheibe(b, b, R_FO2 / 2, R_C1), scheibe(b, b, R_FO2 / 2, H_BASE - E)]),
+Manifold.hull([scheibe(b, b, R_FO2 / 2, H_BASE - R_C2), scheibe(xx, xx, R_FO1 / 2, H_BASE), scheibe(xx, xx, R_FO1 / 2, H_BASE + H_BOT / 2 - E)]),
+]);
+if (stil > 0 && !ohneLoecher) {
+const l = [];
+for (const sx of [-1, 1]) for (const sy of [-1, 1]) l.push(loch(stil).translate([sx * (L_GRID / 2 - D_HOLE_SIDE), sy * (L_GRID / 2 - D_HOLE_SIDE), 0]));
+f = f.subtract(Manifold.union(l));
+}
+return f;
+}
+function loch(stil) {
+let m = Manifold.cylinder(H_HOLE + (stil === 3 ? H_SLIT : 0) + 1, R_HOLE2, R_HOLE2, 48).translate([0, 0, -1]);
+if (stil === 3) {
+const weg = Manifold.cube([R_HOLE2 * 3, R_HOLE2 * 3, 10], false);
+m = m.subtract(Manifold.union([weg.translate([-1.5 * R_HOLE2, R_HOLE1 + 0.1, H_HOLE]), weg.translate([-1.5 * R_HOLE2, -R_HOLE1 - 0.1 - R_HOLE2 * 3, H_HOLE])]));
+}
+if (stil > 1) m = m.add(Manifold.cylinder(H_BASE + 1, R_HOLE1, R_HOLE1, 32).translate([0, 0, -1]));
+return m;
+}
+function basis(gx, gy, o) {
+const xx = gx * L_GRID - 0.5, yy = gy * L_GRID - 0.5, stil = +o.Base_Hole_Style;
+const nurEcken = !!o.Corner_Holes_Only && stil > 0;
+const zelle = fussZelle(stil, nurEcken), f = [];
+for (let i = 0; i < gx; i++) for (let j = 0; j < gy; j++)
+f.push(zelle.translate([(i - (gx - 1) / 2) * L_GRID, (j - (gy - 1) / 2) * L_GRID, 0]));
+let b = Manifold.union(f).intersect(rrBox(xx + 0.005, yy + 0.005, H_BASE + H_BOT * 5 + 1, R_FO1 / 2, -1));
+b = b.add(rrBox(xx + 0.002, yy + 0.002, H_BOT / 1.5, R_FO1 / 2, H_BASE));
+if (nurEcken) {
+const l = [], ax = ((gx - 1) * L_GRID + D_HOLE) / 2, ay = ((gy - 1) * L_GRID + D_HOLE) / 2;
+for (const sx of [-1, 1]) for (const sy of [-1, 1]) l.push(loch(stil).translate([sx * ax, sy * ay, 0]));
+b = b.subtract(Manifold.union(l));
+}
+return b;
+}
+function wandProfil(dh, lippe) {
+if (!lippe) return [[D_WALL, -E], [D_WALL, dh + E]];
+const x1 = D_WALL / 2, x2 = D_WALL2 - D_CLEAR, d = D_CLEAR * Math.SQRT2;
+const p = [[x1, -E], [x1, dh - 1.2 - D_WALL2 + D_WALL / 2], [x2, dh - 1.2], [x2, dh]];
+const senk = 2.15 - D_CLEAR; // senkrechter Teil der Aufnahme
+const zA = dh + (x2 - senk);                 // 45°-Teil unten endet
+const zB = dh + 2.6 - (senk - (2.15 - d)) ;   // 45°-Teil oben beginnt
+p.push([senk, zA], [senk, zB]);
+const zEnde = dh + 4.2;
+p.push([Math.max(0.15, (2.15 - d) - (zEnde - dh - 2.6)), zEnde]);
+return p;
+}
+function wand(gx, gy, dh, lippe) {
+const W = gx * L_GRID - 0.5, D = gy * L_GRID - 0.5;
+const prof = wandProfil(dh, lippe);
+const oben = prof[prof.length - 1][1];
+const aussen = rrBox(W, D, oben, R_BASE, H_BASE);
+const teile = [];
+for (let i = 0; i < prof.length - 1; i++) {
+const [e1, z1] = prof[i], [e2, z2] = prof[i + 1];
+if (z2 - z1 < 1e-6) continue;
+teile.push(Manifold.hull([scheibe(W - 2 * e1, D - 2 * e1, R_BASE - e1, H_BASE + z1), scheibe(W - 2 * e2, D - 2 * e2, R_BASE - e2, H_BASE + z2 - E)]));
+}
+const [eo] = prof[prof.length - 1];
+teile.push(rrBox(W - 2 * eo, D - 2 * eo, 2, R_BASE - eo, H_BASE + oben - E));
+return { wand: aussen.subtract(Manifold.union(teile)), oben: H_BASE + oben };
+}
+const KUGEL = (() => { const p = [], n = 42; for (let i = 0; i < n; i++) { const y = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - y * y), t = i * 2.39996; p.push([Math.cos(t) * r, y, Math.sin(t) * r]); } p.push([0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]); return p; })();
+const kugel = (c, r) => KUGEL.map(([x, y, z]) => [c[0] + x * r, c[1] + y * r, c[2] + z * r]);
+function fachHohlraum(xa, xb, yf, yb, zf, zt, mulde) {
+const r = R_F2, R = Math.max(r, Math.min(mulde + r, (yb - yf) - r, zt - zf - r));
+const pts = [];
+for (const xc of [xa + r, xb - r]) {
+pts.push(...kugel([xc, yb - r, zf + r], r), ...kugel([xc, yb - r, zt], r), ...kugel([xc, yf + r, zt], r));
+const n = R > r + 0.01 ? 10 : 1;
+for (let k = 0; k <= n; k++) {
+const t = (Math.PI / 2) * k / Math.max(1, n);
+pts.push(...kugel([xc, yf + R - (R - r) * Math.cos(t), zf + R - (R - r) * Math.sin(t)], r));
+}
+}
+return Manifold.hull(pts);
+}
+function lasche(xa, xb, yb, zTop, zOben, tiefe, winkel) {
+const fall = tiefe * Math.tan(winkel * Math.PI / 180);
+const sek = new C([[[yb + 2, zOben + 2], [yb - tiefe, zOben + 2], [yb - tiefe, zTop], [yb + 2, zTop - fall - 2 * Math.tan(winkel * Math.PI / 180)]]], 'NonZero');
+return Manifold.extrude(sek, xb - xa + 4).rotate([90, 0, 90]).translate([xa - 2, 0, 0]);
+}
+function etikettTasche(laenge, tiefe) {
+const k = KLAR;
+const cs = C.union([rr2(laenge + 2 * k, 11.5 + 2 * k, 0.9 + k), C.square([laenge + 2 + 2 * k, 6 + 2 * k], true)]);
+return Manifold.extrude(cs, tiefe);
+}
+function bin(o) {
+o = { ...BIN_STANDARD, ...o };
+const gx = Math.max(0.5, +o.Bin_Width), gy = Math.max(0.5, +o.Bin_Depth);
+const lipStil = +o.Top_Lip_Style, lippe = lipStil === 0;
+const dh = binHoehe(o);
+const topZ = dh + H_BASE;
+const nx = Math.max(0, o.Compartments_Left_To_Right | 0), ny = Math.max(0, o.Compartments_Front_To_Back | 0);
+let block = rrBox(gx * L_GRID - 0.5 - D_WALL / 4, gy * L_GRID - 0.5 - D_WALL / 4, dh - 0.1, R_BASE + 0.01, H_BASE + 0.1);
+const zsmall = topZ / 7 < 3;
+const mitLasche = o.Label_Holder && !zsmall;
+if (nx > 0 && ny > 0) {
+const xx = gx * L_GRID + D_MAGIC, yy = gy * L_GRID + D_MAGIC;
+const zf = H_BASE + H_BOT, zt = topZ + 3;
+const scoop = Math.max(+o.Scoop_Size * dh / 2 - R_F2, 0);
+const cuts = [], voll = [];
+for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+const cx = -xx / 2 + (i + 0.5) * xx / nx, cy = -yy / 2 + (j + 0.5) * yy / ny;
+const xlen = xx / nx - D_DIV, ylen = yy / ny - D_DIV;
+const xa = cx - xlen / 2, xb = cx + xlen / 2, yb = cy + ylen / 2;
+let yf = cy - ylen / 2;
+if (j === 0 && lippe && +o.Scoop_Size > 0) yf += D_WALL2 - D_WALL - D_CLEAR;
+let h = fachHohlraum(xa, xb, yf, yb, zf, zt, +o.Scoop_Size > 0 ? scoop : 0);
+if (mitLasche) h = h.subtract(lasche(xa, xb, yb, topZ, zt, D_TABH, A_TAB));
+else if (j === ny - 1 && lippe) h = h.subtract(lasche(xa, xb, yb, topZ, zt, D_WALL2 - D_WALL + 1.2, 45));
+cuts.push(h);
+}
+block = block.subtract(Manifold.union(cuts));
+}
+const { wand: rand, oben } = wand(gx, gy, dh, lippe);
+let koerper = Manifold.union([block, rand, basis(gx, gy, o)]);
+let taschen = null;
+if (o.Label_Holder) {
+const reihen = Math.max(1, ny), D = gy * L_GRID - 0.5, len = gx * L_GRID - 6.2, t = [];
+for (let j = 1; j <= reihen; j++) {
+const yEnde = -D / 2 + j * (D / reihen);
+const cy = yEnde - BACK_OFF - (11.5 + 2 * KLAR) / 2 + POS_Y;
+t.push(etikettTasche(len, CUT_TIEFE + 0.04).translate([0, cy, topZ - CUT_TIEFE - 0.02]));
+}
+taschen = Manifold.union(t);
+koerper = koerper.subtract(taschen);
+}
+let band = null;
+if (o.randSeparat) {
+const zmin = topZ - +o.Top_Edge_Color_Height;
+const schnitt = Manifold.cube([gx * L_GRID * 2, gy * L_GRID * 2, 100], true).translate([0, 0, zmin + 50]);
+band = rand.intersect(schnitt);
+if (taschen) band = band.subtract(taschen);
+const sauber = m => { const t = m.decompose().filter(x => x.volume() > 1); return t.length ? Manifold.union(t) : null; };
+band = band.isEmpty() ? null : sauber(band);
+if (band) koerper = sauber(koerper.subtract(band));
+}
+return { koerper, band, dh, topZ, oben, zsmall, etikettLaenge: gx * L_GRID - 6.2, reihen: Math.max(1, ny), gx, gy };
+}
+function etikettLagen(r) {
+const D = r.gy * L_GRID - 0.5, out = [];
+for (let j = 1; j <= r.reihen; j++) {
+const yEnde = -D / 2 + j * (D / r.reihen);
+out.push({ x: 0, y: yEnde - BACK_OFF - (11.5 + 2 * KLAR) / 2 + POS_Y, z: r.topZ - CUT_TIEFE });
+}
+return out;
+}
+return { bin, binHoehe, etikettLagen };
+}
+const PLATTE_STANDARD = {
+modus: 'schublade', gx: 4, gy: 3, schubB: 300, schubT: 200, spiel: 0.5,
+ausX: 'mitte', ausY: 'mitte', stil: 'leicht', teilen: true, belegung: [],
+};
+function makePlatten(wasm) {
+const { Manifold, CrossSection: C } = wasm;
+const G = 42, E = 0.001, H_TASCHE = 4.65;
+const rr2 = (w, d, r) => {
+r = Math.max(0.01, Math.min(r, w / 2 - 0.01, d / 2 - 0.01));
+return C.square([w - 2 * r, d - 2 * r], true).offset(r, 'Round', 2, 40);
+};
+const scheibe = (w, d, r, z) => Manifold.extrude(rr2(w, d, r), E).translate([0, 0, z]);
+function raster(p) {
+if (p.modus !== 'schublade') return { nx: Math.max(1, p.gx | 0), ny: Math.max(1, p.gy | 0), padL: 0, padR: 0, padV: 0, padH: 0 };
+const nutzB = Math.max(G, +p.schubB - 2 * +p.spiel), nutzT = Math.max(G, +p.schubT - 2 * +p.spiel);
+const nx = Math.max(1, Math.floor(nutzB / G + 1e-6)), ny = Math.max(1, Math.floor(nutzT / G + 1e-6));
+const restX = Math.max(0, nutzB - nx * G), restY = Math.max(0, nutzT - ny * G);
+const teile = (rest, a) => a === 'links' || a === 'vorn' ? [0, rest] : a === 'rechts' || a === 'hinten' ? [rest, 0] : [rest / 2, rest / 2];
+const [padL, padR] = teile(restX, p.ausX), [padV, padH] = teile(restY, p.ausY);
+return { nx, ny, padL, padR, padV, padH };
+}
+function aufteilen(n, padA, padB, bett) {
+for (let k = 1; k <= n; k++) {
+const basis = Math.floor(n / k), extra = n % k, stuecke = [];
+for (let i = 0; i < k; i++) stuecke.push(basis + (i < extra ? 1 : 0));
+const breiten = stuecke.map((u, i) => u * G + (i === 0 ? padA : 0) + (i === k - 1 ? padB : 0));
+if (Math.max(...breiten) <= bett) return stuecke;
+}
+return Array(n).fill(1);
+}
+function tasche() {
+const pr = [[2.85, -0.5], [2.85, 0], [2.15, 0.7], [2.15, 2.5], [0, H_TASCHE + 0.3]];
+const t = [];
+for (let i = 0; i < pr.length - 1; i++) {
+const [e1, z1] = pr[i], [e2, z2] = pr[i + 1];
+t.push(Manifold.hull([scheibe(G - 2 * e1, G - 2 * e1, 4 - e1, z1), scheibe(G - 2 * e2, G - 2 * e2, 4 - e2, z2 - E)]));
+}
+return Manifold.union(t);
+}
+function stueck(xa, xb, ya, yb, zellen, gesW, gesD, stil) {
+const unten = stil === 'leicht' ? 0 : stil === 'magnete' ? 2.6 : 4.4;
+const H = H_TASCHE + unten;
+const umriss = rr2(gesW, gesD, 4).intersect(C.square([xb - xa, yb - ya]).translate([xa, ya]));
+let k = Manifold.extrude(umriss, H);
+const t = tasche(), cuts = [];
+for (const [cx, cy] of zellen) {
+cuts.push(t.translate([cx, cy, unten]));
+if (stil === 'leicht') cuts.push(Manifold.extrude(rr2(G - 5.7, G - 5.7, 1.15), unten + 1).translate([cx, cy, -0.5]));
+else for (const sx of [-13, 13]) for (const sy of [-13, 13]) {
+cuts.push(Manifold.cylinder(2.5, 3.25, 3.25, 40).translate([cx + sx, cy + sy, unten - 2.4]));
+if (stil === 'schrauben') {
+cuts.push(Manifold.cylinder(unten + 1, 1.6, 1.6, 24).translate([cx + sx, cy + sy, -0.5]));
+cuts.push(Manifold.cylinder(1.6, 3.2, 1.6, 32).translate([cx + sx, cy + sy, -0.01]));
+}
+}
+}
+k = k.subtract(Manifold.union(cuts));
+const mx = (xa + xb) / 2, my = (ya + yb) / 2;
+return { koerper: k.translate([-mx, -my, 0]), W: xb - xa, D: yb - ya, H, x: mx, y: my };
+}
+function platte(p, bett = 250) {
+const r = raster(p), stil = p.stil || 'leicht';
+const sx = p.teilen ? aufteilen(r.nx, r.padL, r.padR, bett) : [r.nx];
+const sy = p.teilen ? aufteilen(r.ny, r.padV, r.padH, bett) : [r.ny];
+const gesW = r.nx * G + r.padL + r.padR, gesD = r.ny * G + r.padV + r.padH;
+const teile = [];
+let ix = 0, xa = -gesW / 2;
+sx.forEach((ux, i) => {
+const xb = xa + ux * G + (i === 0 ? r.padL : 0) + (i === sx.length - 1 ? r.padR : 0);
+let iy = 0, ya = -gesD / 2;
+sy.forEach((uy, j) => {
+const yb = ya + uy * G + (j === 0 ? r.padV : 0) + (j === sy.length - 1 ? r.padH : 0);
+const zellen = [];
+for (let a = 0; a < ux; a++) for (let b = 0; b < uy; b++) { const m = zellMitte(r, gesW, gesD, ix + a, iy + b); zellen.push([m.x, m.y]); }
+teile.push({ ...stueck(xa, xb, ya, yb, zellen, gesW, gesD, stil), name: `Platte ${i + 1}-${j + 1} (${ux}×${uy})` });
+ya = yb; iy += uy;
+});
+xa = xb; ix += ux;
+});
+return { teile, raster: r, gesW, gesD, H: teile[0]?.H ?? H_TASCHE, stueckeX: sx, stueckeY: sy };
+}
+function zellMitte(r, gesW, gesD, ix, iy, w = 1, d = 1) {
+return { x: -gesW / 2 + r.padL + (ix + w / 2) * G, y: -gesD / 2 + r.padV + (iy + d / 2) * G };
+}
+return { platte, raster, zellMitte, H_TASCHE };
+}
+const FONTS = {"inter":["Inter","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"inter-tight":["Inter Tight","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"lora":["Lora","5.3.0",[400,500,600,700],[400,500,600,700]],"merriweather-sans":["Merriweather Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"montserrat":["Montserrat","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans":["Noto Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans-kr":["Noto Sans KR","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"noto-sans-sc":["Noto Sans SC (Original)","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"nunito":["Nunito","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"nunito-sans":["Nunito Sans","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"open-sans":["Open Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"open-sans-condensed":["Open Sans Condensed","4.5.5",[300,700],[300]],"oswald":["Oswald","5.3.0",[200,300,400,500,600,700],[]],"playfair-display":["Playfair Display","5.3.0",[400,500,600,700,800,900],[400,500,600,700,800,900]],"plus-jakarta-sans":["Plus Jakarta Sans","5.3.0",[200,300,400,500,600,700,800],[200,300,400,500,600,700,800]],"raleway":["Raleway","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto":["Roboto","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-condensed":["Roboto Condensed","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-flex":["Roboto Flex","5.3.0",[400],[]],"roboto-mono":["Roboto Mono","5.3.0",[100,200,300,400,500,600,700],[100,200,300,400,500,600,700]],"roboto-serif":["Roboto Serif","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-slab":["Roboto Slab","5.3.0",[100,200,300,400,500,600,700,800,900],[]],"rubik":["Rubik","5.3.0",[300,400,500,600,700,800,900],[300,400,500,600,700,800,900]],"source-sans-3":["Source Sans 3","5.3.1",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"ubuntu-sans":["Ubuntu Sans","5.3.0",[100,200,300,400,500,600,700,800],[100,200,300,400,500,600,700,800]],"ubuntu-sans-mono":["Ubuntu Sans Mono","5.3.0",[400,500,600,700],[400,500,600,700]],"work-sans":["Work Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]]};
+const SCHNITTE = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
+const fontUrl = (k, w, kursiv) => `https://cdn.jsdelivr.net/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
+function schnittWaehlen(k, w, kursiv) {
+const f = FONTS[k] || FONTS['noto-sans-sc'];
+let liste = kursiv ? f[3] : f[2];
+if (!liste.length) { liste = f[2]; kursiv = false; }
+const best = liste.reduce((a, b) => Math.abs(b - w) < Math.abs(a - w) ? b : a, liste[0]);
+return { w: best, kursiv };
+}
+const DRUCKER = { 'h2': { name: 'H2C / H2D (350 × 320)', mitte: [175, 160], b: 330, t: 300 }, 'p': { name: 'P2S / X1 / P1 / A1 (256 × 256)', mitte: [128, 128], b: 240, t: 240 } };
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? '' : v); } e.append(...kids.flat()); return e; };
+const neueId = () => Math.random().toString(36).slice(2, 10);
+const STANDARD_EINST = { Y_units: 1, font: 'noto-sans-sc', gewicht: 700, kursiv: false, width: 11.5, height: 0.8, radius: 0.9, champfer: 0.2, text_size: 4.2, text_type: 'Raised Text', raised_text_height: 0.2, flush_tiefe: 0.4, Icon_length: 'Fixed', farbeEtikett: '#1f2120', farbeInhalt: '#ffffff', drucker: 'h2' };
+const NEU = () => ({ id: neueId(), kat: 'Bolt', typ: '', kopf: 'Socket head', antrieb: 'Hex socket', spitze: 'Machine', durchmesser: 'M3', laenge: 10, text: '', zeile1: '', zeile2: '', ohneIcon: false, anzahl: 1 });
+const STANDARD_BINEINST = { Bin_Color: '#ff5a1f', Top_Edge_Color: '#ff5a1f', Top_Edge_Color_Height: 1.0, etikettZeigen: true, etikettenMit: true };
+const NEU_BIN = () => ({ id: neueId(), ...BIN_STANDARD, anzahl: 1 });
+let S = { einst: { ...STANDARD_EINST }, liste: [], sel: null, modus: 'etiketten', bins: [], binSel: null, binEinst: { ...STANDARD_BINEINST }, platten: [], platteSel: null, logos: [], platteEinst: { farbe: '#8f968c', binsMit: true, etikettenMit: true } };
+async function laden() {
+try { const r = await fetch('api/liste'); if (r.ok) { const d = await r.json(); if (d && d.liste) return d; } } catch {}
+try { const d = JSON.parse(localStorage.getItem('gridwerk') || localStorage.getItem('rasterwerk') || 'null'); if (d) return d; } catch {}
+return null;
+}
+let speicherTimer;
+function speichern() {
+clearTimeout(speicherTimer);
+speicherTimer = setTimeout(async () => {
+const d = JSON.stringify({ einst: S.einst, liste: S.liste, bins: S.bins, binEinst: S.binEinst, modus: S.modus, platten: S.platten, logos: S.logos, platteEinst: S.platteEinst });
+try { localStorage.setItem('gridwerk', d); } catch {}
+try { await fetch('api/liste', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: d }); } catch {}
+}, 600);
+}
+const wasm = await Module(); wasm.setup();
+const { labelGeo } = makeLabels(wasm);
+const { bin: binGeo, etikettLagen } = makeBins(wasm);
+const platteGeo = makePlatten(wasm);
+const fontCache = {};
+async function font() {
+if (!FONTS[S.einst.font]) S.einst.font = 'noto-sans-sc';
+const { w, kursiv } = schnittWaehlen(S.einst.font, +S.einst.gewicht || 700, !!S.einst.kursiv);
+const k = S.einst.font + '-' + w + (kursiv ? 'i' : '');
+if (!fontCache[k]) fontCache[k] = fetch(fontUrl(S.einst.font, w, kursiv)).then(r => { if (!r.ok) throw new Error('Schrift nicht ladbar'); return r.arrayBuffer(); }).then(b => opentype.parse(b));
+return fontCache[k];
+}
+let ersatzSchrift = null;
+async function opts() {
+if (!ersatzSchrift) ersatzSchrift = fetch('https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
+return { ...S.einst, font: await font(), fontFallback: await ersatzSchrift, qrcode, qrModul: 0.5 };
+}
+const istTyp = e => e.kat === 'Bolt' ? '' : (e.typ || KATALOG[e.kat].typen[0]);
+const normal = e => ({ ...e, typ: istTyp(e) });
+function beschreibung(e) {
+const t = istTyp(e);
+if (e.kat === 'Bolt') return `${DE[e.kopf]} · ${DE[e.antrieb]}${e.spitze === 'Wood' ? ' · Holz' : e.spitze === 'Drill' ? ' · Bohrspitze' : ''}${e.gewinde === 'Partial' ? ' · Teilgewinde' : ''}`;
+return `${KATALOG[e.kat].de} · ${DE[t] || t}`;
+}
+const svgCache = new Map();
+async function svgVorschau(e, o) {
+const key = JSON.stringify([normal(e), S.einst, logoStempel(), location.origin]);
+if (svgCache.has(key)) return svgCache.get(key).cloneNode(true);
+const { cs, length } = labelGeo(o, await ausEin(e), true);
+const pfad = cs.toPolygons().map(p => 'M' + p.map(([x, y]) => `${x.toFixed(2)} ${(-y).toFixed(2)}`).join('L') + 'Z').join('');
+const L = length, W = +S.einst.width || 11.5, R = +S.einst.radius || 0.9, ns = 'http://www.w3.org/2000/svg';
+const svg = document.createElementNS(ns, 'svg');
+svg.setAttribute('viewBox', `${-L / 2 - 1.3} ${-Math.max(W, 11.5) / 2 - 0.3} ${L + 2.6} ${Math.max(W, 11.5) + 0.6}`);
+svg.innerHTML = `<rect x="${-L / 2 - 1}" y="-2.85" width="${L + 2}" height="5.7" rx="0.2" fill="${S.einst.farbeEtikett}"/>
+<rect x="${-L / 2}" y="${-W / 2}" width="${L}" height="${W}" rx="${R}" fill="${S.einst.farbeEtikett}"/>
+<circle cx="${(L - 1) / 2}" cy="0" r="0.75" fill="var(--karte)"/><circle cx="${-(L - 1) / 2}" cy="0" r="0.75" fill="var(--karte)"/>
+<path d="${pfad}" fill="${S.einst.farbeInhalt}" fill-rule="nonzero"/>`;
+if (svgCache.size > 400) svgCache.clear();
+svgCache.set(key, svg);
+return svg.cloneNode(true);
+}
+const box = $('#ansicht');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+box.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 2000);
+cam.up.set(0, 0, 1);
+const ctr = new OrbitControls(cam, renderer.domElement);
+window.__ansicht = { cam, ctr };
+ctr.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f88, 1.6));
+const sonne = new THREE.DirectionalLight(0xffffff, 1.6); sonne.position.set(-30, -50, 80); scene.add(sonne);
+const gruppe = new THREE.Group(); scene.add(gruppe);
+function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+new ResizeObserver(groesse).observe(box); groesse();
+(function loop() { requestAnimationFrame(loop); ctr.update(); renderer.render(scene, cam); })();
+function geo3(m) {
+const { pos, idx } = meshDaten(m);
+let g = new THREE.BufferGeometry();
+g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+g = g.toNonIndexed(); g.computeVertexNormals(); return g;
+}
+let letzteLaenge = 0;
+async function zeige3D() {
+if (S.modus === 'bins') return zeigeBin3D();
+if (S.modus === 'platten') return zeigePlatte3D();
+const e = S.liste.find(x => x.id === S.sel);
+gruppe.clear();
+if (!e) return;
+const t0 = performance.now();
+const r = labelGeo(await opts(), await ausEin(e));
+gruppe.add(new THREE.Mesh(geo3(r.basis), new THREE.MeshStandardMaterial({ color: S.einst.farbeEtikett, roughness: .55 })));
+if (r.inhalt) gruppe.add(new THREE.Mesh(geo3(r.inhalt), new THREE.MeshStandardMaterial({ color: S.einst.farbeInhalt, roughness: .45 })));
+r.basis.delete(); r.inhalt && r.inhalt.delete();
+if (letzteLaenge !== r.length) {
+letzteLaenge = r.length;
+const d = r.length * 1.35 + 12;
+cam.position.set(0, -d * 0.62, d * 0.78); ctr.target.set(0, 0, 0);
+}
+$('#status').textContent = `${(r.length + 2).toFixed(1)} × ${String(+S.einst.width || 11.5).replace('.', ',')} mm · ${Math.round(performance.now() - t0)} ms`;
+}
+async function zeichneListe() {
+if (S.modus === 'bins') return zeichneBinListe();
+if (S.modus === 'platten') return zeichnePlattenListe();
+const o = await opts();
+const box = $('#eintraege'); box.innerHTML = '';
+let summe = 0;
+for (const e of S.liste) {
+summe += +e.anzahl || 1;
+box.append(el('div', { class: 'eintrag' + (e.id === S.sel ? ' aktiv' : ''), onclick: () => waehle(e.id) },
+await svgVorschau(e, o),
+el('div', { class: 'info' }, el('b', {}, titel(e)), beschreibung(e)),
+(+e.anzahl > 1) ? el('span', { class: 'anz' }, '×' + e.anzahl) : ''));
+}
+if (!S.liste.length) box.append(el('p', { class: 'hinweis', style: 'padding:14px' }, 'Noch keine Etiketten – „+ Etikett“ oder „Serie“ antippen.'));
+$('#zaehler').textContent = `${summe} Etikett${summe === 1 ? '' : 'en'}`;
+}
+function titel(e) {
+const t = istTyp(e);
+if (t === 'Custom text') return [e.zeile1, e.zeile2].filter(Boolean).join(' / ') || 'Eigener Text';
+if (e.text) return e.text;
+return e.laenge > 0 && !['Nut', 'Washer'].includes(e.kat) || t === 'Spacer' ? `${e.durchmesser}x${e.laenge}` : e.durchmesser;
+}
+function waehle(id) { S.sel = id; zeichneListe(); zeichneEditor(); zeige3D(); }
+const sel = (opt, wert, beschr = x => DE[x] || x) => el('select', {}, opt.map(o => el('option', { value: o, selected: o === wert }, beschr(o))));
+function feld(text, input, onchange) { input.addEventListener(input.tagName === 'SELECT' || input.type === 'checkbox' ? 'change' : 'input', onchange); return el('label', {}, text, input); }
+const kachelCache = new Map();
+const KOPF_MITTE = -10, KOPF_Y = 2.5; // Lage des Kopf-Icons bei fester Icon-Länge
+function kachelBild(ein, crop) {
+const key = JSON.stringify([ein, crop, S.einst.farbeEtikett, S.einst.farbeInhalt, S.einst.Y_units]);
+if (kachelCache.has(key)) return kachelCache.get(key).cloneNode(true);
+const div = el('div', { class: 'bild', style: `background:${S.einst.farbeEtikett}` });
+let { cs } = labelGeo({ ...S.einst, Icon_length: 'Fixed', Y_units: 1 }, { anzahl: 1, ...ein, ohneText: true, ohneIcon: false }, true);
+if (crop) cs = cs.intersect(wasm.CrossSection.circle((crop[2] - crop[0]) / 2, 64).translate([(crop[0] + crop[2]) / 2, (crop[1] + crop[3]) / 2]));
+if (cs.isEmpty()) div.append(el('b', { style: `color:${S.einst.farbeInhalt}` }, 'Abc'));
+else {
+const b = cs.bounds();
+let [x0, y0, x1, y1] = crop || [b.min[0], b.min[1], b.max[0], b.max[1]];
+const w = x1 - x0, h = y1 - y0, p = Math.max(w, h * 2.1) * 0.06;
+const W = Math.max(w, h * 2.1) + 2 * p, H = W / 2.1;
+const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+const pfad = cs.toPolygons().map(q => 'M' + q.map(([x, y]) => `${x.toFixed(2)} ${(-y).toFixed(2)}`).join('L') + 'Z').join('');
+const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+svg.setAttribute('viewBox', `${cx - W / 2} ${-cy - H / 2} ${W} ${H}`);
+svg.innerHTML = `<path d="${pfad}" fill="${S.einst.farbeInhalt}"/>`;
+div.append(svg);
+}
+if (kachelCache.size > 600) kachelCache.clear();
+kachelCache.set(key, div);
+return div.cloneNode(true);
+}
+let offeneWahl = null;
+function bildWahl(id, titel, optionen, wert, muster, name, onwahl, crop) {
+const knopf = el('button', { class: 'wahlKnopf' + (offeneWahl === id ? ' offen' : ''), type: 'button',
+onclick: () => { offeneWahl = offeneWahl === id ? null : id; zeichneEditor(); } },
+kachelBild(muster(wert), crop), el('span', {}, name(wert)), '▾');
+const teile = [el('label', {}, titel, knopf)];
+if (offeneWahl === id) teile.push(el('div', { class: 'kacheln' }, optionen.map(o =>
+el('button', { class: 'kachel' + (o === wert ? ' aktiv' : ''), type: 'button', onclick: () => { offeneWahl = null; onwahl(o); } },
+kachelBild(muster(o), crop), name(o)))));
+return teile;
+}
+const KAT_MUSTER = { Bolt: { kat: 'Bolt', kopf: 'Socket head', antrieb: 'Hex socket' }, Nut: { kat: 'Nut', typ: 'Standard' }, Washer: { kat: 'Washer', typ: 'Standard' },
+Standoff: { kat: 'Standoff', typ: 'Male-female' }, Furniture: { kat: 'Furniture', typ: 'Wooden dowel' }, Other: { kat: 'Other', typ: 'Heat set insert' } };
+function zeichneEditor() {
+if (S.modus === 'bins') return zeichneBinEditor();
+if (S.modus === 'platten') return zeichnePlattenEditor();
+const ed = $('#editor'); ed.innerHTML = '';
+const e = S.liste.find(x => x.id === S.sel);
+if (!e) { ed.append(el('p', { class: 'hinweis' }, 'Kein Etikett gewählt.')); return; }
+const neu = (k, v, voll) => { e[k] = v; aenderung(voll); };
+ed.append(el('h3', {}, 'Etikett'));
+const typ = istTyp(e);
+const schraube = { kat: 'Bolt', kopf: e.kopf, antrieb: e.antrieb, spitze: e.spitze, gewinde: e.gewinde || 'Full', laenge: 16 };
+ed.append(...bildWahl('kat', 'Teil', Object.keys(KATALOG), e.kat, k => KAT_MUSTER[k], k => KATALOG[k].de, v => { e.typ = ''; neu('kat', v, true); }));
+if (e.kat === 'Bolt') {
+ed.append(...bildWahl('kopf', 'Kopf', KOEPFE, e.kopf, v => ({ ...schraube, kopf: v }), v => DE[v] || v, v => neu('kopf', v, true)));
+ed.append(...bildWahl('antrieb', 'Antrieb', ANTRIEBE, e.antrieb, v => ({ ...schraube, kopf: 'Socket head', antrieb: v }), v => DE[v] || v, v => neu('antrieb', v, true), [KOPF_MITTE - 2.6, KOPF_Y - 2.6, KOPF_MITTE + 2.6, KOPF_Y + 2.6]));
+ed.append(...bildWahl('spitze', 'Spitze', SPITZEN, e.spitze, v => ({ ...schraube, spitze: v }), v => DE[v] || v, v => neu('spitze', v, true)));
+ed.append(...bildWahl('gewinde', 'Gewinde', GEWINDE, e.gewinde || 'Full', v => ({ ...schraube, gewinde: v }), v => DE[v] || v, v => neu('gewinde', v, true)));
+} else ed.append(...bildWahl('typ', 'Art', KATALOG[e.kat].typen, typ, v => ({ kat: e.kat, typ: v, laenge: 16 }), v => DE[v] || v, v => neu('typ', v, true)));
+if (typ === 'Custom text') {
+ed.append(feld('Zeile 1', el('input', { value: e.zeile1 }), ev => neu('zeile1', ev.target.value)));
+ed.append(feld('Zeile 2 (optional)', el('input', { value: e.zeile2 }), ev => neu('zeile2', ev.target.value)));
+} else {
+ed.append(feld('Durchmesser', el('input', { value: e.durchmesser, placeholder: 'M3' }), ev => neu('durchmesser', ev.target.value)));
+ed.append(feld('Länge (mm)', el('input', { type: 'number', step: '0.1', min: 0, value: e.laenge }), ev => neu('laenge', +ev.target.value || 0)));
+ed.append(feld('Eigener Text statt Maß', el('input', { value: e.text, placeholder: 'z. B. M3x8 DIN 912' }), ev => neu('text', ev.target.value)));
+}
+ed.append(feld('Anzahl Drucke', el('input', { type: 'number', min: 1, max: 99, value: e.anzahl || 1 }), ev => neu('anzahl', Math.max(1, +ev.target.value || 1))));
+if (typ !== 'Custom text') ed.append(el('label', { class: 'check' }, (() => { const c = el('input', { type: 'checkbox', checked: !!e.ohneIcon }); c.addEventListener('change', () => neu('ohneIcon', c.checked)); return c; })(), 'ohne Icon'));
+ed.append(el('h3', {}, 'Eigenes Logo'));
+const datei = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/svg+xml,image/webp', style: 'display:none' });
+datei.addEventListener('change', async () => { const f = datei.files[0]; if (!f) return; const l = await logoHochladen(f); e.logo = l.id; aenderung(true); });
+ed.append(el('div', { class: 'logos' },
+el('button', { class: 'logoKachel' + (!e.logo ? ' aktiv' : ''), type: 'button', onclick: () => neu('logo', '', true) }, 'kein'),
+S.logos.map(l => el('button', { class: 'logoKachel' + (e.logo === l.id ? ' aktiv' : ''), type: 'button', title: l.name, onclick: () => neu('logo', l.id, true) }, el('img', { src: l.bild, alt: l.name }))),
+el('button', { class: 'logoKachel', type: 'button', onclick: () => datei.click() }, '+ Bild'), datei));
+const logo = S.logos.find(l => l.id === e.logo);
+if (logo) {
+const nl = (k, v, voll) => { logo[k] = v; svgCache.clear(); aenderung(voll); };
+ed.append(haken('Logo groß (ohne Text)', e.logoGross, v => neu('logoGross', v)));
+ed.append(feld('Logo-Name', el('input', { value: logo.name }), ev => nl('name', ev.target.value)));
+ed.append(feld(`Schwelle hell/dunkel (${logo.schwelle})`, el('input', { type: 'range', min: 10, max: 250, step: 5, value: logo.schwelle }), ev => { ev.target.parentElement.firstChild.textContent = `Schwelle hell/dunkel (${ev.target.value})`; nl('schwelle', +ev.target.value); }));
+ed.append(haken('hell und dunkel tauschen', logo.umkehren, v => nl('umkehren', v)));
+ed.append(el('div', { class: 'aktionen' }, el('button', { class: 'klein gefahr', type: 'button', onclick: () => { if (!confirm(`Logo „${logo.name}“ aus der Bibliothek löschen?`)) return; S.logos = S.logos.filter(l => l !== logo); S.liste.forEach(x => { if (x.logo === logo.id) x.logo = ''; }); aenderung(true); } }, 'Logo löschen')));
+}
+ed.append(el('h3', {}, 'QR-Code'));
+const qrInfo = el('div', { class: 'hinweis', style: 'grid-column:1/-1' });
+const qrPruefen = () => {
+qrInfo.className = 'hinweis'; qrInfo.textContent = '';
+const inh = qrInhalt(e); if (!inh) { qrInfo.textContent = 'Optional: Link eingeben – der QR-Code sitzt dann rechts auf dem Etikett.'; return; }
+try {
+const q = qrcode(0, 'L'); q.addData(inh); q.make();
+const n = q.getModuleCount(), mod = Math.min(0.5, ((+S.einst.width || 11.5) - 2 * (+S.einst.champfer || 0) - 0.1) / (n + 2));
+qrInfo.textContent = `QR-Code ${n} × ${n} Punkte, je ${mod.toFixed(2).replace('.', ',')} mm.` + (e.qrKurz ? ` Kurzlink: ${inh.toLowerCase()} (funktioniert im Heimnetz).` : '');
+if (mod < 0.4) { qrInfo.className = 'warnung'; qrInfo.textContent += ' Das ist sehr fein und eventuell nicht lesbar – „Kurzlink“ einschalten oder einen kürzeren Link nehmen. Am besten „bündig eingelassen“ drucken.'; }
+} catch { qrInfo.className = 'warnung'; qrInfo.textContent = 'Der Link ist zu lang für einen QR-Code – bitte „Kurzlink“ einschalten.'; }
+};
+ed.append(feld('Link für den QR-Code', el('input', { value: e.qr || '', placeholder: 'https://…' }), ev => { e.qr = ev.target.value; qrPruefen(); aenderung(false); }));
+ed.append(haken('Kurzlink über Gridwerk (für lange Links)', e.qrKurz, v => { e.qrKurz = v; qrPruefen(); aenderung(false); }));
+ed.append(qrInfo); qrPruefen();
+ed.append(el('div', { class: 'aktionen' },
+el('button', { class: 'klein', onclick: () => { const k = { ...e, id: neueId() }; S.liste.splice(S.liste.indexOf(e) + 1, 0, k); S.sel = k.id; aenderung(true); } }, 'Duplizieren'),
+el('button', { class: 'klein', onclick: () => verschiebe(e, -1) }, '↑'),
+el('button', { class: 'klein', onclick: () => verschiebe(e, 1) }, '↓'),
+el('button', { class: 'klein gefahr', onclick: () => { const i = S.liste.indexOf(e); S.liste.splice(i, 1); S.sel = (S.liste[i] || S.liste[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
+}
+function verschiebe(e, d) { const i = S.liste.indexOf(e), j = i + d; if (j < 0 || j >= S.liste.length) return; [S.liste[i], S.liste[j]] = [S.liste[j], S.liste[i]]; aenderung(); }
+let renderTimer;
+function aenderung(editorNeu) {
+speichern();
+if (editorNeu) zeichneEditor();
+clearTimeout(renderTimer);
+renderTimer = setTimeout(() => { zeichneListe(); zeige3D(); }, 120);
+}
+function zeichneEinst() {
+const b = $('#einst'); b.innerHTML = '';
+const E = S.einst;
+const neu = (k, v) => { E[k] = v; aenderung(); };
+$('#einstTitel').textContent = S.modus === 'bins' ? 'Einstellungen für alle Behälter' : S.modus === 'platten' ? 'Einstellungen für Schubladen' : 'Einstellungen für alle Etiketten';
+if (S.modus === 'platten') { zeichnePlattenEinst(b); return; }
+if (S.modus === 'bins') {
+const BE = S.binEinst, neuB = (k, v) => { BE[k] = v; aenderung(); };
+b.append(feld('Farbe Behälter', el('input', { type: 'color', value: BE.Bin_Color }), ev => neuB('Bin_Color', ev.target.value)));
+b.append(feld('Farbe Rand', el('input', { type: 'color', value: BE.Top_Edge_Color }), ev => neuB('Top_Edge_Color', ev.target.value)));
+b.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, 'Ist die Randfarbe anders als die Behälterfarbe, wird der obere Rand ein eigenes Teil (Filament 2).'));
+b.append(feld('Höhe Farbrand (mm)', el('input', { type: 'number', step: '0.05', min: 0.5, max: 8, value: BE.Top_Edge_Color_Height }), ev => neuB('Top_Edge_Color_Height', +ev.target.value || 1)));
+b.append(feld('Drucker (Plattenmitte)', sel(Object.keys(DRUCKER), E.drucker, k => DRUCKER[k].name), ev => neu('drucker', ev.target.value)));
+b.append(haken('gewähltes Etikett in der Vorschau einsetzen', BE.etikettZeigen, v => neuB('etikettZeigen', v)));
+b.append(haken('zugeordnete Etiketten mitexportieren', BE.etikettenMit, v => neuB('etikettenMit', v)));
+return;
+}
+b.append(feld('Etikettbreite', sel(['1', '2', '3'], String(E.Y_units), v => `${v} Einheit${v === '1' ? '' : 'en'} (${laengeAusY(+v) + 2} mm)`), ev => neu('Y_units', +ev.target.value)));
+b.append(feld('Schrift', sel(Object.keys(FONTS), E.font, k => FONTS[k][0]), ev => { neu('font', ev.target.value); zeichneEinst(); }));
+const f = FONTS[E.font] || FONTS['noto-sans-sc'];
+const stile = [...f[2].map(w => w + ''), ...f[3].map(w => w + 'i')];
+const akt = schnittWaehlen(E.font, +E.gewicht || 700, !!E.kursiv);
+b.append(feld('Schriftschnitt', sel(stile, akt.w + (akt.kursiv ? 'i' : ''), v => SCHNITTE[parseInt(v)] + (v.endsWith('i') ? ' Italic' : '')), ev => { E.kursiv = ev.target.value.endsWith('i'); neu('gewicht', parseInt(ev.target.value)); }));
+b.append(feld('Schriftgröße', el('input', { type: 'number', step: '0.1', min: 2, max: 8, value: E.text_size }), ev => neu('text_size', +ev.target.value || 4.2)));
+b.append(feld('Inhalt', sel(['Raised Text', 'Flush Text', 'Flush Skin'], E.text_type, v => ({ 'Raised Text': 'erhaben', 'Flush Text': 'bündig eingelassen (AMS)', 'Flush Skin': 'bündig, 0,01-mm-Haut (wie Original)' })[v]), ev => neu('text_type', ev.target.value)));
+b.append(feld('Höhe erhaben (mm)', el('input', { type: 'number', step: '0.05', min: 0.05, max: 1, value: E.raised_text_height }), ev => neu('raised_text_height', +ev.target.value || 0.2)));
+b.append(feld('Tiefe bündig (mm)', el('input', { type: 'number', step: '0.1', min: 0.2, max: 0.6, value: E.flush_tiefe }), ev => neu('flush_tiefe', +ev.target.value || 0.4)));
+b.append(feld('Icon-Länge', sel(['Fixed', 'Real length'], E.Icon_length, v => v === 'Fixed' ? 'fest (passt immer)' : 'echte Länge'), ev => neu('Icon_length', ev.target.value)));
+b.append(feld('Farbe Etikett', el('input', { type: 'color', value: E.farbeEtikett }), ev => neu('farbeEtikett', ev.target.value)));
+b.append(feld('Farbe Inhalt', el('input', { type: 'color', value: E.farbeInhalt }), ev => neu('farbeInhalt', ev.target.value)));
+b.append(el('h3', {}, 'Settings for nerds'));
+b.append(feld('Breite (mm)', el('input', { type: 'number', step: '0.1', min: 8, max: 20, value: E.width }), ev => neu('width', +ev.target.value || 11.5)));
+b.append(feld('Dicke (mm)', el('input', { type: 'number', step: '0.1', min: 0.4, max: 3, value: E.height }), ev => neu('height', +ev.target.value || 0.8)));
+b.append(feld('Eckenradius (mm)', el('input', { type: 'number', step: '0.1', min: 0.1, max: 4, value: E.radius }), ev => neu('radius', +ev.target.value || 0.9)));
+b.append(feld('Fase (mm)', el('input', { type: 'number', step: '0.05', min: 0, max: 0.5, value: E.champfer }), ev => neu('champfer', +ev.target.value)));
+b.append(el('div', { class: 'aktionen' }, el('button', { class: 'klein', onclick: () => { Object.assign(E, { width: 11.5, height: 0.8, radius: 0.9, champfer: 0.2 }); zeichneEinst(); aenderung(); } }, 'Originalmaße')));
+b.append(feld('Drucker (Plattenmitte)', sel(Object.keys(DRUCKER), E.drucker, k => DRUCKER[k].name), ev => neu('drucker', ev.target.value)));
+}
+function modusSetzen(m, still) {
+S.modus = m;
+$('#mEtik').classList.toggle('aktiv', m === 'etiketten'); $('#mBins').classList.toggle('aktiv', m === 'bins'); $('#mPlatten').classList.toggle('aktiv', m === 'platten');
+document.querySelectorAll('.nurEtik').forEach(x => x.style.display = m !== 'etiketten' ? 'none' : '');
+$('#bNeu').textContent = m === 'bins' ? '+ Behälter' : m === 'platten' ? '+ Schublade' : '+ Etikett';
+letzteLaenge = -1; offeneWahl = null;
+if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeige3D(); zeichneEinst(); }
+}
+$('#mEtik').onclick = () => modusSetzen('etiketten');
+$('#mBins').onclick = () => modusSetzen('bins');
+$('#mPlatten').onclick = () => modusSetzen('platten');
+const binOpts = b => ({ ...b, Top_Edge_Color_Height: S.binEinst.Top_Edge_Color_Height, randSeparat: S.binEinst.Top_Edge_Color.toLowerCase() !== S.binEinst.Bin_Color.toLowerCase() });
+const HOEHENMODUS = ['Gridfinity-Einheiten', 'Innenhöhe in mm', 'Gesamthöhe in mm'];
+const LIPPE = ['Stapelrand', 'ohne Rand (niedriger)', 'ohne Rand (Höhe bleibt)'];
+const LOECHER = ['keine Löcher', 'Magnete', 'Magnete + Schrauben', 'Magnete + Schrauben (druckbar)'];
+function binTitel(b) { return `${b.Bin_Width} × ${b.Bin_Depth} · ${+b.Height_Mode === 0 ? 'Höhe ' + b.Bin_Height : b.Bin_Height + ' mm'}`; }
+function binBeschr(b) {
+const f = (+b.Compartments_Left_To_Right) * (+b.Compartments_Front_To_Back);
+return [f === 0 ? 'massiv' : f === 1 ? '1 Fach' : f + ' Fächer', b.Label_Holder ? 'Etikettenhalter' : '', +b.Base_Hole_Style ? LOECHER[+b.Base_Hole_Style] : '', +b.Top_Lip_Style ? 'ohne Stapelrand' : ''].filter(Boolean).join(' · ');
+}
+function binSvg(b) {
+const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+const gx = +b.Bin_Width, gy = +b.Bin_Depth, m = Math.max(gx, gy), s = 56 / m, w = gx * s, h = gy * s, x0 = (64 - w) / 2, y0 = (64 - h) / 2;
+const nx = +b.Compartments_Left_To_Right, ny = +b.Compartments_Front_To_Back;
+let inner = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="${Math.min(6, s / 7)}" fill="${S.binEinst.Bin_Color}"/>`;
+inner += `<rect x="${x0 + 2.5}" y="${y0 + 2.5}" width="${w - 5}" height="${h - 5}" rx="${Math.min(4, s / 9)}" fill="rgba(0,0,0,.18)"/>`;
+for (let i = 1; i < nx; i++) inner += `<rect x="${x0 + 2.5 + i * (w - 5) / nx - 1}" y="${y0 + 2.5}" width="2" height="${h - 5}" fill="${S.binEinst.Bin_Color}"/>`;
+for (let j = 1; j < ny; j++) inner += `<rect x="${x0 + 2.5}" y="${y0 + 2.5 + j * (h - 5) / ny - 1}" width="${w - 5}" height="2" fill="${S.binEinst.Bin_Color}"/>`;
+if (b.Label_Holder) for (let j = 0; j < Math.max(1, ny); j++) inner += `<rect x="${x0 + 5}" y="${y0 + 2.5 + j * (h - 5) / Math.max(1, ny) + 1.5}" width="${w - 10}" height="${Math.max(3, h / Math.max(1, ny) * 0.16)}" rx="1" fill="#fff" opacity=".85"/>`;
+svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('class', 'binsvg'); svg.innerHTML = inner;
+return svg;
+}
+function zeichneBinListe() {
+const box = $('#eintraege'); box.innerHTML = '';
+let summe = 0;
+for (const b of S.bins) {
+summe += +b.anzahl || 1;
+box.append(el('div', { class: 'eintrag' + (b.id === S.binSel ? ' aktiv' : ''), onclick: () => { S.binSel = b.id; offeneWahl = null; zeichneBinListe(); zeichneBinEditor(); zeigeBin3D(); } },
+binSvg(b), el('div', { class: 'info' }, el('b', {}, binTitel(b)), binBeschr(b)),
+(+b.anzahl > 1) ? el('span', { class: 'anz' }, '×' + b.anzahl) : ''));
+}
+if (!S.bins.length) box.append(el('p', { class: 'hinweis', style: 'padding:14px' }, 'Noch keine Behälter – „+ Behälter“ antippen.'));
+$('#zaehler').textContent = `${summe} Behälter`;
+}
+function zahl(text, wert, attrs, cb) { return feld(text, el('input', { type: 'number', value: wert, ...attrs }), ev => { const v = parseFloat(ev.target.value); if (!isNaN(v)) cb(v); }); }
+function haken(text, wert, cb) { const c = el('input', { type: 'checkbox', checked: !!wert }); c.addEventListener('change', () => cb(c.checked)); return el('label', { class: 'check' }, c, text); }
+function zeichneBinEditor() {
+const ed = $('#editor'); ed.innerHTML = '';
+const b = S.bins.find(x => x.id === S.binSel);
+if (!b) { ed.append(el('p', { class: 'hinweis' }, 'Kein Behälter gewählt.')); return; }
+const neu = (k, v, voll) => { b[k] = v; aenderung(voll); };
+ed.append(el('h3', {}, 'Größe'));
+ed.append(zahl('Breite (Raster à 42 mm)', b.Bin_Width, { step: 0.5, min: 0.5, max: 8 }, v => neu('Bin_Width', v)));
+ed.append(zahl('Tiefe (Raster à 42 mm)', b.Bin_Depth, { step: 0.5, min: 0.5, max: 8 }, v => neu('Bin_Depth', v)));
+ed.append(zahl(+b.Height_Mode === 0 ? 'Höhe (Einheiten à 7 mm)' : 'Höhe (mm)', b.Bin_Height, { step: +b.Height_Mode === 0 ? 1 : 0.5, min: 1, max: 300 }, v => neu('Bin_Height', v)));
+ed.append(feld('Höhenangabe', sel(['0', '1', '2'], String(b.Height_Mode), v => HOEHENMODUS[+v]), ev => neu('Height_Mode', +ev.target.value, true)));
+if (+b.Height_Mode !== 0) ed.append(haken('auf 7-mm-Raster runden', b.Snap_Height_To_Grid, v => neu('Snap_Height_To_Grid', v)));
+ed.append(el('h3', {}, 'Fächer'));
+ed.append(zahl('Fächer links → rechts', b.Compartments_Left_To_Right, { step: 1, min: 0, max: 12 }, v => neu('Compartments_Left_To_Right', Math.round(v))));
+ed.append(zahl('Fächer vorn → hinten', b.Compartments_Front_To_Back, { step: 1, min: 0, max: 12 }, v => neu('Compartments_Front_To_Back', Math.round(v))));
+ed.append(feld(`Griffmulde (${Math.round(b.Scoop_Size * 100)} %)`, el('input', { type: 'range', min: 0, max: 1, step: 0.1, value: b.Scoop_Size }), ev => { neu('Scoop_Size', +ev.target.value); ev.target.parentElement.firstChild.textContent = `Griffmulde (${Math.round(ev.target.value * 100)} %)`; }));
+ed.append(haken('Etikettenhalter (Clip-Etikett)', b.Label_Holder, v => neu('Label_Holder', v, true)));
+ed.append(el('h3', {}, 'Rand & Boden'));
+ed.append(feld('Oberer Rand', sel(['0', '1', '2'], String(b.Top_Lip_Style), v => LIPPE[+v]), ev => neu('Top_Lip_Style', +ev.target.value, true)));
+ed.append(feld('Löcher im Boden', sel(['0', '1', '2', '3'], String(b.Base_Hole_Style), v => LOECHER[+v]), ev => neu('Base_Hole_Style', +ev.target.value, true)));
+if (+b.Base_Hole_Style > 0) ed.append(haken('Löcher nur an den Außenecken', b.Corner_Holes_Only, v => neu('Corner_Holes_Only', v)));
+ed.append(zahl('Anzahl Drucke', b.anzahl || 1, { step: 1, min: 1, max: 99 }, v => neu('anzahl', Math.max(1, Math.round(v)))));
+if (b.Label_Holder && [1, 2, 3].includes(+b.Bin_Width)) {
+ed.append(el('h3', {}, 'Etiketten'));
+const reihen = Math.max(1, +b.Compartments_Front_To_Back | 0);
+b.etiketten = b.etiketten || [];
+for (let j = 0; j < reihen; j++) {
+const opt = ['', ...S.liste.map(x => x.id)];
+ed.append(feld(reihen > 1 ? `Etikett Reihe ${j + 1} (${j === 0 ? 'vorn' : j === reihen - 1 ? 'hinten' : 'Mitte'})` : 'Etikett', sel(opt, b.etiketten[j] || '', v => v ? titel(S.liste.find(x => x.id === v)) + ' · ' + beschreibung(S.liste.find(x => x.id === v)) : '– keins –'), ev => { b.etiketten[j] = ev.target.value; aenderung(); }));
+}
+}
+if (b.Label_Holder) {
+if (+b.Height_Mode === 0 && b.Bin_Height < 3) ed.append(el('div', { class: 'warnung' }, 'Unter 3 Einheiten Höhe gibt es keine Lasche – das Etikett hat dann keinen Halt.'));
+const w = +b.Bin_Width;
+if (![1, 2, 3].includes(w)) ed.append(el('div', { class: 'warnung' }, `Für ${w} Raster Breite gibt es kein fertiges Etikett (Etiketten gibt es für 1, 2 und 3 Raster). Die Tasche ist ${(w * 42 - 6.2).toFixed(1)} mm lang.`));
+else ed.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, `Passendes Etikett: Etikettbreite ${w} Einheit${w > 1 ? 'en' : ''} (${laengeAusY(w) + 2} mm).`));
+}
+ed.append(el('div', { class: 'aktionen' },
+el('button', { class: 'klein', onclick: () => { const k = { ...b, id: neueId() }; S.bins.splice(S.bins.indexOf(b) + 1, 0, k); S.binSel = k.id; aenderung(true); } }, 'Duplizieren'),
+el('button', { class: 'klein', onclick: () => { const i = S.bins.indexOf(b), j = i - 1; if (j >= 0) { [S.bins[i], S.bins[j]] = [S.bins[j], S.bins[i]]; aenderung(); } } }, '↑'),
+el('button', { class: 'klein', onclick: () => { const i = S.bins.indexOf(b), j = i + 1; if (j < S.bins.length) { [S.bins[i], S.bins[j]] = [S.bins[j], S.bins[i]]; aenderung(); } } }, '↓'),
+el('button', { class: 'klein gefahr', onclick: () => { const i = S.bins.indexOf(b); S.bins.splice(i, 1); S.binSel = (S.bins[i] || S.bins[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
+}
+async function zeigeBin3D() {
+const b = S.bins.find(x => x.id === S.binSel);
+gruppe.clear();
+if (!b) return;
+const t0 = performance.now();
+const r = binGeo(binOpts(b));
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
+gruppe.add(new THREE.Mesh(geo3(r.koerper), mat(S.binEinst.Bin_Color)));
+if (r.band) gruppe.add(new THREE.Mesh(geo3(r.band), mat(S.binEinst.Top_Edge_Color)));
+await etikettenEinsetzen(gruppe, b, r);
+const groesse3 = Math.max(b.Bin_Width, b.Bin_Depth) * 42, hoehe = r.oben;
+const sig = groesse3 + '|' + hoehe.toFixed(0);
+if (letzteLaenge !== sig) {
+letzteLaenge = sig;
+const d = Math.max(groesse3 * 1.25, hoehe) * 2.4 + 40;
+cam.position.set(-d * 0.42, -d * 0.78, d * 0.7); ctr.target.set(0, 0, hoehe * 0.45);
+}
+$('#status').textContent = `${(b.Bin_Width * 42 - 0.5).toFixed(1)} × ${(b.Bin_Depth * 42 - 0.5).toFixed(1)} × ${r.oben.toFixed(1)} mm · ${Math.round(performance.now() - t0)} ms`;
+r.koerper.delete(); r.band && r.band.delete();
+}
+function anordnenBoxen(groessen, breite) {
+const pos = []; let x = 0, y = 0, zeileH = 0, maxB = 0; const reihen = [];
+groessen.forEach(([w, d], i) => {
+if (x > 0 && x + w > breite) { reihen.push({ y, h: zeileH }); y += zeileH + 6; x = 0; zeileH = 0; }
+pos.push({ x: x + w / 2, y: y + d / 2 }); x += w + 6; zeileH = Math.max(zeileH, d); maxB = Math.max(maxB, x - 6);
+});
+const gesamtT = y + zeileH;
+return { pos: pos.map(p => ({ x: p.x - maxB / 2, y: gesamtT / 2 - p.y })), breite: maxB, tiefe: gesamtT };
+}
+async function erzeugeBins() {
+if (!S.bins.length) return null;
+const flach = S.bins.flatMap(b => Array.from({ length: +b.anzahl || 1 }, () => b));
+const objs = [];
+for (let i = 0; i < flach.length; i++) {
+$('#status').textContent = `Erzeuge Behälter ${i + 1} / ${flach.length} …`;
+await new Promise(r => setTimeout(r));
+objs.push(await binObjekt(flach[i]));
+if (S.binEinst.etikettenMit) objs.push(...await zugeordneteEtiketten(flach[i]));
+}
+$('#status').textContent = `${objs.length} Teile erzeugt`;
+return packen(objs);
+}
+const logoCache = new Map();
+function logoStempel() { return S.logos.map(l => l.id + ':' + l.schwelle + ':' + (l.umkehren ? 1 : 0)).join('|'); }
+async function bildLaden(src) {
+return new Promise((ok, fehler) => { const im = new Image(); im.onload = () => ok(im); im.onerror = fehler; im.src = src; });
+}
+async function logoUmrisse(logo) {
+const key = logo.id + ':' + logo.schwelle + ':' + (logo.umkehren ? 1 : 0);
+if (logoCache.has(key)) return logoCache.get(key);
+const im = await bildLaden(logo.bild);
+const max = 220, sk = Math.min(1, max / Math.max(im.width, im.height));
+const w = Math.max(2, Math.round(im.width * sk)), h = Math.max(2, Math.round(im.height * sk));
+const cv = document.createElement('canvas'); cv.width = w + 2; cv.height = h + 2;
+const cx = cv.getContext('2d'); cx.drawImage(im, 1, 1, w, h);
+const d = cx.getImageData(0, 0, w + 2, h + 2).data, W = w + 2, H = h + 2;
+const voll = new Uint8Array(W * H);
+for (let i = 0; i < W * H; i++) {
+const a = d[i * 4 + 3], l = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+let v = a > 128 && l < logo.schwelle;
+if (logo.umkehren) v = a > 128 && !v;
+voll[i] = v ? 1 : 0;
+}
+const polys = umrisseAusRaster(voll, W, H).map(p => vereinfachen(p, 0.7)).filter(p => p.length > 2).map(p => p.map(([x, y]) => [x, H - y]));
+logoCache.set(key, polys);
+return polys;
+}
+function umrisseAusRaster(v, W, H) {
+const an = (x, y) => x >= 0 && y >= 0 && x < W && y < H && v[y * W + x];
+const kanten = new Map(); // "x,y" -> [nach...]
+const add = (x1, y1, x2, y2) => { const k = x1 + ',' + y1; if (!kanten.has(k)) kanten.set(k, []); kanten.get(k).push([x2, y2]); };
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (an(x, y)) {
+if (!an(x, y - 1)) add(x + 1, y, x, y);
+if (!an(x - 1, y)) add(x, y, x, y + 1);
+if (!an(x, y + 1)) add(x, y + 1, x + 1, y + 1);
+if (!an(x + 1, y)) add(x + 1, y + 1, x + 1, y);
+}
+const polys = [];
+for (const [start, liste] of kanten) {
+while (liste.length) {
+const [sx, sy] = start.split(',').map(Number);
+const poly = [[sx, sy]];
+let [px, py] = [sx, sy], [nx, ny] = liste.pop();
+let schutz = 0;
+while (!(nx === sx && ny === sy) && schutz++ < 1e6) {
+poly.push([nx, ny]);
+const weiter = kanten.get(nx + ',' + ny);
+if (!weiter || !weiter.length) break;
+let wahl = 0;
+if (weiter.length > 1) { // an Sattelpunkten rechts abbiegen, damit sich nichts kreuzt
+const dx = nx - px, dy = ny - py;
+wahl = weiter.findIndex(([qx, qy]) => (qx - nx) === -dy && (qy - ny) === dx);
+if (wahl < 0) wahl = 0;
+}
+const n2 = weiter.splice(wahl, 1)[0];
+px = nx; py = ny; nx = n2[0]; ny = n2[1];
+}
+if (poly.length > 2) polys.push(poly);
+}
+}
+return polys;
+}
+function vereinfachen(p, tol) {
+if (p.length < 5) return p;
+const dp = (a, s, e, out) => {
+let m = 0, mi = -1; const [x1, y1] = a[s], [x2, y2] = a[e], L = Math.hypot(x2 - x1, y2 - y1) || 1;
+for (let i = s + 1; i < e; i++) { const dd = Math.abs((x2 - x1) * (y1 - a[i][1]) - (x1 - a[i][0]) * (y2 - y1)) / L; if (dd > m) { m = dd; mi = i; } }
+if (m > tol && mi > 0) { dp(a, s, mi, out); dp(a, mi, e, out); } else out.push(a[s]);
+};
+const out = []; const h = Math.floor(p.length / 2);
+dp(p, 0, h, out); dp(p, h, p.length - 1, out); out.push(p[p.length - 1]);
+return out;
+}
+async function logoHochladen(datei) {
+const url = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(datei); });
+const im = await bildLaden(url);
+const max = 400, sk = Math.min(1, max / Math.max(im.width || max, im.height || max));
+const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round((im.width || max) * sk)); cv.height = Math.max(1, Math.round((im.height || max) * sk));
+cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+const logo = { id: neueId(), name: datei.name.replace(/\.[^.]+$/, '').slice(0, 30), bild: cv.toDataURL('image/png'), schwelle: 140, umkehren: false };
+S.logos.push(logo);
+return logo;
+}
+async function ausEin(e) {
+const n = normal(e);
+if (e.logo) { const l = S.logos.find(x => x.id === e.logo); if (l) n.logoPolys = await logoUmrisse(l); }
+n.qr = qrInhalt(e);
+return n;
+}
+function qrInhalt(e) {
+if (!e.qr || !String(e.qr).trim()) return '';
+if (e.qrKurz) { if (!e.qrCode) e.qrCode = Math.random().toString(36).slice(2, 5); return (location.origin + '/q/' + e.qrCode).toUpperCase(); }
+return String(e.qr).trim();
+}
+const NEU_PLATTE = () => ({ id: neueId(), name: 'Schublade', ...PLATTE_STANDARD, belegung: [] });
+const PLATTEN_STIL = { leicht: 'leicht (ohne Boden)', magnete: 'mit Magneten', schrauben: 'Magnete + Senkschrauben' };
+function bettBreite() { const dr = DRUCKER[S.einst.drucker] || DRUCKER.p; return dr.b; }
+function platteTitel(p) { const r = platteRaster(p); return `${p.name || 'Schublade'} · ${r.nx} × ${r.ny}`; }
+function platteBeschr(p) {
+const n = (p.belegung || []).length;
+return [p.modus === 'schublade' ? `${p.schubB} × ${p.schubT} mm` : 'Rastermaß', PLATTEN_STIL[p.stil] || '', n ? `${n} Behälter` : ''].filter(Boolean).join(' · ');
+}
+function platteSvgMini(p) {
+const r = platteRaster(p), gw = r.nx * 42 + r.padL + r.padR, gd = r.ny * 42 + r.padV + r.padH;
+const s = 56 / Math.max(gw, gd), ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+let inner = `<rect x="${32 - gw * s / 2}" y="${32 - gd * s / 2}" width="${gw * s}" height="${gd * s}" rx="2" fill="#9aa198"/>`;
+for (let i = 0; i < r.nx; i++) for (let j = 0; j < r.ny; j++) inner += `<rect x="${32 - gw * s / 2 + (r.padL + i * 42 + 2) * s}" y="${32 + gd * s / 2 - (r.padV + (j + 1) * 42 - 2) * s}" width="${38 * s}" height="${38 * s}" rx="${3 * s}" fill="#d9ddd6"/>`;
+for (const b of p.belegung || []) {
+const bin = S.bins.find(x => x.id === b.binId); if (!bin) continue;
+const w = (b.gedreht ? bin.Bin_Depth : bin.Bin_Width) * 42, d = (b.gedreht ? bin.Bin_Width : bin.Bin_Depth) * 42;
+inner += `<rect x="${32 - gw * s / 2 + (r.padL + b.x * 42 + 1) * s}" y="${32 + gd * s / 2 - (r.padV + b.y * 42 + d - 1) * s}" width="${(w - 2) * s}" height="${(d - 2) * s}" rx="${2 * s}" fill="${S.binEinst.Bin_Color}"/>`;
+}
+svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('class', 'binsvg'); svg.innerHTML = inner;
+return svg;
+}
+function zeichnePlattenListe() {
+const box = $('#eintraege'); box.innerHTML = '';
+for (const p of S.platten) {
+box.append(el('div', { class: 'eintrag' + (p.id === S.platteSel ? ' aktiv' : ''), onclick: () => { S.platteSel = p.id; planerAuswahl = null; zeichnePlattenListe(); zeichnePlattenEditor(); zeigePlatte3D(); } },
+platteSvgMini(p), el('div', { class: 'info' }, el('b', {}, platteTitel(p)), platteBeschr(p))));
+}
+if (!S.platten.length) box.append(el('p', { class: 'hinweis', style: 'padding:14px' }, 'Noch keine Schublade – „+ Schublade“ antippen.'));
+$('#zaehler').textContent = `${S.platten.length} Schublade${S.platten.length === 1 ? '' : 'n'}`;
+}
+const binMasse = (bin, gedreht) => ({ w: +(gedreht ? bin.Bin_Depth : bin.Bin_Width), d: +(gedreht ? bin.Bin_Width : bin.Bin_Depth) });
+function belegungPruefen(p) {
+const r = platteRaster(p), probleme = new Set();
+const rechtecke = (p.belegung || []).map((b, i) => { const bin = S.bins.find(x => x.id === b.binId); if (!bin) return null; const m = binMasse(bin, b.gedreht); return { i, x0: b.x, y0: b.y, x1: b.x + m.w, y1: b.y + m.d }; }).filter(Boolean);
+for (const a of rechtecke) {
+if (a.x0 < -1e-6 || a.y0 < -1e-6 || a.x1 > r.nx + 1e-6 || a.y1 > r.ny + 1e-6) probleme.add(a.i);
+for (const b of rechtecke) if (a !== b && a.x0 < b.x1 - 1e-6 && b.x0 < a.x1 - 1e-6 && a.y0 < b.y1 - 1e-6 && b.y0 < a.y1 - 1e-6) probleme.add(a.i);
+}
+return probleme;
+}
+function freierPlatz(p, bin) {
+const r = platteRaster(p);
+for (const gedreht of [false, true]) {
+const m = binMasse(bin, gedreht);
+for (let y = 0; y + m.d <= r.ny + 1e-6; y += 0.5) for (let x = 0; x + m.w <= r.nx + 1e-6; x += 0.5) {
+const probe = { ...p, belegung: [...(p.belegung || []), { binId: bin.id, x, y, gedreht }] };
+if (!belegungPruefen(probe).has(probe.belegung.length - 1)) return { x, y, gedreht };
+}
+}
+return null;
+}
+let planerAuswahl = null;
+function planerSvg(p) {
+const r = platteRaster(p), gw = r.nx * 42 + r.padL + r.padR, gd = r.ny * 42 + r.padV + r.padH;
+const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+svg.setAttribute('viewBox', `-4 -4 ${gw + 8} ${gd + 8}`); svg.setAttribute('class', 'planer');
+const Y = yy => gd - yy; // Planer: y nach oben (vorn = unten)
+let inner = `<rect x="0" y="0" width="${gw}" height="${gd}" rx="4" fill="var(--planerRand)"/>`;
+for (let i = 0; i < r.nx; i++) for (let j = 0; j < r.ny; j++) inner += `<rect x="${r.padL + i * 42 + 1.5}" y="${Y(r.padV + (j + 1) * 42) + 1.5}" width="39" height="39" rx="4" fill="var(--planerZelle)"/>`;
+inner += `<text x="${gw / 2}" y="${gd + 3.2}" font-size="5" text-anchor="middle" fill="var(--grau)">vorn</text>`;
+svg.innerHTML = inner;
+const probleme = belegungPruefen(p);
+(p.belegung || []).forEach((b, i) => {
+const bin = S.bins.find(x => x.id === b.binId); if (!bin) return;
+const m = binMasse(bin, b.gedreht);
+const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'planerBin' + (planerAuswahl === i ? ' aktiv' : ''));
+const x = r.padL + b.x * 42, y = Y(r.padV + (b.y + m.d) * 42);
+g.setAttribute('transform', `translate(${x} ${y})`);
+g.innerHTML = `<rect x="1" y="1" width="${m.w * 42 - 2}" height="${m.d * 42 - 2}" rx="4" fill="${probleme.has(i) ? '#e5484d' : S.binEinst.Bin_Color}" stroke="${planerAuswahl === i ? 'var(--text)' : 'none'}" stroke-width="1.5"/>`
++ `<text x="${m.w * 21}" y="${m.d * 21 + 2}" font-size="${Math.min(9, m.w * 6)}" text-anchor="middle" fill="#fff" font-weight="700">${bin.Bin_Width}×${bin.Bin_Depth}</text>`;
+g.addEventListener('pointerdown', ev => {
+ev.preventDefault(); planerAuswahl = i;
+const pt = svg.createSVGPoint(), umrechnen = e2 => { pt.x = e2.clientX; pt.y = e2.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+const start = umrechnen(ev), bx = b.x, by = b.y; let bewegt = false;
+const move = e2 => {
+const q = umrechnen(e2), dx = (q.x - start.x) / 42, dy = -(q.y - start.y) / 42;
+if (Math.abs(dx) + Math.abs(dy) > 0.1) bewegt = true;
+b.x = Math.round((bx + dx) * 2) / 2; b.y = Math.round((by + dy) * 2) / 2;
+g.setAttribute('transform', `translate(${r.padL + b.x * 42} ${Y(r.padV + (b.y + m.d) * 42)})`);
+};
+const hoch = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', hoch); aenderung(true); };
+window.addEventListener('pointermove', move); window.addEventListener('pointerup', hoch);
+zeichnePlanerLeiste(p);
+svg.querySelectorAll('.planerBin rect').forEach((rc, k) => rc.setAttribute('stroke', 'none'));
+g.querySelector('rect').setAttribute('stroke', 'var(--text)');
+});
+svg.append(g);
+});
+return svg;
+}
+function zeichnePlanerLeiste(p) {
+const l = $('#planerLeiste'); if (!l) return; l.innerHTML = '';
+const b = (p.belegung || [])[planerAuswahl];
+if (b) {
+const bin = S.bins.find(x => x.id === b.binId);
+l.append(el('span', { class: 'hinweis' }, `Gewählt: ${bin ? binTitel(bin) : '?'}`),
+el('button', { class: 'klein', type: 'button', onclick: () => { b.gedreht = !b.gedreht; aenderung(true); } }, '⟳ Drehen'),
+el('button', { class: 'klein gefahr', type: 'button', onclick: () => { p.belegung.splice(planerAuswahl, 1); planerAuswahl = null; aenderung(true); } }, 'Entfernen'));
+} else l.append(el('span', { class: 'hinweis' }, 'Behälter antippen zum Auswählen, ziehen zum Verschieben.'));
+}
+function platteRaster(p) { return platteGeo.raster({ ...PLATTE_STANDARD, ...p }); }
+function zeichnePlattenEditor() {
+const ed = $('#editor'); ed.innerHTML = '';
+const p = S.platten.find(x => x.id === S.platteSel);
+if (!p) { ed.append(el('p', { class: 'hinweis' }, 'Keine Schublade gewählt.')); return; }
+const neu = (k, v, voll) => { p[k] = v; aenderung(voll); };
+ed.append(el('h3', {}, 'Schublade'));
+ed.append(feld('Name', el('input', { value: p.name || '' }), ev => neu('name', ev.target.value)));
+ed.append(feld('Maße angeben als', sel(['schublade', 'raster'], p.modus, v => v === 'schublade' ? 'Innenmaß der Schublade (mm)' : 'Anzahl Raster'), ev => neu('modus', ev.target.value, true)));
+if (p.modus === 'schublade') {
+ed.append(zahl('Breite innen (mm)', p.schubB, { step: 1, min: 42, max: 2000 }, v => neu('schubB', v, true)));
+ed.append(zahl('Tiefe innen (mm)', p.schubT, { step: 1, min: 42, max: 2000 }, v => neu('schubT', v, true)));
+ed.append(zahl('Spiel je Seite (mm)', p.spiel, { step: 0.1, min: 0, max: 5 }, v => neu('spiel', v, true)));
+ed.append(feld('Rest links/rechts', sel(['mitte', 'links', 'rechts'], p.ausX, v => ({ mitte: 'gleich verteilen', links: 'Raster links, Rest rechts', rechts: 'Raster rechts, Rest links' })[v]), ev => neu('ausX', ev.target.value, true)));
+ed.append(feld('Rest vorn/hinten', sel(['mitte', 'vorn', 'hinten'], p.ausY, v => ({ mitte: 'gleich verteilen', vorn: 'Raster vorn, Rest hinten', hinten: 'Raster hinten, Rest vorn' })[v]), ev => neu('ausY', ev.target.value, true)));
+} else {
+ed.append(zahl('Raster breit', p.gx, { step: 1, min: 1, max: 40 }, v => neu('gx', Math.round(v), true)));
+ed.append(zahl('Raster tief', p.gy, { step: 1, min: 1, max: 40 }, v => neu('gy', Math.round(v), true)));
+}
+ed.append(feld('Grundplatte', sel(Object.keys(PLATTEN_STIL), p.stil, v => PLATTEN_STIL[v]), ev => neu('stil', ev.target.value, true)));
+ed.append(haken('für das Druckbett in Stücke teilen', p.teilen, v => neu('teilen', v, true)));
+const r = platteRaster(p), pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p, belegung: [] }, bettBreite());
+const rest = [r.padL, r.padR, r.padV, r.padH].some(v => v > 0.01) ? ` · Randausgleich links ${r.padL.toFixed(1)}, rechts ${r.padR.toFixed(1)}, vorn ${r.padV.toFixed(1)}, hinten ${r.padH.toFixed(1)} mm` : '';
+ed.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, `${r.nx} × ${r.ny} Raster · Platte ${pl.gesW.toFixed(1)} × ${pl.gesD.toFixed(1)} mm${rest} · ${pl.teile.length} Stück${pl.teile.length > 1 ? 'e' : ''} zum Drucken`));
+pl.teile.forEach(t => t.koerper.delete());
+ed.append(el('h3', {}, 'Behälter einplanen'));
+const palette = el('div', { class: 'aktionen' });
+if (!S.bins.length) palette.append(el('span', { class: 'hinweis' }, 'Lege zuerst im Bereich „Behälter“ Behälter an.'));
+for (const bin of S.bins) palette.append(el('button', { class: 'klein', type: 'button', onclick: () => {
+const platz = freierPlatz(p, bin);
+p.belegung = p.belegung || [];
+p.belegung.push(platz ? { binId: bin.id, ...platz } : { binId: bin.id, x: 0, y: 0, gedreht: false });
+planerAuswahl = p.belegung.length - 1; aenderung(true);
+} }, '+ ' + binTitel(bin)));
+ed.append(palette);
+ed.append(el('div', { class: 'planerBox' }, planerSvg(p)));
+ed.append(el('div', { class: 'aktionen', id: 'planerLeiste' }));
+setTimeout(() => zeichnePlanerLeiste(p));
+const probleme = belegungPruefen(p);
+if (probleme.size) ed.append(el('div', { class: 'warnung' }, `${probleme.size} Behälter überlappen oder ragen aus der Schublade (rot markiert).`));
+ed.append(el('div', { class: 'aktionen' },
+el('button', { class: 'klein', onclick: () => { const k = { ...p, id: neueId(), name: (p.name || 'Schublade') + ' Kopie', belegung: (p.belegung || []).map(b => ({ ...b })) }; S.platten.push(k); S.platteSel = k.id; aenderung(true); } }, 'Duplizieren'),
+el('button', { class: 'klein gefahr', onclick: () => { const i = S.platten.indexOf(p); S.platten.splice(i, 1); S.platteSel = (S.platten[i] || S.platten[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
+}
+const binGeoCache = new Map();
+function binGeometrie(b) {
+const key = JSON.stringify(binOpts({ ...b, id: 0, anzahl: 0, etiketten: 0 }));
+if (binGeoCache.has(key)) return binGeoCache.get(key);
+const r = binGeo(binOpts(b));
+const g = { koerper: geo3(r.koerper), band: r.band ? geo3(r.band) : null, meta: { topZ: r.topZ, zsmall: r.zsmall, reihen: r.reihen, gy: r.gy, oben: r.oben } };
+r.koerper.delete(); r.band && r.band.delete();
+if (binGeoCache.size > 40) binGeoCache.clear();
+binGeoCache.set(key, g);
+return g;
+}
+async function etikettFuerReihe(b, j) {
+const id = (b.etiketten || [])[j];
+return S.liste.find(x => x.id === id) || (S.binEinst.etikettZeigen ? S.liste.find(x => x.id === S.sel) : null);
+}
+async function etikettenEinsetzen(gruppeZiel, b, meta, versatz = [0, 0, 0], drehung = 0) {
+if (!b.Label_Holder || meta.zsmall || ![1, 2, 3].includes(+b.Bin_Width)) return;
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
+const lagen = etikettLagen(meta);
+for (let j = 0; j < lagen.length; j++) {
+const e = await etikettFuerReihe(b, j); if (!e) continue;
+const lg = labelGeo({ ...(await opts()), Y_units: +b.Bin_Width }, await ausEin(e));
+const grp = new THREE.Group();
+const m1 = new THREE.Mesh(geo3(lg.basis), mat(S.einst.farbeEtikett)); grp.add(m1);
+if (lg.inhalt) grp.add(new THREE.Mesh(geo3(lg.inhalt), mat(S.einst.farbeInhalt)));
+grp.position.set(lagen[j].x, lagen[j].y, lagen[j].z);
+const huelle = new THREE.Group(); huelle.add(grp); huelle.rotation.z = drehung; huelle.position.set(...versatz);
+gruppeZiel.add(huelle);
+lg.basis.delete(); lg.inhalt && lg.inhalt.delete();
+}
+}
+async function zeigePlatte3D() {
+const p = S.platten.find(x => x.id === S.platteSel);
+gruppe.clear();
+if (!p) return;
+const t0 = performance.now();
+const pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p }, bettBreite());
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .7 });
+for (const t of pl.teile) {
+const m = new THREE.Mesh(geo3(t.koerper), mat(S.platteEinst.farbe));
+const fuge = pl.teile.length > 1 ? 1.2 : 0;
+m.position.set(t.x + Math.sign(t.x) * fuge, t.y + Math.sign(t.y) * fuge, 0); gruppe.add(m);
+t.koerper.delete();
+}
+const unten = pl.H - platteGeo.H_TASCHE;
+let n = 0;
+for (const b of p.belegung || []) {
+const bin = S.bins.find(x => x.id === b.binId); if (!bin || n++ > 30) continue;
+const g = binGeometrie(bin), m = binMasse(bin, b.gedreht);
+const c = platteGeo.zellMitte(pl.raster, pl.gesW, pl.gesD, b.x, b.y, m.w, m.d);
+const grp = new THREE.Group();
+grp.add(new THREE.Mesh(g.koerper, mat(S.binEinst.Bin_Color)));
+if (g.band) grp.add(new THREE.Mesh(g.band, mat(S.binEinst.Top_Edge_Color)));
+grp.rotation.z = b.gedreht ? Math.PI / 2 : 0;
+grp.position.set(c.x, c.y, unten);
+gruppe.add(grp);
+await etikettenEinsetzen(gruppe, bin, { ...g.meta, gy: +bin.Bin_Depth }, [c.x, c.y, unten], b.gedreht ? Math.PI / 2 : 0);
+}
+const groesse3 = Math.max(pl.gesW, pl.gesD), sig = 'p' + groesse3.toFixed(0);
+if (letzteLaenge !== sig) {
+letzteLaenge = sig;
+const d = groesse3 * 1.5 + 60;
+cam.position.set(-d * 0.25, -d * 0.85, d * 0.85); ctr.target.set(0, 0, 0);
+}
+$('#status').textContent = `Platte ${pl.gesW.toFixed(1)} × ${pl.gesD.toFixed(1)} × ${pl.H.toFixed(2)} mm · ${pl.teile.length} Stück${pl.teile.length > 1 ? 'e' : ''} · ${Math.round(performance.now() - t0)} ms`;
+}
+async function etikettObjekt(e, yUnits) {
+const lg = labelGeo({ ...(await opts()), Y_units: yUnits }, await ausEin(e));
+const teile = [{ name: 'Etikett', extruder: 1, mesh: meshDaten(lg.basis) }];
+if (lg.inhalt) teile.push({ name: 'Inhalt', extruder: 2, mesh: meshDaten(lg.inhalt) });
+lg.basis.delete(); lg.inhalt && lg.inhalt.delete();
+return { name: 'Etikett ' + titel(e), teile, w: laengeAusY(yUnits) + 2, d: +S.einst.width || 11.5 };
+}
+async function binObjekt(b) {
+const r = binGeo(binOpts(b));
+const teile = [{ name: 'Behälter', extruder: 1, mesh: meshDaten(r.koerper) }];
+if (r.band) teile.push({ name: 'Rand', extruder: 2, mesh: meshDaten(r.band) });
+r.koerper.delete(); r.band && r.band.delete();
+return { name: 'Behälter ' + binTitel(b), teile, w: b.Bin_Width * 42 - 0.5, d: b.Bin_Depth * 42 - 0.5, reihen: r.reihen };
+}
+async function zugeordneteEtiketten(b) {
+const out = [];
+if (!b.Label_Holder || ![1, 2, 3].includes(+b.Bin_Width)) return out;
+const reihen = Math.max(1, +b.Compartments_Front_To_Back | 0);
+for (let j = 0; j < reihen; j++) { const e = S.liste.find(x => x.id === (b.etiketten || [])[j]); if (e) out.push(await etikettObjekt(e, +b.Bin_Width)); }
+return out;
+}
+async function packen(objs) {
+const dr = DRUCKER[S.einst.drucker] || DRUCKER.p;
+const a = anordnenBoxen(objs.map(o => [o.w, o.d]), dr.b);
+if (a.tiefe > dr.t + 10 && !confirm(`Die ${objs.length} Teile passen nicht auf eine Platte. Trotzdem exportieren? (In Bambu Studio dann „Anordnen“ nutzen – es verteilt auf mehrere Platten.)`)) return null;
+objs.forEach((o, i) => { o.x = a.pos[i].x; o.y = a.pos[i].y; });
+return { objs, mitte: dr.mitte };
+}
+async function erzeugeSchublade() {
+const p = S.platten.find(x => x.id === S.platteSel); if (!p) return null;
+const objs = [], E = S.platteEinst;
+$('#status').textContent = 'Erzeuge Grundplatte …'; await new Promise(r => setTimeout(r));
+const pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p }, bettBreite());
+for (const t of pl.teile) { objs.push({ name: t.name, teile: [{ name: 'Grundplatte', extruder: 1, mesh: meshDaten(t.koerper) }], w: t.W, d: t.D }); t.koerper.delete(); }
+if (E.binsMit) for (const [i, b] of (p.belegung || []).entries()) {
+const bin = S.bins.find(x => x.id === b.binId); if (!bin) continue;
+$('#status').textContent = `Erzeuge Behälter ${i + 1} / ${p.belegung.length} …`; await new Promise(r => setTimeout(r));
+objs.push(await binObjekt(bin));
+if (E.etikettenMit) objs.push(...await zugeordneteEtiketten(bin));
+}
+$('#status').textContent = `${objs.length} Teile erzeugt`;
+return packen(objs);
+}
+function zeichnePlattenEinst(b) {
+const E = S.platteEinst, neuP = (k, v) => { E[k] = v; speichern(); };
+b.append(feld('Drucker (Druckbett & Plattenmitte)', sel(Object.keys(DRUCKER), S.einst.drucker, k => DRUCKER[k].name), ev => { S.einst.drucker = ev.target.value; aenderung(true); }));
+b.append(feld('Farbe Grundplatte (nur Vorschau)', el('input', { type: 'color', value: E.farbe }), ev => neuP('farbe', ev.target.value)));
+b.append(haken('eingeplante Behälter mitexportieren', E.binsMit, v => neuP('binsMit', v)));
+b.append(haken('zugeordnete Etiketten mitexportieren', E.etikettenMit, v => neuP('etikettenMit', v)));
+}
+$('#bNeu').onclick = () => {
+if (S.modus === 'platten') { const p = NEU_PLATTE(); S.platten.push(p); S.platteSel = p.id; return aenderung(true); }
+if (S.modus === 'bins') { const v = S.bins.find(x => x.id === S.binSel); const b = v ? { ...v, id: neueId() } : NEU_BIN(); S.bins.push(b); S.binSel = b.id; return aenderung(true); } const v = S.liste.find(x => x.id === S.sel); const e = v ? { ...v, id: neueId(), text: '' } : NEU(); S.liste.push(e); S.sel = e.id; aenderung(true); };
+$('#bSerie').onclick = () => $('#dSerie').showModal();
+$('#dSerie').addEventListener('close', () => {
+if ($('#dSerie').returnValue !== 'ok') return;
+const vorlage = S.liste.find(x => x.id === S.sel) || NEU();
+const ds = $('#sD').value.split(',').map(s => s.trim()).filter(Boolean);
+const ls = $('#sL').value.split(',').map(s => parseFloat(s.replace(',', '.'))).filter(n => !isNaN(n));
+let erstes;
+for (const d of ds) for (const l of (ls.length ? ls : [0])) { const e = { ...vorlage, id: neueId(), durchmesser: d, laenge: l, text: '', anzahl: 1 }; S.liste.push(e); erstes ??= e.id; }
+if (erstes) S.sel = erstes;
+aenderung(true);
+});
+$('#bImport').onclick = () => $('#dImport').showModal();
+$('#dImport').addEventListener('close', () => {
+if ($('#dImport').returnValue !== 'ok') return;
+const neu = importiere($('#iText').value);
+if (!neu.length) { alert('Keine Etiketten erkannt.'); return; }
+if ($('#iErsetzen').checked) S.liste = [];
+S.liste.push(...neu); S.sel = neu[0].id; aenderung(true);
+});
+const LEGACY = {
+'Socket head bolt': ['Bolt', 'Socket head', 'Hex socket', 'Machine'], 'Torx head bolt': ['Bolt', 'Socket head', 'Torx', 'Machine'],
+'Dome head bolt': ['Bolt', 'Pan head', 'Hex socket', 'Machine'], 'phillips head bolt': ['Bolt', 'Pan head', 'Phillips', 'Machine'],
+'Torx pan head bolt': ['Bolt', 'Pan head', 'Torx', 'Machine'], 'Flat Head countersunk': ['Bolt', 'Countersunk', 'Hex socket', 'Machine'],
+'Phillips head countersunk': ['Bolt', 'Countersunk', 'Phillips', 'Machine'], 'Countersunk Torx head bolt': ['Bolt', 'Countersunk', 'Torx', 'Machine'],
+'Hex head bolt': ['Bolt', 'Hex head', 'Hex socket', 'Machine'], 'Grub screw': ['Bolt', 'Grub screw', 'Hex socket', 'Machine'],
+'phillips wood screw': ['Bolt', 'Countersunk', 'Phillips', 'Wood'], 'Torx wood screw': ['Bolt', 'Countersunk', 'Torx', 'Wood'],
+'Torx panhead wood screw': ['Bolt', 'Pan head', 'Torx', 'Wood'], 'Standard nut': ['Nut', 'Standard'], 'Square nut': ['Nut', 'Square'],
+'Lock nut': ['Nut', 'Lock'], 'Cap nut': ['Nut', 'Cap'], 'Disc nut': ['Nut', 'Disc'], 'Wing nut': ['Nut', 'Wing'],
+'Slide-in T-nut': ['Nut', 'Slide-in T-nut'], 'Hammer nut': ['Nut', 'Hammer'], 'Standard washer': ['Washer', 'Standard'],
+'Spring washer': ['Washer', 'Spring'], 'Wall Anchor': ['Other', 'Wall anchor'], 'Heat set inserts': ['Other', 'Heat set insert'],
+'Wooden dowel': ['Furniture', 'Wooden dowel'], 'Expansion sleeve': ['Furniture', 'Expansion sleeve'], 'Cam lock nut': ['Furniture', 'Cam lock nut'],
+'Cam lock bolt': ['Furniture', 'Cam lock bolt'], 'Custom Text': ['Other', 'Custom text'], 'None': ['Other', 'None'],
+};
+function teilZuEintrag(teil, d, l) {
+if (!Array.isArray(teil)) teil = LEGACY[teil] || ['Other', 'None'];
+const e = { ...NEU(), durchmesser: d, laenge: +l || 0, kat: teil[0] };
+if (!KATALOG[e.kat]) return null;
+if (e.kat === 'Bolt') { e.kopf = teil[1] || 'Pan head'; e.antrieb = teil[2] || 'Hex socket'; e.spitze = teil[3] || 'Machine'; }
+else e.typ = teil[1];
+return e;
+}
+function importiere(txt) {
+const out = [];
+const re = /\[\s*(\[[^\]]*\]|"[^"]*")\s*,\s*"([^"]*)"\s*,\s*([\d.]+)\s*\]/g;
+let m;
+while ((m = re.exec(txt))) {
+const teil = m[1].startsWith('[') ? [...m[1].matchAll(/"([^"]*)"/g)].map(x => x[1]) : m[1].slice(1, -1);
+const e = teilZuEintrag(teil, m[2], m[3]); if (e) out.push(e);
+}
+if (!out.length) for (const z of txt.split('\n')) {
+const t = z.split(/[;\t]/).map(s => s.trim()).filter(Boolean);
+if (t.length < 3) continue;
+const l = parseFloat(t[t.length - 1]), d = t[t.length - 2];
+const e = teilZuEintrag(t.slice(0, -2), d, isNaN(l) ? 0 : l); if (e) out.push(e);
+}
+return out;
+}
+async function erzeugeAlle() {
+const o = await opts();
+const flach = S.liste.flatMap(e => Array.from({ length: +e.anzahl || 1 }, () => e));
+const L = laengeAusY(S.einst.Y_units);
+const dr = DRUCKER[S.einst.drucker] || DRUCKER.p;
+const B = +S.einst.width || 11.5;
+const pos = anordnen(flach.length, L, dr.b, B);
+const zeilen = Math.ceil(flach.length / Math.max(1, Math.floor(dr.b / (L + 5))));
+if (zeilen * (B + 2.5) > dr.t && !confirm(`${flach.length} Etiketten passen nicht ganz auf eine Platte. Trotzdem exportieren? (In Bambu Studio dann „Anordnen“ nutzen.)`)) return null;
+const objs = [];
+for (let i = 0; i < flach.length; i++) {
+$('#status').textContent = `Erzeuge ${i + 1} / ${flach.length} …`;
+if (i % 4 === 0) await new Promise(r => setTimeout(r));
+const e = flach[i], r = labelGeo(o, await ausEin(e));
+const teile = [{ name: 'Etikett', extruder: 1, mesh: meshDaten(r.basis) }];
+if (r.inhalt) teile.push({ name: 'Inhalt', extruder: 2, mesh: meshDaten(r.inhalt) });
+r.basis.delete(); r.inhalt && r.inhalt.delete();
+objs.push({ name: titel(e), x: pos[i].x, y: pos[i].y, teile });
+}
+$('#status').textContent = `${flach.length} Etiketten erzeugt`;
+return { objs, mitte: dr.mitte };
+}
+function download(daten, name, typ) {
+const a = el('a', { href: URL.createObjectURL(new Blob([daten], { type: typ })), download: name });
+document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const dateiname = () => 'gridwerk_' + ({ bins: 'behaelter_', platten: 'schublade_' }[S.modus] || 'etiketten_') + new Date().toISOString().slice(0, 10);
+$('#b3mf').onclick = async () => {
+const r = S.modus === 'bins' ? await erzeugeBins() : S.modus === 'platten' ? await erzeugeSchublade() : (S.liste.length ? await erzeugeAlle() : null); if (!r) return;
+download(bambu3mf(r.objs, zipSync, strToU8, r.mitte), dateiname() + '.3mf', 'model/3mf');
+};
+$('#bStl').onclick = async () => {
+const r = S.modus === 'bins' ? await erzeugeBins() : S.modus === 'platten' ? await erzeugeSchublade() : (S.liste.length ? await erzeugeAlle() : null); if (!r) return;
+const etik = [], inh = [];
+for (const ob of r.objs) { etik.push({ ...ob.teile[0].mesh, dx: ob.x, dy: ob.y }); if (ob.teile[1]) inh.push({ ...ob.teile[1].mesh, dx: ob.x, dy: ob.y }); }
+const nm = S.modus === 'bins' ? ['behaelter.stl', 'behaelter_rand.stl'] : S.modus === 'platten' ? ['schublade_farbe1.stl', 'schublade_farbe2.stl'] : ['etiketten_grundplatte.stl', 'etiketten_inhalt.stl'];
+const z = { [nm[0]]: stl(etik) }; if (inh.length) z[nm[1]] = stl(inh);
+download(zipSync(z), dateiname() + '_stl.zip', 'application/zip');
+};
+const gespeichert = await laden();
+if (gespeichert) { S.einst = { ...STANDARD_EINST, ...gespeichert.einst }; S.liste = gespeichert.liste || []; S.bins = gespeichert.bins || []; S.binEinst = { ...STANDARD_BINEINST, ...(gespeichert.binEinst || {}) }; S.modus = ['bins', 'platten'].includes(gespeichert.modus) ? gespeichert.modus : 'etiketten'; S.platten = gespeichert.platten || []; S.logos = gespeichert.logos || []; S.platteEinst = { ...S.platteEinst, ...(gespeichert.platteEinst || {}) }; }
+if (!S.liste.length) {
+S.liste = [
+{ ...NEU(), kat: 'Bolt', kopf: 'Socket head', antrieb: 'Hex socket', durchmesser: 'M3', laenge: 10 },
+{ ...NEU(), kat: 'Bolt', kopf: 'Countersunk', antrieb: 'Torx', durchmesser: 'M4', laenge: 16 },
+{ ...NEU(), kat: 'Bolt', kopf: 'Pan head', antrieb: 'Phillips', spitze: 'Wood', durchmesser: '4', laenge: 30 },
+{ ...NEU(), kat: 'Nut', typ: 'Lock', durchmesser: 'M5' },
+{ ...NEU(), kat: 'Washer', typ: 'Standard', durchmesser: 'M6' },
+{ ...NEU(), kat: 'Other', typ: 'Heat set insert', durchmesser: 'M3', laenge: 5.7 },
+{ ...NEU(), kat: 'Other', typ: 'Custom text', zeile1: 'Kabelbinder', zeile2: '200 mm' },
+];
+}
+S.sel = S.liste[0]?.id;
+if (!S.bins.length) S.bins = [{ ...NEU_BIN() }, { ...NEU_BIN(), Bin_Width: 2, Bin_Depth: 1, Bin_Height: 3, Compartments_Left_To_Right: 2 }];
+S.binSel = S.bins[0].id;
+if (!S.platten.length) S.platten = [{ ...NEU_PLATTE(), belegung: [{ binId: S.bins[0].id, x: 0, y: 0, gedreht: false }] }];
+S.platteSel = S.platten[0].id;
+modusSetzen(S.modus, true);
+zeichneEinst(); zeichneEditor(); await zeichneListe(); await zeige3D();
+$('#laden').remove();
+window.__bereit = true;
+</script>
+</body>
+</html>

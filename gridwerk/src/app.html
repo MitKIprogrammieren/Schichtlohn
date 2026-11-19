@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#00a33e">
+<title>Gridwerk – Gridfinity-Generator</title>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "manifold-3d": "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.5/manifold.js",
+  "opentype": "https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.module.js",
+  "fflate": "https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js",
+  "qrcode": "https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
+} }
+</script>
+<style>
+:root{--gruen:#00a33e;--gruen2:#e6f6ec;--bg:#f4f5f3;--karte:#fff;--text:#1d1f1c;--grau:#6b716a;--linie:#e1e4df;--r:14px;--planerRand:#c9cec6;--planerZelle:#e9ece6}
+@media (prefers-color-scheme:dark){:root{--bg:#141614;--karte:#1e211e;--text:#eef0ec;--grau:#9aa198;--linie:#2f332f;--gruen2:#183322;--planerRand:#3a3f3a;--planerZelle:#2a2e2a}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--karte);border-bottom:1px solid var(--linie);position:sticky;top:0;z-index:5}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--gruen);display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:6px}
+.logo i{background:#fff;border-radius:2px;opacity:.95}
+h1{font-size:18px;margin:0;font-weight:700}
+h1 small{display:block;font-size:12px;color:var(--grau);font-weight:500}
+header .rechts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.modus{display:flex;background:var(--bg);border-radius:11px;padding:3px;gap:2px;margin-left:14px;border:1px solid var(--linie)}
+.modus button{border:none;background:none;padding:6px 14px;border-radius:8px}
+.modus button.aktiv{background:var(--karte);color:var(--gruen);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.eintrag svg.binsvg{flex:0 0 auto;width:64px;height:64px}
+.planerBox{grid-column:1/-1;background:var(--bg);border-radius:12px;padding:8px;touch-action:none}
+.planer{width:100%;height:auto;max-height:60vh;display:block}
+.planerBin{cursor:grab}
+.logos{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.logoKachel{width:72px;height:56px;padding:4px;display:grid;place-items:center;background:var(--bg)}
+.logoKachel img{max-width:100%;max-height:100%}
+.logoKachel.aktiv{border-color:var(--gruen);border-width:2px}
+.warnung{grid-column:1/-1;font-size:12px;color:#b45309;background:#fff7e6;border-radius:8px;padding:8px 10px}
+button,.btn{font:inherit;border:1px solid var(--linie);background:var(--karte);color:var(--text);border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600;white-space:nowrap}
+button:hover{border-color:var(--gruen)}
+button.primaer{background:var(--gruen);border-color:var(--gruen);color:#fff}
+button.klein{padding:5px 10px;font-size:13px}
+button.gefahr{color:#c62828}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+.karte{background:var(--karte);border:1px solid var(--linie);border-radius:var(--r)}
+.liste{display:flex;flex-direction:column;min-height:0}
+.liste .kopf{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--linie)}
+.liste .kopf b{flex:1}
+#eintraege{overflow:auto;max-height:calc(100vh - 190px);padding:8px}
+.eintrag{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:2px solid transparent}
+.eintrag:hover{background:var(--bg)}
+.eintrag.aktiv{border-color:var(--gruen);background:var(--gruen2)}
+.eintrag svg{flex:0 0 auto;width:150px;height:auto;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+.eintrag .info{min-width:0;font-size:13px;color:var(--grau)}
+.eintrag .info b{display:block;color:var(--text);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eintrag .anz{margin-left:auto;font-size:12px;background:var(--bg);border-radius:20px;padding:2px 8px;color:var(--grau)}
+.rechtsSpalte{display:flex;flex-direction:column;gap:16px;min-width:0}
+#ansicht{position:relative;height:360px;overflow:hidden}
+#ansicht canvas{display:block;width:100%;height:100%;border-radius:var(--r)}
+#status{position:absolute;left:14px;bottom:12px;font-size:12px;color:var(--grau);background:var(--karte);padding:4px 10px;border-radius:20px;border:1px solid var(--linie)}
+.felder{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px 14px}
+.felder h3{grid-column:1/-1;margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--grau)}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--grau);font-weight:600}
+input,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--linie);border-radius:9px;padding:8px 10px;width:100%}
+input[type=color]{padding:2px;height:38px}
+input:focus,select:focus{outline:2px solid var(--gruen);outline-offset:-1px}
+.check{flex-direction:row;align-items:center;gap:8px;padding-top:20px}
+.check input{width:auto}
+.aktionen{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.wahlKnopf{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--bg);font-weight:500;padding:5px 8px;min-height:40px}
+.wahlKnopf .bild{flex:0 0 52px;height:28px}
+.wahlKnopf span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wahlKnopf.offen{border-color:var(--gruen)}
+.bild{border-radius:6px;display:grid;place-items:center;overflow:hidden}
+.bild svg{width:92%;height:88%}
+.bild b{color:#fff;font-size:13px}
+.kacheln{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;padding:10px;background:var(--bg);border-radius:12px;border:1px solid var(--linie)}
+.kachel{display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:5px;border-radius:10px;border:2px solid transparent;background:var(--karte);font-size:11px;font-weight:600;line-height:1.2;text-align:center;white-space:normal}
+.kachel .bild{aspect-ratio:2.1;width:100%}
+.kachel.aktiv{border-color:var(--gruen);background:var(--gruen2)}
+dialog{border:none;border-radius:var(--r);padding:0;max-width:560px;width:calc(100% - 32px);background:var(--karte);color:var(--text)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .felder{grid-template-columns:1fr}
+dialog textarea{font:13px/1.4 ui-monospace,Menlo,monospace;width:100%;height:180px;background:var(--bg);color:var(--text);border:1px solid var(--linie);border-radius:9px;padding:8px}
+.hinweis{font-size:12px;color:var(--grau);font-weight:400}
+#laden{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:20;font-weight:600;color:var(--grau)}
+@media (max-width:820px){
+  main{grid-template-columns:1fr;padding:10px}
+  .rechtsSpalte{order:-1}
+  #ansicht{height:260px}
+  #eintraege{max-height:none}
+  header{padding:10px 12px;flex-wrap:wrap}
+  .felder{grid-template-columns:1fr 1fr;gap:10px}
+  #ansicht{height:200px}
+}
+</style>
+</head>
+<body>
+<div id="laden">Gridwerk wird geladen …</div>
+<header>
+  <div class="logo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <h1>Gridwerk<small id="untertitel">Gridfinity-Generator</small></h1>
+  <div class="modus"><button id="mEtik" class="aktiv">Etiketten</button><button id="mBins">Behälter</button><button id="mPlatten">Schublade</button></div>
+  <div class="rechts">
+    <button id="bStl">STL</button>
+    <button id="b3mf" class="primaer">3MF für Bambu</button>
+  </div>
+</header>
+<main>
+  <section class="karte liste">
+    <div class="kopf"><b id="zaehler">Etiketten</b>
+      <button class="klein nurEtik" id="bImport" title="batch_label_data aus der SCAD-Datei einfügen">Import</button>
+      <button class="klein nurEtik" id="bSerie">Serie</button>
+      <button class="klein primaer" id="bNeu">+ Etikett</button>
+    </div>
+    <div id="eintraege"></div>
+  </section>
+  <section class="rechtsSpalte">
+    <div class="karte" id="ansicht"><div id="status">bereit</div></div>
+    <div class="karte"><div class="felder" id="editor"></div></div>
+    <details class="karte" id="einstBox"><summary id="einstTitel" style="padding:14px 16px;cursor:pointer;font-weight:700">Einstellungen für alle Etiketten</summary><div class="felder" id="einst"></div></details>
+  </section>
+</main>
+
+<dialog id="dSerie"><form method="dialog" class="felder">
+  <h3>Serie aus dem gewählten Etikett</h3>
+  <p class="hinweis">Übernimmt Teil, Kopf und Antrieb vom gewählten Etikett und legt alle Kombinationen an.</p>
+  <label>Durchmesser (durch Komma getrennt)<input id="sD" value="M2, M3, M4, M5"></label>
+  <label>Längen in mm (leer = ohne Länge)<input id="sL" value="8, 12, 16, 20"></label>
+  <div class="aktionen"><button value="ok" class="primaer">Anlegen</button><button value="abbruch">Abbrechen</button></div>
+</form></dialog>
+
+<dialog id="dImport"><form method="dialog" class="felder">
+  <h3>Liste importieren</h3>
+  <p class="hinweis">Den Block <code>batch_label_data = [ … ]</code> aus der SCAD-Datei einfügen, oder pro Zeile: <code>Bolt; Pan head; Hex socket; M3; 8</code></p>
+  <textarea id="iText"></textarea>
+  <label class="check"><input type="checkbox" id="iErsetzen"> bestehende Liste ersetzen</label>
+  <div class="aktionen"><button value="ok" class="primaer">Importieren</button><button value="abbruch">Abbrechen</button></div>
+</form></dialog>
+
+<script type="module">
+import Module from 'manifold-3d';
+import opentype from 'opentype';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { zipSync, strToU8 } from 'fflate';
+import qrcode from 'qrcode';
+
+/*LABELS*/
+
+const FONTS = {"inter":["Inter","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"inter-tight":["Inter Tight","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"lora":["Lora","5.3.0",[400,500,600,700],[400,500,600,700]],"merriweather-sans":["Merriweather Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"montserrat":["Montserrat","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans":["Noto Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans-kr":["Noto Sans KR","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"noto-sans-sc":["Noto Sans SC (Original)","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"nunito":["Nunito","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"nunito-sans":["Nunito Sans","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"open-sans":["Open Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"open-sans-condensed":["Open Sans Condensed","4.5.5",[300,700],[300]],"oswald":["Oswald","5.3.0",[200,300,400,500,600,700],[]],"playfair-display":["Playfair Display","5.3.0",[400,500,600,700,800,900],[400,500,600,700,800,900]],"plus-jakarta-sans":["Plus Jakarta Sans","5.3.0",[200,300,400,500,600,700,800],[200,300,400,500,600,700,800]],"raleway":["Raleway","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto":["Roboto","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-condensed":["Roboto Condensed","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-flex":["Roboto Flex","5.3.0",[400],[]],"roboto-mono":["Roboto Mono","5.3.0",[100,200,300,400,500,600,700],[100,200,300,400,500,600,700]],"roboto-serif":["Roboto Serif","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-slab":["Roboto Slab","5.3.0",[100,200,300,400,500,600,700,800,900],[]],"rubik":["Rubik","5.3.0",[300,400,500,600,700,800,900],[300,400,500,600,700,800,900]],"source-sans-3":["Source Sans 3","5.3.1",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"ubuntu-sans":["Ubuntu Sans","5.3.0",[100,200,300,400,500,600,700,800],[100,200,300,400,500,600,700,800]],"ubuntu-sans-mono":["Ubuntu Sans Mono","5.3.0",[400,500,600,700],[400,500,600,700]],"work-sans":["Work Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]]};
+// [Name, Version, normale Schnitte, kursive Schnitte] – Dateien von fontsource über jsDelivr
+const SCHNITTE = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
+const fontUrl = (k, w, kursiv) => `https://cdn.jsdelivr.net/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
+function schnittWaehlen(k, w, kursiv) {
+  const f = FONTS[k] || FONTS['noto-sans-sc'];
+  let liste = kursiv ? f[3] : f[2];
+  if (!liste.length) { liste = f[2]; kursiv = false; }
+  const best = liste.reduce((a, b) => Math.abs(b - w) < Math.abs(a - w) ? b : a, liste[0]);
+  return { w: best, kursiv };
+}
+const DRUCKER = { 'h2': { name: 'H2C / H2D (350 × 320)', mitte: [175, 160], b: 330, t: 300 }, 'p': { name: 'P2S / X1 / P1 / A1 (256 × 256)', mitte: [128, 128], b: 240, t: 240 } };
+
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? '' : v); } e.append(...kids.flat()); return e; };
+const neueId = () => Math.random().toString(36).slice(2, 10);
+
+const STANDARD_EINST = { Y_units: 1, font: 'noto-sans-sc', gewicht: 700, kursiv: false, width: 11.5, height: 0.8, radius: 0.9, champfer: 0.2, text_size: 4.2, text_type: 'Raised Text', raised_text_height: 0.2, flush_tiefe: 0.4, Icon_length: 'Fixed', farbeEtikett: '#1f2120', farbeInhalt: '#ffffff', drucker: 'h2' };
+const NEU = () => ({ id: neueId(), kat: 'Bolt', typ: '', kopf: 'Socket head', antrieb: 'Hex socket', spitze: 'Machine', durchmesser: 'M3', laenge: 10, text: '', zeile1: '', zeile2: '', ohneIcon: false, anzahl: 1 });
+const STANDARD_BINEINST = { Bin_Color: '#ff5a1f', Top_Edge_Color: '#ff5a1f', Top_Edge_Color_Height: 1.0, etikettZeigen: true, etikettenMit: true };
+const NEU_BIN = () => ({ id: neueId(), ...BIN_STANDARD, anzahl: 1 });
+let S = { einst: { ...STANDARD_EINST }, liste: [], sel: null, modus: 'etiketten', bins: [], binSel: null, binEinst: { ...STANDARD_BINEINST }, platten: [], platteSel: null, logos: [], platteEinst: { farbe: '#8f968c', binsMit: true, etikettenMit: true } };
+
+// ---------- Laden / Speichern ----------
+async function laden() {
+  try { const r = await fetch('api/liste'); if (r.ok) { const d = await r.json(); if (d && d.liste) return d; } } catch {}
+  try { const d = JSON.parse(localStorage.getItem('gridwerk') || localStorage.getItem('rasterwerk') || 'null'); if (d) return d; } catch {}
+  return null;
+}
+let speicherTimer;
+function speichern() {
+  clearTimeout(speicherTimer);
+  speicherTimer = setTimeout(async () => {
+    const d = JSON.stringify({ einst: S.einst, liste: S.liste, bins: S.bins, binEinst: S.binEinst, modus: S.modus, platten: S.platten, logos: S.logos, platteEinst: S.platteEinst });
+    try { localStorage.setItem('gridwerk', d); } catch {}
+    try { await fetch('api/liste', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: d }); } catch {}
+  }, 600);
+}
+
+// ---------- Geometrie ----------
+const wasm = await Module(); wasm.setup();
+const { labelGeo } = makeLabels(wasm);
+const { bin: binGeo, etikettLagen } = makeBins(wasm);
+const platteGeo = makePlatten(wasm);
+const fontCache = {};
+async function font() {
+  if (!FONTS[S.einst.font]) S.einst.font = 'noto-sans-sc';
+  const { w, kursiv } = schnittWaehlen(S.einst.font, +S.einst.gewicht || 700, !!S.einst.kursiv);
+  const k = S.einst.font + '-' + w + (kursiv ? 'i' : '');
+  if (!fontCache[k]) fontCache[k] = fetch(fontUrl(S.einst.font, w, kursiv)).then(r => { if (!r.ok) throw new Error('Schrift nicht ladbar'); return r.arrayBuffer(); }).then(b => opentype.parse(b));
+  return fontCache[k];
+}
+let ersatzSchrift = null;
+async function opts() {
+  if (!ersatzSchrift) ersatzSchrift = fetch('https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
+  return { ...S.einst, font: await font(), fontFallback: await ersatzSchrift, qrcode, qrModul: 0.5 };
+}
+const istTyp = e => e.kat === 'Bolt' ? '' : (e.typ || KATALOG[e.kat].typen[0]);
+const normal = e => ({ ...e, typ: istTyp(e) });
+
+function beschreibung(e) {
+  const t = istTyp(e);
+  if (e.kat === 'Bolt') return `${DE[e.kopf]} · ${DE[e.antrieb]}${e.spitze === 'Wood' ? ' · Holz' : e.spitze === 'Drill' ? ' · Bohrspitze' : ''}${e.gewinde === 'Partial' ? ' · Teilgewinde' : ''}`;
+  return `${KATALOG[e.kat].de} · ${DE[t] || t}`;
+}
+
+// 2D-Vorschau (SVG) für die Liste
+const svgCache = new Map();
+async function svgVorschau(e, o) {
+  const key = JSON.stringify([normal(e), S.einst, logoStempel(), location.origin]);
+  if (svgCache.has(key)) return svgCache.get(key).cloneNode(true);
+  const { cs, length } = labelGeo(o, await ausEin(e), true);
+  const pfad = cs.toPolygons().map(p => 'M' + p.map(([x, y]) => `${x.toFixed(2)} ${(-y).toFixed(2)}`).join('L') + 'Z').join('');
+  const L = length, W = +S.einst.width || 11.5, R = +S.einst.radius || 0.9, ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `${-L / 2 - 1.3} ${-Math.max(W, 11.5) / 2 - 0.3} ${L + 2.6} ${Math.max(W, 11.5) + 0.6}`);
+  svg.innerHTML = `<rect x="${-L / 2 - 1}" y="-2.85" width="${L + 2}" height="5.7" rx="0.2" fill="${S.einst.farbeEtikett}"/>
+    <rect x="${-L / 2}" y="${-W / 2}" width="${L}" height="${W}" rx="${R}" fill="${S.einst.farbeEtikett}"/>
+    <circle cx="${(L - 1) / 2}" cy="0" r="0.75" fill="var(--karte)"/><circle cx="${-(L - 1) / 2}" cy="0" r="0.75" fill="var(--karte)"/>
+    <path d="${pfad}" fill="${S.einst.farbeInhalt}" fill-rule="nonzero"/>`;
+  if (svgCache.size > 400) svgCache.clear();
+  svgCache.set(key, svg);
+  return svg.cloneNode(true);
+}
+
+// ---------- 3D-Ansicht ----------
+const box = $('#ansicht');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+box.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 2000);
+cam.up.set(0, 0, 1);
+const ctr = new OrbitControls(cam, renderer.domElement);
+window.__ansicht = { cam, ctr };
+ctr.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f88, 1.6));
+const sonne = new THREE.DirectionalLight(0xffffff, 1.6); sonne.position.set(-30, -50, 80); scene.add(sonne);
+const gruppe = new THREE.Group(); scene.add(gruppe);
+function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+new ResizeObserver(groesse).observe(box); groesse();
+(function loop() { requestAnimationFrame(loop); ctr.update(); renderer.render(scene, cam); })();
+function geo3(m) {
+  const { pos, idx } = meshDaten(m);
+  let g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g = g.toNonIndexed(); g.computeVertexNormals(); return g;
+}
+let letzteLaenge = 0;
+async function zeige3D() {
+  if (S.modus === 'bins') return zeigeBin3D();
+  if (S.modus === 'platten') return zeigePlatte3D();
+  const e = S.liste.find(x => x.id === S.sel);
+  gruppe.clear();
+  if (!e) return;
+  const t0 = performance.now();
+  const r = labelGeo(await opts(), await ausEin(e));
+  gruppe.add(new THREE.Mesh(geo3(r.basis), new THREE.MeshStandardMaterial({ color: S.einst.farbeEtikett, roughness: .55 })));
+  if (r.inhalt) gruppe.add(new THREE.Mesh(geo3(r.inhalt), new THREE.MeshStandardMaterial({ color: S.einst.farbeInhalt, roughness: .45 })));
+  r.basis.delete(); r.inhalt && r.inhalt.delete();
+  if (letzteLaenge !== r.length) {
+    letzteLaenge = r.length;
+    const d = r.length * 1.35 + 12;
+    cam.position.set(0, -d * 0.62, d * 0.78); ctr.target.set(0, 0, 0);
+  }
+  $('#status').textContent = `${(r.length + 2).toFixed(1)} × ${String(+S.einst.width || 11.5).replace('.', ',')} mm · ${Math.round(performance.now() - t0)} ms`;
+}
+
+// ---------- Liste ----------
+async function zeichneListe() {
+  if (S.modus === 'bins') return zeichneBinListe();
+  if (S.modus === 'platten') return zeichnePlattenListe();
+  const o = await opts();
+  const box = $('#eintraege'); box.innerHTML = '';
+  let summe = 0;
+  for (const e of S.liste) {
+    summe += +e.anzahl || 1;
+    box.append(el('div', { class: 'eintrag' + (e.id === S.sel ? ' aktiv' : ''), onclick: () => waehle(e.id) },
+      await svgVorschau(e, o),
+      el('div', { class: 'info' }, el('b', {}, titel(e)), beschreibung(e)),
+      (+e.anzahl > 1) ? el('span', { class: 'anz' }, '×' + e.anzahl) : ''));
+  }
+  if (!S.liste.length) box.append(el('p', { class: 'hinweis', style: 'padding:14px' }, 'Noch keine Etiketten – „+ Etikett“ oder „Serie“ antippen.'));
+  $('#zaehler').textContent = `${summe} Etikett${summe === 1 ? '' : 'en'}`;
+}
+function titel(e) {
+  const t = istTyp(e);
+  if (t === 'Custom text') return [e.zeile1, e.zeile2].filter(Boolean).join(' / ') || 'Eigener Text';
+  if (e.text) return e.text;
+  return e.laenge > 0 && !['Nut', 'Washer'].includes(e.kat) || t === 'Spacer' ? `${e.durchmesser}x${e.laenge}` : e.durchmesser;
+}
+function waehle(id) { S.sel = id; zeichneListe(); zeichneEditor(); zeige3D(); }
+
+// ---------- Editor ----------
+const sel = (opt, wert, beschr = x => DE[x] || x) => el('select', {}, opt.map(o => el('option', { value: o, selected: o === wert }, beschr(o))));
+function feld(text, input, onchange) { input.addEventListener(input.tagName === 'SELECT' || input.type === 'checkbox' ? 'change' : 'input', onchange); return el('label', {}, text, input); }
+// ---------- Bildauswahl ----------
+const kachelCache = new Map();
+const KOPF_MITTE = -10, KOPF_Y = 2.5; // Lage des Kopf-Icons bei fester Icon-Länge
+function kachelBild(ein, crop) {
+  const key = JSON.stringify([ein, crop, S.einst.farbeEtikett, S.einst.farbeInhalt, S.einst.Y_units]);
+  if (kachelCache.has(key)) return kachelCache.get(key).cloneNode(true);
+  const div = el('div', { class: 'bild', style: `background:${S.einst.farbeEtikett}` });
+  let { cs } = labelGeo({ ...S.einst, Icon_length: 'Fixed', Y_units: 1 }, { anzahl: 1, ...ein, ohneText: true, ohneIcon: false }, true);
+  if (crop) cs = cs.intersect(wasm.CrossSection.circle((crop[2] - crop[0]) / 2, 64).translate([(crop[0] + crop[2]) / 2, (crop[1] + crop[3]) / 2]));
+  if (cs.isEmpty()) div.append(el('b', { style: `color:${S.einst.farbeInhalt}` }, 'Abc'));
+  else {
+    const b = cs.bounds();
+    let [x0, y0, x1, y1] = crop || [b.min[0], b.min[1], b.max[0], b.max[1]];
+    const w = x1 - x0, h = y1 - y0, p = Math.max(w, h * 2.1) * 0.06;
+    const W = Math.max(w, h * 2.1) + 2 * p, H = W / 2.1;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const pfad = cs.toPolygons().map(q => 'M' + q.map(([x, y]) => `${x.toFixed(2)} ${(-y).toFixed(2)}`).join('L') + 'Z').join('');
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `${cx - W / 2} ${-cy - H / 2} ${W} ${H}`);
+    svg.innerHTML = `<path d="${pfad}" fill="${S.einst.farbeInhalt}"/>`;
+    div.append(svg);
+  }
+  if (kachelCache.size > 600) kachelCache.clear();
+  kachelCache.set(key, div);
+  return div.cloneNode(true);
+}
+let offeneWahl = null;
+// optionen: Liste von Werten; muster(wert) → Etikett-Daten für das Bild; name(wert) → Anzeigename
+function bildWahl(id, titel, optionen, wert, muster, name, onwahl, crop) {
+  const knopf = el('button', { class: 'wahlKnopf' + (offeneWahl === id ? ' offen' : ''), type: 'button',
+    onclick: () => { offeneWahl = offeneWahl === id ? null : id; zeichneEditor(); } },
+    kachelBild(muster(wert), crop), el('span', {}, name(wert)), '▾');
+  const teile = [el('label', {}, titel, knopf)];
+  if (offeneWahl === id) teile.push(el('div', { class: 'kacheln' }, optionen.map(o =>
+    el('button', { class: 'kachel' + (o === wert ? ' aktiv' : ''), type: 'button', onclick: () => { offeneWahl = null; onwahl(o); } },
+      kachelBild(muster(o), crop), name(o)))));
+  return teile;
+}
+const KAT_MUSTER = { Bolt: { kat: 'Bolt', kopf: 'Socket head', antrieb: 'Hex socket' }, Nut: { kat: 'Nut', typ: 'Standard' }, Washer: { kat: 'Washer', typ: 'Standard' },
+  Standoff: { kat: 'Standoff', typ: 'Male-female' }, Furniture: { kat: 'Furniture', typ: 'Wooden dowel' }, Other: { kat: 'Other', typ: 'Heat set insert' } };
+
+function zeichneEditor() {
+  if (S.modus === 'bins') return zeichneBinEditor();
+  if (S.modus === 'platten') return zeichnePlattenEditor();
+  const ed = $('#editor'); ed.innerHTML = '';
+  const e = S.liste.find(x => x.id === S.sel);
+  if (!e) { ed.append(el('p', { class: 'hinweis' }, 'Kein Etikett gewählt.')); return; }
+  const neu = (k, v, voll) => { e[k] = v; aenderung(voll); };
+  ed.append(el('h3', {}, 'Etikett'));
+  const typ = istTyp(e);
+  const schraube = { kat: 'Bolt', kopf: e.kopf, antrieb: e.antrieb, spitze: e.spitze, gewinde: e.gewinde || 'Full', laenge: 16 };
+  ed.append(...bildWahl('kat', 'Teil', Object.keys(KATALOG), e.kat, k => KAT_MUSTER[k], k => KATALOG[k].de, v => { e.typ = ''; neu('kat', v, true); }));
+  if (e.kat === 'Bolt') {
+    ed.append(...bildWahl('kopf', 'Kopf', KOEPFE, e.kopf, v => ({ ...schraube, kopf: v }), v => DE[v] || v, v => neu('kopf', v, true)));
+    ed.append(...bildWahl('antrieb', 'Antrieb', ANTRIEBE, e.antrieb, v => ({ ...schraube, kopf: 'Socket head', antrieb: v }), v => DE[v] || v, v => neu('antrieb', v, true), [KOPF_MITTE - 2.6, KOPF_Y - 2.6, KOPF_MITTE + 2.6, KOPF_Y + 2.6]));
+    ed.append(...bildWahl('spitze', 'Spitze', SPITZEN, e.spitze, v => ({ ...schraube, spitze: v }), v => DE[v] || v, v => neu('spitze', v, true)));
+    ed.append(...bildWahl('gewinde', 'Gewinde', GEWINDE, e.gewinde || 'Full', v => ({ ...schraube, gewinde: v }), v => DE[v] || v, v => neu('gewinde', v, true)));
+  } else ed.append(...bildWahl('typ', 'Art', KATALOG[e.kat].typen, typ, v => ({ kat: e.kat, typ: v, laenge: 16 }), v => DE[v] || v, v => neu('typ', v, true)));
+  if (typ === 'Custom text') {
+    ed.append(feld('Zeile 1', el('input', { value: e.zeile1 }), ev => neu('zeile1', ev.target.value)));
+    ed.append(feld('Zeile 2 (optional)', el('input', { value: e.zeile2 }), ev => neu('zeile2', ev.target.value)));
+  } else {
+    ed.append(feld('Durchmesser', el('input', { value: e.durchmesser, placeholder: 'M3' }), ev => neu('durchmesser', ev.target.value)));
+    ed.append(feld('Länge (mm)', el('input', { type: 'number', step: '0.1', min: 0, value: e.laenge }), ev => neu('laenge', +ev.target.value || 0)));
+    ed.append(feld('Eigener Text statt Maß', el('input', { value: e.text, placeholder: 'z. B. M3x8 DIN 912' }), ev => neu('text', ev.target.value)));
+  }
+  ed.append(feld('Anzahl Drucke', el('input', { type: 'number', min: 1, max: 99, value: e.anzahl || 1 }), ev => neu('anzahl', Math.max(1, +ev.target.value || 1))));
+  if (typ !== 'Custom text') ed.append(el('label', { class: 'check' }, (() => { const c = el('input', { type: 'checkbox', checked: !!e.ohneIcon }); c.addEventListener('change', () => neu('ohneIcon', c.checked)); return c; })(), 'ohne Icon'));
+  // Logo
+  ed.append(el('h3', {}, 'Eigenes Logo'));
+  const datei = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/svg+xml,image/webp', style: 'display:none' });
+  datei.addEventListener('change', async () => { const f = datei.files[0]; if (!f) return; const l = await logoHochladen(f); e.logo = l.id; aenderung(true); });
+  ed.append(el('div', { class: 'logos' },
+    el('button', { class: 'logoKachel' + (!e.logo ? ' aktiv' : ''), type: 'button', onclick: () => neu('logo', '', true) }, 'kein'),
+    S.logos.map(l => el('button', { class: 'logoKachel' + (e.logo === l.id ? ' aktiv' : ''), type: 'button', title: l.name, onclick: () => neu('logo', l.id, true) }, el('img', { src: l.bild, alt: l.name }))),
+    el('button', { class: 'logoKachel', type: 'button', onclick: () => datei.click() }, '+ Bild'), datei));
+  const logo = S.logos.find(l => l.id === e.logo);
+  if (logo) {
+    const nl = (k, v, voll) => { logo[k] = v; svgCache.clear(); aenderung(voll); };
+    ed.append(haken('Logo groß (ohne Text)', e.logoGross, v => neu('logoGross', v)));
+    ed.append(feld('Logo-Name', el('input', { value: logo.name }), ev => nl('name', ev.target.value)));
+    ed.append(feld(`Schwelle hell/dunkel (${logo.schwelle})`, el('input', { type: 'range', min: 10, max: 250, step: 5, value: logo.schwelle }), ev => { ev.target.parentElement.firstChild.textContent = `Schwelle hell/dunkel (${ev.target.value})`; nl('schwelle', +ev.target.value); }));
+    ed.append(haken('hell und dunkel tauschen', logo.umkehren, v => nl('umkehren', v)));
+    ed.append(el('div', { class: 'aktionen' }, el('button', { class: 'klein gefahr', type: 'button', onclick: () => { if (!confirm(`Logo „${logo.name}“ aus der Bibliothek löschen?`)) return; S.logos = S.logos.filter(l => l !== logo); S.liste.forEach(x => { if (x.logo === logo.id) x.logo = ''; }); aenderung(true); } }, 'Logo löschen')));
+  }
+  // QR-Code
+  ed.append(el('h3', {}, 'QR-Code'));
+  const qrInfo = el('div', { class: 'hinweis', style: 'grid-column:1/-1' });
+  const qrPruefen = () => {
+    qrInfo.className = 'hinweis'; qrInfo.textContent = '';
+    const inh = qrInhalt(e); if (!inh) { qrInfo.textContent = 'Optional: Link eingeben – der QR-Code sitzt dann rechts auf dem Etikett.'; return; }
+    try {
+      const q = qrcode(0, 'L'); q.addData(inh); q.make();
+      const n = q.getModuleCount(), mod = Math.min(0.5, ((+S.einst.width || 11.5) - 2 * (+S.einst.champfer || 0) - 0.1) / (n + 2));
+      qrInfo.textContent = `QR-Code ${n} × ${n} Punkte, je ${mod.toFixed(2).replace('.', ',')} mm.` + (e.qrKurz ? ` Kurzlink: ${inh.toLowerCase()} (funktioniert im Heimnetz).` : '');
+      if (mod < 0.4) { qrInfo.className = 'warnung'; qrInfo.textContent += ' Das ist sehr fein und eventuell nicht lesbar – „Kurzlink“ einschalten oder einen kürzeren Link nehmen. Am besten „bündig eingelassen“ drucken.'; }
+    } catch { qrInfo.className = 'warnung'; qrInfo.textContent = 'Der Link ist zu lang für einen QR-Code – bitte „Kurzlink“ einschalten.'; }
+  };
+  ed.append(feld('Link für den QR-Code', el('input', { value: e.qr || '', placeholder: 'https://…' }), ev => { e.qr = ev.target.value; qrPruefen(); aenderung(false); }));
+  ed.append(haken('Kurzlink über Gridwerk (für lange Links)', e.qrKurz, v => { e.qrKurz = v; qrPruefen(); aenderung(false); }));
+  ed.append(qrInfo); qrPruefen();
+  ed.append(el('div', { class: 'aktionen' },
+    el('button', { class: 'klein', onclick: () => { const k = { ...e, id: neueId() }; S.liste.splice(S.liste.indexOf(e) + 1, 0, k); S.sel = k.id; aenderung(true); } }, 'Duplizieren'),
+    el('button', { class: 'klein', onclick: () => verschiebe(e, -1) }, '↑'),
+    el('button', { class: 'klein', onclick: () => verschiebe(e, 1) }, '↓'),
+    el('button', { class: 'klein gefahr', onclick: () => { const i = S.liste.indexOf(e); S.liste.splice(i, 1); S.sel = (S.liste[i] || S.liste[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
+}
+function verschiebe(e, d) { const i = S.liste.indexOf(e), j = i + d; if (j < 0 || j >= S.liste.length) return; [S.liste[i], S.liste[j]] = [S.liste[j], S.liste[i]]; aenderung(); }
+let renderTimer;
+function aenderung(editorNeu) {
+  speichern();
+  if (editorNeu) zeichneEditor();
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => { zeichneListe(); zeige3D(); }, 120);
+}
+
+function zeichneEinst() {
+  const b = $('#einst'); b.innerHTML = '';
+  const E = S.einst;
+  const neu = (k, v) => { E[k] = v; aenderung(); };
+  $('#einstTitel').textContent = S.modus === 'bins' ? 'Einstellungen für alle Behälter' : S.modus === 'platten' ? 'Einstellungen für Schubladen' : 'Einstellungen für alle Etiketten';
+  if (S.modus === 'platten') { zeichnePlattenEinst(b); return; }
+  if (S.modus === 'bins') {
+    const BE = S.binEinst, neuB = (k, v) => { BE[k] = v; aenderung(); };
+    b.append(feld('Farbe Behälter', el('input', { type: 'color', value: BE.Bin_Color }), ev => neuB('Bin_Color', ev.target.value)));
+    b.append(feld('Farbe Rand', el('input', { type: 'color', value: BE.Top_Edge_Color }), ev => neuB('Top_Edge_Color', ev.target.value)));
+    b.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, 'Ist die Randfarbe anders als die Behälterfarbe, wird der obere Rand ein eigenes Teil (Filament 2).'));
+    b.append(feld('Höhe Farbrand (mm)', el('input', { type: 'number', step: '0.05', min: 0.5, max: 8, value: BE.Top_Edge_Color_Height }), ev => neuB('Top_Edge_Color_Height', +ev.target.value || 1)));
+    b.append(feld('Drucker (Plattenmitte)', sel(Object.keys(DRUCKER), E.drucker, k => DRUCKER[k].name), ev => neu('drucker', ev.target.value)));
+    b.append(haken('gewähltes Etikett in der Vorschau einsetzen', BE.etikettZeigen, v => neuB('etikettZeigen', v)));
+    b.append(haken('zugeordnete Etiketten mitexportieren', BE.etikettenMit, v => neuB('etikettenMit', v)));
+    return;
+  }
+  b.append(feld('Etikettbreite', sel(['1', '2', '3'], String(E.Y_units), v => `${v} Einheit${v === '1' ? '' : 'en'} (${laengeAusY(+v) + 2} mm)`), ev => neu('Y_units', +ev.target.value)));
+  b.append(feld('Schrift', sel(Object.keys(FONTS), E.font, k => FONTS[k][0]), ev => { neu('font', ev.target.value); zeichneEinst(); }));
+  const f = FONTS[E.font] || FONTS['noto-sans-sc'];
+  const stile = [...f[2].map(w => w + ''), ...f[3].map(w => w + 'i')];
+  const akt = schnittWaehlen(E.font, +E.gewicht || 700, !!E.kursiv);
+  b.append(feld('Schriftschnitt', sel(stile, akt.w + (akt.kursiv ? 'i' : ''), v => SCHNITTE[parseInt(v)] + (v.endsWith('i') ? ' Italic' : '')), ev => { E.kursiv = ev.target.value.endsWith('i'); neu('gewicht', parseInt(ev.target.value)); }));
+  b.append(feld('Schriftgröße', el('input', { type: 'number', step: '0.1', min: 2, max: 8, value: E.text_size }), ev => neu('text_size', +ev.target.value || 4.2)));
+  b.append(feld('Inhalt', sel(['Raised Text', 'Flush Text', 'Flush Skin'], E.text_type, v => ({ 'Raised Text': 'erhaben', 'Flush Text': 'bündig eingelassen (AMS)', 'Flush Skin': 'bündig, 0,01-mm-Haut (wie Original)' })[v]), ev => neu('text_type', ev.target.value)));
+  b.append(feld('Höhe erhaben (mm)', el('input', { type: 'number', step: '0.05', min: 0.05, max: 1, value: E.raised_text_height }), ev => neu('raised_text_height', +ev.target.value || 0.2)));
+  b.append(feld('Tiefe bündig (mm)', el('input', { type: 'number', step: '0.1', min: 0.2, max: 0.6, value: E.flush_tiefe }), ev => neu('flush_tiefe', +ev.target.value || 0.4)));
+  b.append(feld('Icon-Länge', sel(['Fixed', 'Real length'], E.Icon_length, v => v === 'Fixed' ? 'fest (passt immer)' : 'echte Länge'), ev => neu('Icon_length', ev.target.value)));
+  b.append(feld('Farbe Etikett', el('input', { type: 'color', value: E.farbeEtikett }), ev => neu('farbeEtikett', ev.target.value)));
+  b.append(feld('Farbe Inhalt', el('input', { type: 'color', value: E.farbeInhalt }), ev => neu('farbeInhalt', ev.target.value)));
+  b.append(el('h3', {}, 'Settings for nerds'));
+  b.append(feld('Breite (mm)', el('input', { type: 'number', step: '0.1', min: 8, max: 20, value: E.width }), ev => neu('width', +ev.target.value || 11.5)));
+  b.append(feld('Dicke (mm)', el('input', { type: 'number', step: '0.1', min: 0.4, max: 3, value: E.height }), ev => neu('height', +ev.target.value || 0.8)));
+  b.append(feld('Eckenradius (mm)', el('input', { type: 'number', step: '0.1', min: 0.1, max: 4, value: E.radius }), ev => neu('radius', +ev.target.value || 0.9)));
+  b.append(feld('Fase (mm)', el('input', { type: 'number', step: '0.05', min: 0, max: 0.5, value: E.champfer }), ev => neu('champfer', +ev.target.value)));
+  b.append(el('div', { class: 'aktionen' }, el('button', { class: 'klein', onclick: () => { Object.assign(E, { width: 11.5, height: 0.8, radius: 0.9, champfer: 0.2 }); zeichneEinst(); aenderung(); } }, 'Originalmaße')));
+  b.append(feld('Drucker (Plattenmitte)', sel(Object.keys(DRUCKER), E.drucker, k => DRUCKER[k].name), ev => neu('drucker', ev.target.value)));
+}
+
+// ---------- Behälter ----------
+function modusSetzen(m, still) {
+  S.modus = m;
+  $('#mEtik').classList.toggle('aktiv', m === 'etiketten'); $('#mBins').classList.toggle('aktiv', m === 'bins'); $('#mPlatten').classList.toggle('aktiv', m === 'platten');
+  document.querySelectorAll('.nurEtik').forEach(x => x.style.display = m !== 'etiketten' ? 'none' : '');
+  $('#bNeu').textContent = m === 'bins' ? '+ Behälter' : m === 'platten' ? '+ Schublade' : '+ Etikett';
+  letzteLaenge = -1; offeneWahl = null;
+  if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeige3D(); zeichneEinst(); }
+}
+$('#mEtik').onclick = () => modusSetzen('etiketten');
+$('#mBins').onclick = () => modusSetzen('bins');
+$('#mPlatten').onclick = () => modusSetzen('platten');
+const binOpts = b => ({ ...b, Top_Edge_Color_Height: S.binEinst.Top_Edge_Color_Height, randSeparat: S.binEinst.Top_Edge_Color.toLowerCase() !== S.binEinst.Bin_Color.toLowerCase() });
+const HOEHENMODUS = ['Gridfinity-Einheiten', 'Innenhöhe in mm', 'Gesamthöhe in mm'];
+const LIPPE = ['Stapelrand', 'ohne Rand (niedriger)', 'ohne Rand (Höhe bleibt)'];
+const LOECHER = ['keine Löcher', 'Magnete', 'Magnete + Schrauben', 'Magnete + Schrauben (druckbar)'];
+function binTitel(b) { return `${b.Bin_Width} × ${b.Bin_Depth} · ${+b.Height_Mode === 0 ? 'Höhe ' + b.Bin_Height : b.Bin_Height + ' mm'}`; }
+function binBeschr(b) {
+  const f = (+b.Compartments_Left_To_Right) * (+b.Compartments_Front_To_Back);
+  return [f === 0 ? 'massiv' : f === 1 ? '1 Fach' : f + ' Fächer', b.Label_Holder ? 'Etikettenhalter' : '', +b.Base_Hole_Style ? LOECHER[+b.Base_Hole_Style] : '', +b.Top_Lip_Style ? 'ohne Stapelrand' : ''].filter(Boolean).join(' · ');
+}
+function binSvg(b) {
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  const gx = +b.Bin_Width, gy = +b.Bin_Depth, m = Math.max(gx, gy), s = 56 / m, w = gx * s, h = gy * s, x0 = (64 - w) / 2, y0 = (64 - h) / 2;
+  const nx = +b.Compartments_Left_To_Right, ny = +b.Compartments_Front_To_Back;
+  let inner = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="${Math.min(6, s / 7)}" fill="${S.binEinst.Bin_Color}"/>`;
+  inner += `<rect x="${x0 + 2.5}" y="${y0 + 2.5}" width="${w - 5}" height="${h - 5}" rx="${Math.min(4, s / 9)}" fill="rgba(0,0,0,.18)"/>`;
+  for (let i = 1; i < nx; i++) inner += `<rect x="${x0 + 2.5 + i * (w - 5) / nx - 1}" y="${y0 + 2.5}" width="2" height="${h - 5}" fill="${S.binEinst.Bin_Color}"/>`;
+  for (let j = 1; j < ny; j++) inner += `<rect x="${x0 + 2.5}" y="${y0 + 2.5 + j * (h - 5) / ny - 1}" width="${w - 5}" height="2" fill="${S.binEinst.Bin_Color}"/>`;
+  if (b.Label_Holder) for (let j = 0; j < Math.max(1, ny); j++) inner += `<rect x="${x0 + 5}" y="${y0 + 2.5 + j * (h - 5) / Math.max(1, ny) + 1.5}" width="${w - 10}" height="${Math.max(3, h / Math.max(1, ny) * 0.16)}" rx="1" fill="#fff" opacity=".85"/>`;
+  svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('class', 'binsvg'); svg.innerHTML = inner;
+  return svg;
+}
+function zeichneBinListe() {
+  const box = $('#eintraege'); box.innerHTML = '';
+  let summe = 0;
+  for (const b of S.bins) {
+    summe += +b.anzahl || 1;
+    box.append(el('div', { class: 'eintrag' + (b.id === S.binSel ? ' aktiv' : ''), onclick: () => { S.binSel = b.id; offeneWahl = null; zeichneBinListe(); zeichneBinEditor(); zeigeBin3D(); } },
+      binSvg(b), el('div', { class: 'info' }, el('b', {}, binTitel(b)), binBeschr(b)),
+      (+b.anzahl > 1) ? el('span', { class: 'anz' }, '×' + b.anzahl) : ''));
+  }
+  if (!S.bins.length) box.append(el('p', { class: 'hinweis', style: 'padding:14px' }, 'Noch keine Behälter – „+ Behälter“ antippen.'));
+  $('#zaehler').textContent = `${summe} Behälter`;
+}
+function zahl(text, wert, attrs, cb) { return feld(text, el('input', { type: 'number', value: wert, ...attrs }), ev => { const v = parseFloat(ev.target.value); if (!isNaN(v)) cb(v); }); }
+function haken(text, wert, cb) { const c = el('input', { type: 'checkbox', checked: !!wert }); c.addEventListener('change', () => cb(c.checked)); return el('label', { class: 'check' }, c, text); }
+function zeichneBinEditor() {
+  const ed = $('#editor'); ed.innerHTML = '';
+  const b = S.bins.find(x => x.id === S.binSel);
+  if (!b) { ed.append(el('p', { class: 'hinweis' }, 'Kein Behälter gewählt.')); return; }
+  const neu = (k, v, voll) => { b[k] = v; aenderung(voll); };
+  ed.append(el('h3', {}, 'Größe'));
+  ed.append(zahl('Breite (Raster à 42 mm)', b.Bin_Width, { step: 0.5, min: 0.5, max: 8 }, v => neu('Bin_Width', v)));
+  ed.append(zahl('Tiefe (Raster à 42 mm)', b.Bin_Depth, { step: 0.5, min: 0.5, max: 8 }, v => neu('Bin_Depth', v)));
+  ed.append(zahl(+b.Height_Mode === 0 ? 'Höhe (Einheiten à 7 mm)' : 'Höhe (mm)', b.Bin_Height, { step: +b.Height_Mode === 0 ? 1 : 0.5, min: 1, max: 300 }, v => neu('Bin_Height', v)));
+  ed.append(feld('Höhenangabe', sel(['0', '1', '2'], String(b.Height_Mode), v => HOEHENMODUS[+v]), ev => neu('Height_Mode', +ev.target.value, true)));
+  if (+b.Height_Mode !== 0) ed.append(haken('auf 7-mm-Raster runden', b.Snap_Height_To_Grid, v => neu('Snap_Height_To_Grid', v)));
+  ed.append(el('h3', {}, 'Fächer'));
+  ed.append(zahl('Fächer links → rechts', b.Compartments_Left_To_Right, { step: 1, min: 0, max: 12 }, v => neu('Compartments_Left_To_Right', Math.round(v))));
+  ed.append(zahl('Fächer vorn → hinten', b.Compartments_Front_To_Back, { step: 1, min: 0, max: 12 }, v => neu('Compartments_Front_To_Back', Math.round(v))));
+  ed.append(feld(`Griffmulde (${Math.round(b.Scoop_Size * 100)} %)`, el('input', { type: 'range', min: 0, max: 1, step: 0.1, value: b.Scoop_Size }), ev => { neu('Scoop_Size', +ev.target.value); ev.target.parentElement.firstChild.textContent = `Griffmulde (${Math.round(ev.target.value * 100)} %)`; }));
+  ed.append(haken('Etikettenhalter (Clip-Etikett)', b.Label_Holder, v => neu('Label_Holder', v, true)));
+  ed.append(el('h3', {}, 'Rand & Boden'));
+  ed.append(feld('Oberer Rand', sel(['0', '1', '2'], String(b.Top_Lip_Style), v => LIPPE[+v]), ev => neu('Top_Lip_Style', +ev.target.value, true)));
+  ed.append(feld('Löcher im Boden', sel(['0', '1', '2', '3'], String(b.Base_Hole_Style), v => LOECHER[+v]), ev => neu('Base_Hole_Style', +ev.target.value, true)));
+  if (+b.Base_Hole_Style > 0) ed.append(haken('Löcher nur an den Außenecken', b.Corner_Holes_Only, v => neu('Corner_Holes_Only', v)));
+  ed.append(zahl('Anzahl Drucke', b.anzahl || 1, { step: 1, min: 1, max: 99 }, v => neu('anzahl', Math.max(1, Math.round(v)))));
+  if (b.Label_Holder && [1, 2, 3].includes(+b.Bin_Width)) {
+    ed.append(el('h3', {}, 'Etiketten'));
+    const reihen = Math.max(1, +b.Compartments_Front_To_Back | 0);
+    b.etiketten = b.etiketten || [];
+    for (let j = 0; j < reihen; j++) {
+      const opt = ['', ...S.liste.map(x => x.id)];
+      ed.append(feld(reihen > 1 ? `Etikett Reihe ${j + 1} (${j === 0 ? 'vorn' : j === reihen - 1 ? 'hinten' : 'Mitte'})` : 'Etikett', sel(opt, b.etiketten[j] || '', v => v ? titel(S.liste.find(x => x.id === v)) + ' · ' + beschreibung(S.liste.find(x => x.id === v)) : '– keins –'), ev => { b.etiketten[j] = ev.target.value; aenderung(); }));
+    }
+  }
+  if (b.Label_Holder) {
+    if (+b.Height_Mode === 0 && b.Bin_Height < 3) ed.append(el('div', { class: 'warnung' }, 'Unter 3 Einheiten Höhe gibt es keine Lasche – das Etikett hat dann keinen Halt.'));
+    const w = +b.Bin_Width;
+    if (![1, 2, 3].includes(w)) ed.append(el('div', { class: 'warnung' }, `Für ${w} Raster Breite gibt es kein fertiges Etikett (Etiketten gibt es für 1, 2 und 3 Raster). Die Tasche ist ${(w * 42 - 6.2).toFixed(1)} mm lang.`));
+    else ed.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, `Passendes Etikett: Etikettbreite ${w} Einheit${w > 1 ? 'en' : ''} (${laengeAusY(w) + 2} mm).`));
+  }
+  ed.append(el('div', { class: 'aktionen' },
+    el('button', { class: 'klein', onclick: () => { const k = { ...b, id: neueId() }; S.bins.splice(S.bins.indexOf(b) + 1, 0, k); S.binSel = k.id; aenderung(true); } }, 'Duplizieren'),
+    el('button', { class: 'klein', onclick: () => { const i = S.bins.indexOf(b), j = i - 1; if (j >= 0) { [S.bins[i], S.bins[j]] = [S.bins[j], S.bins[i]]; aenderung(); } } }, '↑'),
+    el('button', { class: 'klein', onclick: () => { const i = S.bins.indexOf(b), j = i + 1; if (j < S.bins.length) { [S.bins[i], S.bins[j]] = [S.bins[j], S.bins[i]]; aenderung(); } } }, '↓'),
+    el('button', { class: 'klein gefahr', onclick: () => { const i = S.bins.indexOf(b); S.bins.splice(i, 1); S.binSel = (S.bins[i] || S.bins[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
+}
+async function zeigeBin3D() {
+  const b = S.bins.find(x => x.id === S.binSel);
+  gruppe.clear();
+  if (!b) return;
+  const t0 = performance.now();
+  const r = binGeo(binOpts(b));
+  const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
+  gruppe.add(new THREE.Mesh(geo3(r.koerper), mat(S.binEinst.Bin_Color)));
+  if (r.band) gruppe.add(new THREE.Mesh(geo3(r.band), mat(S.binEinst.Top_Edge_Color)));
+  await etikettenEinsetzen(gruppe, b, r);
+  const groesse3 = Math.max(b.Bin_Width, b.Bin_Depth) * 42, hoehe = r.oben;
+  const sig = groesse3 + '|' + hoehe.toFixed(0);
+  if (letzteLaenge !== sig) {
+    letzteLaenge = sig;
+    const d = Math.max(groesse3 * 1.25, hoehe) * 2.4 + 40;
+    cam.position.set(-d * 0.42, -d * 0.78, d * 0.7); ctr.target.set(0, 0, hoehe * 0.45);
+  }
+  $('#status').textContent = `${(b.Bin_Width * 42 - 0.5).toFixed(1)} × ${(b.Bin_Depth * 42 - 0.5).toFixed(1)} × ${r.oben.toFixed(1)} mm · ${Math.round(performance.now() - t0)} ms`;
+  r.koerper.delete(); r.band && r.band.delete();
+}
+function anordnenBoxen(groessen, breite) {
+  // Regal-Packung: Reihen von links nach rechts, 6 mm Abstand
+  const pos = []; let x = 0, y = 0, zeileH = 0, maxB = 0; const reihen = [];
+  groessen.forEach(([w, d], i) => {
+    if (x > 0 && x + w > breite) { reihen.push({ y, h: zeileH }); y += zeileH + 6; x = 0; zeileH = 0; }
+    pos.push({ x: x + w / 2, y: y + d / 2 }); x += w + 6; zeileH = Math.max(zeileH, d); maxB = Math.max(maxB, x - 6);
+  });
+  const gesamtT = y + zeileH;
+  return { pos: pos.map(p => ({ x: p.x - maxB / 2, y: gesamtT / 2 - p.y })), breite: maxB, tiefe: gesamtT };
+}
+async function erzeugeBins() {
+  if (!S.bins.length) return null;
+  const flach = S.bins.flatMap(b => Array.from({ length: +b.anzahl || 1 }, () => b));
+  const objs = [];
+  for (let i = 0; i < flach.length; i++) {
+    $('#status').textContent = `Erzeuge Behälter ${i + 1} / ${flach.length} …`;
+    await new Promise(r => setTimeout(r));
+    objs.push(await binObjekt(flach[i]));
+    if (S.binEinst.etikettenMit) objs.push(...await zugeordneteEtiketten(flach[i]));
+  }
+  $('#status').textContent = `${objs.length} Teile erzeugt`;
+  return packen(objs);
+}
+
+/*EXTRA*/
+
+// ---------- Serie / Import ----------
+$('#bNeu').onclick = () => {
+  if (S.modus === 'platten') { const p = NEU_PLATTE(); S.platten.push(p); S.platteSel = p.id; return aenderung(true); }
+  if (S.modus === 'bins') { const v = S.bins.find(x => x.id === S.binSel); const b = v ? { ...v, id: neueId() } : NEU_BIN(); S.bins.push(b); S.binSel = b.id; return aenderung(true); } const v = S.liste.find(x => x.id === S.sel); const e = v ? { ...v, id: neueId(), text: '' } : NEU(); S.liste.push(e); S.sel = e.id; aenderung(true); };
+$('#bSerie').onclick = () => $('#dSerie').showModal();
+$('#dSerie').addEventListener('close', () => {
+  if ($('#dSerie').returnValue !== 'ok') return;
+  const vorlage = S.liste.find(x => x.id === S.sel) || NEU();
+  const ds = $('#sD').value.split(',').map(s => s.trim()).filter(Boolean);
+  const ls = $('#sL').value.split(',').map(s => parseFloat(s.replace(',', '.'))).filter(n => !isNaN(n));
+  let erstes;
+  for (const d of ds) for (const l of (ls.length ? ls : [0])) { const e = { ...vorlage, id: neueId(), durchmesser: d, laenge: l, text: '', anzahl: 1 }; S.liste.push(e); erstes ??= e.id; }
+  if (erstes) S.sel = erstes;
+  aenderung(true);
+});
+$('#bImport').onclick = () => $('#dImport').showModal();
+$('#dImport').addEventListener('close', () => {
+  if ($('#dImport').returnValue !== 'ok') return;
+  const neu = importiere($('#iText').value);
+  if (!neu.length) { alert('Keine Etiketten erkannt.'); return; }
+  if ($('#iErsetzen').checked) S.liste = [];
+  S.liste.push(...neu); S.sel = neu[0].id; aenderung(true);
+});
+const LEGACY = {
+  'Socket head bolt': ['Bolt', 'Socket head', 'Hex socket', 'Machine'], 'Torx head bolt': ['Bolt', 'Socket head', 'Torx', 'Machine'],
+  'Dome head bolt': ['Bolt', 'Pan head', 'Hex socket', 'Machine'], 'phillips head bolt': ['Bolt', 'Pan head', 'Phillips', 'Machine'],
+  'Torx pan head bolt': ['Bolt', 'Pan head', 'Torx', 'Machine'], 'Flat Head countersunk': ['Bolt', 'Countersunk', 'Hex socket', 'Machine'],
+  'Phillips head countersunk': ['Bolt', 'Countersunk', 'Phillips', 'Machine'], 'Countersunk Torx head bolt': ['Bolt', 'Countersunk', 'Torx', 'Machine'],
+  'Hex head bolt': ['Bolt', 'Hex head', 'Hex socket', 'Machine'], 'Grub screw': ['Bolt', 'Grub screw', 'Hex socket', 'Machine'],
+  'phillips wood screw': ['Bolt', 'Countersunk', 'Phillips', 'Wood'], 'Torx wood screw': ['Bolt', 'Countersunk', 'Torx', 'Wood'],
+  'Torx panhead wood screw': ['Bolt', 'Pan head', 'Torx', 'Wood'], 'Standard nut': ['Nut', 'Standard'], 'Square nut': ['Nut', 'Square'],
+  'Lock nut': ['Nut', 'Lock'], 'Cap nut': ['Nut', 'Cap'], 'Disc nut': ['Nut', 'Disc'], 'Wing nut': ['Nut', 'Wing'],
+  'Slide-in T-nut': ['Nut', 'Slide-in T-nut'], 'Hammer nut': ['Nut', 'Hammer'], 'Standard washer': ['Washer', 'Standard'],
+  'Spring washer': ['Washer', 'Spring'], 'Wall Anchor': ['Other', 'Wall anchor'], 'Heat set inserts': ['Other', 'Heat set insert'],
+  'Wooden dowel': ['Furniture', 'Wooden dowel'], 'Expansion sleeve': ['Furniture', 'Expansion sleeve'], 'Cam lock nut': ['Furniture', 'Cam lock nut'],
+  'Cam lock bolt': ['Furniture', 'Cam lock bolt'], 'Custom Text': ['Other', 'Custom text'], 'None': ['Other', 'None'],
+};
+function teilZuEintrag(teil, d, l) {
+  if (!Array.isArray(teil)) teil = LEGACY[teil] || ['Other', 'None'];
+  const e = { ...NEU(), durchmesser: d, laenge: +l || 0, kat: teil[0] };
+  if (!KATALOG[e.kat]) return null;
+  if (e.kat === 'Bolt') { e.kopf = teil[1] || 'Pan head'; e.antrieb = teil[2] || 'Hex socket'; e.spitze = teil[3] || 'Machine'; }
+  else e.typ = teil[1];
+  return e;
+}
+function importiere(txt) {
+  const out = [];
+  const re = /\[\s*(\[[^\]]*\]|"[^"]*")\s*,\s*"([^"]*)"\s*,\s*([\d.]+)\s*\]/g;
+  let m;
+  while ((m = re.exec(txt))) {
+    const teil = m[1].startsWith('[') ? [...m[1].matchAll(/"([^"]*)"/g)].map(x => x[1]) : m[1].slice(1, -1);
+    const e = teilZuEintrag(teil, m[2], m[3]); if (e) out.push(e);
+  }
+  if (!out.length) for (const z of txt.split('\n')) {
+    const t = z.split(/[;\t]/).map(s => s.trim()).filter(Boolean);
+    if (t.length < 3) continue;
+    const l = parseFloat(t[t.length - 1]), d = t[t.length - 2];
+    const e = teilZuEintrag(t.slice(0, -2), d, isNaN(l) ? 0 : l); if (e) out.push(e);
+  }
+  return out;
+}
+
+// ---------- Export ----------
+async function erzeugeAlle() {
+  const o = await opts();
+  const flach = S.liste.flatMap(e => Array.from({ length: +e.anzahl || 1 }, () => e));
+  const L = laengeAusY(S.einst.Y_units);
+  const dr = DRUCKER[S.einst.drucker] || DRUCKER.p;
+  const B = +S.einst.width || 11.5;
+  const pos = anordnen(flach.length, L, dr.b, B);
+  const zeilen = Math.ceil(flach.length / Math.max(1, Math.floor(dr.b / (L + 5))));
+  if (zeilen * (B + 2.5) > dr.t && !confirm(`${flach.length} Etiketten passen nicht ganz auf eine Platte. Trotzdem exportieren? (In Bambu Studio dann „Anordnen“ nutzen.)`)) return null;
+  const objs = [];
+  for (let i = 0; i < flach.length; i++) {
+    $('#status').textContent = `Erzeuge ${i + 1} / ${flach.length} …`;
+    if (i % 4 === 0) await new Promise(r => setTimeout(r));
+    const e = flach[i], r = labelGeo(o, await ausEin(e));
+    const teile = [{ name: 'Etikett', extruder: 1, mesh: meshDaten(r.basis) }];
+    if (r.inhalt) teile.push({ name: 'Inhalt', extruder: 2, mesh: meshDaten(r.inhalt) });
+    r.basis.delete(); r.inhalt && r.inhalt.delete();
+    objs.push({ name: titel(e), x: pos[i].x, y: pos[i].y, teile });
+  }
+  $('#status').textContent = `${flach.length} Etiketten erzeugt`;
+  return { objs, mitte: dr.mitte };
+}
+function download(daten, name, typ) {
+  const a = el('a', { href: URL.createObjectURL(new Blob([daten], { type: typ })), download: name });
+  document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const dateiname = () => 'gridwerk_' + ({ bins: 'behaelter_', platten: 'schublade_' }[S.modus] || 'etiketten_') + new Date().toISOString().slice(0, 10);
+$('#b3mf').onclick = async () => {
+  const r = S.modus === 'bins' ? await erzeugeBins() : S.modus === 'platten' ? await erzeugeSchublade() : (S.liste.length ? await erzeugeAlle() : null); if (!r) return;
+  download(bambu3mf(r.objs, zipSync, strToU8, r.mitte), dateiname() + '.3mf', 'model/3mf');
+};
+$('#bStl').onclick = async () => {
+  const r = S.modus === 'bins' ? await erzeugeBins() : S.modus === 'platten' ? await erzeugeSchublade() : (S.liste.length ? await erzeugeAlle() : null); if (!r) return;
+  const etik = [], inh = [];
+  for (const ob of r.objs) { etik.push({ ...ob.teile[0].mesh, dx: ob.x, dy: ob.y }); if (ob.teile[1]) inh.push({ ...ob.teile[1].mesh, dx: ob.x, dy: ob.y }); }
+  const nm = S.modus === 'bins' ? ['behaelter.stl', 'behaelter_rand.stl'] : S.modus === 'platten' ? ['schublade_farbe1.stl', 'schublade_farbe2.stl'] : ['etiketten_grundplatte.stl', 'etiketten_inhalt.stl'];
+  const z = { [nm[0]]: stl(etik) }; if (inh.length) z[nm[1]] = stl(inh);
+  download(zipSync(z), dateiname() + '_stl.zip', 'application/zip');
+};
+
+// ---------- Start ----------
+const gespeichert = await laden();
+if (gespeichert) { S.einst = { ...STANDARD_EINST, ...gespeichert.einst }; S.liste = gespeichert.liste || []; S.bins = gespeichert.bins || []; S.binEinst = { ...STANDARD_BINEINST, ...(gespeichert.binEinst || {}) }; S.modus = ['bins', 'platten'].includes(gespeichert.modus) ? gespeichert.modus : 'etiketten'; S.platten = gespeichert.platten || []; S.logos = gespeichert.logos || []; S.platteEinst = { ...S.platteEinst, ...(gespeichert.platteEinst || {}) }; }
+if (!S.liste.length) {
+  S.liste = [
+    { ...NEU(), kat: 'Bolt', kopf: 'Socket head', antrieb: 'Hex socket', durchmesser: 'M3', laenge: 10 },
+    { ...NEU(), kat: 'Bolt', kopf: 'Countersunk', antrieb: 'Torx', durchmesser: 'M4', laenge: 16 },
+    { ...NEU(), kat: 'Bolt', kopf: 'Pan head', antrieb: 'Phillips', spitze: 'Wood', durchmesser: '4', laenge: 30 },
+    { ...NEU(), kat: 'Nut', typ: 'Lock', durchmesser: 'M5' },
+    { ...NEU(), kat: 'Washer', typ: 'Standard', durchmesser: 'M6' },
+    { ...NEU(), kat: 'Other', typ: 'Heat set insert', durchmesser: 'M3', laenge: 5.7 },
+    { ...NEU(), kat: 'Other', typ: 'Custom text', zeile1: 'Kabelbinder', zeile2: '200 mm' },
+  ];
+}
+S.sel = S.liste[0]?.id;
+if (!S.bins.length) S.bins = [{ ...NEU_BIN() }, { ...NEU_BIN(), Bin_Width: 2, Bin_Depth: 1, Bin_Height: 3, Compartments_Left_To_Right: 2 }];
+S.binSel = S.bins[0].id;
+if (!S.platten.length) S.platten = [{ ...NEU_PLATTE(), belegung: [{ binId: S.bins[0].id, x: 0, y: 0, gedreht: false }] }];
+S.platteSel = S.platten[0].id;
+modusSetzen(S.modus, true);
+zeichneEinst(); zeichneEditor(); await zeichneListe(); await zeige3D();
+$('#laden').remove();
+window.__bereit = true;
+</script>
+</body>
+</html>
