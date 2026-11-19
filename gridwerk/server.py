@@ -4,7 +4,7 @@ Holt die Oberfläche aus dem Schichtlohn-Repo (gridwerk/index.html, über jsDeli
 neuesten Commit), speichert Listen/Einstellungen in /daten/liste.json und leitet QR-Kurzlinks
 (/q/<code>) auf die hinterlegte Adresse weiter.
 """
-import json, os, re, shutil, threading, time, urllib.request
+import hashlib, json, os, re, shutil, threading, time, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 REPO = os.environ.get("REPO", "MitKIprogrammieren/Schichtlohn")
@@ -15,6 +15,10 @@ CACHE = os.path.join(DATEN, "gridwerk.html")
 LISTE = os.path.join(DATEN, "liste.json")
 ALT = os.path.join(os.environ.get("ALT", "/alt"), "liste.json")  # Liste aus der Vorgängerversion (Rasterwerk) einmalig übernehmen
 STAND = {"html": None, "sha": "", "zeit": 0}
+CDN = os.path.join(DATEN, "cdn")  # Bibliotheken und Schriften einmal holen, danach aus dem Heimnetz ausliefern
+TYPEN = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".wasm": "application/wasm",
+         ".woff": "font/woff", ".woff2": "font/woff2", ".json": "application/json", ".css": "text/css"}
+CDN_SPERRE = threading.Lock()
 
 
 def holen(url, timeout=20):
@@ -53,6 +57,25 @@ def schleife():
         time.sleep(600)
 
 
+def cdn_datei(pfad):
+    """Datei aus jsDelivr (nur feste Versionen) – einmal laden, dann vom NUC."""
+    if ".." in pfad or not re.fullmatch(r"npm/(@[a-z0-9-]+/)?[a-z0-9.-]+@\d[\w.-]*/[\w@./+-]+", pfad, re.I):
+        return None
+    ziel = os.path.join(CDN, hashlib.sha1(pfad.encode()).hexdigest())
+    if not os.path.exists(ziel):
+        with CDN_SPERRE:
+            if not os.path.exists(ziel):
+                daten = holen("https://cdn.jsdelivr.net/" + pfad, 60)
+                if len(daten) > 25 * 1024 * 1024:
+                    return None
+                os.makedirs(CDN, exist_ok=True)
+                with open(ziel + ".tmp", "wb") as f:
+                    f.write(daten)
+                os.replace(ziel + ".tmp", ziel)
+    with open(ziel, "rb") as f:
+        return f.read()
+
+
 def kurzlink(code):
     try:
         with open(LISTE, encoding="utf-8") as f:
@@ -73,13 +96,13 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def senden(self, code, body, typ="application/json; charset=utf-8", kopf=None):
+    def senden(self, code, body, typ="application/json; charset=utf-8", kopf=None, cache="no-store"):
         if isinstance(body, str):
             body = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", typ)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         for k, v in (kopf or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -100,6 +123,16 @@ class H(BaseHTTPRequestHandler):
                     return self.senden(200, f.read())
             except OSError:
                 return self.senden(200, "{}")
+        if p.startswith("/cdn/"):
+            pfad = p[5:]
+            try:
+                daten = cdn_datei(pfad)
+            except Exception as e:
+                return self.senden(502, f"Bibliothek nicht ladbar: {e}", "text/plain; charset=utf-8")
+            if daten is None:
+                return self.senden(404, "nicht erlaubt", "text/plain; charset=utf-8")
+            typ = TYPEN.get(os.path.splitext(pfad)[1].lower(), "application/octet-stream")
+            return self.senden(200, daten, typ, cache="public, max-age=31536000, immutable")
         m = re.fullmatch(r"/q/([a-z0-9]{1,12})", pl)
         if m:
             ziel = kurzlink(m.group(1))

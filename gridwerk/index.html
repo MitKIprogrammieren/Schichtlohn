@@ -7,12 +7,12 @@
 <title>Gridwerk – Gridfinity-Generator</title>
 <script type="importmap">
 { "imports": {
-"three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-"manifold-3d": "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.5/manifold.js",
-"opentype": "https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.module.js",
-"fflate": "https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js",
-"qrcode": "https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
+"three": "./cdn/npm/three@0.170.0/build/three.module.js",
+"three/addons/": "./cdn/npm/three@0.170.0/examples/jsm/",
+"manifold-3d": "./cdn/npm/manifold-3d@3.5.5/manifold.js",
+"opentype": "./cdn/npm/opentype.js@1.3.4/dist/opentype.module.js",
+"fflate": "./cdn/npm/fflate@0.8.3/esm/browser.js",
+"qrcode": "./cdn/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
 } }
 </script>
 <style>
@@ -834,7 +834,7 @@ return { platte, raster, zellMitte, H_TASCHE };
 }
 const FONTS = {"inter":["Inter","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"inter-tight":["Inter Tight","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"lora":["Lora","5.3.0",[400,500,600,700],[400,500,600,700]],"merriweather-sans":["Merriweather Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"montserrat":["Montserrat","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans":["Noto Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans-kr":["Noto Sans KR","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"noto-sans-sc":["Noto Sans SC (Original)","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"nunito":["Nunito","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"nunito-sans":["Nunito Sans","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"open-sans":["Open Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"open-sans-condensed":["Open Sans Condensed","4.5.5",[300,700],[300]],"oswald":["Oswald","5.3.0",[200,300,400,500,600,700],[]],"playfair-display":["Playfair Display","5.3.0",[400,500,600,700,800,900],[400,500,600,700,800,900]],"plus-jakarta-sans":["Plus Jakarta Sans","5.3.0",[200,300,400,500,600,700,800],[200,300,400,500,600,700,800]],"raleway":["Raleway","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto":["Roboto","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-condensed":["Roboto Condensed","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-flex":["Roboto Flex","5.3.0",[400],[]],"roboto-mono":["Roboto Mono","5.3.0",[100,200,300,400,500,600,700],[100,200,300,400,500,600,700]],"roboto-serif":["Roboto Serif","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-slab":["Roboto Slab","5.3.0",[100,200,300,400,500,600,700,800,900],[]],"rubik":["Rubik","5.3.0",[300,400,500,600,700,800,900],[300,400,500,600,700,800,900]],"source-sans-3":["Source Sans 3","5.3.1",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"ubuntu-sans":["Ubuntu Sans","5.3.0",[100,200,300,400,500,600,700,800],[100,200,300,400,500,600,700,800]],"ubuntu-sans-mono":["Ubuntu Sans Mono","5.3.0",[400,500,600,700],[400,500,600,700]],"work-sans":["Work Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]]};
 const SCHNITTE = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
-const fontUrl = (k, w, kursiv) => `https://cdn.jsdelivr.net/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
+const fontUrl = (k, w, kursiv) => `cdn/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
 function schnittWaehlen(k, w, kursiv) {
 const f = FONTS[k] || FONTS['noto-sans-sc'];
 let liste = kursiv ? f[3] : f[2];
@@ -879,7 +879,7 @@ return fontCache[k];
 }
 let ersatzSchrift = null;
 async function opts() {
-if (!ersatzSchrift) ersatzSchrift = fetch('https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
+if (!ersatzSchrift) ersatzSchrift = fetch('cdn/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
 return { ...S.einst, font: await font(), fontFallback: await ersatzSchrift, qrcode, qrModul: 0.5 };
 }
 const istTyp = e => e.kat === 'Bolt' ? '' : (e.typ || KATALOG[e.kat].typen[0]);
@@ -919,9 +919,12 @@ ctr.enableDamping = true;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f88, 1.6));
 const sonne = new THREE.DirectionalLight(0xffffff, 1.6); sonne.position.set(-30, -50, 80); scene.add(sonne);
 const gruppe = new THREE.Group(); scene.add(gruppe);
-function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+let neuZeichnen = true;
+function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); neuZeichnen = true; }
 new ResizeObserver(groesse).observe(box); groesse();
-(function loop() { requestAnimationFrame(loop); ctr.update(); renderer.render(scene, cam); })();
+ctr.addEventListener('change', () => { neuZeichnen = true; });
+gruppe.addEventListener('childadded', () => { neuZeichnen = true; });
+(function loop() { requestAnimationFrame(loop); const bewegt = ctr.update(); if (bewegt || neuZeichnen) { renderer.render(scene, cam); neuZeichnen = false; } })();
 function geo3(m) {
 const { pos, idx } = meshDaten(m);
 let g = new THREE.BufferGeometry();
@@ -932,14 +935,13 @@ let letzteLaenge = 0;
 async function zeige3D() {
 if (S.modus === 'bins') return zeigeBin3D();
 if (S.modus === 'platten') return zeigePlatte3D();
-const e = S.liste.find(x => x.id === S.sel);
-gruppe.clear();
-if (!e) return;
+const e = S.liste.find(x => x.id === S.sel), sz = neueSzene();
+if (!e) { sz.zeigen(); return; }
 const t0 = performance.now();
-const r = labelGeo(await opts(), await ausEin(e));
-gruppe.add(new THREE.Mesh(geo3(r.basis), new THREE.MeshStandardMaterial({ color: S.einst.farbeEtikett, roughness: .55 })));
-if (r.inhalt) gruppe.add(new THREE.Mesh(geo3(r.inhalt), new THREE.MeshStandardMaterial({ color: S.einst.farbeInhalt, roughness: .45 })));
-r.basis.delete(); r.inhalt && r.inhalt.delete();
+const r = await etikett3D(e);
+sz.g.add(new THREE.Mesh(r.basis, mat3(S.einst.farbeEtikett, 0.55)));
+if (r.inhalt) sz.g.add(new THREE.Mesh(r.inhalt, mat3(S.einst.farbeInhalt, 0.45)));
+if (!sz.zeigen()) return;
 if (letzteLaenge !== r.length) {
 letzteLaenge = r.length;
 const d = r.length * 1.35 + 12;
@@ -1126,7 +1128,7 @@ $('#mEtik').classList.toggle('aktiv', m === 'etiketten'); $('#mBins').classList.
 document.querySelectorAll('.nurEtik').forEach(x => x.style.display = m !== 'etiketten' ? 'none' : '');
 $('#bNeu').textContent = m === 'bins' ? '+ Behälter' : m === 'platten' ? '+ Schublade' : '+ Etikett';
 letzteLaenge = -1; offeneWahl = null;
-if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeige3D(); zeichneEinst(); }
+if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeichneEinst(); requestAnimationFrame(() => setTimeout(zeige3D)); }
 }
 $('#mEtik').onclick = () => modusSetzen('etiketten');
 $('#mBins').onclick = () => modusSetzen('bins');
@@ -1209,15 +1211,14 @@ el('button', { class: 'klein', onclick: () => { const i = S.bins.indexOf(b), j =
 el('button', { class: 'klein gefahr', onclick: () => { const i = S.bins.indexOf(b); S.bins.splice(i, 1); S.binSel = (S.bins[i] || S.bins[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
 }
 async function zeigeBin3D() {
-const b = S.bins.find(x => x.id === S.binSel);
-gruppe.clear();
-if (!b) return;
+const b = S.bins.find(x => x.id === S.binSel), sz = neueSzene();
+if (!b) { sz.zeigen(); return; }
 const t0 = performance.now();
-const r = binGeo(binOpts(b));
-const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
-gruppe.add(new THREE.Mesh(geo3(r.koerper), mat(S.binEinst.Bin_Color)));
-if (r.band) gruppe.add(new THREE.Mesh(geo3(r.band), mat(S.binEinst.Top_Edge_Color)));
-await etikettenEinsetzen(gruppe, b, r);
+const g = binGeometrie(b), r = g.meta;
+sz.g.add(new THREE.Mesh(g.koerper, mat3(S.binEinst.Bin_Color)));
+if (g.band) sz.g.add(new THREE.Mesh(g.band, mat3(S.binEinst.Top_Edge_Color)));
+await etikettenEinsetzen(sz.g, b, r);
+if (!sz.zeigen()) return;
 const groesse3 = Math.max(b.Bin_Width, b.Bin_Depth) * 42, hoehe = r.oben;
 const sig = groesse3 + '|' + hoehe.toFixed(0);
 if (letzteLaenge !== sig) {
@@ -1226,7 +1227,6 @@ const d = Math.max(groesse3 * 1.25, hoehe) * 2.4 + 40;
 cam.position.set(-d * 0.42, -d * 0.78, d * 0.7); ctr.target.set(0, 0, hoehe * 0.45);
 }
 $('#status').textContent = `${(b.Bin_Width * 42 - 0.5).toFixed(1)} × ${(b.Bin_Depth * 42 - 0.5).toFixed(1)} × ${r.oben.toFixed(1)} mm · ${Math.round(performance.now() - t0)} ms`;
-r.koerper.delete(); r.band && r.band.delete();
 }
 function anordnenBoxen(groessen, breite) {
 const pos = []; let x = 0, y = 0, zeileH = 0, maxB = 0; const reihen = [];
@@ -1249,6 +1249,44 @@ if (S.binEinst.etikettenMit) objs.push(...await zugeordneteEtiketten(flach[i]));
 }
 $('#status').textContent = `${objs.length} Teile erzeugt`;
 return packen(objs);
+}
+const matCache = new Map();
+function mat3(c, r = 0.6) { const k = c + '|' + r; if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color: c, roughness: r })); return matCache.get(k); }
+function entsorgen(v) { if (!v) return; if (v.isBufferGeometry) return v.dispose(); if (Array.isArray(v)) return v.forEach(entsorgen); if (typeof v === 'object') Object.values(v).forEach(x => (x && (x.isBufferGeometry || Array.isArray(x) || (typeof x === 'object' && x.geo))) && entsorgen(x.geo || x)); }
+class GeoCache {
+constructor(max) { this.max = max; this.m = new Map(); }
+get(k, f) {
+if (this.m.has(k)) { const v = this.m.get(k); this.m.delete(k); this.m.set(k, v); return v; }
+const v = f(); this.m.set(k, v);
+while (this.m.size > this.max) { const [k0, v0] = this.m.entries().next().value; this.m.delete(k0); entsorgen(v0); }
+return v;
+}
+}
+let szeneNr = 0;
+function neueSzene() {
+const nr = ++szeneNr, g = new THREE.Group();
+return { g, zeigen: () => { if (nr !== szeneNr) return false; gruppe.clear(); gruppe.add(g); neuZeichnen = true; return true; } };
+}
+const etikettCache = new GeoCache(80);
+async function etikett3D(e, yUnits) {
+const o = await opts(), ein = await ausEin(e), Y = yUnits || +S.einst.Y_units || 1;
+const key = JSON.stringify([normal(e), ein.qr, Y, S.einst, logoStempel()]);
+return etikettCache.get(key, () => {
+const lg = labelGeo({ ...o, Y_units: Y }, ein);
+const v = { basis: geo3(lg.basis), inhalt: lg.inhalt ? geo3(lg.inhalt) : null, length: lg.length, info: lg.info };
+lg.basis.delete(); lg.inhalt && lg.inhalt.delete();
+return v;
+});
+}
+const platteCache = new GeoCache(8);
+function platte3D(p) {
+const key = JSON.stringify([{ ...PLATTE_STANDARD, ...p, belegung: 0, name: 0, id: 0 }, bettBreite()]);
+return platteCache.get(key, () => {
+const pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p }, bettBreite());
+const v = { teile: pl.teile.map(t => ({ geo: geo3(t.koerper), x: t.x, y: t.y, W: t.W, D: t.D, name: t.name })), raster: pl.raster, gesW: pl.gesW, gesD: pl.gesD, H: pl.H };
+pl.teile.forEach(t => t.koerper.delete());
+return v;
+});
 }
 const logoCache = new Map();
 function logoStempel() { return S.logos.map(l => l.id + ':' + l.schwelle + ':' + (l.umkehren ? 1 : 0)).join('|'); }
@@ -1463,10 +1501,9 @@ ed.append(zahl('Raster tief', p.gy, { step: 1, min: 1, max: 40 }, v => neu('gy',
 }
 ed.append(feld('Grundplatte', sel(Object.keys(PLATTEN_STIL), p.stil, v => PLATTEN_STIL[v]), ev => neu('stil', ev.target.value, true)));
 ed.append(haken('für das Druckbett in Stücke teilen', p.teilen, v => neu('teilen', v, true)));
-const r = platteRaster(p), pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p, belegung: [] }, bettBreite());
+const r = platteRaster(p), pl = platte3D(p);
 const rest = [r.padL, r.padR, r.padV, r.padH].some(v => v > 0.01) ? ` · Randausgleich links ${r.padL.toFixed(1)}, rechts ${r.padR.toFixed(1)}, vorn ${r.padV.toFixed(1)}, hinten ${r.padH.toFixed(1)} mm` : '';
 ed.append(el('div', { class: 'hinweis', style: 'grid-column:1/-1' }, `${r.nx} × ${r.ny} Raster · Platte ${pl.gesW.toFixed(1)} × ${pl.gesD.toFixed(1)} mm${rest} · ${pl.teile.length} Stück${pl.teile.length > 1 ? 'e' : ''} zum Drucken`));
-pl.teile.forEach(t => t.koerper.delete());
 ed.append(el('h3', {}, 'Behälter einplanen'));
 const palette = el('div', { class: 'aktionen' });
 if (!S.bins.length) palette.append(el('span', { class: 'hinweis' }, 'Lege zuerst im Bereich „Behälter“ Behälter an.'));
@@ -1486,64 +1523,58 @@ ed.append(el('div', { class: 'aktionen' },
 el('button', { class: 'klein', onclick: () => { const k = { ...p, id: neueId(), name: (p.name || 'Schublade') + ' Kopie', belegung: (p.belegung || []).map(b => ({ ...b })) }; S.platten.push(k); S.platteSel = k.id; aenderung(true); } }, 'Duplizieren'),
 el('button', { class: 'klein gefahr', onclick: () => { const i = S.platten.indexOf(p); S.platten.splice(i, 1); S.platteSel = (S.platten[i] || S.platten[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
 }
-const binGeoCache = new Map();
+const binGeoCache = new GeoCache(40);
 function binGeometrie(b) {
 const key = JSON.stringify(binOpts({ ...b, id: 0, anzahl: 0, etiketten: 0 }));
-if (binGeoCache.has(key)) return binGeoCache.get(key);
+return binGeoCache.get(key, () => {
 const r = binGeo(binOpts(b));
 const g = { koerper: geo3(r.koerper), band: r.band ? geo3(r.band) : null, meta: { topZ: r.topZ, zsmall: r.zsmall, reihen: r.reihen, gy: r.gy, oben: r.oben } };
 r.koerper.delete(); r.band && r.band.delete();
-if (binGeoCache.size > 40) binGeoCache.clear();
-binGeoCache.set(key, g);
 return g;
+});
 }
 async function etikettFuerReihe(b, j) {
 const id = (b.etiketten || [])[j];
 return S.liste.find(x => x.id === id) || (S.binEinst.etikettZeigen ? S.liste.find(x => x.id === S.sel) : null);
 }
-async function etikettenEinsetzen(gruppeZiel, b, meta, versatz = [0, 0, 0], drehung = 0) {
+async function etikettenEinsetzen(ziel, b, meta, versatz = [0, 0, 0], drehung = 0) {
 if (!b.Label_Holder || meta.zsmall || ![1, 2, 3].includes(+b.Bin_Width)) return;
-const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
 const lagen = etikettLagen(meta);
 for (let j = 0; j < lagen.length; j++) {
 const e = await etikettFuerReihe(b, j); if (!e) continue;
-const lg = labelGeo({ ...(await opts()), Y_units: +b.Bin_Width }, await ausEin(e));
+const v = await etikett3D(e, +b.Bin_Width);
 const grp = new THREE.Group();
-const m1 = new THREE.Mesh(geo3(lg.basis), mat(S.einst.farbeEtikett)); grp.add(m1);
-if (lg.inhalt) grp.add(new THREE.Mesh(geo3(lg.inhalt), mat(S.einst.farbeInhalt)));
+grp.add(new THREE.Mesh(v.basis, mat3(S.einst.farbeEtikett)));
+if (v.inhalt) grp.add(new THREE.Mesh(v.inhalt, mat3(S.einst.farbeInhalt)));
 grp.position.set(lagen[j].x, lagen[j].y, lagen[j].z);
 const huelle = new THREE.Group(); huelle.add(grp); huelle.rotation.z = drehung; huelle.position.set(...versatz);
-gruppeZiel.add(huelle);
-lg.basis.delete(); lg.inhalt && lg.inhalt.delete();
+ziel.add(huelle);
 }
 }
 async function zeigePlatte3D() {
-const p = S.platten.find(x => x.id === S.platteSel);
-gruppe.clear();
-if (!p) return;
+const p = S.platten.find(x => x.id === S.platteSel), sz = neueSzene();
+if (!p) { sz.zeigen(); return; }
 const t0 = performance.now();
-const pl = platteGeo.platte({ ...PLATTE_STANDARD, ...p }, bettBreite());
-const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .7 });
+const pl = platte3D(p), fuge = pl.teile.length > 1 ? 1.2 : 0;
 for (const t of pl.teile) {
-const m = new THREE.Mesh(geo3(t.koerper), mat(S.platteEinst.farbe));
-const fuge = pl.teile.length > 1 ? 1.2 : 0;
-m.position.set(t.x + Math.sign(t.x) * fuge, t.y + Math.sign(t.y) * fuge, 0); gruppe.add(m);
-t.koerper.delete();
+const m = new THREE.Mesh(t.geo, mat3(S.platteEinst.farbe, 0.7));
+m.position.set(t.x + Math.sign(t.x) * fuge, t.y + Math.sign(t.y) * fuge, 0); sz.g.add(m);
 }
 const unten = pl.H - platteGeo.H_TASCHE;
 let n = 0;
 for (const b of p.belegung || []) {
-const bin = S.bins.find(x => x.id === b.binId); if (!bin || n++ > 30) continue;
+const bin = S.bins.find(x => x.id === b.binId); if (!bin || n++ > 40) continue;
 const g = binGeometrie(bin), m = binMasse(bin, b.gedreht);
 const c = platteGeo.zellMitte(pl.raster, pl.gesW, pl.gesD, b.x, b.y, m.w, m.d);
 const grp = new THREE.Group();
-grp.add(new THREE.Mesh(g.koerper, mat(S.binEinst.Bin_Color)));
-if (g.band) grp.add(new THREE.Mesh(g.band, mat(S.binEinst.Top_Edge_Color)));
+grp.add(new THREE.Mesh(g.koerper, mat3(S.binEinst.Bin_Color)));
+if (g.band) grp.add(new THREE.Mesh(g.band, mat3(S.binEinst.Top_Edge_Color)));
 grp.rotation.z = b.gedreht ? Math.PI / 2 : 0;
 grp.position.set(c.x, c.y, unten);
-gruppe.add(grp);
-await etikettenEinsetzen(gruppe, bin, { ...g.meta, gy: +bin.Bin_Depth }, [c.x, c.y, unten], b.gedreht ? Math.PI / 2 : 0);
+sz.g.add(grp);
+await etikettenEinsetzen(sz.g, bin, { ...g.meta, gy: +bin.Bin_Depth }, [c.x, c.y, unten], b.gedreht ? Math.PI / 2 : 0);
 }
+if (!sz.zeigen()) return;
 const groesse3 = Math.max(pl.gesW, pl.gesD), sig = 'p' + groesse3.toFixed(0);
 if (letzteLaenge !== sig) {
 letzteLaenge = sig;

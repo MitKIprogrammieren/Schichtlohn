@@ -7,12 +7,12 @@
 <title>Gridwerk – Gridfinity-Generator</title>
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "manifold-3d": "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.5/manifold.js",
-  "opentype": "https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.module.js",
-  "fflate": "https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js",
-  "qrcode": "https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
+  "three": "./cdn/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "./cdn/npm/three@0.170.0/examples/jsm/",
+  "manifold-3d": "./cdn/npm/manifold-3d@3.5.5/manifold.js",
+  "opentype": "./cdn/npm/opentype.js@1.3.4/dist/opentype.module.js",
+  "fflate": "./cdn/npm/fflate@0.8.3/esm/browser.js",
+  "qrcode": "./cdn/npm/qrcode-generator@2.0.4/dist/qrcode.mjs"
 } }
 </script>
 <style>
@@ -153,7 +153,7 @@ import qrcode from 'qrcode';
 const FONTS = {"inter":["Inter","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"inter-tight":["Inter Tight","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"lora":["Lora","5.3.0",[400,500,600,700],[400,500,600,700]],"merriweather-sans":["Merriweather Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"montserrat":["Montserrat","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans":["Noto Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"noto-sans-kr":["Noto Sans KR","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"noto-sans-sc":["Noto Sans SC (Original)","5.3.1",[100,200,300,400,500,600,700,800,900],[]],"nunito":["Nunito","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"nunito-sans":["Nunito Sans","5.3.0",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"open-sans":["Open Sans","5.3.0",[300,400,500,600,700,800],[300,400,500,600,700,800]],"open-sans-condensed":["Open Sans Condensed","4.5.5",[300,700],[300]],"oswald":["Oswald","5.3.0",[200,300,400,500,600,700],[]],"playfair-display":["Playfair Display","5.3.0",[400,500,600,700,800,900],[400,500,600,700,800,900]],"plus-jakarta-sans":["Plus Jakarta Sans","5.3.0",[200,300,400,500,600,700,800],[200,300,400,500,600,700,800]],"raleway":["Raleway","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto":["Roboto","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-condensed":["Roboto Condensed","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-flex":["Roboto Flex","5.3.0",[400],[]],"roboto-mono":["Roboto Mono","5.3.0",[100,200,300,400,500,600,700],[100,200,300,400,500,600,700]],"roboto-serif":["Roboto Serif","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]],"roboto-slab":["Roboto Slab","5.3.0",[100,200,300,400,500,600,700,800,900],[]],"rubik":["Rubik","5.3.0",[300,400,500,600,700,800,900],[300,400,500,600,700,800,900]],"source-sans-3":["Source Sans 3","5.3.1",[200,300,400,500,600,700,800,900],[200,300,400,500,600,700,800,900]],"ubuntu-sans":["Ubuntu Sans","5.3.0",[100,200,300,400,500,600,700,800],[100,200,300,400,500,600,700,800]],"ubuntu-sans-mono":["Ubuntu Sans Mono","5.3.0",[400,500,600,700],[400,500,600,700]],"work-sans":["Work Sans","5.3.0",[100,200,300,400,500,600,700,800,900],[100,200,300,400,500,600,700,800,900]]};
 // [Name, Version, normale Schnitte, kursive Schnitte] – Dateien von fontsource über jsDelivr
 const SCHNITTE = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
-const fontUrl = (k, w, kursiv) => `https://cdn.jsdelivr.net/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
+const fontUrl = (k, w, kursiv) => `cdn/npm/@fontsource/${k}@${FONTS[k][1]}/files/${k}-latin-${w}-${kursiv ? 'italic' : 'normal'}.woff`;
 function schnittWaehlen(k, w, kursiv) {
   const f = FONTS[k] || FONTS['noto-sans-sc'];
   let liste = kursiv ? f[3] : f[2];
@@ -204,7 +204,7 @@ async function font() {
 }
 let ersatzSchrift = null;
 async function opts() {
-  if (!ersatzSchrift) ersatzSchrift = fetch('https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
+  if (!ersatzSchrift) ersatzSchrift = fetch('cdn/npm/@fontsource/noto-sans@5.3.0/files/noto-sans-greek-700-normal.woff').then(r => r.arrayBuffer()).then(b => opentype.parse(b)).catch(() => null);
   return { ...S.einst, font: await font(), fontFallback: await ersatzSchrift, qrcode, qrModul: 0.5 };
 }
 const istTyp = e => e.kat === 'Bolt' ? '' : (e.typ || KATALOG[e.kat].typen[0]);
@@ -249,9 +249,12 @@ ctr.enableDamping = true;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f88, 1.6));
 const sonne = new THREE.DirectionalLight(0xffffff, 1.6); sonne.position.set(-30, -50, 80); scene.add(sonne);
 const gruppe = new THREE.Group(); scene.add(gruppe);
-function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+let neuZeichnen = true;
+function groesse() { const w = box.clientWidth, h = box.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); neuZeichnen = true; }
 new ResizeObserver(groesse).observe(box); groesse();
-(function loop() { requestAnimationFrame(loop); ctr.update(); renderer.render(scene, cam); })();
+ctr.addEventListener('change', () => { neuZeichnen = true; });
+gruppe.addEventListener('childadded', () => { neuZeichnen = true; });
+(function loop() { requestAnimationFrame(loop); const bewegt = ctr.update(); if (bewegt || neuZeichnen) { renderer.render(scene, cam); neuZeichnen = false; } })();
 function geo3(m) {
   const { pos, idx } = meshDaten(m);
   let g = new THREE.BufferGeometry();
@@ -262,14 +265,13 @@ let letzteLaenge = 0;
 async function zeige3D() {
   if (S.modus === 'bins') return zeigeBin3D();
   if (S.modus === 'platten') return zeigePlatte3D();
-  const e = S.liste.find(x => x.id === S.sel);
-  gruppe.clear();
-  if (!e) return;
+  const e = S.liste.find(x => x.id === S.sel), sz = neueSzene();
+  if (!e) { sz.zeigen(); return; }
   const t0 = performance.now();
-  const r = labelGeo(await opts(), await ausEin(e));
-  gruppe.add(new THREE.Mesh(geo3(r.basis), new THREE.MeshStandardMaterial({ color: S.einst.farbeEtikett, roughness: .55 })));
-  if (r.inhalt) gruppe.add(new THREE.Mesh(geo3(r.inhalt), new THREE.MeshStandardMaterial({ color: S.einst.farbeInhalt, roughness: .45 })));
-  r.basis.delete(); r.inhalt && r.inhalt.delete();
+  const r = await etikett3D(e);
+  sz.g.add(new THREE.Mesh(r.basis, mat3(S.einst.farbeEtikett, 0.55)));
+  if (r.inhalt) sz.g.add(new THREE.Mesh(r.inhalt, mat3(S.einst.farbeInhalt, 0.45)));
+  if (!sz.zeigen()) return;
   if (letzteLaenge !== r.length) {
     letzteLaenge = r.length;
     const d = r.length * 1.35 + 12;
@@ -468,7 +470,7 @@ function modusSetzen(m, still) {
   document.querySelectorAll('.nurEtik').forEach(x => x.style.display = m !== 'etiketten' ? 'none' : '');
   $('#bNeu').textContent = m === 'bins' ? '+ Behälter' : m === 'platten' ? '+ Schublade' : '+ Etikett';
   letzteLaenge = -1; offeneWahl = null;
-  if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeige3D(); zeichneEinst(); }
+  if (!still) { speichern(); zeichneListe(); zeichneEditor(); zeichneEinst(); requestAnimationFrame(() => setTimeout(zeige3D)); }
 }
 $('#mEtik').onclick = () => modusSetzen('etiketten');
 $('#mBins').onclick = () => modusSetzen('bins');
@@ -551,15 +553,14 @@ function zeichneBinEditor() {
     el('button', { class: 'klein gefahr', onclick: () => { const i = S.bins.indexOf(b); S.bins.splice(i, 1); S.binSel = (S.bins[i] || S.bins[i - 1] || {}).id; aenderung(true); } }, 'Löschen')));
 }
 async function zeigeBin3D() {
-  const b = S.bins.find(x => x.id === S.binSel);
-  gruppe.clear();
-  if (!b) return;
+  const b = S.bins.find(x => x.id === S.binSel), sz = neueSzene();
+  if (!b) { sz.zeigen(); return; }
   const t0 = performance.now();
-  const r = binGeo(binOpts(b));
-  const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .6 });
-  gruppe.add(new THREE.Mesh(geo3(r.koerper), mat(S.binEinst.Bin_Color)));
-  if (r.band) gruppe.add(new THREE.Mesh(geo3(r.band), mat(S.binEinst.Top_Edge_Color)));
-  await etikettenEinsetzen(gruppe, b, r);
+  const g = binGeometrie(b), r = g.meta;
+  sz.g.add(new THREE.Mesh(g.koerper, mat3(S.binEinst.Bin_Color)));
+  if (g.band) sz.g.add(new THREE.Mesh(g.band, mat3(S.binEinst.Top_Edge_Color)));
+  await etikettenEinsetzen(sz.g, b, r);
+  if (!sz.zeigen()) return;
   const groesse3 = Math.max(b.Bin_Width, b.Bin_Depth) * 42, hoehe = r.oben;
   const sig = groesse3 + '|' + hoehe.toFixed(0);
   if (letzteLaenge !== sig) {
@@ -568,7 +569,6 @@ async function zeigeBin3D() {
     cam.position.set(-d * 0.42, -d * 0.78, d * 0.7); ctr.target.set(0, 0, hoehe * 0.45);
   }
   $('#status').textContent = `${(b.Bin_Width * 42 - 0.5).toFixed(1)} × ${(b.Bin_Depth * 42 - 0.5).toFixed(1)} × ${r.oben.toFixed(1)} mm · ${Math.round(performance.now() - t0)} ms`;
-  r.koerper.delete(); r.band && r.band.delete();
 }
 function anordnenBoxen(groessen, breite) {
   // Regal-Packung: Reihen von links nach rechts, 6 mm Abstand
