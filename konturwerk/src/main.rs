@@ -385,9 +385,9 @@ async fn erzeugen(Json(l): Json<behaelter::Layout>) -> Response {
         schreib(format!("{basis}.3mf"), export::bambu_3mf(&e, &l.einstellungen.name), "3mf")?;
         let mut vorschau = Vec::new();
         for (i, t) in e.teile.iter().enumerate() {
-            let datei = if t.filament == 2 { format!("{basis}_tpu-inlay.stl") } else { format!("{basis}_behaelter.stl") };
+            let datei = if t.filament == 2 && t.name == "TPU-Kontur" { format!("{basis}_tpu-kontur.stl") } else if t.filament == 2 { format!("{basis}_tpu-inlay.stl") } else { format!("{basis}_behaelter.stl") };
             let stl = t.netz.stl(&t.name);
-            std::fs::write(dir.join(format!("v{i}.stl")), &stl)?;
+            std::fs::write(dir.join(format!("v{i}.stl")), t.vorschau.as_ref().unwrap_or(&t.netz).stl(&t.name))?;
             vorschau.push(json!({ "name": t.name, "filament": t.filament, "url": format!("/api/job/{id}/file/v{i}.stl"), "dreiecke": t.netz.tris.len() }));
             schreib(datei, stl, "stl")?;
         }

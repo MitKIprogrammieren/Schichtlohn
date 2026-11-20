@@ -193,11 +193,18 @@ input:focus,select:focus{outline:none;border-color:var(--green)}
   </div></div>
   <div class="sec"><h3><span class="ic">◩</span>TPU-Inlay<span class="chev">▾</span></h3><div class="body">
     <div class="seg" id="inlay" style="margin-bottom:6px"><div data-v="aus" class="on">Aus</div><div data-v="separat">Separat</div><div data-v="kombiniert">Kombiniert</div></div>
-    <svg class="inlaybild" viewBox="0 0 300 64" aria-hidden="true"><path id="plaSchale" d="M8 8v48h284V8h-9v40H17V8Z" fill="var(--pla)"/><path id="plaVoll" d="M8 8h110v12q0 8 8 8h48q8 0 8-8V8h110v48H8Z" fill="var(--pla)"/><path id="inlayForm" d="M18 20h100v12q0 8 8 8h48q8 0 8-8V20h100v27H18Z" fill="var(--tpu)" opacity=".85"/></svg>
+    <svg class="inlaybild" viewBox="0 0 300 64" aria-hidden="true"><path id="plaSchale" d="M8 8v48h284V8h-9v40H17V8Z" fill="var(--pla)"/><path id="plaVoll" d="M8 8h110v12q0 8 8 8h48q8 0 8-8V8h110v48H8Z" fill="var(--pla)"/><path id="inlayForm" d="M18 20h100v12q0 8 8 8h48q8 0 8-8V20h100v27H18Z" fill="var(--tpu)" opacity=".85"/><path id="plaKontur" d="M17 8h101v24q0 8 8 8h48q8 0 8-8V8h101v40H17Z" fill="var(--pla)"/><path id="tpuKontur" d="M114 8v24q0 12 12 12h48q12 0 12-12V8h-4v24q0 8-8 8h-48q-8 0-8-8V8Z" fill="var(--tpu)"/></svg>
     <div class="help" id="inlayText">Taschen werden direkt in den Behälter gedruckt.</div>
     <div id="inlayOpt" style="display:none">
+      <div class="row"><label>Form</label><div class="seg" id="inlayForm2"><div data-v="block" class="on">Ganzer Einsatz</div><div data-v="kontur">Nur Kontur</div></div></div>
+      <div id="konturOpt" style="display:none">
+        <div class="row"><label>TPU-Wand</label><div class="ctl"><input type="number" id="kw" value="1.2" step="0.2" min="0.6"><span class="unit">mm</span></div></div>
+        <div class="row"><label>TPU-Boden</label><div class="ctl"><input type="number" id="kb" value="0" step="0.2" min="0"><span class="unit">mm</span></div></div>
+      </div>
+      <div id="blockOpt">
       <div class="row"><label>Spiel zur Wand</label><div class="ctl"><input type="number" id="spiel" value="0.3" step="0.05" min="0"><span class="unit">mm</span></div></div>
       <div class="row"><label>TPU unter Tasche</label><div class="ctl"><input type="number" id="tpuB" value="1.0" step="0.2" min="0.4"><span class="unit">mm</span></div></div>
+      </div>
     </div>
   </div></div>
   <div class="sec"><h3><span class="ic">⌖</span>Werkzeuge und Formen<span class="chev">▾</span></h3><div class="body">
@@ -272,7 +279,7 @@ const FARBEN = ['#00AE42', '#2F8FD8', '#F2A93B', '#D9534F', '#8E6BD8', '#1FB5A8'
 const S = {
   schritt: 1, datei: null, erk: null, umrisse: [], selU: null,
   teile: [], sel: null, // teile: {uid, art:'wz'|'kreis'|'rechteck'|'langloch', name, umriss, x, y, winkel, spiegeln, tiefe, b, h}
-  e: { typ: 'gridfinity', raster_x: 3, raster_y: 2, hoehe_u: 4, platte_b: 200, platte_t: 120, platte_h: 20, toleranz: 1.0, boden: 1.2, magnete: false, stapelrand: true, inlay: 'aus', inlay_spiel: 0.3, tpu_boden: 1.0, name: 'Werkzeugeinsatz' },
+  e: { typ: 'gridfinity', raster_x: 3, raster_y: 2, hoehe_u: 4, platte_b: 200, platte_t: 120, platte_h: 20, toleranz: 1.0, boden: 1.2, magnete: false, stapelrand: true, inlay: 'aus', inlay_spiel: 0.3, tpu_boden: 1.0, inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0, name: 'Werkzeugeinsatz' },
   auto: true, modus: 'klassisch', nbArt: 'ki', werkzeugModus: null, ergebnis: null, bib: [],
 };
 let uidZ = 1;
@@ -516,7 +523,9 @@ function mass() {
   return [42 * e.raster_x - 0.5, 42 * e.raster_y - 0.5];
 }
 function wand() { const e = S.e; return e.typ === 'platte' ? 2.0 : e.stapelrand ? 2.6 : 1.6; }
-function innenAbstand() { return wand() + (S.e.inlay !== 'aus' ? 1.2 : 0) + 0.5; }
+function kontur() { return S.e.inlay !== 'aus' && S.e.inlay_form === 'kontur'; }
+function block() { return S.e.inlay !== 'aus' && S.e.inlay_form !== 'kontur'; }
+function innenAbstand() { return wand() + (block() ? 1.2 : 0) + 0.5; }
 function umrissVon(t) {
   if (t.art === 'wz') return t.umriss;
   const b = t.b, h = t.h, n = 40, out = [];
@@ -531,7 +540,7 @@ function welt(t) {
   const a = t.winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
   return umrissVon(t).map(p => { const px = t.spiegeln ? -p[0] : p[0]; return [t.x + px * c - p[1] * s, t.y + px * s + p[1] * c]; });
 }
-function tol(t) { return t.art === 'wz' ? S.e.toleranz : 0; }
+function tol(t) { return t.art === 'wz' ? S.e.toleranz + (kontur() ? S.e.kontur_wand : 0) : 0; }
 function zuNah(t) {
   const [w, d] = mass(), m = innenAbstand() + tol(t);
   return welt(t).some(p => p[0] < m || p[1] < m || p[0] > w - m || p[1] > d - m);
@@ -547,14 +556,18 @@ function zeichne3() {
     for (let i = 1; i < e.raster_y; i++) el('line', { x1: 0, y1: i * 42 - 0.25, x2: w, y2: i * 42 - 0.25, stroke: 'var(--line)', 'stroke-width': 0.4 }, svg3);
   }
   const wd = wand();
-  el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: e.inlay !== 'aus' ? 'rgba(0,174,66,.08)' : 'none', stroke: 'var(--muted)', 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svg3);
+  el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: block() ? 'rgba(0,174,66,.08)' : 'none', stroke: 'var(--muted)', 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svg3);
   const sortiert = [...S.teile].sort((a, b) => (a.art === 'wz' ? 0 : 1) - (b.art === 'wz' ? 0 : 1));
   sortiert.forEach(t => {
     const g = el('g', { 'data-uid': t.uid, style: 'cursor:move' }, svg3);
     const nah = zuNah(t), sel = S.sel === t.uid;
-    const farbe = nah ? 'var(--err)' : t.art === 'wz' ? 'var(--green)' : '#2F8FD8';
+    const farbe = nah ? 'var(--err)' : t.art === 'wz' ? (kontur() ? 'var(--pla)' : 'var(--green)') : '#2F8FD8';
     const d0 = pfad(welt(t));
-    if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: farbe, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, g);
+    if (kontur() && t.art === 'wz') {
+      const tl = S.e.toleranz, kw = S.e.kontur_wand;
+      el('path', { d: d0, fill: 'none', stroke: 'var(--tpu)', 'stroke-width': 2 * (tl + kw), 'stroke-linejoin': 'round' }, g);
+      if (tl > 0) el('path', { d: d0, fill: 'var(--panel)', stroke: 'var(--panel)', 'stroke-width': 2 * tl, 'stroke-linejoin': 'round' }, g);
+    } else if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: farbe, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, g);
     el('path', { d: d0, fill: farbe, 'fill-opacity': sel ? 0.5 : 0.3, stroke: farbe, 'stroke-width': sel ? 0.9 : 0.5 }, g);
     if (t.art === 'wz') {
       const tx = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 4.5, fill: 'var(--text)', style: 'pointer-events:none' }, g);
@@ -569,7 +582,7 @@ function zeichne3() {
     }
   });
   const hoehe = e.typ === 'platte' ? `${e.platte_h} mm` : `${e.hoehe_u}u = ${e.hoehe_u * 7} mm`;
-  $('l3t').textContent = `${r1(w)} × ${r1(d)} mm · Höhe ${hoehe}${e.inlay !== 'aus' ? ' · TPU-Inlay ' + r1(inlayDicke()) + ' mm' : ''}`;
+  $('l3t').textContent = `${r1(w)} × ${r1(d)} mm · Höhe ${hoehe}${block() ? ' · TPU-Inlay ' + r1(inlayDicke()) + ' mm' : kontur() ? ' · TPU-Kontur ' + r1(e.kontur_wand) + ' mm' : ''}`;
 }
 function inlayDicke() { const e = S.e, top = e.typ === 'platte' ? e.platte_h : e.hoehe_u * 7, base = e.typ === 'platte' ? 0 : 5; return top - base - e.boden; }
 function selTeil() { return S.teile.find(t => t.uid === S.sel); }
@@ -607,8 +620,9 @@ function geaendert() { if (S.auto) autoGroesse(); zeichne3(); liste3(); speicher
 function autoHoehe() {
   if (!S.auto) return;
   const e = S.e, maxT = Math.max(8, ...S.teile.map(t => t.tiefe));
-  if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + (e.inlay !== 'aus' ? e.tpu_boden : 0)) * 2) / 2;
-  else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + (e.inlay !== 'aus' ? e.tpu_boden : 0)) / 7));
+  const extra = block() ? e.tpu_boden : kontur() ? e.kontur_boden : 0;
+  if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + extra) * 2) / 2;
+  else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + extra) / 7));
   formularSetzen();
 }
 function autoGroesse() {
@@ -691,12 +705,23 @@ svg3.addEventListener('pointerup', () => { if (zug) { zug = null; liste3(); spei
 // Formular Behälter
 const setTyp = seg('typ', S.e.typ, v => { S.e.typ = v; $('gridBox').style.display = v === 'platte' ? 'none' : ''; $('platteBox').style.display = v === 'platte' ? '' : 'none'; geaendert(); });
 const setInlay = seg('inlay', S.e.inlay, v => { S.e.inlay = v; inlayInfo(); geaendert(); });
+const setForm = seg('inlayForm2', S.e.inlay_form, v => { S.e.inlay_form = v; inlayInfo(); geaendert(); });
 function inlayInfo() {
-  const v = S.e.inlay;
+  const v = S.e.inlay, k = kontur();
   $('inlayOpt').style.display = v === 'aus' ? 'none' : '';
-  $('inlayForm').style.display = v === 'aus' ? 'none' : '';
+  $('konturOpt').style.display = k ? '' : 'none';
+  $('blockOpt').style.display = k ? 'none' : '';
+  $('inlayForm').style.display = block() ? '' : 'none';
   $('plaVoll').style.display = v === 'aus' ? '' : 'none';
-  $('plaSchale').style.display = v === 'aus' ? 'none' : '';
+  $('plaSchale').style.display = block() ? '' : 'none';
+  $('plaKontur').style.display = k ? '' : 'none';
+  $('tpuKontur').style.display = k ? '' : 'none';
+  if (k) {
+    $('inlayText').textContent = v === 'separat'
+      ? 'Behälter in PLA mit den Taschen, dazu dünne TPU-Ringe entlang jeder Werkzeugkontur – separat drucken und einklipsen.'
+      : 'Behälter in PLA, nur eine dünne TPU-Schicht entlang jeder Werkzeugkontur – in einem Druck mit zwei Filamenten.';
+    return;
+  }
   $('inlayText').textContent = {
     aus: 'Taschen werden direkt in den Behälter gedruckt.',
     separat: 'Flache Schale in PLA/PETG plus TPU-Einsatz mit den Taschen – zwei Druckplatten, danach einlegen. Spiel 0,2–0,4 mm.',
@@ -708,7 +733,7 @@ function formularSetzen() {
   $('rx').value = e.raster_x; $('ry').value = e.raster_y; $('hu').value = e.hoehe_u;
   $('pb').value = e.platte_b; $('pt').value = e.platte_t; $('ph').value = e.platte_h;
   $('boden').value = e.boden; $('tol').value = e.toleranz; $('name').value = e.name;
-  $('spiel').value = e.inlay_spiel; $('tpuB').value = e.tpu_boden;
+  $('spiel').value = e.inlay_spiel; $('tpuB').value = e.tpu_boden; $('kw').value = e.kontur_wand; $('kb').value = e.kontur_boden;
 }
 const feld = (id, key, autoAus = false) => $(id).onchange = () => {
   const v = $(id).type === 'number' ? +$(id).value : $(id).value;
@@ -719,7 +744,7 @@ const feld = (id, key, autoAus = false) => $(id).onchange = () => {
 };
 feld('rx', 'raster_x', true); feld('ry', 'raster_y', true); feld('hu', 'hoehe_u', true);
 feld('pb', 'platte_b', true); feld('pt', 'platte_t', true); feld('ph', 'platte_h', true);
-feld('boden', 'boden'); feld('tol', 'toleranz'); feld('name', 'name'); feld('spiel', 'inlay_spiel'); feld('tpuB', 'tpu_boden');
+feld('boden', 'boden'); feld('tol', 'toleranz'); feld('name', 'name'); feld('spiel', 'inlay_spiel'); feld('tpuB', 'tpu_boden'); feld('kw', 'kontur_wand'); feld('kb', 'kontur_boden');
 schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
 schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });
 schalter('auto', S.auto, v => { S.auto = v; geaendert(); });
@@ -765,8 +790,9 @@ async function erzeugen() {
     const [w, d, h] = r.mass;
     $('masse').innerHTML = `<span>Außenmaß</span><span>${r1(w)} × ${r1(d)} mm</span><span>Höhe gesamt</span><span>${r1(h)} mm</span>` + (r.inlay_dicke ? `<span>TPU-Inlay</span><span>${r1(r.inlay_dicke)} mm dick</span>` : '') + `<span>Berechnet in</span><span>${r.sekunden.toFixed(2)} s</span>`;
     const tipps = ['Behälter: PLA oder PETG, 0,2 mm Schicht, keine Stützen nötig.'];
-    if (S.e.inlay === 'separat') tipps.push('TPU-Inlay (95A) auf eigener Platte: langsam (≈ 40 mm/s), 2–3 Wände, 15–20 % Füllung – wird weich und griffig.');
-    if (S.e.inlay === 'kombiniert') tipps.push('Kombiniert: Teil „TPU-Inlay“ ist Filament 2. TPU nicht aus dem AMS – externe Spule bzw. zweite Düse am H2C nutzen.');
+    if (kontur()) tipps.push(S.e.inlay === 'separat' ? 'TPU-Kontur: Ringe liegen flach auf eigener Platte, 2 Wände reichen. Nach dem Druck in die Taschen drücken.' : 'TPU-Kontur ist Filament 2 – dünne Wände, langsam drucken (≈ 30–40 mm/s).');
+    else if (S.e.inlay === 'separat') tipps.push('TPU-Inlay (95A) auf eigener Platte: langsam (≈ 40 mm/s), 2–3 Wände, 15–20 % Füllung – wird weich und griffig.');
+    if (S.e.inlay === 'kombiniert' && !kontur()) tipps.push('Kombiniert: Teil „TPU-Inlay“ ist Filament 2. TPU nicht aus dem AMS – externe Spule bzw. zweite Düse am H2C nutzen.');
     if (S.e.magnete) tipps.push('Magnete 6 × 2 mm nach dem Druck in die Löcher kleben.');
     $('druckTipps').innerHTML = ''; tipps.forEach(t => { const li = document.createElement('li'); li.textContent = t; $('druckTipps').appendChild(li); });
     zeige(4);
@@ -808,12 +834,7 @@ async function ladeVorschau(liste) {
   anheben(); passend();
 }
 function anheben() {
-  const sep = S.ergebnis && !S.ergebnis.kombiniert;
-  gruppe.children.forEach(m => {
-    if (!m.userData.tpu) return;
-    if (sep) { const zf = S.e.typ === 'platte' ? S.e.boden : 5 + S.e.boden; m.position.z = zf + (angehoben ? 25 : 0); } // separat liegt das Inlay bei z = 0
-    else m.position.z = angehoben ? 25 : 0;
-  });
+  gruppe.children.forEach(m => { if (m.userData.tpu) m.position.z = angehoben ? 25 : 0; });
 }
 function passend() {
   const b = new THREE.Box3().expandByObject(gruppe); const c = b.getCenter(new THREE.Vector3()); const s = b.getSize(new THREE.Vector3()).length() || 100;
@@ -825,7 +846,8 @@ $('schnitt').onclick = () => { schnitt = !schnitt; $('schnitt').classList.toggle
 (function loop() { requestAnimationFrame(loop); if (S.schritt === 4) { controls.update(); renderer.render(scene, camera); } })();
 
 // ---------- Start ----------
-laden(); formularSetzen(); setTyp(S.e.typ); setInlay(S.e.inlay); inlayInfo();
+laden(); if (!S.e.inlay_form) Object.assign(S.e, { inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0 });
+formularSetzen(); setTyp(S.e.typ); setInlay(S.e.inlay); setForm(S.e.inlay_form); inlayInfo();
 $('gridBox').style.display = S.e.typ === 'platte' ? 'none' : ''; $('platteBox').style.display = S.e.typ === 'platte' ? '' : 'none';
 schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
 schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });

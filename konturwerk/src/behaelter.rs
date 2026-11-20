@@ -56,6 +56,10 @@ pub struct Einstellungen {
     pub inlay: String,
     pub inlay_spiel: f64,
     pub tpu_boden: f64,
+    /// "block" = ganzer Einsatz, "kontur" = nur dünne TPU-Auskleidung entlang der Werkzeugkontur
+    pub inlay_form: String,
+    pub kontur_wand: f64,
+    pub kontur_boden: f64,
     pub name: String,
 }
 
@@ -76,6 +80,9 @@ impl Default for Einstellungen {
             inlay: "aus".into(),
             inlay_spiel: 0.3,
             tpu_boden: 1.0,
+            inlay_form: "block".into(),
+            kontur_wand: 1.2,
+            kontur_boden: 0.0,
             name: "Werkzeugeinsatz".into(),
         }
     }
@@ -95,6 +102,8 @@ pub struct Teil {
     /// 1 = Behälter (PLA/PETG), 2 = TPU
     pub filament: u32,
     pub platte: usize,
+    /// Netz an Ort und Stelle (für die Vorschau), falls `netz` fürs Drucken verschoben ist
+    pub vorschau: Option<Netz>,
 }
 
 pub struct Ergebnis {
@@ -161,7 +170,10 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
     }
     let o_ring = rrect(0.0, 0.0, w, d, r_aussen, SEG);
     let o = mp(&o_ring);
-    let inlay = e.inlay != "aus";
+    let kontur = e.inlay != "aus" && e.inlay_form == "kontur";
+    let inlay = e.inlay != "aus" && !kontur;
+    let kw = e.kontur_wand.clamp(0.6, 5.0);
+    let kb = if kontur { e.kontur_boden.clamp(0.0, 3.0) } else { 0.0 };
     let wand = if rand { 2.6 } else if grid { 1.6 } else { 2.0 };
     let boden = e.boden.clamp(0.6, 10.0);
     let zf = base_z + boden;
@@ -170,15 +182,23 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
 
     // Taschen sammeln: (Fläche, Tiefe)
     let mut taschen: Vec<(MultiPolygon<f64>, f64, String)> = Vec::new();
+    // nur bei „Kontur“: Innenfläche je Werkzeug (Platz fürs Werkzeug) und Tiefe
+    let mut innen_wz: Vec<(MultiPolygon<f64>, f64)> = Vec::new();
     for t in &l.werkzeuge {
         if t.umriss.len() < 3 {
             continue;
         }
         let tol = t.toleranz.unwrap_or(e.toleranz).clamp(0.0, 5.0);
-        let p = mp(&platzieren(&t.umriss, t.x, t.y, t.winkel, t.spiegeln, d));
-        let p = if tol > 0.0 { p.buffer(tol) } else { p };
-        taschen.push((p.simplify(0.03), t.tiefe.max(1.0), t.name.clone()));
+        let roh = mp(&platzieren(&t.umriss, t.x, t.y, t.winkel, t.spiegeln, d));
+        let p = if tol > 0.0 { roh.buffer(tol) } else { roh.clone() };
+        if kontur {
+            innen_wz.push((p.simplify(0.03), t.tiefe.max(1.0)));
+            taschen.push((roh.buffer(tol + kw).simplify(0.03), t.tiefe.max(1.0) + kb, t.name.clone()));
+        } else {
+            taschen.push((p.simplify(0.03), t.tiefe.max(1.0), t.name.clone()));
+        }
     }
+    let n_wz = innen_wz.len();
     for f in &l.formen {
         let u = form_umriss(f);
         let p = mp(&platzieren(&u, f.x, f.y, f.winkel, false, d));
@@ -192,6 +212,9 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
             hinweise.push(format!("„{name}“ ragt über den Rand und wurde abgeschnitten."));
             *p = p.intersection(&erlaubt);
         }
+    }
+    for (p, _) in innen_wz.iter_mut() {
+        *p = p.intersection(&erlaubt);
     }
 
     let mut teile = Vec::new();
@@ -251,12 +274,67 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
         if e.inlay == "separat" {
             inl.verschieben([0.0, 0.0, -zf]);
         }
-        teile.push(Teil { name: "TPU-Inlay".into(), netz: inl, filament: 2, platte: if e.inlay == "separat" { 1 } else { 0 } });
+        let vorschau = if e.inlay == "separat" {
+            let mut v = inl.clone();
+            v.verschieben([0.0, 0.0, zf]);
+            Some(v)
+        } else {
+            None
+        };
+        teile.push(Teil { name: "TPU-Inlay".into(), netz: inl, filament: 2, platte: if e.inlay == "separat" { 1 } else { 0 }, vorschau });
     } else {
         let mut h = Vec::new();
         let sch = schichten(&o, base_z, top, zf, None, &mut h);
         hinweise.extend(h);
         koerper.anhaengen(&netz::stufenkoerper(&sch));
+    }
+    if kontur && n_wz > 0 {
+        // dünne TPU-Auskleidung je Werkzeug: Ring zwischen Werkzeugfläche (+Toleranz) und Taschenwand
+        let alle_innen = innen_wz.iter().fold(MultiPolygon::<f64>::new(vec![]), |a, (p, _)| a.union(p));
+        let formen: Vec<(f64, &MultiPolygon<f64>)> = taschen[n_wz..].iter().map(|(p, t, _)| ((top - t).max(zf), p)).collect();
+        let mut ort = Netz::default();
+        let mut druck = Netz::default();
+        for (i, (_, tiefe)) in innen_wz.iter().enumerate() {
+            let aussen = &taschen[i].0;
+            let b = (top - tiefe - kb).max(zf);
+            let mut stufen = vec![b, top];
+            if kb > 0.0 && b + kb < top - 0.2 {
+                stufen.push(b + kb);
+            }
+            for (fz, _) in &formen {
+                if *fz > b + 0.05 && *fz < top - 0.05 {
+                    stufen.push(*fz);
+                }
+            }
+            stufen.sort_by(|a, c| a.partial_cmp(c).unwrap());
+            stufen.dedup_by(|a, c| (*a - *c).abs() < 0.05);
+            let mut sch = Vec::new();
+            for s in stufen.windows(2) {
+                let mut reg = if kb > 0.0 && s[0] < b + kb - 1e-6 { aussen.clone() } else { aussen.difference(&alle_innen) };
+                for (fz, fp) in &formen {
+                    if *fz <= s[0] + 1e-6 {
+                        reg = reg.difference(*fp);
+                    }
+                }
+                if geo::Area::unsigned_area(&reg) > 0.01 {
+                    sch.push(Schicht { z0: s[0], z1: s[1], region: reg });
+                }
+            }
+            if sch.is_empty() {
+                continue;
+            }
+            let n = netz::stufenkoerper(&sch);
+            ort.anhaengen(&n);
+            let mut n2 = n;
+            n2.verschieben([0.0, 0.0, -b]);
+            druck.anhaengen(&n2);
+        }
+        if e.inlay == "separat" {
+            teile.push(Teil { name: "TPU-Kontur".into(), netz: druck, filament: 2, platte: 1, vorschau: Some(ort) });
+        } else {
+            teile.push(Teil { name: "TPU-Kontur".into(), netz: ort, filament: 2, platte: 0, vorschau: None });
+        }
+        hinweise.push(format!("TPU nur in der Kontur: {kw:.1} mm Wand{}.", if kb > 0.0 { format!(", {kb:.1} mm Boden") } else { String::new() }));
     }
     if grid {
         for ix in 0..e.raster_x.max(1) {
@@ -270,15 +348,16 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
             koerper.anhaengen(&stapelrand(w, d, top));
         }
     }
-    teile.insert(0, Teil { name: if grid { "Gridfinity-Behälter".into() } else { "Platte".into() }, netz: koerper, filament: 1, platte: 0 });
+    teile.insert(0, Teil { name: if grid { "Gridfinity-Behälter".into() } else { "Platte".into() }, netz: koerper, filament: 1, platte: 0, vorschau: None });
 
+    let teile_tpu = teile.iter().any(|t| t.filament == 2);
     let taschen_2d: Vec<Vec<P2>> = taschen.iter()
         .flat_map(|(p, _, _)| netz::ringe_von(p).into_iter().flatten())
         .map(|r| r.into_iter().map(|q| [q[0], d - q[1]]).collect())
         .collect();
     Ok(Ergebnis {
         teile,
-        kombiniert: e.inlay == "kombiniert",
+        kombiniert: e.inlay == "kombiniert" && teile_tpu,
         aussen: o_ring.iter().map(|q| [q[0], d - q[1]]).collect(),
         taschen: taschen_2d,
         breite: w,
@@ -371,8 +450,10 @@ mod tests {
         let mut l = Layout::default();
         l.werkzeuge.push(Werkzeug { name: "Schlüssel".into(), umriss: rrect(-40.0, -8.0, 80.0, 16.0, 7.0, 8), x: 60.0, y: 40.0, winkel: 15.0, tiefe: 12.0, ..Default::default() });
         l.formen.push(Form { art: "kreis".into(), x: 60.0, y: 40.0, b: 20.0, h: 20.0, tiefe: 16.0, winkel: 0.0 });
-        for inlay in ["aus", "separat", "kombiniert"] {
+        for (inlay, form) in [("aus", "block"), ("separat", "block"), ("kombiniert", "block"), ("separat", "kontur"), ("kombiniert", "kontur")] {
             l.einstellungen.inlay = inlay.into();
+            l.einstellungen.inlay_form = form.into();
+            l.einstellungen.kontur_boden = if inlay == "separat" { 0.8 } else { 0.0 };
             l.einstellungen.magnete = true;
             let e = bauen(&l).unwrap();
             for t in &e.teile {
