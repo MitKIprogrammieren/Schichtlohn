@@ -326,6 +326,12 @@ pub fn section(mesh: &Mesh, axis: usize, val: f64) -> Vec<Poly> {
     if polys.is_empty() || a_union < a_simple * 0.5 { simple } else { polys }
 }
 
+/// Fläche des Querschnitts (schnell, ohne Vereinigung)
+pub fn section_area(mesh: &Mesh, axis: usize, val: f64) -> f64 {
+    let v = safe_value(mesh, axis, val);
+    loops_to_polys(chain(segments(mesh, axis, v))).iter().map(|p| p.area()).sum()
+}
+
 /// Dreieck so einfügen, dass die Normale in Richtung `want` zeigt
 pub fn push_facing(m: &mut Mesh, a: V3, b: V3, c: V3, want: V3) {
     if dot(cross(sub(b, a), sub(c, a)), want) >= 0.0 {
@@ -469,6 +475,25 @@ pub fn cut(mesh: &Mesh, axis: usize, val: f64, pockets: &[Pocket]) -> (Mesh, Mes
             let plug = side.ext < 0.0;
             let s = if plug { -side_sign } else { side_sign };
             feature(m, ring, pk.center, axis, val, s, side.ext.abs(), side.end_scale, plug);
+        }
+    }
+    (lo, hi)
+}
+
+/// Wie `cut`, aber jeder zusammenhängende Körper einzeln (überlappende Körper bleiben geschlossen)
+pub fn cut_bodies(mesh: &Mesh, axis: usize, val: f64, pockets: &[Pocket]) -> (Mesh, Mesh) {
+    let mut lo = Mesh::new();
+    let mut hi = Mesh::new();
+    for body in split_components(mesh) {
+        let b = body.bbox();
+        if b.max[axis] <= val {
+            lo.extend(&body);
+        } else if b.min[axis] >= val {
+            hi.extend(&body);
+        } else {
+            let (l, h) = cut(&body, axis, val, pockets);
+            lo.extend(&l);
+            hi.extend(&h);
         }
     }
     (lo, hi)

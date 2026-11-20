@@ -168,9 +168,9 @@ const PRESETS = [
 
 const MODES = {
   split: { name: 'Teilen', groups: [
-    ['Größe', [['size','Größte Kante','num',600,'mm']]],
+    ['Größe', [['scale','Maßstab','num',100,'%',5],['size','oder größte Kante (0 = aus)','num',0,'mm',10]]],
     ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel rund'],['dowel_sq','Dübel eckig'],['plug','Steckzapfen rund'],['plug_sq','Steckzapfen eckig'],['cone','Kegelzapfen'],['magnet','Magnete'],['none','Keine']]],['dowel_d','Größe (Dübel/Zapfen)','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['magnet_d','Magnet Ø','num',6,'mm',0.5],['magnet_h','Magnet Höhe','num',3,'mm',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
-  ], help: 'Zerlegt das Modell so, dass jedes Teil in den Bauraum passt. Dübel werden einzeln gedruckt, Zapfen sind angedruckt, Magnete werden eingeklebt. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
+  ], help: 'Was schon passt, wird nur angeordnet. Zu große Objekte werden gedreht und an den dünnsten Stellen geteilt – ohne Kleinteile, mit einer Schnittfläche nach unten. Dübel werden einzeln gedruckt, Zapfen sind angedruckt, Magnete werden eingeklebt. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
 };
 
 const mode = 'split';

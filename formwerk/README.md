@@ -4,8 +4,11 @@ Zerlegt große 3D-Modelle so, dass jedes Teil auf das Druckbett passt – im Bam
 angelehnt an „Mesh → Cut“ aus LuBan 3D. Läuft als Web-App (z. B. auf dem Proxmox-NUC) und im
 Browser auf Mac, iPhone und Windows.
 
-- Eingabe: STL, 3MF oder OBJ
-- Schnitt nach Bauraum, auch für mehrere Drucker (Teile werden nach Tempo verteilt)
+- Eingabe: STL, 3MF oder OBJ (Objekte eines 3MF werden einzeln behandelt)
+- Originalgröße bleibt, Maßstab oder größte Kante auf Wunsch
+- Was passt, wird nur angeordnet; zu große Objekte werden zuerst gedreht, dann Schritt für Schritt
+  an der dünnsten Stelle geteilt – ohne Kleinteile, jedes Teil mit einer Schnittfläche nach unten
+- Mehrere Drucker: Teile werden nach Tempo verteilt
 - Verbinder: Dübel rund/eckig, Steckzapfen rund/eckig, Kegelzapfen, Magnettaschen
 - Ausgabe: Bambu-3MF mit mehreren Platten, STL je Teil, `montage.txt`, `duebel.stl`
 

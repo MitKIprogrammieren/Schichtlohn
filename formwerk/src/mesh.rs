@@ -141,32 +141,42 @@ impl Mesh {
     }
 }
 
-pub fn load(bytes: &[u8], filename: &str) -> Result<Mesh> {
+/// Datei laden. Liefert die einzelnen Objekte (3MF: je Build-Objekt, sonst ein Objekt) mit Namen.
+pub fn load(bytes: &[u8], filename: &str) -> Result<Vec<(String, Mesh)>> {
     let lower = filename.to_lowercase();
-    let mut m = if lower.ends_with(".obj") {
-        load_obj(bytes)?
+    let stem = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
+    let stem = stem.rsplit_once('.').map(|x| x.0).unwrap_or(stem).to_string();
+    let objs: Vec<(String, Mesh)> = if lower.ends_with(".obj") {
+        vec![(stem, load_obj(bytes)?)]
     } else if lower.ends_with(".3mf") {
         load_3mf(bytes)?
     } else {
-        load_stl(bytes)?
+        vec![(stem, load_stl(bytes)?)]
     };
-    m.tris.retain(|t| t.iter().all(|p| p.iter().all(|c| c.is_finite())));
-    if m.tris.is_empty() {
+    let mut out = Vec::new();
+    for (name, mut m) in objs {
+        m.tris.retain(|t| t.iter().all(|p| p.iter().all(|c| c.is_finite())));
+        if m.tris.is_empty() {
+            continue;
+        }
+        // jeden Teilkörper einzeln nach außen orientieren
+        let comps = crate::section::split_components(&m);
+        if comps.len() > 1 && comps.len() < 5000 {
+            let mut o = Mesh::new();
+            for mut c in comps {
+                c.fix_orientation_local();
+                o.extend(&c);
+            }
+            m = o;
+        } else {
+            m.fix_orientation();
+        }
+        out.push((name, m));
+    }
+    if out.is_empty() {
         bail!("Die Datei enthält keine Dreiecke.");
     }
-    // jeden Teilkörper einzeln nach außen orientieren
-    let comps = crate::section::split_components(&m);
-    if comps.len() > 1 && comps.len() < 5000 {
-        let mut out = Mesh::new();
-        for mut c in comps {
-            c.fix_orientation_local();
-            out.extend(&c);
-        }
-        m = out;
-    } else {
-        m.fix_orientation();
-    }
-    Ok(m)
+    Ok(out)
 }
 
 fn load_stl(b: &[u8]) -> Result<Mesh> {
@@ -239,7 +249,7 @@ fn load_obj(b: &[u8]) -> Result<Mesh> {
 }
 
 /// 3MF: liest alle Netze aller .model-Dateien und wendet Komponenten- und Build-Transformationen an.
-fn load_3mf(b: &[u8]) -> Result<Mesh> {
+fn load_3mf(b: &[u8]) -> Result<Vec<(String, Mesh)>> {
     use quick_xml::events::Event;
     use std::collections::HashMap;
     let mut zip = zip::ZipArchive::new(Cursor::new(b)).context("3MF ist kein gültiges ZIP")?;
@@ -247,6 +257,7 @@ fn load_3mf(b: &[u8]) -> Result<Mesh> {
         verts: Vec<V3>,
         tris: Vec<[usize; 3]>,
         comps: Vec<(String, String, [f64; 12])>, // (path, objectid, transform)
+        name: String,
     }
     let mut objects: HashMap<(String, String), Obj> = HashMap::new();
     let mut builds: Vec<(String, String, [f64; 12])> = Vec::new();
@@ -275,7 +286,7 @@ fn load_3mf(b: &[u8]) -> Result<Mesh> {
                     match tag.as_str() {
                         "object" => {
                             let id = attrs.get("id").cloned().unwrap_or_default();
-                            objects.insert((path.clone(), id.clone()), Obj { verts: vec![], tris: vec![], comps: vec![] });
+                            objects.insert((path.clone(), id.clone()), Obj { verts: vec![], tris: vec![], comps: vec![], name: attrs.get("name").cloned().unwrap_or_default() });
                             cur_id = Some(id);
                         }
                         "vertex" => {
@@ -363,15 +374,60 @@ fn load_3mf(b: &[u8]) -> Result<Mesh> {
             emit(objects, &(p.clone(), oid.clone()), &compose(ctf, tf), out, depth + 1);
         }
     }
-    let mut m = Mesh::new();
-    if builds.is_empty() {
-        for key in objects.keys() {
-            emit(&objects, key, &ident, &mut m, 0);
-        }
-    } else {
-        for (p, oid, tf) in &builds {
-            emit(&objects, &(p.clone(), oid.clone()), tf, &mut m, 0);
+    // Bambu Studio speichert die Objektnamen in Metadata/model_settings.config
+    let mut bambu_names: HashMap<String, String> = HashMap::new();
+    if let Ok(mut f) = zip.by_name("Metadata/model_settings.config") {
+        let mut xml = String::new();
+        if f.read_to_string(&mut xml).is_ok() {
+            let mut reader = quick_xml::Reader::from_str(&xml);
+            let mut depth_obj: Option<String> = None;
+            let mut level = 0;
+            loop {
+                match reader.read_event() {
+                    Ok(Event::Start(e)) => {
+                        level += 1;
+                        if e.local_name().as_ref() == b"object" {
+                            depth_obj = e.attributes().flatten().find(|a| a.key.as_ref() == b"id").map(|a| String::from_utf8_lossy(&a.value).to_string());
+                            level = 1;
+                        }
+                    }
+                    Ok(Event::Empty(e)) => {
+                        if level == 1 && e.local_name().as_ref() == b"metadata" {
+                            if let Some(id) = &depth_obj {
+                                let at: HashMap<String, String> = e.attributes().flatten().map(|a| (String::from_utf8_lossy(a.key.as_ref()).to_string(), a.unescape_value().map(|v| v.to_string()).unwrap_or_default())).collect();
+                                if at.get("key").map(|k| k == "name").unwrap_or(false) {
+                                    bambu_names.entry(id.clone()).or_insert(at.get("value").cloned().unwrap_or_default());
+                                }
+                            }
+                        }
+                    }
+                    Ok(Event::End(_)) => level -= 1,
+                    Ok(Event::Eof) | Err(_) => break,
+                    _ => {}
+                }
+            }
         }
     }
-    Ok(m)
+    let mut out: Vec<(String, Mesh)> = Vec::new();
+    let mut list: Vec<(String, String, [f64; 12])> = builds.clone();
+    if list.is_empty() {
+        let mut keys: Vec<_> = objects.keys().cloned().collect();
+        keys.sort();
+        list = keys.into_iter().map(|(p, id)| (p, id, ident)).collect();
+    }
+    for (i, (p, oid, tf)) in list.iter().enumerate() {
+        let mut m = Mesh::new();
+        emit(&objects, &(p.clone(), oid.clone()), tf, &mut m, 0);
+        if m.is_empty() {
+            continue;
+        }
+        let name = bambu_names
+            .get(oid)
+            .cloned()
+            .filter(|n| !n.is_empty())
+            .or_else(|| objects.get(&(p.clone(), oid.clone())).map(|o| o.name.clone()).filter(|n| !n.is_empty()))
+            .unwrap_or_else(|| format!("Objekt {}", i + 1));
+        out.push((name, m));
+    }
+    Ok(out)
 }

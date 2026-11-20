@@ -134,8 +134,8 @@ fn compute(p: &werk::Params, fname: &str, bytes: &[u8]) -> anyhow::Result<werk::
     if ![".stl", ".obj", ".3mf"].iter().any(|e| lower.ends_with(e)) {
         anyhow::bail!("Bitte ein 3D-Modell laden (STL, 3MF oder OBJ).");
     }
-    let m = mesh::load(bytes, fname)?;
-    werk::split(&m, p)
+    let objects = mesh::load(bytes, fname)?;
+    werk::split(&objects, p)
 }
 
 fn safe_id(id: &str) -> bool {

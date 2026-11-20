@@ -24,7 +24,9 @@ pub struct Params {
     pub printers: Vec<Printer>,
     /// Abstand zum Bettrand (mm)
     pub margin: f64,
-    /// Modellgröße: größte Kante (mm)
+    /// Maßstab in Prozent
+    pub scale: f64,
+    /// alternativ: größte Kante (mm), 0 = aus
     pub size: f64,
     pub connector: String,
     pub dowel_d: f64,
@@ -39,7 +41,8 @@ impl Default for Params {
         Params {
             printers: vec![Printer { name: "Bambu Lab H2C".into(), x: 325.0, y: 320.0, z: 325.0, speed: 1.0 }],
             margin: 5.0,
-            size: 600.0,
+            scale: 100.0,
+            size: 0.0,
             connector: "dowel".into(),
             dowel_d: 5.0,
             depth_ratio: 2.0,
@@ -137,7 +140,7 @@ fn emit_parts(out: &mut Output, parts: Vec<(String, Mesh)>, p: &Params, prefix: 
         let file = if multi { format!("{prefix}_P{}_{}.3mf", pi + 1, sanitize(&pr.name)) } else { format!("{prefix}.3mf") };
         out.files.push((file, export::bambu_3mf(&arranged, [pr.x, pr.y], &names)));
         if multi {
-            out.stat(&format!("P{} {}", pi + 1, pr.name), format!("{} Platten", n_pl));
+            out.stat(&format!("P{} {}", pi + 1, pr.name), format!("{} {}", n_pl, if n_pl == 1 { "Platte" } else { "Platten" }));
         }
     }
     out.plates = total_plates;
@@ -149,41 +152,209 @@ fn sanitize(s: &str) -> String {
 
 // ───────────────────────── Teilen aufs Druckbett ─────────────────────────
 
-pub fn scaled(mesh: &Mesh, size: f64) -> Mesh {
-    let mut m = mesh.clone();
-    m.place_on_origin();
-    let s = m.bbox().size();
-    let k = size / s[0].max(s[1]).max(s[2]).max(1e-9);
-    m.scale(k);
-    m
-}
+type M3 = [[f64; 3]; 3];
+const IDENT: M3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
-fn even_cuts(len: f64, max: f64) -> Vec<f64> {
-    let n = (len / max).ceil().max(1.0) as usize;
-    (1..n).map(|i| len * i as f64 / n as f64).collect()
-}
-
-pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
-    let mut out = Output::default();
-    let m = scaled(mesh, p.size);
-    let s = m.bbox().size();
-    // Zellgröße nach dem größten Drucker, damit jedes Teil wenigstens dort passt
-    let big = p.printers.iter().cloned().max_by(|a, b| (a.x * a.y * a.z).partial_cmp(&(b.x * b.y * b.z)).unwrap()).unwrap_or(main_printer(p));
-    let cell = [big.x - 2.0 * p.margin, big.y - 2.0 * p.margin, big.z];
-    let cuts: [Vec<f64>; 3] = [even_cuts(s[0], cell[0]), even_cuts(s[1], cell[1]), even_cuts(s[2], cell[2])];
-    let n_cells = (cuts[0].len() + 1) * (cuts[1].len() + 1) * (cuts[2].len() + 1);
-    out.stat("Modellgröße", format!("{:.0} × {:.0} × {:.0} mm", s[0], s[1], s[2]));
-    out.stat("Raster", format!("{} × {} × {}", cuts[0].len() + 1, cuts[1].len() + 1, cuts[2].len() + 1));
-    if n_cells == 1 {
-        out.warnings.push("Das Modell passt in einem Stück auf die Platte – es wird nicht geteilt.".into());
+fn mat_mul(a: &M3, b: &M3) -> M3 {
+    let mut o = [[0.0; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            o[i][j] = (0..3).map(|k| a[i][k] * b[k][j]).sum();
+        }
     }
-    // Verbinder je Schnittebene vorab bestimmen
+    o
+}
+fn mat_t(a: &M3) -> M3 {
+    let mut o = [[0.0; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            o[i][j] = a[j][i];
+        }
+    }
+    o
+}
+fn apply(m: &M3, p: V3) -> V3 {
+    [
+        m[0][0] * p[0] + m[0][1] * p[1] + m[0][2] * p[2],
+        m[1][0] * p[0] + m[1][1] * p[1] + m[1][2] * p[2],
+        m[2][0] * p[0] + m[2][1] * p[1] + m[2][2] * p[2],
+    ]
+}
+fn rot(axis: usize, deg: f64) -> M3 {
+    let (s, c) = deg.to_radians().sin_cos();
+    match axis {
+        0 => [[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]],
+        1 => [[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]],
+        _ => [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]],
+    }
+}
+fn rotated(m: &Mesh, r: &M3) -> Mesh {
+    let mut o = m.clone();
+    o.map(|p| apply(r, p));
+    o
+}
+/// Hüllquader-Maße nach Drehung (ohne das Netz zu kopieren)
+fn dims_after(m: &Mesh, r: &M3) -> V3 {
+    let mut mn = [f64::MAX; 3];
+    let mut mx = [f64::MIN; 3];
+    for t in &m.tris {
+        for p in t {
+            let q = apply(r, *p);
+            for i in 0..3 {
+                mn[i] = mn[i].min(q[i]);
+                mx[i] = mx[i].max(q[i]);
+            }
+        }
+    }
+    [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]]
+}
+
+/// Passt ein Quader in den Bauraum, wenn man ihn beliebig achsparallel dreht?
+fn fits_any(d: V3, bed: V3) -> bool {
+    let mut a = d;
+    let mut b = bed;
+    a.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    b.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    (0..3).all(|i| a[i] <= b[i] + 1e-6)
+}
+/// Passt in dieser Lage aufs Bett (nur Drehung um Z erlaubt)?
+fn fits_upright(d: V3, pr: &Printer, margin: f64) -> bool {
+    let (bx, by) = (pr.x - 2.0 * margin, pr.y - 2.0 * margin);
+    d[2] <= pr.z + 1e-6 && ((d[0] <= bx + 1e-6 && d[1] <= by + 1e-6) || (d[1] <= bx + 1e-6 && d[0] <= by + 1e-6))
+}
+/// Geschätzte Stückzahl (beste achsparallele Zuordnung)
+fn est_pieces(d: V3, bed: V3) -> usize {
+    let mut a = d;
+    let mut b = bed;
+    a.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    b.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    (0..3).map(|i| (a[i] / b[i]).ceil().max(1.0) as usize).product()
+}
+
+#[derive(Clone, Copy)]
+struct Cap {
+    axis: usize,
+    val: f64,
+    /// Richtung der Außennormale entlang der Achse (+1/-1)
+    sign: f64,
+    plug: bool,
+}
+
+struct Piece {
+    mesh: Mesh,
+    caps: Vec<Cap>,
+    /// Bereiche mit Verbindern (min/max), die spätere Schnitte meiden
+    feats: Vec<(V3, V3)>,
+    node: usize,
+}
+
+enum Node {
+    Leaf(String),
+    Cut(Vec<usize>),
+}
+
+/// Überlappende Teilkörper (Hüllquader) zu einem Teil zusammenfassen
+fn group_overlapping(comps: Vec<Mesh>) -> Vec<Mesh> {
+    let boxes: Vec<_> = comps.iter().map(|c| c.bbox()).collect();
+    let mut g: Vec<usize> = (0..comps.len()).collect();
+    fn root(g: &mut Vec<usize>, mut i: usize) -> usize {
+        while g[i] != i {
+            g[i] = g[g[i]];
+            i = g[i];
+        }
+        i
+    }
+    for i in 0..comps.len() {
+        for j in i + 1..comps.len() {
+            let (a, b) = (&boxes[i], &boxes[j]);
+            if (0..3).all(|k| a.min[k] < b.max[k] - 0.05 && b.min[k] < a.max[k] - 0.05) && really_overlap(&comps[i], &comps[j]) {
+                let (ri, rj) = (root(&mut g, i), root(&mut g, j));
+                g[rj] = ri;
+            }
+        }
+    }
+    let mut merged: std::collections::BTreeMap<usize, Mesh> = Default::default();
+    for (i, c) in comps.into_iter().enumerate() {
+        let r = root(&mut g, i);
+        merged.entry(r).or_default().extend(&c);
+    }
+    merged.into_values().collect()
+}
+
+/// Liegt ein Punkt im geschlossenen Netz? (Strahl in +X, Schnitte zählen)
+fn point_inside(m: &Mesh, p: V3) -> bool {
+    let mut n = 0;
+    for t in &m.tris {
+        let (a, b, c) = (t[0], t[1], t[2]);
+        if (a[1] > p[1]) == (b[1] > p[1]) && (b[1] > p[1]) == (c[1] > p[1]) {
+            continue;
+        }
+        if (a[2] > p[2]) == (b[2] > p[2]) && (b[2] > p[2]) == (c[2] > p[2]) {
+            continue;
+        }
+        // Schnitt des Strahls (y, z fest) mit dem Dreieck in der YZ-Projektion
+        let d = (b[1] - a[1]) * (c[2] - a[2]) - (c[1] - a[1]) * (b[2] - a[2]);
+        if d.abs() < 1e-12 {
+            continue;
+        }
+        let u = ((p[1] - a[1]) * (c[2] - a[2]) - (c[1] - a[1]) * (p[2] - a[2])) / d;
+        let v = ((b[1] - a[1]) * (p[2] - a[2]) - (p[1] - a[1]) * (b[2] - a[2])) / d;
+        if u < 0.0 || v < 0.0 || u + v > 1.0 {
+            continue;
+        }
+        let x = a[0] + u * (b[0] - a[0]) + v * (c[0] - a[0]);
+        if x > p[0] {
+            n += 1;
+        }
+    }
+    n % 2 == 1
+}
+
+/// Stecken zwei Körper wirklich ineinander (nicht nur die Hüllquader)?
+fn really_overlap(a: &Mesh, b: &Mesh) -> bool {
+    let probe = |small: &Mesh, big: &Mesh| -> bool {
+        let step = (small.tris.len() / 6).max(1);
+        small.tris.iter().step_by(step).take(6).any(|t| {
+            // Punkt leicht ins Innere des kleinen Körpers versetzt (Dreiecksmitte)
+            let c = [(t[0][0] + t[1][0] + t[2][0]) / 3.0, (t[0][1] + t[1][1] + t[2][1]) / 3.0, (t[0][2] + t[1][2] + t[2][2]) / 3.0];
+            point_inside(big, [c[0] + 1.3e-4, c[1] + 0.7e-4, c[2] + 0.3e-4])
+        })
+    };
+    probe(a, b) || probe(b, a)
+}
+
+fn is_tiny(m: &Mesh, ref_vol: f64) -> bool {
+    let s = m.bbox().size();
+    let v = m.volume().abs();
+    let (mx, mn) = (s[0].max(s[1]).max(s[2]), s[0].min(s[1]).min(s[2]));
+    mx < 20.0 || mn < 4.0 || v < (ref_vol * 0.002).max(3000.0)
+}
+
+pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
+    let mut out = Output::default();
+    let printers = if p.printers.is_empty() { vec![main_printer(p)] } else { p.printers.clone() };
+    let big = printers.iter().cloned().max_by(|a, b| (a.x * a.y * a.z).partial_cmp(&(b.x * b.y * b.z)).unwrap()).unwrap();
+    let bed: V3 = [big.x - 2.0 * p.margin, big.y - 2.0 * p.margin, big.z];
+
+    // Maßstab: größte Kante aller Objekte zusammen oder Prozent
+    let mut all = Mesh::new();
+    for (_, m) in objects {
+        all.extend(m);
+    }
+    let s0 = all.bbox().size();
+    let k = if p.size > 0.0 { p.size / s0[0].max(s0[1]).max(s0[2]).max(1e-9) } else { p.scale.max(0.1) / 100.0 };
+    out.stat("Modellgröße", format!("{:.0} × {:.0} × {:.0} mm", s0[0] * k, s0[1] * k, s0[2] * k));
+    if objects.len() > 1 {
+        out.stat("Objekte", objects.len());
+    }
+
+    // Verbinder
     let kind = p.connector.as_str();
     let magnet = kind == "magnet";
     let use_conn = kind != "none" && if magnet { p.magnet_d > 0.0 && p.magnet_h > 0.0 } else { p.dowel_d > 0.0 && p.depth_ratio > 0.0 };
     let square = kind.ends_with("_sq");
     let r = p.dowel_d * 0.5;
-    let clr = (-p.tolerance).max(0.0) * 0.5; // Spiel je Seite
+    let clr = (-p.tolerance).max(0.0) * 0.5;
     let depth = if magnet { p.magnet_h + 0.1 } else { p.dowel_d * p.depth_ratio * 0.5 };
     let proto = |c: P2| -> Pocket {
         let side = |radius, ext, end_scale| section::Side { radius, ext, end_scale };
@@ -191,8 +362,7 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
             "plug" | "plug_sq" => Pocket { center: c, square, lo: side(r, -depth, 1.0), hi: side(r + clr, depth + 0.4, 1.0) },
             "cone" => {
                 let top = r * 0.45;
-                let hs = (top + clr) / (r + clr);
-                Pocket { center: c, square: false, lo: side(r, -depth, top / r), hi: side(r + clr, depth + 0.4, hs) }
+                Pocket { center: c, square: false, lo: side(r, -depth, top / r), hi: side(r + clr, depth + 0.4, (top + clr) / (r + clr)) }
             }
             "magnet" => {
                 let mr = p.magnet_d * 0.5 + clr.max(0.1);
@@ -205,201 +375,382 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
         }
     };
     let hole_r = proto([0.0, 0.0]).max_radius() * if square { 1.42 } else { 1.0 };
-    let mut pockets: Vec<Vec<Vec<Pocket>>> = vec![vec![]; 3];
-    let mut n_pockets = 0usize;
-    for a in 0..3 {
-        for &v in &cuts[a] {
-            let mut list = Vec::new();
-            if use_conn {
-                let polys = section::section(&m, a, v);
-                let below = section::section(&m, a, v - depth - 0.5);
-                let above = section::section(&m, a, v + depth + 0.5);
-                // andere Schnittlinien in dieser Ebene meiden
-                let (u_ax, v_ax) = match a {
-                    0 => (1, 2),
-                    1 => (0, 2),
-                    _ => (0, 1),
-                };
-                let clear = hole_r + 2.0;
-                for poly in &polys {
-                    let spots = pick_spots(poly, clear, &|q: P2| {
-                        cuts[u_ax].iter().all(|c| (q[0] - c).abs() > clear)
-                            && cuts[v_ax].iter().all(|c| (q[1] - c).abs() > clear)
-                            && below.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
-                            && above.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
-                    });
-                    for c in spots {
-                        list.push(proto(c));
-                    }
-                }
-            }
-            n_pockets += list.len();
-            pockets[a].push(list);
-        }
-    }
-    // Schneiden: jeden Körper einzeln (überlappende Körper bleiben so geschlossen), erst X, dann Y, dann Z
-    let mut cells: std::collections::BTreeMap<(usize, usize, usize), Vec<Mesh>> = Default::default();
-    for body in section::split_components(&m) {
-        let mut pieces: Vec<(Mesh, [usize; 3])> = vec![(body, [0, 0, 0])];
-        for a in 0..3 {
-            let mut next = Vec::new();
-            for (piece, idx) in pieces {
-                let pb = piece.bbox();
-                let mut rest = piece;
-                for (k, &v) in cuts[a].iter().enumerate() {
-                    if v <= pb.min[a] || v >= pb.max[a] {
-                        if v >= pb.max[a] {
-                            // ganz unterhalb dieser Ebene
-                            let mut id = idx;
-                            id[a] = k;
-                            if !rest.is_empty() {
-                                next.push((std::mem::take(&mut rest), id));
-                            }
-                            break;
-                        }
-                        continue;
-                    }
-                    let (lo, hi) = section::cut(&rest, a, v, &pockets[a][k]);
-                    let mut id = idx;
-                    id[a] = k;
-                    if !lo.is_empty() {
-                        next.push((lo, id));
-                    }
-                    rest = hi;
-                }
-                if !rest.is_empty() {
-                    let mut id = idx;
-                    id[a] = cuts[a].iter().filter(|&&c| c < rest.bbox().min[a] + 1e-9).count();
-                    next.push((rest, id));
-                }
-            }
-            pieces = next;
-        }
-        for (pm, id) in pieces {
-            cells.entry((id[2], id[1], id[0])).or_default().extend(section::split_components(&pm));
-        }
-    }
-    // Zusammenhängende Teile je Zelle: überlappende Körper (Hüllquader) zusammenfassen
+    let lo_has_plug = matches!(kind, "plug" | "plug_sq" | "cone");
+
     let mut parts: Vec<(String, Mesh)> = Vec::new();
-    let mut tiny = 0;
-    let mut grid_names: Vec<([usize; 3], String)> = Vec::new();
-    let mut n = 0;
-    for ((z, y, x), comps) in cells {
-        let boxes: Vec<_> = comps.iter().map(|c| c.bbox()).collect();
-        let mut group: Vec<usize> = (0..comps.len()).collect();
-        fn root(g: &mut Vec<usize>, mut i: usize) -> usize {
-            while g[i] != i {
-                g[i] = g[g[i]];
-                i = g[i];
-            }
-            i
+    let mut preview: Vec<(String, Mesh)> = Vec::new();
+    let mut n_conn = 0usize;
+    let mut n_cuts = 0usize;
+    let mut n_tiny = 0usize;
+    let mut montage = String::from("Formwerk – Montage\n");
+    let multi_obj = objects.len() > 1;
+
+    for (oi, (oname, omesh)) in objects.iter().enumerate() {
+        let mut m = omesh.clone();
+        m.scale(k);
+        let d0 = m.bbox().size();
+        let label = if oname.trim().is_empty() { format!("Objekt {}", oi + 1) } else { oname.trim().to_string() };
+        // passt schon? → nur auflegen
+        if printers.iter().any(|pr| fits_upright(d0, pr, p.margin)) {
+            preview.push((label.clone(), m.clone()));
+            parts.push((label, m));
+            continue;
         }
-        for i in 0..comps.len() {
-            for j in i + 1..comps.len() {
-                let (a, b) = (&boxes[i], &boxes[j]);
-                let overlap = (0..3).all(|k| a.min[k] < b.max[k] - 0.05 && b.min[k] < a.max[k] - 0.05);
-                if overlap {
-                    let (ri, rj) = (root(&mut group, i), root(&mut group, j));
-                    group[rj] = ri;
+        // beste Drehung suchen (möglichst wenige Teile, gerne unverändert)
+        let mut best: (usize, f64, M3) = (est_pieces(d0, bed), 0.0, IDENT);
+        for base in [IDENT, rot(0, 90.0), rot(1, 90.0)] {
+            for step in 0..12 {
+                let ang = step as f64 * 7.5;
+                if step == 0 && base == IDENT {
+                    continue;
+                }
+                for ax in 0..3 {
+                    let rr = mat_mul(&rot(ax, ang), &base);
+                    let n = est_pieces(dims_after(&m, &rr), bed);
+                    if n < best.0 {
+                        best = (n, ang, rr);
+                    }
                 }
             }
         }
-        let mut merged: std::collections::BTreeMap<usize, Mesh> = Default::default();
-        for (i, c) in comps.into_iter().enumerate() {
-            let r = root(&mut group, i);
-            merged.entry(r).or_default().extend(&c);
+        let rmat = best.2;
+        let back = mat_t(&rmat);
+        let work = rotated(&m, &rmat);
+        let ref_vol = work.volume().abs();
+
+        // schrittweise schneiden
+        let mut nodes: Vec<Node> = vec![Node::Cut(vec![])];
+        let mut queue: Vec<Piece> = group_overlapping(section::split_components(&work))
+            .into_iter()
+            .map(|c| Piece { mesh: c, caps: vec![], feats: vec![], node: 0 })
+            .collect();
+        // Wurzel enthält die Startkörper
+        let mut start_nodes = Vec::new();
+        for pc in queue.iter_mut() {
+            nodes.push(Node::Cut(vec![]));
+            pc.node = nodes.len() - 1;
+            start_nodes.push(pc.node);
         }
-        let mut list: Vec<Mesh> = merged.into_values().collect();
-        list.sort_by(|a, b| b.volume().abs().partial_cmp(&a.volume().abs()).unwrap());
-        for comp in list {
-            let vol = comp.volume().abs();
-            if vol < 20.0 {
-                tiny += 1;
-                if vol > 0.01 {
-                    parts.push((format!("Klein_{tiny}"), comp));
-                }
+        nodes[0] = Node::Cut(start_nodes);
+        let mut leaves: Vec<Piece> = Vec::new();
+        let mut guard = 0;
+        while let Some(pc) = queue.pop() {
+            guard += 1;
+            let bb = pc.mesh.bbox();
+            let d = bb.size();
+            if fits_any(d, bed) || guard > 400 {
+                leaves.push(pc);
                 continue;
             }
-            n += 1;
-            let name = format!("Teil_{n:02}");
-            grid_names.push(([x, y, z], name.clone()));
-            parts.push((name, comp));
-        }
-    }
-    out.stat("Teile", n);
-    if tiny > 0 {
-        out.stat("Kleinstteile", tiny);
-    }
-    let conn_text = match kind {
-        "dowel" | "dowel_sq" => {
-            let pin_l = (2.0 * depth - 1.0).max(1.0);
-            let mut pin = if square {
-                export::extrude(&[rect_poly(-r, -r, r, r)], pin_l, &|q, z| [q[0], q[1], z])
-            } else {
-                cylinder(r, pin_l, 32)
+            // Kandidaten-Achsen: alle, die (in sortierter Zuordnung) zu lang sind, die längste zuerst
+            let mut order: Vec<usize> = vec![0, 1, 2];
+            order.sort_by(|&a, &b| d[b].partial_cmp(&d[a]).unwrap());
+            let mut bs = bed;
+            bs.sort_by(|x, y| y.partial_cmp(x).unwrap());
+            let mut axes: Vec<(f64, usize, f64)> = (0..3)
+                .filter(|&i| d[order[i]] > bs[i] + 1e-6)
+                .map(|i| (d[order[i]] / bs[i], order[i], bs[i]))
+                .collect();
+            if axes.is_empty() {
+                axes.push((1.0, order[0], bs[0]));
+            }
+            axes.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+            // Fenster je Achse: genau so viele Teile wie nötig; zweiter Versuch mit einem Teil mehr
+            let window = |axis: usize, cell: f64, extra: bool| -> (f64, f64) {
+                let (a0, len) = (bb.min[axis], d[axis]);
+                let n = (len / cell).ceil().max(2.0) + if extra { 1.0 } else { 0.0 };
+                let min_len = (cell * 0.15).max(15.0).min(len * 0.25);
+                let mut lo_w = a0 + (len - (n - 1.0) * cell).max(min_len);
+                let mut hi_w = a0 + cell.min(len - min_len);
+                if extra {
+                    // zweiter Versuch: überall schneiden, ein Stück darf dann noch einmal geteilt werden
+                    return (a0 + min_len, a0 + len - min_len);
+                }
+                if lo_w > hi_w {
+                    lo_w = a0 + (len - (n - 1.0) * cell).max(0.0);
+                    hi_w = a0 + cell.min(len);
+                }
+                (lo_w, hi_w)
             };
-            pin.place_on_origin();
-            out.files.push(("duebel.stl".into(), pin.to_stl("Duebel")));
-            out.stat("Dübel", n_pockets);
-            let form = if square { format!("{:.1} × {:.1}", p.dowel_d, p.dowel_d) } else { format!("Ø {:.1}", p.dowel_d) };
-            out.stat("Dübel je", format!("{form} × {:.1} mm", pin_l).replace('.', ","));
-            format!("Dübel: {n_pockets} Stück, siehe duebel.stl. Tipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.")
-        }
-        "plug" | "plug_sq" | "cone" => {
-            out.stat(if kind == "cone" { "Kegelzapfen" } else { "Steckzapfen" }, n_pockets);
-            format!("{n_pockets} Zapfen sind direkt angedruckt (immer am Teil links/vorne/unten der Schnittfläche). Zapfen nach oben drucken oder Stützen nutzen.")
-        }
-        "magnet" => {
-            out.stat("Magnete", format!("{} ({} Paare)", n_pockets * 2, n_pockets));
-            format!("Magnete: {} Stück Ø {:.0} × {:.0} mm ({} Paare). Vor dem Einkleben die Polung prüfen – gegenüberliegende Magnete müssen sich anziehen!", n_pockets * 2, p.magnet_d, p.magnet_h, n_pockets)
-        }
-        _ => String::new(),
-    };
-    // Vorschau: leicht auseinandergezogen
-    let total = mesh_center(&parts);
-    for (name, m) in &parts {
-        let mut pm = m.clone();
-        let c = mesh_center(&[(String::new(), m.clone())]);
-        let d = [(c[0] - total[0]) * 0.12, (c[1] - total[1]) * 0.12, (c[2] - total[2]) * 0.12];
-        pm.translate(d);
-        out.preview.push((name.clone(), pm));
-    }
-    // Montagereihenfolge = umgekehrte Schnittreihenfolge
-    let mut txt = String::from("Formwerk – Montagereihenfolge\n\nGeschnitten wurde erst entlang X, dann Y, dann Z.\nZusammengebaut wird umgekehrt:\n\n");
-    let (nx, ny, nz) = (cuts[0].len() + 1, cuts[1].len() + 1, cuts[2].len() + 1);
-    let names_at = |f: &dyn Fn(&[usize; 3]) -> bool| -> String {
-        grid_names.iter().filter(|(id, _)| f(id)).map(|(_, n)| n.clone()).collect::<Vec<_>>().join(", ")
-    };
-    let mut step = 1;
-    if nz > 1 {
-        for x in 0..nx {
-            for y in 0..ny {
-                let s = names_at(&|id| id[0] == x && id[1] == y);
-                if s.contains(',') {
-                    txt.push_str(&format!("{step}. Säule übereinander (unten → oben): {s}\n"));
-                    step += 1;
+            let mut chosen: Option<(usize, f64)> = None;
+            let mut fallback: Option<(usize, f64, f64)> = None;
+            'search: for extra in [false, true] {
+                for &(_, axis, cell) in &axes {
+                    let (lo_w, hi_w) = window(axis, cell, extra);
+                    let mid = (lo_w + hi_w) * 0.5;
+                    let mut cands: Vec<(f64, f64)> = (0..=32)
+                        .map(|i| lo_w + (hi_w - lo_w) * i as f64 / 32.0)
+                        .filter(|v| !pc.feats.iter().any(|(mn, mx)| *v > mn[axis] - 1.5 && *v < mx[axis] + 1.5))
+                        .map(|v| {
+                            let bias = 1.0 + 0.15 * ((v - mid).abs() / ((hi_w - lo_w) * 0.5 + 1e-9));
+                            (section::section_area(&pc.mesh, axis, v) * bias, v)
+                        })
+                        .collect();
+                    cands.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                    let mut best_here: Option<(f64, f64)> = None;
+                    for &(score, v) in cands.iter().take(16) {
+                        let (lo, hi) = section::cut_bodies(&pc.mesh, axis, v, &[]);
+                        let lc = group_overlapping(section::split_components(&lo));
+                        let hc = group_overlapping(section::split_components(&hi));
+                        if std::env::var("FORMWERK_DEBUG").is_ok() {
+                            for c in lc.iter().chain(hc.iter()).filter(|c| is_tiny(c, ref_vol)) {
+                                let b = c.bbox();
+                                eprintln!("   Achse {axis} bei {v:.1}: Kleinteil {:.1}×{:.1}×{:.1} Vol {:.0}", b.size()[0], b.size()[1], b.size()[2], c.volume());
+                            }
+                        }
+                        if !lc.iter().chain(hc.iter()).any(|c| is_tiny(c, ref_vol)) {
+                            // Teile, die fertig wären, aber nicht flach auf einer Schnittfläche liegen können, kosten extra
+                            let mut not_flat = 0;
+                            for (list, sign) in [(&lc, 1.0), (&hc, -1.0)] {
+                                for c in list.iter() {
+                                    if !fits_any(c.bbox().size(), bed) {
+                                        continue;
+                                    }
+                                    let cb = c.bbox();
+                                    let mut caps: Vec<Cap> = pc.caps.iter().filter(|k| if k.sign > 0.0 { (cb.max[k.axis] - k.val).abs() < 0.01 } else { (cb.min[k.axis] - k.val).abs() < 0.01 }).cloned().collect();
+                                    caps.push(Cap { axis, val: v, sign, plug: false });
+                                    if !lies_flat(c, &caps, &printers, p.margin) {
+                                        not_flat += 1;
+                                    }
+                                }
+                            }
+                            let s = score * (1.0 + 0.6 * not_flat as f64);
+                            if best_here.is_none_or(|b| s < b.0) {
+                                best_here = Some((s, v));
+                            }
+                            continue;
+                        }
+                        let worst_small = lc.iter().chain(hc.iter()).map(|c| c.volume().abs()).fold(f64::MAX, f64::min);
+                        if !extra && fallback.is_none_or(|f| worst_small > f.2) {
+                            fallback = Some((axis, v, worst_small));
+                        }
+                    }
+                    if let Some((_, v)) = best_here {
+                        chosen = Some((axis, v));
+                        break 'search;
+                    }
                 }
             }
-        }
-    }
-    if ny > 1 {
-        for x in 0..nx {
-            let s = names_at(&|id| id[0] == x);
-            if s.contains(',') {
-                txt.push_str(&format!("{step}. Scheibe X{} in Y-Richtung verbinden: {s}\n", x + 1));
-                step += 1;
+            if std::env::var("FORMWERK_DEBUG").is_ok() {
+                eprintln!("Stück {:.0}×{:.0}×{:.0}: gewählt {:?}, Notlösung {:?}", d[0], d[1], d[2], chosen, fallback);
             }
+            let (axis, v) = match (chosen, fallback) {
+                (Some(c), _) => c,
+                (None, Some(f)) => (f.0, f.1),
+                (None, None) => {
+                    let (lo_w, hi_w) = window(axes[0].1, axes[0].2, false);
+                    (axes[0].1, (lo_w + hi_w) * 0.5)
+                }
+            };
+            // Verbinder für diesen Schnitt
+            let mut pockets = Vec::new();
+            if use_conn {
+                let polys = section::section(&pc.mesh, axis, v);
+                let below = section::section(&pc.mesh, axis, v - depth - 0.5);
+                let above = section::section(&pc.mesh, axis, v + depth + 0.5);
+                let clear = hole_r + 2.0;
+                for poly in &polys {
+                    for c in pick_spots(poly, clear, &|q: P2| {
+                        below.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
+                            && above.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
+                    }) {
+                        pockets.push(proto(c));
+                    }
+                }
+            }
+            // Zapfen auf die Seite, die schon eine andere flache Schnittfläche hat (dann liegt sie darauf)
+            let flat_on = |lower: bool| {
+                pc.caps.iter().any(|c| !c.plug && if c.axis == axis { (c.val < v) == lower } else { true })
+            };
+            let plugs_on_hi = lo_has_plug && !flat_on(true) && flat_on(false);
+            if plugs_on_hi {
+                for pk in pockets.iter_mut() {
+                    std::mem::swap(&mut pk.lo, &mut pk.hi);
+                }
+            }
+            let (lo, hi) = section::cut_bodies(&pc.mesh, axis, v, &pockets);
+            n_cuts += 1;
+            n_conn += pockets.len();
+            let mut feats = pc.feats.clone();
+            for pk in &pockets {
+                let rr = pk.max_radius() * 1.42 + 1.0;
+                let c3 = section::to3(pk.center, axis, v);
+                let mut mn = [c3[0] - rr, c3[1] - rr, c3[2] - rr];
+                let mut mx = [c3[0] + rr, c3[1] + rr, c3[2] + rr];
+                mn[axis] = v - depth - 1.0;
+                mx[axis] = v + depth + 1.0;
+                feats.push((mn, mx));
+            }
+            let mut children = Vec::new();
+            for (half, sign) in [(lo, 1.0), (hi, -1.0)] {
+                for comp in group_overlapping(section::split_components(&half)) {
+                    let cb = comp.bbox();
+                    let touches = |c: &Cap| {
+                        if c.sign > 0.0 { (cb.max[c.axis] - c.val).abs() < 0.01 } else { (cb.min[c.axis] - c.val).abs() < 0.01 }
+                    };
+                    let mut caps: Vec<Cap> = pc.caps.iter().filter(|c| touches(c)).cloned().collect();
+                    let plug_here = lo_has_plug && !pockets.is_empty() && ((sign > 0.0) != plugs_on_hi);
+                    let new_cap = Cap { axis, val: v, sign, plug: plug_here };
+                    if touches(&new_cap) {
+                        caps.push(new_cap);
+                    }
+                    nodes.push(Node::Cut(vec![]));
+                    let id = nodes.len() - 1;
+                    children.push(id);
+                    queue.push(Piece { mesh: comp, caps, feats: feats.clone(), node: id });
+                }
+            }
+            nodes[pc.node] = Node::Cut(children);
+        }
+
+        // Blätter benennen, zum Drucken drehen
+        leaves.sort_by(|a, b| {
+            let (ca, cb) = (a.mesh.bbox(), b.mesh.bbox());
+            (ca.min[2], ca.min[1], ca.min[0]).partial_cmp(&(cb.min[2], cb.min[1], cb.min[0])).unwrap()
+        });
+        let many = leaves.len() > 1;
+        for (li, leaf) in leaves.into_iter().enumerate() {
+            let tiny = is_tiny(&leaf.mesh, ref_vol);
+            if tiny {
+                n_tiny += 1;
+            }
+            let name = if !many {
+                label.clone()
+            } else if multi_obj {
+                format!("{label} Teil {:02}", li + 1)
+            } else {
+                format!("Teil_{:02}", li + 1)
+            };
+            nodes[leaf.node] = Node::Leaf(name.clone());
+            // Vorschau in Originallage
+            preview.push((name.clone(), rotated(&leaf.mesh, &back)));
+            parts.push((name, orient_for_print(&leaf.mesh, &leaf.caps, &printers, p.margin)));
+        }
+        // Montage: umgekehrte Schnittfolge
+        if many {
+            montage.push_str(&format!("\n{label}:\n"));
+            let mut step = 1;
+            let mut group_no = 0;
+            fn walk(nodes: &[Node], i: usize, step: &mut usize, group_no: &mut usize, txt: &mut String) -> String {
+                match &nodes[i] {
+                    Node::Leaf(n) => n.clone(),
+                    Node::Cut(ch) => {
+                        let names: Vec<String> = ch.iter().map(|c| walk(nodes, *c, step, group_no, txt)).collect();
+                        if names.len() == 1 {
+                            return names[0].clone();
+                        }
+                        *group_no += 1;
+                        let g = format!("Gruppe {}", group_no);
+                        txt.push_str(&format!("  {}. {} verbinden → {}\n", step, names.join(" + "), g));
+                        *step += 1;
+                        g
+                    }
+                }
+            }
+            walk(&nodes, 0, &mut step, &mut group_no, &mut montage);
         }
     }
-    if nx > 1 {
-        txt.push_str(&format!("{step}. Alle Scheiben in X-Richtung verbinden.\n"));
+
+    let n_parts = parts.len();
+    out.stat("Teile", n_parts);
+    out.stat("Schnitte", n_cuts);
+    if n_tiny > 0 {
+        out.warnings.push(format!("{n_tiny} sehr kleine(s) Teil(e) ließ sich nicht vermeiden."));
     }
-    if use_conn && !conn_text.is_empty() {
-        txt.push_str(&format!("\n{conn_text}\n"));
+    if n_cuts == 0 {
+        out.warnings.push("Alles passt ohne Schnitt auf die Platte – es wurde nur angeordnet.".into());
     }
-    out.files.push(("montage.txt".into(), txt.into_bytes()));
+    let conn_text = if use_conn && n_conn > 0 {
+        match kind {
+            "dowel" | "dowel_sq" => {
+                let pin_l = (2.0 * depth - 1.0).max(1.0);
+                let mut pin = if square { export::extrude(&[rect_poly(-r, -r, r, r)], pin_l, &|q, z| [q[0], q[1], z]) } else { cylinder(r, pin_l, 32) };
+                pin.place_on_origin();
+                out.files.push(("duebel.stl".into(), pin.to_stl("Duebel")));
+                out.stat("Dübel", n_conn);
+                let form = if square { format!("{:.1} × {:.1}", p.dowel_d, p.dowel_d) } else { format!("Ø {:.1}", p.dowel_d) };
+                out.stat("Dübel je", format!("{form} × {:.1} mm", pin_l).replace('.', ","));
+                format!("Dübel: {n_conn} Stück, siehe duebel.stl. Tipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.")
+            }
+            "plug" | "plug_sq" | "cone" => {
+                out.stat(if kind == "cone" { "Kegelzapfen" } else { "Steckzapfen" }, n_conn);
+                format!("{n_conn} Zapfen sind direkt angedruckt.")
+            }
+            "magnet" => {
+                out.stat("Magnete", format!("{} ({} Paare)", n_conn * 2, n_conn));
+                format!("Magnete: {} Stück Ø {:.0} × {:.0} mm ({} Paare). Vor dem Einkleben die Polung prüfen – gegenüberliegende Magnete müssen sich anziehen!", n_conn * 2, p.magnet_d, p.magnet_h, n_conn)
+            }
+            _ => String::new(),
+        }
+    } else {
+        String::new()
+    };
+    if !conn_text.is_empty() {
+        montage.push_str(&format!("\n{conn_text}\n"));
+    }
+    if n_cuts > 0 {
+        out.files.push(("montage.txt".into(), montage.into_bytes()));
+    }
+    // Vorschau leicht auseinandergezogen
+    let total = mesh_center(&preview);
+    for (name, pm) in preview.iter_mut() {
+        let c = mesh_center(&[(String::new(), pm.clone())]);
+        pm.translate([(c[0] - total[0]) * 0.12, (c[1] - total[1]) * 0.12, (c[2] - total[2]) * 0.12]);
+        let _ = name;
+    }
+    out.preview = preview;
     emit_parts(&mut out, parts, p, "teile");
     Ok(out)
+}
+
+/// Kann das Teil auf einer flachen Schnittfläche (ohne Zapfen) liegen und passt dann aufs Bett?
+fn lies_flat(m: &Mesh, caps: &[Cap], printers: &[Printer], margin: f64) -> bool {
+    caps.iter().filter(|c| !c.plug).any(|c| printers.iter().any(|pr| fits_upright(dims_after(m, &down_mat(c.axis, c.sign)), pr, margin)))
+}
+
+fn down_mat(axis: usize, sign: f64) -> M3 {
+    match (axis, sign > 0.0) {
+        (2, true) => [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]],
+        (2, false) => IDENT,
+        (0, true) => [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]],
+        (0, false) => [[0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
+        (1, true) => [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]],
+        _ => [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]],
+    }
+}
+
+/// Teil so drehen, dass eine Schnittfläche (ohne Zapfen, möglichst groß) unten liegt
+fn orient_for_print(m: &Mesh, caps: &[Cap], printers: &[Printer], margin: f64) -> Mesh {
+    let down = down_mat;
+    let fits = |r: &M3| printers.iter().any(|pr| fits_upright(dims_after(m, r), pr, margin));
+    if std::env::var("FORMWERK_DEBUG").is_ok() {
+        let s = m.bbox();
+        eprintln!("Teil {:.0}×{:.0}×{:.0}: Flächen {:?}", s.size()[0], s.size()[1], s.size()[2], caps.iter().map(|c| (c.axis, c.sign, c.plug, (c.val - if c.sign > 0.0 { s.max[c.axis] } else { s.min[c.axis] }).abs() < 0.01, fits(&down(c.axis, c.sign)))).collect::<Vec<_>>());
+    }
+    // flache Schnittflächen nach unten; Flächen mit Zapfen nach oben (dann liegt die Gegenseite unten)
+    let mut cands: Vec<(bool, f64, M3)> = caps
+        .iter()
+        .map(|c| {
+            let area = section::section_area(m, c.axis, c.val - c.sign * 0.05);
+            if c.plug { (true, area, down(c.axis, -c.sign)) } else { (false, area, down(c.axis, c.sign)) }
+        })
+        .collect();
+    cands.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.partial_cmp(&a.1).unwrap()));
+    for (_, _, r) in &cands {
+        if fits(r) {
+            return rotated(m, r);
+        }
+    }
+    if fits(&IDENT) {
+        return m.clone();
+    }
+    for (ax, s) in [(0, 1.0), (0, -1.0), (1, 1.0), (1, -1.0), (2, 1.0)] {
+        let r = down(ax, s);
+        if fits(&r) {
+            return rotated(m, &r);
+        }
+    }
+    m.clone()
 }
 
 fn mesh_center(parts: &[(String, Mesh)]) -> V3 {
