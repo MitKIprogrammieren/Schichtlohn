@@ -1,7 +1,6 @@
-//! Formwerk – Großformat-Generator im Bambu-Studio-Look (Nachbau der LuBan-Kernfunktionen in Rust)
+//! Formwerk – große Modelle aufs Druckbett zerlegen, im Bambu-Studio-Look (nach LuBan „Mesh → Cut“)
 mod export;
 mod werk;
-mod heightmap;
 mod mesh;
 mod section;
 
@@ -125,7 +124,6 @@ async fn run(mut mp: Multipart) -> Response {
         "files": files,
         "preview": preview,
         "plates": out.plates,
-        "sheets": out.sheets,
         "seconds": started.elapsed().as_secs_f64(),
     }))
     .into_response()
@@ -133,30 +131,11 @@ async fn run(mut mp: Multipart) -> Response {
 
 fn compute(p: &werk::Params, fname: &str, bytes: &[u8]) -> anyhow::Result<werk::Output> {
     let lower = fname.to_lowercase();
-    let is_mesh = [".stl", ".obj", ".3mf"].iter().any(|e| lower.ends_with(e));
-    match p.mode.as_str() {
-        "lithophane" | "relief_foto" => {
-            if is_mesh {
-                anyhow::bail!("Für diesen Modus bitte ein Foto laden (JPG, PNG, WebP).");
-            }
-            let img = image::load_from_memory(bytes).map_err(|e| anyhow::anyhow!("Foto nicht lesbar: {e}"))?;
-            werk::lithophane(&img, p, p.mode == "relief_foto")
-        }
-        mode => {
-            if !is_mesh {
-                anyhow::bail!("Für diesen Modus bitte ein 3D-Modell laden (STL, 3MF, OBJ).");
-            }
-            let m = mesh::load(bytes, fname)?;
-            match mode {
-                "relief" => werk::relief_mesh(&m, p),
-                "split" => werk::split(&m, p),
-                "stack" => werk::stack(&m, p),
-                "hash" => werk::hash(&m, p),
-                "wireframe" => werk::wireframe(&m, p),
-                _ => anyhow::bail!("Unbekannter Modus"),
-            }
-        }
+    if ![".stl", ".obj", ".3mf"].iter().any(|e| lower.ends_with(e)) {
+        anyhow::bail!("Bitte ein 3D-Modell laden (STL, 3MF oder OBJ).");
     }
+    let m = mesh::load(bytes, fname)?;
+    werk::split(&m, p)
 }
 
 fn safe_id(id: &str) -> bool {

@@ -270,10 +270,6 @@ impl Poly {
 pub fn multi_to_polys(m: &MultiPolygon<f64>) -> Vec<Poly> {
     m.0.iter().map(Poly::from_geo).filter(|p| p.outer.len() >= 3).collect()
 }
-pub fn polys_to_multi(p: &[Poly]) -> MultiPolygon<f64> {
-    MultiPolygon::new(p.iter().map(|x| x.to_geo()).collect())
-}
-
 /// Schleifen zu Flächen mit Löchern (gerade Verschachtelungstiefe = außen)
 pub fn loops_to_polys(loops: Vec<Vec<P2>>) -> Vec<Poly> {
     let loops: Vec<Vec<P2>> = loops.into_iter().filter(|l| ring_area(l).abs() > 1e-4).collect();

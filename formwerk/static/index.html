@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Formwerk – Großformat-Generator</title>
+<title>Formwerk – Teilen</title>
 <link rel="icon" href="/favicon.svg">
 <style>
 :root{
@@ -31,10 +31,6 @@ button,input,select{font:inherit;color:inherit}
 .main{display:flex;height:calc(100% - 44px)}
 .side{width:340px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);overflow:auto}
 .work{flex:1;display:flex;flex-direction:column;min-width:0}
-.modes{display:flex;gap:4px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
-.mode{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;color:var(--muted);border:1px solid transparent}
-.mode:hover{background:var(--panel2)}
-.mode.on{background:var(--green-bg);color:var(--green);border-color:var(--green);font-weight:600}
 .view{position:relative;flex:1;background:var(--canvas);min-height:260px}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
 .vtools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
@@ -103,19 +99,18 @@ a{color:var(--green);text-decoration:none}
 </head>
 <body>
 <div class="top">
-  <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg></i><span>Formwerk</span></div>
+  <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg></i><span>Formwerk</span><span style="color:var(--muted);font-weight:400;font-size:12px">Teilen</span></div>
   <div class="tabs">
     <div class="tab on" data-page="prep">Vorbereiten</div>
-    <div class="tab" data-page="sheets">Vorschau</div>
     <div class="tab" data-page="export">Export</div>
   </div>
   <div class="spacer"></div>
-  <button class="btn primary" id="go">Berechnen</button>
+  <button class="btn primary" id="go">Teilen</button>
 </div>
 <div class="main">
   <aside class="side">
-    <div class="drop" id="drop"><input type="file" id="file" hidden accept=".stl,.3mf,.obj,.jpg,.jpeg,.png,.webp,.bmp,.gif">
-      <div id="dropText"><b>Datei hierher ziehen</b> oder klicken<br>Foto (JPG, PNG) oder 3D-Modell (STL, 3MF, OBJ)</div>
+    <div class="drop" id="drop"><input type="file" id="file" hidden accept=".stl,.3mf,.obj">
+      <div id="dropText"><b>Modell hierher ziehen</b> oder klicken<br>STL, 3MF oder OBJ</div>
     </div>
     <div class="sec" id="secPrinter">
       <h3><span class="ic">&#9635;</span>Drucker<span class="chev">&#9662;</span></h3>
@@ -135,22 +130,20 @@ a{color:var(--green);text-decoration:none}
     </div>
   </aside>
   <section class="work">
-    <div class="modes" id="modes"></div>
     <div class="page on" id="page-prep" style="padding:0;display:flex;flex-direction:column">
       <div class="view">
         <canvas id="cv"></canvas>
-        <div class="hint" id="hint">Datei laden, Modus wählen und auf „Berechnen“ klicken</div>
+        <div class="hint" id="hint">Modell laden und auf „Teilen“ klicken</div>
         <div class="vtools">
           <button title="Ansicht einpassen" id="vFit">&#10530;</button>
           <button title="Von oben" id="vTop">&#8868;</button>
           <button title="Auseinanderziehen" id="vExplode">&#8644;</button>
         </div>
         <div class="legend" id="legend" style="display:none"></div>
-        <div class="busy" id="busy"><div><div class="spin"></div><span id="busyText">Wird berechnet …</span></div></div>
+        <div class="busy" id="busy"><div><div class="spin"></div><span id="busyText">Wird geteilt …</span></div></div>
       </div>
       <div class="plates" id="plateBar"><span style="color:var(--muted)">Teile erscheinen hier nach dem Berechnen</span></div>
     </div>
-    <div class="page" id="page-sheets"><div class="grid" id="sheetGrid"></div></div>
     <div class="page" id="page-export">
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <a class="btn primary" id="zip" href="#">Alles als ZIP</a>
@@ -174,51 +167,19 @@ const PRESETS = [
 ];
 
 const MODES = {
-  lithophane: { name: 'Lithophane', icon: '&#9634;', input: 'foto', groups: [
-    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.2,'mm/px',0.05]]],
-    ['Dicke', [['min_t','Dicke min','num',0.6,'mm',0.1],['max_t','Dicke max','num',2.4,'mm',0.1],['negative','Negativ','bool',false],['interior','Glatte Seite zum Betrachter','bool',false],['blur','Glätten','num',0,'px',1]]],
-    ['Rand', [['border_size','Randbreite','num',3,'mm'],['border_t','Randdicke','num',3,'mm',0.1]]],
-    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
-  ], help: 'Dunkle Bildstellen werden dick, helle dünn. Große Lithophanes werden automatisch in Kacheln geteilt, die aufs Druckbett passen.' },
-  relief_foto: { name: 'Foto-Relief', icon: '&#9650;', input: 'foto', groups: [
-    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
-    ['Relief', [['relief_t','Reliefhöhe','num',4,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['negative','Negativ (dunkel = hoch)','bool',false],['blur','Glätten','num',1,'px',1]]],
-    ['Rand', [['border_size','Randbreite','num',4,'mm'],['border_t','Randhöhe','num',4,'mm',0.5]]],
-    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
-  ], help: 'Helle Bildstellen werden hoch. Gut für Wandbilder, Prägungen und CNC.' },
-  relief: { name: 'Relief', icon: '&#9968;', input: 'mesh', groups: [
-    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
-    ['Relief', [['direction','Richtung','sel','+Z',['+Z','-Z','+X','-X','+Y','-Y']],['relief_t','Reliefdicke','num',8,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['bury','Begraben','num',0,'0–0,9',0.05],['negative','Negativ (Form)','bool',false]]],
-    ['Rand', [['border_size','Randbreite','num',0,'mm'],['border_t','Randhöhe','num',5,'mm',0.5]]],
-    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
-  ], help: 'Macht aus einem 3D-Modell ein 2,5D-Relief ohne Überhänge – druckbar oder für die CNC.' },
-  split: { name: 'Teilen', icon: '&#9638;', input: 'mesh', groups: [
+  split: { name: 'Teilen', groups: [
     ['Größe', [['size','Größte Kante','num',600,'mm']]],
     ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel rund'],['dowel_sq','Dübel eckig'],['plug','Steckzapfen rund'],['plug_sq','Steckzapfen eckig'],['cone','Kegelzapfen'],['magnet','Magnete'],['none','Keine']]],['dowel_d','Größe (Dübel/Zapfen)','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['magnet_d','Magnet Ø','num',6,'mm',0.5],['magnet_h','Magnet Höhe','num',3,'mm',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
   ], help: 'Zerlegt das Modell so, dass jedes Teil in den Bauraum passt. Dübel werden einzeln gedruckt, Zapfen sind angedruckt, Magnete werden eingeklebt. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
-  stack: { name: 'Stack', icon: '&#9776;', input: 'mesh', groups: [
-    ['Größe', [['size','Größte Kante','num',400,'mm'],['axis','Schichtrichtung','sel','Z',['X','Y','Z']]]],
-    ['Material', [['sheet_t','Materialdicke','num',3,'mm',0.5],['sheet_w','Bogenbreite','num',400,'mm'],['sheet_h','Bogenhöhe','num',300,'mm']]],
-    ['Aufbau', [['ring_w','Ringbreite (0 = voll)','num',0,'mm',1],['dowel_d','Dübelloch Ø (0 = aus)','num',4,'mm',0.5],['engrave_next','Nächste Schicht gravieren','bool',true]]],
-  ], help: 'Zerlegt das Modell in Scheiben aus Platten (Laser, CNC oder Druck). Zu große Scheiben werden geteilt und verschachtelt. Beschriftung 2.1.3 = Schicht.Kontur.Stück.' },
-  hash: { name: 'Hash', icon: '&#9783;', input: 'mesh', groups: [
-    ['Größe', [['size','Größte Kante','num',400,'mm']]],
-    ['Scheiben', [['x_layers','X-Scheiben','num',8,'',1],['z_layers','Z-Scheiben','num',6,'',1],['sheet_t','Materialdicke','num',3,'mm',0.5],['tolerance','Toleranz','num',0,'mm',0.05],['ring_w','Ringbreite (0 = voll)','num',0,'mm',1]]],
-    ['Bogen', [['sheet_w','Bogenbreite','num',400,'mm'],['sheet_h','Bogenhöhe','num',300,'mm']]],
-  ], help: 'Ineinandergesteckte Scheiben in X und Z. Toleranz negativ für den 3D-Druck, positiv für den Laser (gleicht den Brand aus).' },
-  wireframe: { name: 'Wireframe', icon: '&#9707;', input: 'mesh', groups: [
-    ['Größe', [['size','Größte Kante','num',200,'mm']]],
-    ['Drähte', [['x_layers','X-Schichten','num',10,'',1],['y_layers','Y-Schichten','num',0,'',1],['z_layers','Z-Schichten','num',10,'',1],['wire_t','Drahtstärke','num',2,'mm',0.2]]],
-  ], help: 'Gitter aus Schnittkurven. Am besten ohne Stützen drucken – viele Schichten überbrücken sich selbst.' },
 };
 
-let mode = localStorage.getItem('fw_mode') || 'lithophane';
+const mode = 'split';
 let values = JSON.parse(localStorage.getItem('fw_values') || '{}');
 let printers = JSON.parse(localStorage.getItem('fw_printers') || 'null') || [{ name: 'Bambu Lab H2C', x: 325, y: 320, z: 325, speed: 1 }];
 let file = null, result = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const save = () => { localStorage.setItem('fw_mode', mode); localStorage.setItem('fw_values', JSON.stringify(values)); localStorage.setItem('fw_printers', JSON.stringify(printers)); };
+const save = () => { localStorage.setItem('fw_values', JSON.stringify(values)); localStorage.setItem('fw_printers', JSON.stringify(printers)); };
 
 // ── Tabs
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
@@ -228,11 +189,7 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   if (t.dataset.page === 'prep') resize();
 });
 
-// ── Modi
-function renderModes() {
-  $('#modes').innerHTML = Object.entries(MODES).map(([k, m]) => `<div class="mode ${k === mode ? 'on' : ''}" data-m="${k}"><span>${m.icon}</span>${m.name}</div>`).join('');
-  document.querySelectorAll('.mode').forEach(el => el.onclick = () => { mode = el.dataset.m; save(); renderModes(); renderParams(); });
-}
+// ── Einstellungen
 function val(key, def) { return (values[mode] && key in values[mode]) ? values[mode][key] : def; }
 function renderParams() {
   const m = MODES[mode];
@@ -280,13 +237,12 @@ $('#margin').onchange = () => localStorage.setItem('fw_margin', $('#margin').val
 // ── Datei
 const isMesh = n => /\.(stl|3mf|obj)$/i.test(n);
 function updateDropText() {
-  const need = MODES[mode].input === 'foto' ? 'Foto (JPG, PNG, WebP)' : '3D-Modell (STL, 3MF, OBJ)';
-  $('#dropText').innerHTML = file ? `<b>${esc(file.name)}</b><br>${(file.size / 1e6).toFixed(1).replace('.', ',')} MB · zum Wechseln klicken` : `<b>Datei hierher ziehen</b> oder klicken<br>${need}`;
+  const need = 'STL, 3MF oder OBJ';
+  $('#dropText').innerHTML = file ? `<b>${esc(file.name)}</b><br>${(file.size / 1e6).toFixed(1).replace('.', ',')} MB · zum Wechseln klicken` : `<b>Modell hierher ziehen</b> oder klicken<br>${need}`;
 }
 function setFile(f) {
-  file = f;
-  const wantMesh = MODES[mode].input === 'mesh';
-  if (isMesh(f.name) !== wantMesh) { mode = isMesh(f.name) ? 'split' : 'lithophane'; save(); renderModes(); renderParams(); }
+  if (!isMesh(f.name)) { $('#msgs').innerHTML = '<div class="error">Bitte ein 3D-Modell laden (STL, 3MF oder OBJ).</div>'; return; }
+  file = f; $('#msgs').innerHTML = '';
   updateDropText();
   showInput();
 }
@@ -378,21 +334,13 @@ function showInput() {
       partGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.6 })));
       fit();
     });
-  } else if (!isMesh(file.name)) {
-    const url = URL.createObjectURL(file);
-    new THREE.TextureLoader().load(url, tex => {
-      const ar = tex.image.width / tex.image.height, w = Math.min(printers[0].x, printers[0].y) * 0.8;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / ar), new THREE.MeshBasicMaterial({ map: tex }));
-      m.position.set(w / 2, w / ar / 2, 0.5); partGroup.add(m); fit(true);
-    });
-  } else { $('#hint').textContent = 'Modell geladen – Vorschau nach dem Berechnen'; $('#hint').style.display = ''; }
+  } else { $('#hint').textContent = 'Modell geladen – Vorschau nach dem Teilen'; $('#hint').style.display = ''; }
 }
 
 // ── Berechnen
 $('#go').onclick = async () => {
   if (!file) { $('#file').click(); return; }
-  const p = { mode, printers, margin: parseFloat($('#margin').value) || 5 };
+  const p = { printers, margin: parseFloat($('#margin').value) || 5 };
   for (const [, fields] of MODES[mode].groups) for (const [key, , , def] of fields) p[key] = val(key, def);
   const fd = new FormData(); fd.append('params', JSON.stringify(p)); fd.append('file', file);
   $('#busy').classList.add('on'); $('#go').disabled = true; $('#msgs').innerHTML = '';
@@ -416,12 +364,10 @@ async function showResult(j) {
   await Promise.all(j.preview.map(async (pv, i) => {
     const buf = await (await fetch(pv.url)).arrayBuffer();
     const g = loader.parse(buf);
-    const photo = ['lithophane', 'relief_foto', 'relief'].includes(mode);
-    const col = photo ? [0xf4f1ea, 0xe9e4d8, 0xf0ece2, 0xe4dfd2][i % 4] : COLORS[i % COLORS.length];
-    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: col, roughness: photo ? 0.8 : 0.55, metalness: 0.05, side: THREE.DoubleSide }));
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: COLORS[i % COLORS.length], roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide }));
     mesh.name = pv.name; partGroup.add(mesh);
   }));
-  $('#busyText').textContent = 'Wird berechnet …';
+  $('#busyText').textContent = 'Wird geteilt …';
   // auf die Platte setzen (zentriert)
   const b = new THREE.Box3().expandByObject(partGroup), p = printers[0];
   const off = new THREE.Vector3(p.x / 2 - (b.min.x + b.max.x) / 2, p.y / 2 - (b.min.y + b.max.y) / 2, -b.min.z);
@@ -438,19 +384,16 @@ async function showResult(j) {
     partGroup.children.forEach((m, i) => { m.material.transparent = on && i != el.dataset.i; m.material.opacity = on && i != el.dataset.i ? 0.12 : 1; });
     if (on) el.classList.add('on');
   });
-  // Laser-Bögen
-  const svgs = j.files.filter(f => f.name.endsWith('.svg'));
-  $('#sheetGrid').innerHTML = svgs.length ? svgs.map(f => `<div class="card"><img src="/api/job/${j.id}/file/${f.name}" loading="lazy"><div class="t"><span>${esc(f.name.split('/').pop())}</span><a href="/api/job/${j.id}/file/${f.name}" download>SVG</a></div></div>`).join('') : '<div style="color:var(--muted)">Dieser Modus erzeugt keine Laser-Bögen. Stack und Hash liefern SVG/DXF.</div>';
   // Export
   const total = j.files.reduce((a, f) => a + f.size, 0);
   $('#zip').href = `/api/job/${j.id}/zip`;
   $('#expInfo').textContent = `${j.files.length} Dateien · ${(total / 1e6).toFixed(1).replace('.', ',')} MB`;
-  const kind = n => n.endsWith('.3mf') ? 'Bambu Studio' : n.endsWith('.svg') || n.endsWith('.dxf') ? 'Laser' : n.endsWith('.txt') ? 'Anleitung' : 'STL';
+  const kind = n => n.endsWith('.3mf') ? 'Bambu Studio' : n.endsWith('.txt') ? 'Anleitung' : 'STL';
   const sorted = [...j.files].sort((a, b) => (b.name.endsWith('.3mf') - a.name.endsWith('.3mf')) || a.name.localeCompare(b.name));
   $('#fileList').innerHTML = sorted.map(f => `<div class="file"><span class="badge">${kind(f.name)}</span><span class="n">${esc(f.name)}</span><span class="s">${(f.size / 1e6).toFixed(2).replace('.', ',')} MB</span><a href="/api/job/${j.id}/file/${f.name}" download>Laden</a></div>`).join('');
 }
 
-renderModes(); renderParams(); renderPrinters(); bindSections(); resize(); fit();
+renderParams(); renderPrinters(); bindSections(); resize(); fit();
 new ResizeObserver(resize).observe(cv.parentElement);
 </script>
 </body>
