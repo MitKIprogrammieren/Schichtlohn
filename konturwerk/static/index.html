@@ -210,7 +210,7 @@ input:focus,select:focus{outline:none;border-color:var(--green)}
   <div class="sec"><h3><span class="ic">⌖</span>Werkzeuge und Formen<span class="chev">▾</span></h3><div class="body">
     <div class="liste" id="wzListe"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
-      <button class="btn klein" id="addFinger">+ Fingermulde</button>
+      <button class="btn klein" id="addFinger">+ Griffmulden</button>
       <button class="btn klein" id="addRechteck">+ Rechteck</button>
       <button class="btn klein" id="addLang">+ Langloch</button>
       <button class="btn klein" id="anordnen">Automatisch anordnen</button>
@@ -528,20 +528,108 @@ function block() { return S.e.inlay !== 'aus' && S.e.inlay_form !== 'kontur'; }
 function innenAbstand() { return wand() + (block() ? 1.2 : 0) + 0.5; }
 function umrissVon(t) {
   if (t.art === 'wz') return t.umriss;
-  const b = t.b, h = t.h, n = 40, out = [];
-  if (t.art === 'kreis') { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return out; }
-  if (t.art === 'rechteck') return [[-b / 2, -h / 2], [b / 2, -h / 2], [b / 2, h / 2], [-b / 2, h / 2]];
+  if (t.art === 'griff') return t.form === 'oval' ? formPunkte('langloch', t.d * 1.7, t.d) : formPunkte('kreis', t.d, t.d);
+  return formPunkte(t.art, t.b, t.h);
+}
+function formPunkte(art, b, h) {
+  const n = 40, out = [];
+  if (art === 'kreis') { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return out; }
+  if (art === 'rechteck') return [[-b / 2, -h / 2], [b / 2, -h / 2], [b / 2, h / 2], [-b / 2, h / 2]];
   const r = Math.min(b, h) / 2, lx = b / 2 - r, ly = h / 2 - r;
   for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI; out.push([lx + r * Math.cos(a), ly + r * Math.sin(a)]); }
   for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + i / 12 * Math.PI; out.push([-lx + r * Math.cos(a), -ly + r * Math.sin(a)]); }
   return out;
 }
+function transform(pts, x, y, winkel, spiegeln) {
+  const a = winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return pts.map(p => { const px = spiegeln ? -p[0] : p[0]; return [x + px * c - p[1] * s, y + px * s + p[1] * c]; });
+}
 function welt(t) {
-  const a = t.winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-  return umrissVon(t).map(p => { const px = t.spiegeln ? -p[0] : p[0]; return [t.x + px * c - p[1] * s, t.y + px * s + p[1] * c]; });
+  if (t.art === 'griff') { const l = griffLage(t); return l ? transform(umrissVon(t), l.x, l.y, l.winkel, false) : []; }
+  return transform(umrissVon(t), t.x, t.y, t.winkel, t.spiegeln);
 }
 function tol(t) { return t.art === 'wz' ? S.e.toleranz + (kontur() ? S.e.kontur_wand : 0) : 0; }
+
+// ---- Geometrie-Helfer ----
+function innen(p, poly) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+}
+function punktStrecke(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return [Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t), t];
+}
+function abstand(P, Q) {
+  if (!P.length || !Q.length) return Infinity;
+  if (innen(P[0], Q) || innen(Q[0], P)) return 0;
+  let m = Infinity;
+  for (const [A, B] of [[P, Q], [Q, P]])
+    for (const p of A) for (let i = 0; i < B.length; i++) { const d = punktStrecke(p, B[i], B[(i + 1) % B.length])[0]; if (d < m) m = d; }
+  return m;
+}
+
+// ---- Griffmulden: am Werkzeug angedockt, mittig auf der Taschenkante ----
+function griffeVon(uid) { return S.teile.filter(t => t.art === 'griff' && t.wz === uid); }
+function laengen(pts) { const c = [0]; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; c.push(c[i] + Math.hypot(b[0] - a[0], b[1] - a[1])); } return c; }
+function griffLage(g, s = g.s) {
+  const wz = S.teile.find(t => t.uid === g.wz); if (!wz) return null;
+  const pts = welt(wz), c = laengen(pts), L = c[c.length - 1];
+  let ziel = (((s % 1) + 1) % 1) * L, i = 0;
+  while (i < pts.length - 1 && c[i + 1] < ziel) i++;
+  const a = pts[i], b = pts[(i + 1) % pts.length], sl = (c[i + 1] - c[i]) || 1, f = (ziel - c[i]) / sl;
+  const p = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  const tx = (b[0] - a[0]) / sl, ty = (b[1] - a[1]) / sl;
+  let n = [ty, -tx];
+  if (innen([p[0] + n[0] * 0.3, p[1] + n[1] * 0.3], pts)) n = [-n[0], -n[1]];
+  const tl = S.e.toleranz;
+  return { x: p[0] + n[0] * tl, y: p[1] + n[1] * tl, winkel: Math.atan2(ty, tx) * 180 / Math.PI, tiefe: wz.tiefe, rand: p };
+}
+function griffOk(g, s = g.s) {
+  const P = welt({ ...g, s }); if (!P.length) return false;
+  const [w, d] = mass(), m = innenAbstand();
+  if (P.some(q => q[0] < m || q[1] < m || q[0] > w - m || q[1] > d - m)) return false;
+  for (const t of S.teile) {
+    if (t === g) continue;
+    if (t.art === 'wz') { if (t.uid !== g.wz && abstand(P, welt(t)) < tol(t) + 2.5) return false; }
+    else if (abstand(P, welt(t)) < 3) return false;
+  }
+  return true;
+}
+function griffPlatzieren(g, nahe) {
+  const wz = S.teile.find(t => t.uid === g.wz); if (!wz) return false;
+  const pts = welt(wz), N = Math.min(400, Math.max(60, Math.round(laengen(pts).at(-1))));
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  const andere = griffeVon(g.wz).filter(x => x !== g).map(x => griffLage(x)).filter(Boolean);
+  let best = null;
+  for (let i = 0; i < N; i++) {
+    const s = i / N; if (!griffOk(g, s)) continue;
+    const l = griffLage(g, s);
+    let score;
+    if (nahe != null) { const dd = Math.abs(s - nahe); score = Math.min(dd, 1 - dd); }
+    else {
+      score = Math.hypot(l.rand[0] - cx, l.rand[1] - cy);
+      for (const o of andere) score -= 0.6 * Math.min(40, Math.hypot(o.x - l.x, o.y - l.y));
+    }
+    if (!best || score < best.score) best = { s, score };
+  }
+  if (best) { g.s = best.s; return true; }
+  return false;
+}
+function griffNeu(wz, d = 20) {
+  const g = { uid: uidZ++, art: 'griff', wz: wz.uid, s: 0, d, form: 'rund' };
+  S.teile.push(g);
+  if (!griffPlatzieren(g)) { S.teile = S.teile.filter(x => x !== g); return null; }
+  return g;
+}
+function griffeReparieren() { S.teile.filter(t => t.art === 'griff').forEach(g => { if (!griffOk(g)) griffPlatzieren(g, g.s); }); }
+
 function zuNah(t) {
+  if (t.art === 'griff') return !griffOk(t);
   const [w, d] = mass(), m = innenAbstand() + tol(t);
   return welt(t).some(p => p[0] < m || p[1] < m || p[0] > w - m || p[1] > d - m);
 }
@@ -557,69 +645,115 @@ function zeichne3() {
   }
   const wd = wand();
   el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: block() ? 'rgba(0,174,66,.08)' : 'none', stroke: 'var(--muted)', 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svg3);
-  const sortiert = [...S.teile].sort((a, b) => (a.art === 'wz' ? 0 : 1) - (b.art === 'wz' ? 0 : 1));
-  sortiert.forEach(t => {
-    const g = el('g', { 'data-uid': t.uid, style: 'cursor:move' }, svg3);
-    const nah = zuNah(t), sel = S.sel === t.uid;
-    const farbe = nah ? 'var(--err)' : t.art === 'wz' ? (kontur() ? 'var(--pla)' : 'var(--green)') : '#2F8FD8';
-    const d0 = pfad(welt(t));
-    if (kontur() && t.art === 'wz') {
-      const tl = S.e.toleranz, kw = S.e.kontur_wand;
-      el('path', { d: d0, fill: 'none', stroke: 'var(--tpu)', 'stroke-width': 2 * (tl + kw), 'stroke-linejoin': 'round' }, g);
-      if (tl > 0) el('path', { d: d0, fill: 'var(--panel)', stroke: 'var(--panel)', 'stroke-width': 2 * tl, 'stroke-linejoin': 'round' }, g);
-    } else if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: farbe, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, g);
-    el('path', { d: d0, fill: farbe, 'fill-opacity': sel ? 0.5 : 0.3, stroke: farbe, 'stroke-width': sel ? 0.9 : 0.5 }, g);
+  // Ebenen: Halo/TPU-Ring → Kontur (doppelt breit) → Fläche → Beschriftung. So verschmelzen Werkzeug und Mulde zu einer sauberen Kante.
+  const halo = el('g', {}, svg3), kanten = el('g', {}, svg3), flaechen = el('g', {}, svg3), oben = el('g', { style: 'pointer-events:none' }, svg3);
+  const reihenfolge = [...S.teile].sort((a, b) => (a.art === 'wz' ? 0 : 1) - (b.art === 'wz' ? 0 : 1));
+  for (const t of reihenfolge) {
+    const pts = welt(t); if (!pts.length) continue;
+    const d0 = pfad(pts), nah = zuNah(t);
+    const gruppeSel = S.sel === t.uid || (t.art === 'griff' && S.sel === t.wz) || (t.art === 'wz' && selTeil()?.art === 'griff' && selTeil().wz === t.uid);
+    const frei = t.art !== 'wz' && t.art !== 'griff';
+    const strich = nah ? 'var(--err)' : frei ? '#2F8FD8' : kontur() ? 'var(--pla)' : 'var(--green)';
+    const fuell = nah ? 'rgba(211,47,47,.18)' : frei ? 'rgba(47,143,216,.25)' : kontur() ? 'var(--panel2)' : 'var(--green-bg)';
     if (t.art === 'wz') {
-      const tx = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 4.5, fill: 'var(--text)', style: 'pointer-events:none' }, g);
+      if (kontur()) el('path', { d: d0, fill: 'none', stroke: 'var(--tpu)', 'stroke-width': 2 * (S.e.toleranz + S.e.kontur_wand), 'stroke-linejoin': 'round' }, halo);
+      else if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: strich, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, halo);
+    }
+    el('path', { d: d0, fill: strich, stroke: strich, 'stroke-width': gruppeSel ? 1.8 : 1.0, 'stroke-linejoin': 'round' }, kanten);
+    const f = el('path', { d: d0, fill: fuell, stroke: 'none', 'data-uid': t.uid, style: t.art === 'griff' ? 'cursor:ew-resize' : 'cursor:move' }, flaechen);
+    if (nah) f.setAttribute('stroke-dasharray', '2 1');
+    if (t.art === 'wz') {
+      const tx = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 4.5, fill: 'var(--text)' }, oben);
       tx.textContent = `${t.name} · ${t.tiefe} mm`;
     }
-    if (sel) {
-      const b = grenzen(welt(t));
-      el('rect', { x: b[0] - 1, y: b[1] - 1, width: b[2] - b[0] + 2, height: b[3] - b[1] + 2, fill: 'none', stroke: 'var(--green)', 'stroke-width': 0.3, 'stroke-dasharray': '1.5 1' }, g);
-      const hx = (b[0] + b[2]) / 2, hy = b[1] - 7;
-      el('line', { x1: hx, y1: b[1] - 1, x2: hx, y2: hy, stroke: 'var(--green)', 'stroke-width': 0.4 }, g);
-      el('circle', { cx: hx, cy: hy, r: 2.6, fill: 'var(--panel)', stroke: 'var(--green)', 'stroke-width': 0.6, 'data-dreh': 1, style: 'cursor:grab' }, g);
-    }
-  });
+  }
+  const t = selTeil();
+  if (t && t.art !== 'griff') {
+    const b = grenzen(welt(t));
+    const sg = el('g', { 'data-uid': t.uid }, svg3);
+    el('rect', { x: b[0] - 1, y: b[1] - 1, width: b[2] - b[0] + 2, height: b[3] - b[1] + 2, fill: 'none', stroke: 'var(--green)', 'stroke-width': 0.3, 'stroke-dasharray': '1.5 1', style: 'pointer-events:none' }, sg);
+    const hx = (b[0] + b[2]) / 2, hy = b[1] - 7;
+    el('line', { x1: hx, y1: b[1] - 1, x2: hx, y2: hy, stroke: 'var(--green)', 'stroke-width': 0.4 }, sg);
+    el('circle', { cx: hx, cy: hy, r: 2.6, fill: 'var(--panel)', stroke: 'var(--green)', 'stroke-width': 0.6, 'data-dreh': 1, 'data-uid': t.uid, style: 'cursor:grab' }, sg);
+  }
+  if (t && t.art === 'griff') {
+    const l = griffLage(t);
+    if (l) { el('circle', { cx: l.x, cy: l.y, r: 1.2, fill: 'var(--green)', style: 'pointer-events:none' }, svg3); }
+  }
   const hoehe = e.typ === 'platte' ? `${e.platte_h} mm` : `${e.hoehe_u}u = ${e.hoehe_u * 7} mm`;
   $('l3t').textContent = `${r1(w)} × ${r1(d)} mm · Höhe ${hoehe}${block() ? ' · TPU-Inlay ' + r1(inlayDicke()) + ' mm' : kontur() ? ' · TPU-Kontur ' + r1(e.kontur_wand) + ' mm' : ''}`;
 }
 function inlayDicke() { const e = S.e, top = e.typ === 'platte' ? e.platte_h : e.hoehe_u * 7, base = e.typ === 'platte' ? 0 : 5; return top - base - e.boden; }
 function selTeil() { return S.teile.find(t => t.uid === S.sel); }
+function teilName(t) {
+  if (t.art === 'wz') return t.name;
+  if (t.art === 'griff') { const wz = S.teile.find(x => x.uid === t.wz); return `Griffmulde · ${wz ? wz.name : '?'}`; }
+  return { kreis: 'Kreis', rechteck: 'Rechteck', langloch: 'Langloch' }[t.art];
+}
 function liste3() {
   const L = $('wzListe'); L.innerHTML = '';
-  S.teile.forEach(t => {
+  const ordnung = [];
+  S.teile.filter(t => t.art === 'wz').forEach(t => { ordnung.push(t); ordnung.push(...griffeVon(t.uid)); });
+  S.teile.filter(t => t.art !== 'wz' && t.art !== 'griff').forEach(t => ordnung.push(t));
+  ordnung.forEach(t => {
     const d = document.createElement('div'); d.className = 'item' + (S.sel === t.uid ? ' sel' : '');
-    const name = t.art === 'wz' ? t.name : { kreis: 'Fingermulde', rechteck: 'Rechteck', langloch: 'Langloch' }[t.art];
-    d.innerHTML = `<span class="dot" style="background:${zuNah(t) ? 'var(--err)' : t.art === 'wz' ? 'var(--green)' : '#2F8FD8'}"></span><input type="text"><input type="number" min="1" step="0.5" title="Tiefe (mm)"><div class="knoepfe"><button class="ib" title="Entfernen">✕</button></div>`;
+    if (t.art === 'griff') d.style.marginLeft = '16px';
+    const farbe = zuNah(t) ? 'var(--err)' : t.art === 'wz' || t.art === 'griff' ? 'var(--green)' : '#2F8FD8';
+    d.innerHTML = `<span class="dot" style="background:${farbe}"></span><input type="text"><input type="number" min="1" step="0.5"><div class="knoepfe"><button class="ib" title="Entfernen">✕</button></div>`;
     const [nm, tf] = d.querySelectorAll('input');
-    nm.value = name; nm.disabled = t.art !== 'wz'; tf.value = t.tiefe;
-    nm.onchange = () => { t.name = nm.value; zeichne3(); speichern(); };
-    tf.onchange = () => { t.tiefe = Math.max(1, +tf.value || 10); autoHoehe(); zeichne3(); speichern(); };
-    d.querySelector('button').onclick = ev => { ev.stopPropagation(); S.teile = S.teile.filter(x => x !== t); if (S.sel === t.uid) S.sel = null; geaendert(); };
+    nm.value = teilName(t); nm.disabled = t.art !== 'wz';
+    if (t.art === 'griff') { tf.value = t.d; tf.title = 'Durchmesser (mm)'; tf.min = 10; }
+    else { tf.value = t.tiefe; tf.title = 'Tiefe (mm)'; }
+    nm.onchange = () => { t.name = nm.value; zeichne3(); liste3(); speichern(); };
+    tf.onchange = () => {
+      if (t.art === 'griff') { const alt = t.d; t.d = Math.max(10, +tf.value || 20); if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.d = alt; tf.value = alt; } }
+      else { t.tiefe = Math.max(1, +tf.value || 10); autoHoehe(); }
+      zeichne3(); speichern();
+    };
+    d.querySelector('button').onclick = ev => { ev.stopPropagation(); entfernen(t); };
     d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; S.sel = t.uid; zeichne3(); liste3(); };
     L.appendChild(d);
   });
   if (!S.teile.length) L.innerHTML = '<div class="help">Noch nichts angeordnet – erst ein Foto erkennen oder aus der Bibliothek hinzufügen.</div>';
+  $('addFinger').textContent = selTeil()?.art === 'wz' ? '+ Griffmulde hier' : '+ Griffmulden';
   auswahlBox();
+}
+function entfernen(t) {
+  const weg = new Set([t.uid, ...(t.art === 'wz' ? griffeVon(t.uid).map(g => g.uid) : [])]);
+  S.teile = S.teile.filter(x => !weg.has(x.uid));
+  if (weg.has(S.sel)) S.sel = null;
+  geaendert();
 }
 function auswahlBox() {
   const t = selTeil(), B = $('auswahlBox'); B.innerHTML = '';
   if (!t) return;
+  if (t.art === 'griff') {
+    const r = document.createElement('div');
+    r.innerHTML = `<div class="help">Griffmulde ziehen = entlang der Kante schieben. Sie sitzt immer mittig auf der Kante und weicht anderen Taschen aus.</div>
+      <div class="row"><label>Form</label><div class="seg" id="gForm"><div data-v="rund">Rund</div><div data-v="oval">Oval</div></div></div>
+      <div class="row"><label>Durchmesser</label><div class="ctl"><input type="number" id="gD" min="10" step="1"><span class="unit">mm</span></div></div>
+      <div style="display:flex;gap:6px;margin-top:4px"><button class="btn klein" id="gAuto">Beste Stelle suchen</button></div>`;
+    B.appendChild(r);
+    seg('gForm', t.form, v => { const alt = t.form; t.form = v; if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.form = alt; alert('Dafür ist an dieser Kante kein Platz.'); auswahlBox(); } zeichne3(); speichern(); });
+    $('gD').value = t.d;
+    $('gD').onchange = () => { const alt = t.d; t.d = Math.max(10, +$('gD').value || 20); if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.d = alt; $('gD').value = alt; alert('Dafür ist an dieser Kante kein Platz.'); } zeichne3(); liste3(); speichern(); };
+    $('gAuto').onclick = () => { griffPlatzieren(t); zeichne3(); speichern(); };
+    return;
+  }
   const zeile = (lab, key, step = 1, einheit = 'mm') => {
     const r = document.createElement('div'); r.className = 'row';
     r.innerHTML = `<label>${lab}</label><div class="ctl"><input type="number" step="${step}"><span class="unit">${einheit}</span></div>`;
     const i = r.querySelector('input'); i.value = r1(t[key]);
-    i.onchange = () => { t[key] = +i.value; if (key === 'tiefe') autoHoehe(); zeichne3(); liste3(); speichern(); };
+    i.onchange = () => { t[key] = +i.value; if (key === 'tiefe') autoHoehe(); griffeReparieren(); zeichne3(); liste3(); speichern(); };
     B.appendChild(r);
   };
   zeile('Position X', 'x', 0.5); zeile('Position Y', 'y', 0.5); zeile('Drehung', 'winkel', 1, '°');
   if (t.art !== 'wz') { zeile('Breite', 'b', 0.5); if (t.art !== 'kreis') zeile('Höhe', 'h', 0.5); }
 }
-function geaendert() { if (S.auto) autoGroesse(); zeichne3(); liste3(); speichern(); }
+function geaendert() { if (S.auto) autoGroesse(); griffeReparieren(); zeichne3(); liste3(); speichern(); }
 function autoHoehe() {
   if (!S.auto) return;
-  const e = S.e, maxT = Math.max(8, ...S.teile.map(t => t.tiefe));
+  const e = S.e, maxT = Math.max(8, ...S.teile.filter(t => t.art !== 'griff').map(t => t.tiefe));
   const extra = block() ? e.tpu_boden : kontur() ? e.kontur_boden : 0;
   if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + extra) * 2) / 2;
   else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + extra) / 7));
@@ -629,21 +763,27 @@ function autoGroesse() {
   if (!S.teile.length) return;
   const e = S.e, m = innenAbstand();
   const b = [1e9, 1e9, -1e9, -1e9];
-  S.teile.forEach(t => { const g = grenzen(welt(t)), tt = tol(t); b[0] = Math.min(b[0], g[0] - tt); b[1] = Math.min(b[1], g[1] - tt); b[2] = Math.max(b[2], g[2] + tt); b[3] = Math.max(b[3], g[3] + tt); });
+  S.teile.forEach(t => { const g = grenzen(welt(t)), tt = tol(t); if (!isFinite(g[0])) return; b[0] = Math.min(b[0], g[0] - tt); b[1] = Math.min(b[1], g[1] - tt); b[2] = Math.max(b[2], g[2] + tt); b[3] = Math.max(b[3], g[3] + tt); });
+  if (!isFinite(b[0])) return;
   const bw = b[2] - b[0] + 2 * m, bd = b[3] - b[1] + 2 * m;
   let w, d;
   if (e.typ === 'platte') { e.platte_b = Math.ceil(bw); e.platte_t = Math.ceil(bd); w = e.platte_b; d = e.platte_t; }
   else { e.raster_x = Math.max(1, Math.ceil((bw + 0.5) / 42)); e.raster_y = Math.max(1, Math.ceil((bd + 0.5) / 42)); [w, d] = mass(); }
-  // Gruppe mittig setzen
+  // Gruppe mittig setzen (Griffmulden hängen an ihren Werkzeugen und wandern mit)
   const dx = w / 2 - (b[0] + b[2]) / 2, dy = d / 2 - (b[1] + b[3]) / 2;
-  S.teile.forEach(t => { t.x += dx; t.y += dy; });
+  S.teile.forEach(t => { if (t.art !== 'griff') { t.x += dx; t.y += dy; } });
   autoHoehe();
+}
+function gruppenGrenzen(t) {
+  const g = grenzen(welt(t)).map((v, i) => v + (i < 2 ? -tol(t) : tol(t)));
+  griffeVon(t.uid).forEach(x => { const q = grenzen(welt(x)); if (isFinite(q[0])) { g[0] = Math.min(g[0], q[0]); g[1] = Math.min(g[1], q[1]); g[2] = Math.max(g[2], q[2]); g[3] = Math.max(g[3], q[3]); } });
+  return g;
 }
 function autoAnordnen() {
   const wz = S.teile.filter(t => t.art === 'wz'), rest = S.teile.filter(t => t.art !== 'wz');
-  const abstand = 6 + 2 * S.e.toleranz;
-  wz.forEach(t => { t.winkel = 0; t.spiegeln = false; });
-  const groessen = wz.map(t => { const g = grenzen(welt({ ...t, x: 0, y: 0 })); return { t, w: g[2] - g[0], h: g[3] - g[1], g }; });
+  const abstand = 5;
+  wz.forEach(t => { t.winkel = 0; t.spiegeln = false; t.x = 0; t.y = 0; });
+  const groessen = wz.map(t => { const g = gruppenGrenzen(t); return { t, w: g[2] - g[0], h: g[3] - g[1], g }; });
   groessen.sort((a, b) => b.w - a.w);
   const breit = Math.max(groessen.length ? groessen[0].w : 0, Math.sqrt(groessen.reduce((s, x) => s + (x.w + abstand) * (x.h + abstand), 0)) * 1.25);
   let x = 0, y = 0, zeileH = 0;
@@ -652,55 +792,85 @@ function autoAnordnen() {
     it.t.x = x - it.g[0]; it.t.y = y - it.g[1];
     x += it.w + abstand; zeileH = Math.max(zeileH, it.h);
   }
-  // Formen folgen ihrem Werkzeug nicht – nur neu anordnen, wenn keine Werkzeuge da sind
   S.teile = [...wz, ...rest];
   S.auto = true; $('auto').classList.add('on');
-  autoGroesse(); zeichne3(); liste3(); speichern();
+  autoGroesse(); griffeReparieren(); zeichne3(); liste3(); speichern();
 }
 $('anordnen').onclick = autoAnordnen;
 function neueForm(art) {
   const [w, d] = mass();
-  const t = { uid: uidZ++, art, name: '', x: w / 2, y: d / 2, winkel: 0, spiegeln: false, tiefe: 10, b: art === 'kreis' ? 22 : art === 'rechteck' ? 30 : 40, h: art === 'kreis' ? 22 : art === 'rechteck' ? 20 : 14 };
-  const sel = selTeil();
-  if (sel && sel.art === 'wz') { const g = grenzen(welt(sel)); t.x = (g[0] + g[2]) / 2; t.y = g[1]; t.tiefe = sel.tiefe; }
-  else if (S.teile.length) t.tiefe = Math.max(...S.teile.filter(x => x.art === 'wz').map(x => x.tiefe), 10);
+  const t = { uid: uidZ++, art, name: '', x: w / 2, y: d / 2, winkel: 0, spiegeln: false, tiefe: 10, b: art === 'rechteck' ? 30 : 40, h: art === 'rechteck' ? 20 : 14 };
+  if (S.teile.length) t.tiefe = Math.max(...S.teile.filter(x => x.art === 'wz').map(x => x.tiefe), 10);
   S.teile.push(t); S.sel = t.uid; zeichne3(); liste3(); speichern();
 }
-$('addFinger').onclick = () => neueForm('kreis');
+$('addFinger').onclick = () => {
+  const sel = selTeil();
+  const ziele = sel && sel.art === 'wz' ? [sel] : sel && sel.art === 'griff' ? S.teile.filter(t => t.uid === sel.wz) : S.teile.filter(t => t.art === 'wz' && !griffeVon(t.uid).length);
+  if (!ziele.length) { alert('Alle Werkzeuge haben schon eine Griffmulde. Werkzeug antippen, um eine weitere hinzuzufügen.'); return; }
+  let neu = null, fehl = 0;
+  ziele.forEach(wz => { const g = griffNeu(wz); if (g) neu = g; else fehl++; });
+  if (fehl) alert(`Bei ${fehl} Werkzeug(en) war kein Platz für eine Griffmulde – mehr Abstand lassen oder den Behälter vergrößern.`);
+  if (neu && ziele.length === 1) S.sel = neu.uid;
+  geaendert();
+};
 $('addRechteck').onclick = () => neueForm('rechteck');
 $('addLang').onclick = () => neueForm('langloch');
-const drehen = g => { const t = selTeil(); if (!t) return; t.winkel = ((t.winkel + g) % 360 + 360) % 360; geaendert(); };
+const drehen = g => { const t = selTeil(); if (!t || t.art === 'griff') return; t.winkel = ((t.winkel + g) % 360 + 360) % 360; geaendert(); };
 $('rotL').onclick = () => drehen(-15); $('rotR').onclick = () => drehen(15); $('rot90').onclick = () => drehen(90);
-$('spieg').onclick = () => { const t = selTeil(); if (t) { t.spiegeln = !t.spiegeln; geaendert(); } };
-$('dupl').onclick = () => { const t = selTeil(); if (!t) return; const n = JSON.parse(JSON.stringify(t)); n.uid = uidZ++; n.x += 8; n.y += 8; S.teile.push(n); S.sel = n.uid; geaendert(); };
-$('loesch').onclick = () => { const t = selTeil(); if (!t) return; S.teile = S.teile.filter(x => x !== t); S.sel = null; geaendert(); };
+$('spieg').onclick = () => { const t = selTeil(); if (t && t.art === 'wz') { t.spiegeln = !t.spiegeln; geaendert(); } };
+$('dupl').onclick = () => {
+  const t = selTeil(); if (!t) return;
+  if (t.art === 'griff') { const wz = S.teile.find(x => x.uid === t.wz); const g = wz && griffNeu(wz, t.d); if (g) { g.form = t.form; S.sel = g.uid; } else alert('Kein Platz für eine weitere Griffmulde.'); geaendert(); return; }
+  const n = JSON.parse(JSON.stringify(t)); n.uid = uidZ++; n.x += 8; n.y += 8; S.teile.push(n);
+  if (t.art === 'wz') griffeVon(t.uid).forEach(g => { const k = { ...g, uid: uidZ++, wz: n.uid }; S.teile.push(k); });
+  S.sel = n.uid; geaendert();
+};
+$('loesch').onclick = () => { const t = selTeil(); if (t) entfernen(t); };
 addEventListener('keydown', ev => {
   if (S.schritt !== 3 || ev.target.tagName === 'INPUT') return;
   const t = selTeil(); if (!t) return;
   const sch = ev.shiftKey ? 5 : 0.5;
   if (ev.key === 'Delete' || ev.key === 'Backspace') $('loesch').click();
   else if (ev.key === 'r') drehen(ev.shiftKey ? -15 : 15);
+  else if (ev.key.startsWith('Arrow') && t.art === 'griff') {
+    const L = laengen(welt(S.teile.find(x => x.uid === t.wz))).at(-1) || 100, ds = (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1) * sch / L;
+    if (griffOk(t, t.s + ds)) t.s = (t.s + ds + 1) % 1; zeichne3(); speichern();
+  }
   else if (ev.key.startsWith('Arrow')) { t.x += ev.key === 'ArrowLeft' ? -sch : ev.key === 'ArrowRight' ? sch : 0; t.y += ev.key === 'ArrowUp' ? -sch : ev.key === 'ArrowDown' ? sch : 0; zeichne3(); speichern(); }
   else return;
   ev.preventDefault();
 });
+// Punkt auf die Werkzeugkante projizieren → Parameter s (0..1)
+function sAufKante(wz, p) {
+  const pts = welt(wz), c = laengen(pts); let best = [Infinity, 0];
+  for (let i = 0; i < pts.length; i++) { const [dd, t] = punktStrecke(p, pts[i], pts[(i + 1) % pts.length]); if (dd < best[0]) best = [dd, (c[i] + t * (c[i + 1] - c[i])) / c[c.length - 1]]; }
+  return best[1];
+}
 let zug = null;
 svg3.addEventListener('pointerdown', ev => {
-  const g = ev.target.closest('g[data-uid]');
-  if (!g) { S.sel = null; zeichne3(); liste3(); return; }
-  const t = S.teile.find(x => x.uid === +g.dataset.uid); const p = svgPunkt(svg3, ev);
+  const hit = ev.target.closest('[data-uid]');
+  if (!hit) { S.sel = null; zeichne3(); liste3(); return; }
+  const t = S.teile.find(x => x.uid === +hit.dataset.uid); if (!t) return;
+  const p = svgPunkt(svg3, ev);
   S.sel = t.uid;
-  zug = ev.target.dataset.dreh ? { t, dreh: true, w0: t.winkel, a0: Math.atan2(p[1] - t.y, p[0] - t.x) } : { t, dx: t.x - p[0], dy: t.y - p[1] };
+  if (t.art === 'griff') zug = { t, griff: true };
+  else zug = ev.target.dataset.dreh ? { t, dreh: true, w0: t.winkel, a0: Math.atan2(p[1] - t.y, p[0] - t.x) } : { t, dx: t.x - p[0], dy: t.y - p[1] };
   svg3.setPointerCapture(ev.pointerId); zeichne3(); liste3();
 });
 svg3.addEventListener('pointermove', ev => {
   if (!zug) return;
   const p = svgPunkt(svg3, ev), t = zug.t;
-  if (zug.dreh) { let w = zug.w0 + (Math.atan2(p[1] - t.y, p[0] - t.x) - zug.a0) * 180 / Math.PI; if (!ev.shiftKey) w = Math.round(w / 5) * 5; t.winkel = ((w % 360) + 360) % 360; }
+  if (zug.griff) {
+    const wz = S.teile.find(x => x.uid === t.wz); if (!wz) return;
+    const s = sAufKante(wz, p);
+    // nur gültige Lagen übernehmen; über eine gesperrte Stelle springt die Mulde nicht
+    if (griffOk(t, s)) t.s = s;
+  }
+  else if (zug.dreh) { let w = zug.w0 + (Math.atan2(p[1] - t.y, p[0] - t.x) - zug.a0) * 180 / Math.PI; if (!ev.shiftKey) w = Math.round(w / 5) * 5; t.winkel = ((w % 360) + 360) % 360; }
   else { t.x = Math.round((p[0] + zug.dx) * 2) / 2; t.y = Math.round((p[1] + zug.dy) * 2) / 2; }
   zeichne3();
 });
-svg3.addEventListener('pointerup', () => { if (zug) { zug = null; liste3(); speichern(); } });
+svg3.addEventListener('pointerup', () => { if (zug) { const war = zug; zug = null; if (!war.griff) griffeReparieren(); zeichne3(); liste3(); speichern(); } });
 
 // Formular Behälter
 const setTyp = seg('typ', S.e.typ, v => { S.e.typ = v; $('gridBox').style.display = v === 'platte' ? 'none' : ''; $('platteBox').style.display = v === 'platte' ? '' : 'none'; geaendert(); });
@@ -770,7 +940,11 @@ async function erzeugen() {
   if (!S.teile.length) { alert('Es ist noch nichts angeordnet.'); return; }
   const layout = {
     werkzeuge: S.teile.filter(t => t.art === 'wz').map(t => ({ name: t.name, umriss: t.umriss, x: t.x, y: t.y, winkel: t.winkel, spiegeln: t.spiegeln, tiefe: t.tiefe })),
-    formen: S.teile.filter(t => t.art !== 'wz').map(t => ({ art: t.art, x: t.x, y: t.y, b: t.b, h: t.h, winkel: t.winkel, tiefe: t.tiefe })),
+    formen: S.teile.filter(t => t.art !== 'wz').map(t => {
+      if (t.art !== 'griff') return { art: t.art, x: t.x, y: t.y, b: t.b, h: t.h, winkel: t.winkel, tiefe: t.tiefe };
+      const l = griffLage(t); if (!l) return null;
+      return t.form === 'oval' ? { art: 'langloch', x: l.x, y: l.y, b: t.d * 1.7, h: t.d, winkel: l.winkel, tiefe: l.tiefe } : { art: 'kreis', x: l.x, y: l.y, b: t.d, h: t.d, winkel: 0, tiefe: l.tiefe };
+    }).filter(Boolean),
     einstellungen: S.e,
   };
   busy(true, 'Erzeuge Behälter …');
@@ -846,7 +1020,12 @@ $('schnitt').onclick = () => { schnitt = !schnitt; $('schnitt').classList.toggle
 (function loop() { requestAnimationFrame(loop); if (S.schritt === 4) { controls.update(); renderer.render(scene, camera); } })();
 
 // ---------- Start ----------
-laden(); if (!S.e.inlay_form) Object.assign(S.e, { inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0 });
+laden();
+S.teile.filter(t => t.art === 'kreis').forEach(k => {
+  const wz = S.teile.filter(t => t.art === 'wz').sort((a, b) => abstand([[k.x, k.y]], welt(a)) - abstand([[k.x, k.y]], welt(b)))[0];
+  if (wz) Object.assign(k, { art: 'griff', wz: wz.uid, s: sAufKante(wz, [k.x, k.y]), d: k.b || 20, form: 'rund' });
+});
+if (!S.e.inlay_form) Object.assign(S.e, { inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0 });
 formularSetzen(); setTyp(S.e.typ); setInlay(S.e.inlay); setForm(S.e.inlay_form); inlayInfo();
 $('gridBox').style.display = S.e.typ === 'platte' ? 'none' : ''; $('platteBox').style.display = S.e.typ === 'platte' ? '' : 'none';
 schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
