@@ -218,15 +218,11 @@ impl Poly {
         }
         let idx = earcutr::earcut(&flat, &holes_idx, 2).unwrap_or_default();
         let tris: Vec<[P2; 3]> = idx.chunks(3).map(|c| [pts[c[0]], pts[c[1]], pts[c[2]]]).collect();
-        // Earcut lässt Punkte auf Geraden weg → T-Stöße. Diese Punkte wieder einbauen.
-        let mut used = vec![false; pts.len()];
-        for i in &idx {
-            used[*i] = true;
-        }
-        let dropped: Vec<P2> = pts.iter().zip(&used).filter(|(_, u)| !**u).map(|(p, _)| *p).collect();
-        if dropped.is_empty() {
-            return tris;
-        }
+        // Earcut lässt Punkte auf Geraden weg, und Kanten können über Punkte anderer Ringe laufen → T-Stöße.
+        // Alle Eckpunkte prüfen, die auf einer Dreieckskante liegen, und dort einbauen (nach x sortiert für schnelle Suche).
+        let mut dropped: Vec<P2> = pts.clone();
+        dropped.sort_by(|a, b| a[0].partial_cmp(&b[0]).unwrap());
+        dropped.dedup_by(|a, b| (a[0] - b[0]).abs() < 1e-12 && (a[1] - b[1]).abs() < 1e-12);
         let on_edge = |a: P2, b: P2, p: P2| -> Option<f64> {
             let ab = [b[0] - a[0], b[1] - a[1]];
             let l2 = ab[0] * ab[0] + ab[1] * ab[1];
@@ -247,7 +243,9 @@ impl Poly {
             for e in 0..3 {
                 let (a, b) = (t[e], t[(e + 1) % 3]);
                 ring.push(a);
-                let mut on: Vec<(f64, P2)> = dropped.iter().filter_map(|p| on_edge(a, b, *p).map(|s| (s, *p))).collect();
+                let (x0, x1) = (a[0].min(b[0]) - 1e-6, a[0].max(b[0]) + 1e-6);
+                let start = dropped.partition_point(|p| p[0] < x0);
+                let mut on: Vec<(f64, P2)> = dropped[start..].iter().take_while(|p| p[0] <= x1).filter_map(|p| on_edge(a, b, *p).map(|s| (s, *p))).collect();
                 if !on.is_empty() {
                     extra = true;
                     on.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());

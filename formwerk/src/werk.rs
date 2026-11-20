@@ -34,6 +34,8 @@ pub struct Params {
     pub tolerance: f64,
     pub magnet_d: f64,
     pub magnet_h: f64,
+    /// Verbindergröße automatisch an die Schnittfläche anpassen
+    pub auto_size: bool,
 }
 
 impl Default for Params {
@@ -49,6 +51,7 @@ impl Default for Params {
             tolerance: -0.2,
             magnet_d: 6.0,
             magnet_h: 3.0,
+            auto_size: true,
         }
     }
 }
@@ -338,6 +341,25 @@ fn really_overlap(a: &Mesh, b: &Mesh) -> bool {
     probe(a, b) || probe(b, a)
 }
 
+/// Größter Abstand eines inneren Punkts zum Rand (≈ halbe Breite an der dicksten Stelle)
+fn inner_radius(poly: &Poly) -> f64 {
+    let (mn, mx) = poly.bbox();
+    let step = ((mx[0] - mn[0]).max(mx[1] - mn[1]) / 30.0).max(0.5);
+    let mut best: f64 = 0.0;
+    let mut y = mn[1] + step * 0.5;
+    while y < mx[1] {
+        let mut x = mn[0] + step * 0.5;
+        while x < mx[0] {
+            if poly.contains([x, y]) {
+                best = best.max(poly.boundary_dist([x, y]));
+            }
+            x += step;
+        }
+        y += step;
+    }
+    best
+}
+
 fn is_tiny(m: &Mesh, ref_vol: f64) -> bool {
     let s = m.bbox().size();
     let v = m.volume().abs();
@@ -368,28 +390,34 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
     let magnet = kind == "magnet";
     let use_conn = kind != "none" && if magnet { p.magnet_d > 0.0 && p.magnet_h > 0.0 } else { p.dowel_d > 0.0 && p.depth_ratio > 0.0 };
     let square = kind.ends_with("_sq");
-    let r = p.dowel_d * 0.5;
     let clr = (-p.tolerance).max(0.0) * 0.5;
-    let depth = if magnet { p.magnet_h + 0.1 } else { p.dowel_d * p.depth_ratio * 0.5 };
-    let proto = |c: P2| -> Pocket {
+    let auto = p.auto_size && !magnet;
+    // Verbinder für eine bestimmte Größe (Durchmesser bzw. Kantenlänge)
+    let depth_for = |size: f64| if magnet { p.magnet_h + 0.1 } else { size * p.depth_ratio * 0.5 };
+    let proto = |c: P2, size: f64| -> Pocket {
+        let r = size * 0.5;
+        let depth = depth_for(size);
         let side = |radius, ext, end_scale| section::Side { radius, ext, end_scale };
         match kind {
             "plug" | "plug_sq" => Pocket { center: c, square, lo: side(r, -depth, 1.0), hi: side(r + clr, depth + 0.4, 1.0) },
             "cone" => {
-                let top = r * 0.45;
-                Pocket { center: c, square: false, lo: side(r, -depth, top / r), hi: side(r + clr, depth + 0.4, (top + clr) / (r + clr)) }
+                // stumpfer Kegel: oben 70 % der Breite, Höhe höchstens 0,8 × Durchmesser
+                let h = depth.min(size * 0.8);
+                let top = r * 0.7;
+                Pocket { center: c, square: false, lo: side(r, -h, top / r), hi: side(r + clr, h + 0.4, (top + clr) / (r + clr)) }
             }
             "magnet" => {
                 let mr = p.magnet_d * 0.5 + clr.max(0.1);
                 Pocket { center: c, square: false, lo: side(mr, depth, 1.0), hi: side(mr, depth, 1.0) }
             }
             _ => {
-                let hr = (p.dowel_d - p.tolerance) * 0.5;
+                let hr = (size - p.tolerance) * 0.5;
                 Pocket { center: c, square, lo: side(hr, depth, 1.0), hi: side(hr, depth, 1.0) }
             }
         }
     };
-    let hole_r = proto([0.0, 0.0]).max_radius() * if square { 1.42 } else { 1.0 };
+    // verwendete Größen (in 0,5-mm-Schritten) → Anzahl
+    let mut sizes_used: std::collections::BTreeMap<i64, usize> = Default::default();
     let lo_has_plug = matches!(kind, "plug" | "plug_sq" | "cone");
 
     let mut parts: Vec<(String, Mesh)> = Vec::new();
@@ -559,8 +587,18 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
             };
             // Verbinder für diesen Schnitt
             let mut pockets = Vec::new();
+            let mut depth = depth_for(p.dowel_d);
             if use_conn {
                 let polys = section::section(&pc.mesh, axis, v);
+                // Größe: fest oder passend zur schmalsten Stelle der Schnittfläche
+                let size = if auto {
+                    let inner = polys.iter().map(|q| inner_radius(q)).fold(0.0, f64::max);
+                    ((inner * 0.5 * 2.0).round() / 2.0).clamp(3.0, 12.0)
+                } else {
+                    p.dowel_d
+                };
+                depth = depth_for(size);
+                let hole_r = proto([0.0, 0.0], size).max_radius() * if square { 1.42 } else { 1.0 };
                 let below = section::section(&pc.mesh, axis, v - depth - 0.5);
                 let above = section::section(&pc.mesh, axis, v + depth + 0.5);
                 let clear = hole_r + 2.0;
@@ -569,7 +607,8 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
                         below.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
                             && above.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
                     }) {
-                        pockets.push(proto(c));
+                        pockets.push(proto(c, size));
+                        *sizes_used.entry((size * 2.0).round() as i64).or_default() += 1;
                     }
                 }
             }
@@ -678,17 +717,29 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
     let conn_text = if use_conn && n_conn > 0 {
         match kind {
             "dowel" | "dowel_sq" => {
-                let pin_l = (2.0 * depth - 1.0).max(1.0);
-                let mut pin = if square { export::extrude(&[rect_poly(-r, -r, r, r)], pin_l, &|q, z| [q[0], q[1], z]) } else { cylinder(r, pin_l, 32) };
-                pin.place_on_origin();
-                out.files.push(("duebel.stl".into(), pin.to_stl("Duebel")));
+                let mut lines = Vec::new();
+                for (&s2, &count) in &sizes_used {
+                    let size = s2 as f64 / 2.0;
+                    let r = size * 0.5;
+                    let pin_l = (2.0 * depth_for(size) - 1.0).max(1.0);
+                    let mut pin = if square { export::extrude(&[rect_poly(-r, -r, r, r)], pin_l, &|q, z| [q[0], q[1], z]) } else { cylinder(r, pin_l, 32) };
+                    pin.place_on_origin();
+                    let label = format!("{}", size).replace('.', ",");
+                    let file = if sizes_used.len() == 1 { "duebel.stl".to_string() } else { format!("duebel_{}mm.stl", label) };
+                    out.files.push((file.clone(), pin.to_stl("Duebel")));
+                    let form = if square { format!("{label} × {label}") } else { format!("Ø {label}") };
+                    lines.push(format!("{count} × {form} × {} mm ({file})", format!("{:.1}", pin_l).replace('.', ",")));
+                }
                 out.stat("Dübel", n_conn);
-                let form = if square { format!("{:.1} × {:.1}", p.dowel_d, p.dowel_d) } else { format!("Ø {:.1}", p.dowel_d) };
-                out.stat("Dübel je", format!("{form} × {:.1} mm", pin_l).replace('.', ","));
-                format!("Dübel: {n_conn} Stück, siehe duebel.stl. Tipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.")
+                for l in &lines {
+                    out.stat("Dübel je", l.split(" (").next().unwrap_or(l));
+                }
+                format!("Dübel: {}\nTipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.", lines.join(", "))
             }
             "plug" | "plug_sq" | "cone" => {
                 out.stat(if kind == "cone" { "Kegelzapfen" } else { "Steckzapfen" }, n_conn);
+                let s: Vec<String> = sizes_used.iter().map(|(s2, c)| format!("{c} × {} mm", format!("{}", *s2 as f64 / 2.0).replace('.', ","))).collect();
+                out.stat("Größen", s.join(", "));
                 format!("{n_conn} Zapfen sind direkt angedruckt.")
             }
             "magnet" => {

@@ -59,6 +59,11 @@ button,input,select{font:inherit;color:inherit}
 .sw{position:relative;width:34px;height:18px;border-radius:9px;background:var(--line);cursor:pointer;flex:none}
 .sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
 .sw.on{background:var(--green)}.sw.on::after{left:18px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:4px 0 8px}
+.card2{border:1px solid var(--line);border-radius:8px;padding:6px 6px 4px;cursor:pointer;text-align:center;font-size:12px;background:var(--panel)}
+.card2 svg{display:block;width:100%;height:38px}
+.card2:hover{border-color:var(--green)}
+.card2.on{border:2px solid var(--green);background:var(--green-bg);color:var(--green);font-weight:600;padding:5px 5px 3px}
 .drop{margin:10px 12px;border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer}
 .drop:hover,.drop.over{border-color:var(--green);color:var(--text)}
 .drop b{color:var(--text)}
@@ -87,7 +92,8 @@ a{color:var(--green);text-decoration:none}
 .vswitch{position:absolute;left:10px;top:10px;display:flex;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px}
 .vswitch button{border:0;background:none;padding:5px 10px;border-radius:5px;cursor:pointer;color:var(--muted)}
 .vswitch button.on{background:var(--green-bg);color:var(--green);font-weight:600}
-.plate b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:10px;background:var(--text);color:var(--panel);font-size:11px;margin-right:6px;padding:0 4px}
+.plate b{display:inline-flex;align-items:center;gap:5px;height:22px;border-radius:6px;background:#262e30;color:#fff;font-size:12px;font-weight:600;margin-right:7px;padding:0 7px 0 6px}
+.plate b i{width:8px;height:8px;border-radius:2px;display:inline-block}
 .legend{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:var(--panel);padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 @media (max-width:520px){
   .top{gap:6px;padding:0 8px}.logo span{display:none}.tab{padding:0 7px}.btn.primary{padding:5px 10px}
@@ -168,15 +174,25 @@ import { STLLoader } from '/vendor/STLLoader.js';
 import { OrbitControls } from '/vendor/OrbitControls.js';
 
 const PRESETS = [
-  ['Bambu Lab H2C', 325, 320, 325], ['Bambu Lab H2D', 325, 320, 325], ['Bambu Lab H2S', 340, 320, 340],
-  ['Bambu Lab X1 Carbon', 256, 256, 256], ['Bambu Lab P2S', 256, 256, 256], ['Bambu Lab P1S', 256, 256, 256],
-  ['Bambu Lab A1', 256, 256, 256], ['Bambu Lab A1 mini', 180, 180, 180], ['Laser 400 × 400', 400, 400, 50],
+  ['Bambu Lab', 'H2C', 325, 320, 325], ['Bambu Lab', 'H2D', 325, 320, 325], ['Bambu Lab', 'H2S', 340, 320, 340],
+  ['Bambu Lab', 'X1 Carbon', 256, 256, 256], ['Bambu Lab', 'X1E', 256, 256, 256], ['Bambu Lab', 'P2S', 256, 256, 256],
+  ['Bambu Lab', 'P1S', 256, 256, 256], ['Bambu Lab', 'P1P', 256, 256, 256], ['Bambu Lab', 'A1', 256, 256, 256], ['Bambu Lab', 'A1 mini', 180, 180, 180],
+  ['Prusa', 'Core One', 250, 220, 270], ['Prusa', 'MK4S', 250, 210, 220], ['Prusa', 'MK4', 250, 210, 220], ['Prusa', 'MK3S+', 250, 210, 210],
+  ['Prusa', 'MINI+', 180, 180, 180], ['Prusa', 'XL', 360, 360, 360],
+  ['Creality', 'K2 Plus', 350, 350, 350], ['Creality', 'K1 Max', 300, 300, 300], ['Creality', 'K1 / K1C', 220, 220, 250],
+  ['Creality', 'Ender-3 V3', 220, 220, 250], ['Creality', 'Ender-3 V3 KE', 220, 220, 240], ['Creality', 'Ender-3 V3 SE', 220, 220, 250],
+  ['Creality', 'Ender-3 S1 Pro', 220, 220, 270], ['Creality', 'Ender-3 V2', 220, 220, 250], ['Creality', 'CR-10 Smart Pro', 300, 300, 400],
+  ['Snapmaker', 'U1', 270, 270, 270], ['Snapmaker', 'J1', 300, 200, 200], ['Snapmaker', 'Artisan', 400, 400, 400], ['Snapmaker', '2.0 A350', 320, 350, 330],
+  ['Elegoo', 'Centauri Carbon', 256, 256, 256], ['Elegoo', 'Neptune 4 Pro', 225, 225, 265], ['Elegoo', 'Neptune 4 Max', 420, 420, 480],
+  ['Anycubic', 'Kobra S1', 250, 250, 250], ['Anycubic', 'Kobra 3', 250, 250, 260], ['Anycubic', 'Kobra 3 Max', 420, 420, 500],
+  ['Qidi', 'Q1 Pro', 245, 245, 240], ['Qidi', 'Plus4', 305, 305, 280], ['Qidi', 'X-Max 3', 325, 325, 315],
+  ['Sovol', 'SV08', 350, 350, 345], ['Voron', '2.4 (350)', 350, 350, 340],
 ];
 
 const MODES = {
   split: { name: 'Teilen', groups: [
     ['Größe', [['scale','Maßstab','num',100,'%',5],['size','oder größte Kante (0 = aus)','num',0,'mm',10]]],
-    ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel rund'],['dowel_sq','Dübel eckig'],['plug','Steckzapfen rund'],['plug_sq','Steckzapfen eckig'],['cone','Kegelzapfen'],['magnet','Magnete'],['none','Keine']]],['dowel_d','Größe (Dübel/Zapfen)','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['magnet_d','Magnet Ø','num',6,'mm',0.5],['magnet_h','Magnet Höhe','num',3,'mm',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
+    ['Verbinder', [['connector','Art','cards','dowel'],['auto_size','Größe automatisch','bool',true],['dowel_d','Größe','num',5,'mm',0.5],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['magnet_d','Magnet Ø','num',6,'mm',0.5],['magnet_h','Magnet Höhe','num',3,'mm',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
   ], help: 'Was schon passt, wird nur angeordnet. Zu große Objekte werden gedreht und an den dünnsten Stellen geteilt – ohne Kleinteile, mit einer Schnittfläche nach unten. Dübel werden einzeln gedruckt, Zapfen sind angedruckt, Magnete werden eingeklebt. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
 };
 
@@ -197,6 +213,18 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 });
 
 // ── Einstellungen
+// Verbinder-Bilder (Schnitt durch zwei Teile)
+const T1 = '#9FE1CB', T1s = '#0F6E56', T2 = '#B5D4F4', T2s = '#185FA5', PIN = '#FAC775', PINs = '#854F0B';
+const box = (top) => `<rect x="8" y="4" width="84" height="18" fill="${T1}" stroke="${T1s}"/><rect x="8" y="24" width="84" height="16" fill="${T2}" stroke="${T2s}"/>` + (top || '');
+const CONNECTORS = [
+  ['dowel', 'Dübel rund', box(`<rect x="44" y="12" width="12" height="22" rx="2" fill="${PIN}" stroke="${PINs}"/>`)],
+  ['dowel_sq', 'Dübel eckig', box(`<rect x="44" y="12" width="12" height="22" fill="${PIN}" stroke="${PINs}"/><rect x="78" y="8" width="8" height="8" fill="${PIN}" stroke="${PINs}"/>`)],
+  ['plug', 'Steckzapfen', `<path d="M8 4 H92 V22 H56 V34 H44 V22 H8 Z" fill="${T1}" stroke="${T1s}"/><path d="M8 24 H42 V36 H58 V24 H92 V40 H8 Z" fill="${T2}" stroke="${T2s}"/>`],
+  ['plug_sq', 'Zapfen eckig', `<path d="M8 4 H92 V22 H56 V34 H44 V22 H8 Z" fill="${T1}" stroke="${T1s}"/><path d="M8 24 H42 V36 H58 V24 H92 V40 H8 Z" fill="${T2}" stroke="${T2s}"/><rect x="78" y="8" width="8" height="8" fill="${T1}" stroke="${T1s}"/>`],
+  ['cone', 'Kegelzapfen', `<path d="M8 4 H92 V22 H56 L54 32 H46 L44 22 H8 Z" fill="${T1}" stroke="${T1s}"/><path d="M8 24 H42 L44 34 H56 L58 24 H92 V40 H8 Z" fill="${T2}" stroke="${T2s}"/>`],
+  ['magnet', 'Magnete', box(`<rect x="40" y="16" width="20" height="6" fill="#888780" stroke="#444441"/><rect x="40" y="24" width="20" height="6" fill="#888780" stroke="#444441"/>`)],
+  ['none', 'Keine', box()],
+];
 function val(key, def) { return (values[mode] && key in values[mode]) ? values[mode][key] : def; }
 function renderParams() {
   const m = MODES[mode];
@@ -207,25 +235,42 @@ function renderParams() {
     for (const [key, label, type, def, extra, step] of fields) {
       const v = val(key, def);
       let ctl;
+      if (type === 'cards') {
+        h += `<div class="cards" data-k="${key}">${CONNECTORS.map(([id, name, svg]) => `<div class="card2 ${id === v ? 'on' : ''}" data-v="${id}"><svg viewBox="0 0 100 44">${svg}</svg><span>${name}</span></div>`).join('')}</div>`;
+        continue;
+      }
       if (type === 'bool') ctl = `<div class="sw ${v ? 'on' : ''}" data-k="${key}"></div>`;
       else if (type === 'sel') ctl = `<select data-k="${key}">${extra.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${ov}" ${ov == v ? 'selected' : ''}>${ol}</option>`; }).join('')}</select>`;
       else ctl = `<input type="number" data-k="${key}" value="${v}" step="${step || 1}"><span class="unit">${extra || ''}</span>`;
-      h += `<div class="row"><label>${esc(label)}</label><div class="ctl">${ctl}</div></div>`;
+      h += `<div class="row" data-row="${key}"><label>${esc(label)}</label><div class="ctl">${ctl}</div></div>`;
     }
     h += `</div></div>`;
   });
   $('#params').innerHTML = h;
   $('#params').querySelectorAll('input,select').forEach(el => el.onchange = () => setVal(el.dataset.k, el.type === 'number' ? parseFloat(el.value) : el.value));
-  $('#params').querySelectorAll('.sw').forEach(el => el.onclick = () => { el.classList.toggle('on'); setVal(el.dataset.k, el.classList.contains('on')); });
+  $('#params').querySelectorAll('.sw').forEach(el => el.onclick = () => { el.classList.toggle('on'); setVal(el.dataset.k, el.classList.contains('on')); showRows(); });
+  $('#params').querySelectorAll('.cards .card2').forEach(el => el.onclick = () => {
+    el.parentElement.querySelectorAll('.card2').forEach(c => c.classList.toggle('on', c === el));
+    setVal(el.parentElement.dataset.k, el.dataset.v); showRows();
+  });
+  showRows();
   bindSections();
   updateDropText();
+}
+// nur die Felder zeigen, die zur gewählten Verbinderart passen
+function showRows() {
+  const kind = val('connector', 'dowel'), auto = val('auto_size', true);
+  const vis = { auto_size: !['magnet', 'none'].includes(kind), dowel_d: !['magnet', 'none'].includes(kind) && !auto,
+    depth_ratio: !['magnet', 'none'].includes(kind), magnet_d: kind === 'magnet', magnet_h: kind === 'magnet', tolerance: kind !== 'none' };
+  Object.entries(vis).forEach(([k, on]) => { const r = document.querySelector(`[data-row="${k}"]`); if (r) r.style.display = on ? '' : 'none'; });
 }
 function setVal(k, v) { values[mode] = values[mode] || {}; values[mode][k] = v; save(); }
 function bindSections() { document.querySelectorAll('.sec h3').forEach(h => h.onclick = () => h.parentElement.classList.toggle('closed')); }
 
 // ── Drucker
-$('#preset').innerHTML = '<option value="">Vorlage einsetzen …</option>' + PRESETS.map((p, i) => `<option value="${i}">${p[0]} (${p[1]}×${p[2]}×${p[3]})</option>`).join('');
-$('#preset').onchange = e => { const p = PRESETS[e.target.value]; if (p) { printers[0] = { name: p[0], x: p[1], y: p[2], z: p[3], speed: printers[0]?.speed || 1 }; renderPrinters(); save(); } e.target.value = ''; };
+$('#preset').innerHTML = '<option value="">Vorlage einsetzen …</option>' + [...new Set(PRESETS.map(p => p[0]))].map(brand =>
+  `<optgroup label="${brand}">` + PRESETS.map((p, i) => p[0] === brand ? `<option value="${i}">${p[1]} (${p[2]}×${p[3]}×${p[4]})</option>` : '').join('') + '</optgroup>').join('');
+$('#preset').onchange = e => { const p = PRESETS[e.target.value]; if (p) { printers[printers.length - 1] = { name: `${p[0]} ${p[1]}`, x: p[2], y: p[3], z: p[4], speed: printers[printers.length - 1]?.speed || 1 }; renderPrinters(); save(); } e.target.value = ''; };
 function renderPrinters() {
   $('#printers').innerHTML = printers.map((p, i) => `<div class="pr" data-i="${i}">
     <input data-f="name" value="${esc(p.name)}"><input type="number" data-f="x" value="${p.x}"><input type="number" data-f="y" value="${p.y}"><input type="number" data-f="z" value="${p.z}"><input type="number" data-f="speed" value="${p.speed}" step="0.1">
@@ -351,11 +396,13 @@ function canvasSprite(draw, w, h, scaleW) {
 }
 // Nummernschild
 function numberLabel(num, size) {
+  const txt = String(num), w = txt.length > 2 ? 230 : txt.length > 1 ? 190 : 150;
   return canvasSprite(x => {
-    x.fillStyle = '#ffffff'; x.beginPath(); x.arc(64, 64, 56, 0, Math.PI * 2); x.fill();
-    x.lineWidth = 9; x.strokeStyle = '#' + colorOf(num).toString(16).padStart(6, '0'); x.stroke();
-    x.fillStyle = '#262e30'; x.font = `bold ${num > 99 ? 44 : num > 9 ? 56 : 66}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(num), 64, 68);
-  }, 128, 128, size);
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.roundRect(6, 10, w - 8, 92, 24); x.fill();
+    x.fillStyle = '#262e30'; x.beginPath(); x.roundRect(2, 4, w - 8, 92, 24); x.fill();
+    x.fillStyle = '#' + colorOf(num).toString(16).padStart(6, '0'); x.beginPath(); x.roundRect(22, 34, 32, 32, 8); x.fill();
+    x.fillStyle = '#ffffff'; x.font = '600 62px "Segoe UI", system-ui, sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(txt, 70, 54);
+  }, w, 104, size * w / 150);
 }
 function textLabel(text, width) {
   return canvasSprite(x => {
@@ -438,7 +485,7 @@ async function showResult(j) {
   const asm = await Promise.all(j.preview.map(pv => load(pv.url)));
   const all = new THREE.Box3();
   asm.forEach(g => { g.computeBoundingBox(); all.union(g.boundingBox); });
-  const lsize = Math.max(8, all.getSize(new THREE.Vector3()).length() * 0.035);
+  const lsize = Math.max(12, all.getSize(new THREE.Vector3()).length() * 0.06);
   asm.forEach((g, i) => {
     const num = i + 1, mesh = new THREE.Mesh(g, mat(num));
     mesh.name = j.preview[i].name; mesh.userData.num = num;
@@ -454,7 +501,7 @@ async function showResult(j) {
   const pv = j.plate_view || [];
   const maxX = Math.max(...pv.map(q => q.bed[0]), 1), maxY = Math.max(...pv.map(q => q.bed[1]), 1);
   const cols = Math.ceil(Math.sqrt(pv.length)), gap = Math.max(maxX, maxY) * 0.22;
-  const psize = Math.max(14, Math.max(maxX, maxY) * 0.13);
+  const psize = Math.max(20, Math.max(maxX, maxY) * 0.2);
   await Promise.all(pv.map(async (q, k) => {
     const ox = (k % cols) * (maxX + gap), oy = -Math.floor(k / cols) * (maxY + gap);
     platesGroup.add(plateMesh(q.bed[0], q.bed[1], ox, oy));
@@ -474,7 +521,7 @@ async function showResult(j) {
   $('#legend').style.display = asm.length > 1 ? '' : 'none';
   $('#legend').textContent = `${asm.length} Teile · ${pv.length} ${pv.length == 1 ? 'Platte' : 'Platten'}`;
   // Teileleiste mit Nummern
-  $('#plateBar').innerHTML = j.preview.map((x, i) => `<div class="plate" data-n="${i + 1}" style="border-left:4px solid #${colorOf(i + 1).toString(16).padStart(6, '0')}"><span><b>${i + 1}</b>${esc(x.name)}</span></div>`).join('') + (j.plates ? `<span style="margin-left:auto;color:var(--muted);white-space:nowrap">${j.plates} ${j.plates == 1 ? 'Platte' : 'Platten'} im 3MF</span>` : '');
+  $('#plateBar').innerHTML = j.preview.map((x, i) => `<div class="plate" data-n="${i + 1}" style="border-left:4px solid #${colorOf(i + 1).toString(16).padStart(6, '0')}"><span><b><i style="background:#${colorOf(i + 1).toString(16).padStart(6, '0')}"></i>${i + 1}</b>${esc(x.name)}</span></div>`).join('') + (j.plates ? `<span style="margin-left:auto;color:var(--muted);white-space:nowrap">${j.plates} ${j.plates == 1 ? 'Platte' : 'Platten'} im 3MF</span>` : '');
   document.querySelectorAll('#plateBar .plate').forEach(el => el.onclick = () => {
     const on = !el.classList.contains('on');
     document.querySelectorAll('#plateBar .plate').forEach(x => x.classList.remove('on'));
