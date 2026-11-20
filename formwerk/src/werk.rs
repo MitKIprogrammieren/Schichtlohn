@@ -64,6 +64,9 @@ pub struct Output {
     pub summary: Vec<(String, String)>,
     pub warnings: Vec<String>,
     pub plates: usize,
+    /// Platten zur Ansicht: (Drucker, Bett X/Y, Plattennummer, Teile (Nummer, Name, Netz in Plattenkoordinaten))
+    #[serde(skip)]
+    pub plate_view: Vec<(String, [f64; 2], usize, Vec<(usize, String, Mesh)>)>,
 }
 
 impl Output {
@@ -86,6 +89,8 @@ fn emit_parts(out: &mut Output, parts: Vec<(String, Mesh)>, p: &Params, prefix: 
     // Zuteilung: größte Teile zuerst auf den Drucker, der als Erster fertig wäre und in den das Teil passt
     let mut load = vec![0.0f64; printers.len()];
     let mut assign: Vec<Vec<(String, Mesh)>> = vec![Vec::new(); printers.len()];
+    // Nummer = Reihenfolge der Teile (passt zur Vorschau „Zusammengebaut“)
+    let numbers: std::collections::HashMap<String, usize> = parts.iter().enumerate().map(|(i, (n, _))| (n.clone(), i + 1)).collect();
     let mut order: Vec<(String, Mesh)> = parts;
     order.sort_by(|a, b| b.1.volume().abs().partial_cmp(&a.1.volume().abs()).unwrap());
     let mut too_big = 0;
@@ -128,6 +133,7 @@ fn emit_parts(out: &mut Output, parts: Vec<(String, Mesh)>, p: &Params, prefix: 
         for (name, m) in &list {
             out.files.push((format!("stl/{}{}.stl", tag.replace(' ', "_"), name), m.to_stl(name)));
         }
+        let nums: Vec<usize> = list.iter().map(|(n, _)| numbers.get(n).copied().unwrap_or(0)).collect();
         let arranged: Vec<PlatePart> = export::arrange_on_plates(
             list.into_iter().map(|(n, m)| (format!("{tag}{n}"), m)).collect(),
             [pr.x, pr.y],
@@ -135,6 +141,15 @@ fn emit_parts(out: &mut Output, parts: Vec<(String, Mesh)>, p: &Params, prefix: 
             0,
         );
         let n_pl = arranged.iter().map(|a| a.plate + 1).max().unwrap_or(0);
+        for pl in 0..n_pl {
+            let on: Vec<(usize, String, Mesh)> = arranged
+                .iter()
+                .zip(&nums)
+                .filter(|(a, _)| a.plate == pl)
+                .map(|(a, n)| (*n, a.name.clone(), a.mesh.clone()))
+                .collect();
+            out.plate_view.push((pr.name.clone(), [pr.x, pr.y], pl + 1, on));
+        }
         total_plates += n_pl;
         let names: Vec<String> = (0..n_pl).map(|i| format!("{}{} – Platte {}", tag, pr.name, i + 1)).collect();
         let file = if multi { format!("{prefix}_P{}_{}.3mf", pi + 1, sanitize(&pr.name)) } else { format!("{prefix}.3mf") };

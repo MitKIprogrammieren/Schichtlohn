@@ -117,8 +117,22 @@ async fn run(mut mp: Multipart) -> Response {
             preview.push(json!({ "name": name, "url": format!("/api/job/{id}/file/{fname}") }));
         }
     }
+    let mut plates = Vec::new();
+    for (pi, (printer, bed, plate, parts)) in out.plate_view.iter().enumerate() {
+        let mut list = Vec::new();
+        for (k, (num, name, mesh)) in parts.iter().enumerate() {
+            let fname = format!("_vorschau/platte_{pi:02}_{k:02}.stl");
+            let path = dir.join(&fname);
+            let _ = std::fs::create_dir_all(path.parent().unwrap());
+            if std::fs::write(&path, mesh.to_stl(name)).is_ok() {
+                list.push(json!({ "num": num, "name": name, "url": format!("/api/job/{id}/file/{fname}") }));
+            }
+        }
+        plates.push(json!({ "printer": printer, "bed": bed, "plate": plate, "parts": list }));
+    }
     Json(json!({
         "id": id,
+        "plate_view": plates,
         "summary": out.summary,
         "warnings": out.warnings,
         "files": files,
