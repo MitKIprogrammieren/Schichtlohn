@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#121417">
+<title>ModelBrowser</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<style>
+:root{--bg:#121417;--fl:#1b1e23;--fl2:#23272e;--rand:#2e333b;--txt:#e8eaed;--txt2:#9aa1ab;--gruen:#22c55e;--gruen2:#16a34a;--gruen-bg:#16351f;--rot:#ef4444;--r:10px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--fl2);border:1px solid var(--rand);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:#454c57}
+button.haupt{background:var(--gruen2);border-color:var(--gruen2);color:#fff;font-weight:600}
+button.haupt:hover{background:var(--gruen)}
+button.klein{padding:4px 9px;font-size:13px}
+button.gefahr{color:var(--rot)}
+input[type=text],input[type=url],input[type=search],input[type=password]{background:var(--fl2);border:1px solid var(--rand);border-radius:8px;padding:8px 11px;width:100%;outline:none}
+input:focus{border-color:var(--gruen2)}
+a{color:var(--gruen)}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--rand);background:var(--fl);padding-top:max(10px,env(safe-area-inset-top))}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;white-space:nowrap;cursor:pointer}
+.logo b{color:var(--gruen)}
+header .suche{flex:1;max-width:420px}
+.app{display:grid;grid-template-columns:290px 1fr;height:calc(100% - 57px)}
+nav{border-right:1px solid var(--rand);overflow-y:auto;overflow-x:hidden;padding:8px;background:var(--fl)}
+.pl{margin-bottom:4px}
+.pl>div:first-child{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;cursor:pointer;color:var(--txt2);font-weight:600;font-size:13px;text-transform:none}
+.pl>div:first-child:hover{background:var(--fl2)}
+.pl .pfeil{transition:transform .15s;display:inline-block;width:12px}
+.pl.zu .pfeil{transform:rotate(-90deg)}
+.pl.zu .mods{display:none}
+.mod{display:flex;align-items:center;gap:9px;min-width:0;padding:6px 8px 6px 18px;border-radius:8px;cursor:pointer}
+.mod:hover{background:var(--fl2)}
+.mod.akt{background:var(--gruen-bg)}
+.mod img,.mod .leer{width:38px;height:38px;border-radius:6px;object-fit:cover;background:var(--fl2);flex:none}
+.mod .t{min-width:0;flex:1}
+.mod .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mod .z{color:var(--txt2);font-size:12px}
+main{overflow-y:auto;overflow-x:hidden;min-width:0;display:flex;flex-direction:column}
+.kopf{padding:14px 18px 0;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.kopf h1{font-size:20px;margin:0 0 2px}
+.kopf .unter{color:var(--txt2);font-size:13px}
+.kopf .akt{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.reiter{display:flex;gap:4px;padding:12px 18px 0;border-bottom:1px solid var(--rand)}
+.reiter button{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;color:var(--txt2)}
+.reiter button.an{color:var(--txt);border-color:var(--gruen)}
+.inhalt{flex:1;padding:16px 18px;min-height:0}
+.inhalt.seite{padding:0;display:flex}
+iframe{flex:1;border:0;background:#fff;width:100%;min-height:70vh}
+.liste{border:1px solid var(--rand);border-radius:var(--r);overflow:hidden}
+.zeile{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--rand);background:var(--fl)}
+.zeile:first-child{border-top:0}
+.zeile .ico{width:34px;height:34px;border-radius:7px;background:var(--fl2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gruen);flex:none}
+.zeile .n{flex:1;min-width:0;word-break:break-all}
+.zeile .g{color:var(--txt2);font-size:12px;white-space:nowrap}
+.ablage{margin-top:14px;border:2px dashed var(--rand);border-radius:var(--r);padding:22px;text-align:center;color:var(--txt2)}
+.ablage.drueber{border-color:var(--gruen);background:var(--gruen-bg)}
+.bilder{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.bilder figure{margin:0;position:relative;border-radius:var(--r);overflow:hidden;background:var(--fl);aspect-ratio:4/3;cursor:zoom-in}
+.bilder img{width:100%;height:100%;object-fit:cover}
+.bilder figure button{position:absolute;top:6px;right:6px;opacity:0;background:#000a;border:none}
+.bilder figure:hover button{opacity:1}
+.raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:18px}
+.karte{background:var(--fl);border:1px solid var(--rand);border-radius:var(--r);overflow:hidden;cursor:pointer}
+.karte:hover{border-color:var(--gruen2)}
+.karte .b{aspect-ratio:4/3;background:var(--fl2);display:flex;align-items:center;justify-content:center;color:var(--txt2)}
+.karte .b img{width:100%;height:100%;object-fit:cover}
+.karte .t{padding:9px 11px}
+.karte .t div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.karte .t div:last-child{color:var(--txt2);font-size:12px}
+.leerseite{padding:40px 20px;text-align:center;color:var(--txt2)}
+.dialog{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.dialog.auf{display:flex}
+.dialog .box{background:var(--fl);border:1px solid var(--rand);border-radius:14px;padding:18px;width:100%;max-width:480px}
+.dialog h2{margin:0 0 12px;font-size:17px}
+.dialog .unten{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.dialog label{display:block;color:var(--txt2);font-size:13px;margin:10px 0 4px}
+.hinweis{color:var(--txt2);font-size:13px;margin-top:8px}
+.status{margin-top:12px;padding:10px;border-radius:8px;background:var(--fl2);font-size:13px;display:none}
+.status.fehler{color:#fca5a5}
+.status.ok{color:#86efac}
+.lupe{position:fixed;inset:0;background:#000e;display:none;align-items:center;justify-content:center;z-index:20}
+.lupe.auf{display:flex}
+.lupe img{max-width:96vw;max-height:90vh;border-radius:8px}
+.lupe .nav{position:absolute;top:50%;transform:translateY(-50%);font-size:28px;background:#0008;border:none;padding:10px 16px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fl2);border:1px solid var(--rand);padding:10px 16px;border-radius:10px;display:none;z-index:60}
+.zurueck{display:none}
+.kopf h1{word-break:break-word}
+.menue{position:relative}
+.menue .liste2{position:absolute;right:0;top:110%;background:var(--fl2);border:1px solid var(--rand);border-radius:10px;padding:4px;display:none;z-index:5;min-width:170px}
+.menue.auf .liste2{display:block}
+.menue .liste2 button{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px}
+.menue .liste2 button:hover{background:var(--fl)}
+.held{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;padding:14px 18px 0}
+.held .gross{aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--fl2);cursor:zoom-in}
+.held .gross img{display:block;width:100%;height:100%;object-fit:cover}
+.daumen{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px}
+.daumen img{width:64px;height:48px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.6;flex:none;border:2px solid transparent}
+.daumen img.an{opacity:1;border-color:var(--gruen)}
+.karte2{background:var(--fl);border:1px solid var(--rand);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.karte2 h3{margin:0 0 8px;font-size:15px}
+.prof{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--rand);font-size:13px}
+.prof:first-of-type{border-top:0}
+.prof span:last-child{color:var(--txt2);white-space:nowrap}
+.tag{display:inline-block;background:var(--fl2);border-radius:6px;padding:2px 8px;margin:0 4px 4px 0;font-size:12px;color:var(--txt2)}
+.beschr{font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.beschr img{max-width:100%;height:auto;border-radius:8px}
+.beschr a{color:var(--gruen)}
+.beschr h1,.beschr h2,.beschr h3{font-size:16px}
+.konto{background:var(--fl2);border:1px solid var(--rand);border-radius:12px;padding:12px;margin-bottom:10px}
+.konto .k1{display:flex;align-items:center;gap:8px;font-weight:600}
+.pille{margin-left:auto;font-size:12px;font-weight:500;padding:2px 9px;border-radius:7px}
+.pille.ja{background:var(--gruen-bg);color:#86efac}.pille.nein{background:#3a2f12;color:#fcd34d}.pille.bald{background:var(--fl);color:var(--txt2)}
+.konto ol{margin:8px 0 8px 18px;padding:0;color:var(--txt2);font-size:13px}
+.konto code{background:var(--fl);padding:1px 5px;border-radius:4px}
+.prof button{margin-left:8px}
+.nebeninfo{color:var(--txt2);font-size:13px;margin-top:6px}
+.login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.login.auf{display:flex}
+.login .box{width:100%;max-width:320px;text-align:center}
+.login input{text-align:center;font-size:22px;letter-spacing:8px;margin:14px 0 10px}
+.filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 4px 10px}
+.chip{background:var(--fl2);border:1px solid var(--rand);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--txt2)}
+.chip.an{background:var(--gruen-bg);border-color:var(--gruen2);color:#86efac}
+.filter select{margin-left:auto;background:var(--fl2);color:var(--txt);border:1px solid var(--rand);border-radius:8px;padding:3px 6px;font-size:12px}
+.marke{font-size:11px;padding:0 6px;border-radius:5px;margin-left:4px}
+.marke.up{background:#3a2f12;color:#fcd34d}.marke.ok{color:#86efac}.marke.will{color:#93c5fd}
+.sterne{color:#facc15;font-size:11px;margin-left:4px;letter-spacing:-1px}
+.hinweisbox{margin:12px 18px 0;padding:10px 12px;border-radius:10px;background:#3a2f12;color:#fde68a;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hinweisbox button{margin-left:auto}
+.notiz label{display:block;color:var(--txt2);font-size:13px;margin:10px 0 4px}
+.notiz textarea{width:100%;min-height:70px;background:var(--fl2);border:1px solid var(--rand);border-radius:8px;padding:8px 11px;color:var(--txt);font:inherit;resize:vertical}
+.notiz select{background:var(--fl2);color:var(--txt);border:1px solid var(--rand);border-radius:8px;padding:7px 10px;width:100%}
+.stern{background:none;border:none;font-size:24px;padding:0 2px;color:#4a5161;cursor:pointer}
+.stern.an{color:#facc15}
+.aktionen{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.betrachter{position:fixed;inset:0;background:#0b0d10;display:none;z-index:40}
+.betrachter.auf{display:block}
+.betrachter canvas{display:block;width:100%;height:100%}
+.betrachter .leiste{position:absolute;top:0;left:0;right:0;display:flex;gap:8px;align-items:center;padding:max(10px,env(safe-area-inset-top)) 12px 10px;background:linear-gradient(#0b0d10e0,#0b0d1000)}
+.betrachter .leiste span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt2);font-size:13px}
+.betrachter .lade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--txt2);pointer-events:none}
+.balken{height:4px;background:var(--fl2);border-radius:2px;margin-top:8px;overflow:hidden}
+.balken div{height:100%;background:var(--gruen);width:0}
+@media (max-width:820px){
+ .hinweisbox{margin:10px 12px 0}
+ .app{grid-template-columns:minmax(0,1fr)}
+ nav{border:0}
+ .app.detail nav{display:none}
+ .app:not(.detail) main{display:none}
+ .zurueck{display:inline-block}
+ header .suche{max-width:none}
+ .nurgross{display:none}
+ .raster{grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+ .bilder{grid-template-columns:repeat(2,1fr)}
+ .bilder figure button{opacity:1}
+ .held{grid-template-columns:minmax(0,1fr);padding:10px 12px 0}
+ .kopf{padding:10px 12px 0}
+ .reiter{padding:8px 6px 0;overflow-x:auto}
+ .inhalt{padding:12px}
+ .kopf h1{font-size:18px}
+}
+</style>
+</head>
+<body>
+<header>
+ <div class="logo" onclick="start()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg><span>Model<b>Browser</b></span></div>
+ <input type="search" class="suche" id="suche" placeholder="Suchen …" oninput="zeichneBaum()">
+ <button class="haupt" onclick="dlgAuf('dImport')">+ <span class="nurgross">Link importieren</span></button>
+ <button class="nurgross" onclick="dlgAuf('dNeu')">Neu</button>
+ <button onclick="kontenAuf()" aria-label="Konten" title="Konten"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></button>
+</header>
+<div class="app" id="app">
+ <nav id="baum"></nav>
+ <main id="haupt"></main>
+</div>
+
+<div class="dialog" id="dImport"><div class="box">
+ <h2>Modell per Link importieren</h2>
+ <input type="url" id="iUrl" placeholder="https://makerworld.com/de/models/…">
+ <div class="hinweis">Die Seite wird auf dem NUC mit SingleFile gespeichert, die Bilder werden herausgezogen. Ist MakerWorld unter „Konten“ verbunden, kommt das Standardprofil als 3MF mit.</div>
+ <div class="status" id="iStatus"></div>
+ <div class="hinweis" style="margin-top:14px">Blockiert die Seite den Import? Dann speichere sie im Browser mit der SingleFile-Erweiterung und lade die HTML-Datei hier hoch:</div>
+ <div style="margin-top:8px"><button onclick="document.getElementById('iDatei').click()">SingleFile-Seite hochladen</button><input type="file" id="iDatei" accept=".html,.htm" hidden onchange="seiteHochladen(this.files[0])"></div>
+ <div class="unten"><button onclick="dlgZu()">Schließen</button><button class="haupt" id="iLos" onclick="importStart()">Importieren</button></div>
+</div></div>
+
+<div class="dialog" id="dNeu"><div class="box">
+ <h2 id="nTitel">Neues Modell</h2>
+ <label>Plattform</label><input type="text" id="nP" list="plListe" placeholder="MakerWorld">
+ <datalist id="plListe"></datalist>
+ <label>Name</label><input type="text" id="nM" placeholder="Rugged Drawer System">
+ <div class="unten"><button onclick="dlgZu()">Abbrechen</button><button class="haupt" id="nOk" onclick="neuOk()">Anlegen</button></div>
+</div></div>
+
+<div class="dialog" id="dKonten"><div class="box" style="max-height:90vh;overflow:auto">
+ <h2>Konten</h2>
+ <div id="kInhalt"></div>
+ <div class="unten"><button onclick="dlgZu()">Schließen</button></div>
+</div></div>
+
+<div class="lupe" id="lupe" onclick="if(event.target===this)lupeZu()">
+ <button class="nav" style="left:10px" onclick="lupeSchritt(-1)">‹</button>
+ <img id="lupeBild" alt="">
+ <button class="nav" style="right:10px" onclick="lupeSchritt(1)">›</button>
+ <button style="position:absolute;top:14px;right:14px" onclick="lupeZu()">✕</button>
+</div>
+<div class="toast" id="toast"></div>
+<div class="login" id="login"><div class="box">
+ <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+ <h2 style="margin:8px 0 4px">ModelBrowser</h2>
+ <div class="hinweis" id="lText">PIN eingeben</div>
+ <input type="password" id="lPin" inputmode="numeric" autocomplete="current-password" maxlength="8" placeholder="••••">
+ <input type="password" id="lPin2" inputmode="numeric" maxlength="8" placeholder="PIN wiederholen" style="display:none">
+ <button class="haupt" style="width:100%" onclick="anmelden()">Entsperren</button>
+ <div class="status" id="lStatus"></div>
+ <div class="hinweis">Du bleibst 180 Tage angemeldet.</div>
+</div></div>
+<div class="betrachter" id="betrachter">
+ <canvas id="bLeinwand"></canvas>
+ <div class="lade" id="bLade">3D-Modell wird geladen …</div>
+ <div class="leiste"><span id="bName"></span><button class="klein" id="bDreh" onclick="BETR&&BETR.drehen()">Drehen</button><button class="klein" onclick="betrachterZu()">✕ Schließen</button></div>
+</div>
+
+<script>
+let BAUM=[],AKT=null,DETAIL=null,REITER='uebersicht',ZU=JSON.parse(localStorageGet('mbZu')||'{}'),LUPE=0,UMBENENNEN=false;
+function localStorageGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function localStorageSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const enc=s=>encodeURIComponent(s);
+const durl=(p,m,...r)=>'/d/'+[p,m,...r].map(enc).join('/');
+const groesse=b=>b>1e9?(b/1e9).toFixed(1)+' GB':b>1e6?(b/1e6).toFixed(1)+' MB':Math.max(1,Math.round(b/1e3))+' KB';
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4000)}
+async function api(pfad,opt){const r=await fetch(pfad,opt);let d={};try{d=await r.json()}catch(e){}if(r.status===401&&d.anmelden){zeigeLogin();throw new Error('Bitte anmelden')}if(!r.ok)throw new Error(d.text||('Fehler '+r.status));return d}
+const post=(p,b)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+
+async function ladeBaum(){BAUM=await api('/api/baum');zeichneBaum();$('plListe').innerHTML=BAUM.map(p=>`<option value="${esc(p.name)}">`).join('')}
+let FILTER=localStorageGet('mbFilter')||'',SORT=localStorageGet('mbSort')||'neu';
+function setzeFilter(f){FILTER=FILTER===f?'':f;localStorageSet('mbFilter',FILTER);zeichneBaum()}
+function setzeSort(s){SORT=s;localStorageSet('mbSort',s);zeichneBaum()}
+function sterne(n){return n?'<span class="sterne">'+'★'.repeat(n)+'</span>':''}
+function marken(m){return (m.update?'<span class="marke up">Update</span>':'')+(m.status==='gedruckt'?'<span class="marke ok">✓</span>':m.status==='will'?'<span class="marke will">◷</span>':'')+sterne(m.bewertung)}
+function zeichneBaum(){
+ const s=$('suche').value.trim().toLowerCase();
+ const passt=m=>(!s||m.name.toLowerCase().includes(s)||(m.such||'').includes(s))&&(!FILTER||(FILTER==='update'?m.update:m.status===FILTER));
+ const sortiere=l=>[...l].sort(SORT==='name'?(a,b)=>a.name.localeCompare(b.name,'de'):SORT==='bewertung'?(a,b)=>(b.bewertung||0)-(a.bewertung||0)||b.zeit-a.zeit:(a,b)=>b.zeit-a.zeit);
+ const anzahl=k=>BAUM.reduce((n,p)=>n+p.modelle.filter(m=>k==='update'?m.update:m.status===k).length,0);
+ let h=`<div class="filter">${[['will','Will drucken'],['gedruckt','Gedruckt'],['update','Updates']].map(([k,t])=>{const n=anzahl(k);return `<button class="chip ${FILTER===k?'an':''}" onclick="setzeFilter('${k}')">${t}${n?' '+n:''}</button>`}).join('')}
+ <select onchange="setzeSort(this.value)" aria-label="Sortierung">${[['neu','Neueste'],['name','Name'],['bewertung','Bewertung']].map(([k,t])=>`<option value="${k}" ${SORT===k?'selected':''}>${t}</option>`).join('')}</select></div>`;
+ let treffer=0;
+ for(const p of BAUM){
+  const mods=sortiere(p.modelle.filter(passt));
+  if((s||FILTER)&&!mods.length)continue;
+  treffer+=mods.length;
+  h+=`<div class="pl ${ZU[p.name]&&!s&&!FILTER?'zu':''}"><div onclick="klapp('${esc(p.name).replace(/'/g,"\\'")}')"><span class="pfeil">▾</span>📁 ${esc(p.name)} <span style="margin-left:auto;font-weight:400">${p.modelle.length}</span></div><div class="mods">`;
+  for(const m of mods){
+   const akt=AKT&&AKT.p===p.name&&AKT.m===m.name;
+   h+=`<div class="mod ${akt?'akt':''}" data-p="${esc(p.name)}" data-m="${esc(m.name)}" onclick="oeffne(this.dataset.p,this.dataset.m)">${m.titelbild?`<img loading="lazy" src="${durl(p.name,m.name,'Bilder',m.titelbild)}" alt="">`:'<div class="leer"></div>'}<div class="t"><div class="n">${esc(m.name)}</div><div class="z">${m.dateien} Dateien · ${m.bilder} Bilder${marken(m)}</div></div></div>`;
+  }
+  h+='</div></div>';
+ }
+ if(!BAUM.length)h='<div class="leerseite">Noch keine Modelle.<br><br><button class="haupt" onclick="dlgAuf(\'dImport\')">Ersten Link importieren</button></div>';
+ else if(!treffer)h+='<div class="leerseite">Nichts gefunden.</div>';
+ $('baum').innerHTML=h;
+ if(!AKT)zeichneStart();
+}
+function klapp(n){ZU[n]=!ZU[n];localStorageSet('mbZu',JSON.stringify(ZU));zeichneBaum()}
+
+function start(){AKT=null;DETAIL=null;$('app').classList.remove('detail');history.replaceState(null,'','#');zeichneBaum()}
+function zeichneStart(){
+ const alle=BAUM.flatMap(p=>p.modelle.map(m=>({...m,p:p.name}))).sort((a,b)=>b.zeit-a.zeit);
+ $('haupt').innerHTML=alle.length?`<div class="kopf"><div><h1>Zuletzt geändert</h1><div class="unter">${alle.length} Modelle</div></div></div><div class="raster">${alle.slice(0,40).map(m=>`<div class="karte" data-p="${esc(m.p)}" data-m="${esc(m.name)}" onclick="oeffne(this.dataset.p,this.dataset.m)"><div class="b">${m.titelbild?`<img loading="lazy" src="${durl(m.p,m.name,'Bilder',m.titelbild)}" alt="">`:'Kein Bild'}</div><div class="t"><div>${esc(m.name)}</div><div>${esc(m.p)} · ${m.dateien} Dateien${marken(m)}</div></div></div>`).join('')}</div>`
+ :'<div class="leerseite">Füge oben einen Link von MakerWorld, Printables oder Cults 3D ein.</div>';
+}
+
+async function oeffne(p,m,reiter){
+ if(!AKT||AKT.p!==p||AKT.m!==m)BILD=0;
+ AKT={p,m};$('app').classList.add('detail');
+ history.replaceState(null,'','#'+enc(p)+'/'+enc(m));
+ try{DETAIL=await api('/api/modell?p='+enc(p)+'&m='+enc(m))}catch(e){toast('Modell nicht gefunden');return start()}
+ REITER=reiter||'uebersicht';
+ zeichneBaum();zeichneDetail();
+}
+let BILD=0;
+function menue(e){e.stopPropagation();document.getElementById('menue').classList.toggle('auf')}
+document.addEventListener('click',()=>{const m=document.getElementById('menue');if(m)m.classList.remove('auf')});
+function zeigeBild(i){BILD=i;const d=DETAIL,b=d.bilder[i];if(!b)return;$('grossBild').src=durl(d.plattform,d.name,'Bilder',b.name);document.querySelectorAll('.daumen img').forEach((x,j)=>x.classList.toggle('an',j===i))}
+function zeichneDetail(){
+ const d=DETAIL,i=d.info||{},url=i.url;
+ let h=`<div class="kopf"><button class="zurueck klein" onclick="start()">‹ Zurück</button><div style="flex:1"></div>
+ <div class="menue" id="menue"><button class="klein" onclick="menue(event)" aria-label="Mehr">•••</button><div class="liste2">
+ ${url?'<button onclick="neuEinlesen()">Neu einlesen</button>':''}<button onclick="seiteFuer()">SingleFile-Seite hochladen</button><button onclick="umbenennen()">Umbenennen / verschieben</button><button class="gefahr" onclick="modellLoeschen()">Löschen</button></div></div>
+ <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div></div></div>
+ ${i.update?`<div class="hinweisbox">Der Designer hat das Modell auf MakerWorld aktualisiert.<button class="klein" onclick="neuEinlesen()">Neu einlesen</button></div>`:''}`;
+ if(d.bilder.length&&REITER==='uebersicht'){
+  h+=`<div class="held"><div><div class="gross" onclick="lupeAuf(BILD)"><img id="grossBild" src="${durl(d.plattform,d.name,'Bilder',d.bilder[Math.min(BILD,d.bilder.length-1)].name)}" alt=""></div>
+  ${d.bilder.length>1?`<div class="daumen">${d.bilder.map((b,j)=>`<img loading="lazy" class="${j===BILD?'an':''}" src="${durl(d.plattform,d.name,'Bilder',b.name)}" onclick="zeigeBild(${j})" alt="">`).join('')}</div>`:''}</div><div class="nurgross">${profilKarte(i)}${tagKarte(i)}</div></div>`;
+ }
+ h+=`<div class="reiter">${[['uebersicht','Übersicht'],['dateien','Dateien ('+d.dateien.length+')'],['bilder','Bilder ('+d.bilder.length+')'],['seite','Original']].map(([k,t])=>`<button class="${REITER===k?'an':''}" onclick="REITER='${k}';zeichneDetail()">${t}</button>`).join('')}</div>`;
+ if(REITER==='uebersicht'){
+  const klein=matchMedia('(max-width:820px)').matches||!d.bilder.length;
+  const modelle3d=d.dateien.filter(f=>/\.(stl|3mf)$/i.test(f.name));
+  const erstes=modelle3d.find(f=>/\.3mf$/i.test(f.name))||modelle3d[0];
+  h+=`<div class="inhalt"><div class="aktionen">${erstes?`<button class="haupt" data-n="${esc(erstes.name)}" onclick="betrachterAuf(this.dataset.n)">3D ansehen</button>`:''}${d.dateien.length?`<a href="/zip/${enc(d.plattform)}/${enc(d.name)}"><button>Alles als ZIP</button></a>`:''}</div>
+  ${notizKarte(i)}${klein?profilKarte(i)+tagKarte(i):''}
+  <div class="karte2"><h3>Beschreibung</h3>${i.beschreibung?`<div class="beschr">${i.beschreibung}</div>`:'<div class="hinweis">Keine Beschreibung gespeichert.'+(url?' Über ••• → „Neu einlesen“ holen.':'')+'</div>'}
+  ${i.gespeichert?`<div class="nebeninfo">Gespeichert am ${esc(i.gespeichert)}</div>`:''}</div></div>`;
+ }else if(REITER==='seite'){
+  h+=d.seite?`<div class="inhalt seite"><iframe src="${durl(d.plattform,d.name,'seite.html')}" title="Originalseite"></iframe></div>`
+   :`<div class="inhalt"><div class="leerseite">Keine gespeicherte Webseite.<br><br><button onclick="seiteFuer()">SingleFile-Seite hochladen</button>${url?` <button class="haupt" onclick="neuEinlesen()">Neu einlesen</button>`:''}</div></div>`;
+ }else if(REITER==='dateien'){
+  h+=`<div class="inhalt">${d.dateien.length>1?`<div class="aktionen"><a href="/zip/${enc(d.plattform)}/${enc(d.name)}"><button>Alles als ZIP (${d.dateien.length})</button></a></div>`:''}${d.dateien.length?`<div class="liste">${d.dateien.map(f=>{const e=(f.name.split('.').pop()||'').slice(0,4).toUpperCase();return `<div class="zeile"><div class="ico">${esc(e)}</div><div class="n">${esc(f.name)}<div class="g">${groesse(f.groesse)}</div></div>${/\.(stl|3mf)$/i.test(f.name)?`<button class="klein" data-n="${esc(f.name)}" onclick="betrachterAuf(this.dataset.n)">3D</button>`:''}${/\.3mf$/i.test(f.name)?`<button class="klein" data-n="${esc(f.name)}" onclick="stlMachen(this.dataset.n,this)">STL</button>`:''}<a href="${durl(d.plattform,d.name,'Daten',f.name)}?dl=1"><button class="klein">Laden</button></a><button class="klein gefahr" data-n="${esc(f.name)}" onclick="dateiLoeschen(this.dataset.n,'daten')">✕</button></div>`}).join('')}</div>`:'<div class="hinweis">Noch keine Dateien im Ordner „Daten“.</div>'}
+  <div class="ablage" id="ablage">3MF, STL, STEP oder PDF hierher ziehen<br><br><button onclick="$('fDaten').click()">Dateien auswählen</button><input type="file" id="fDaten" multiple hidden onchange="hochladen(this.files,'daten')"><div class="balken"><div id="balken"></div></div></div></div>`;
+ }else{
+  h+=`<div class="inhalt"><div class="bilder">${d.bilder.map((b,j)=>`<figure onclick="lupeAuf(${j})"><img loading="lazy" src="${durl(d.plattform,d.name,'Bilder',b.name)}" alt=""><button class="klein gefahr" data-n="${esc(b.name)}" onclick="event.stopPropagation();dateiLoeschen(this.dataset.n,'bilder')">✕</button></figure>`).join('')}</div>
+  <div class="ablage" id="ablage">Bilder hierher ziehen<br><br><button onclick="$('fBild').click()">Bilder auswählen</button><input type="file" id="fBild" multiple accept="image/*" hidden onchange="hochladen(this.files,'bilder')"><div class="balken"><div id="balken"></div></div></div></div>`;
+ }
+ $('haupt').innerHTML=h;
+ const a=$('ablage');
+ if(a){a.ondragover=e=>{e.preventDefault();a.classList.add('drueber')};a.ondragleave=()=>a.classList.remove('drueber');a.ondrop=e=>{e.preventDefault();a.classList.remove('drueber');hochladen(e.dataTransfer.files,REITER)}}
+}
+function profilKarte(i){const p=i.profile||[];if(!p.length)return '';const mw=DETAIL&&DETAIL.plattform==='MakerWorld';return `<div class="karte2"><h3>Druckprofile (${p.length})</h3>${p.slice(0,30).map(x=>`<div class="prof"><span>${esc(x.titel)}</span><span>${[x.stunden?String(x.stunden).replace('.',',')+' h':'',x.platten?x.platten+(x.platten===1?' Platte':' Platten'):'',x.gewicht?x.gewicht+' g':''].filter(Boolean).join(' · ')}${mw&&x.id?`<button class="klein" onclick="profilLaden(${Number(x.id)},this)">3MF</button>`:''}</span></div>`).join('')}${p.length>30?`<div class="nebeninfo">+ ${p.length-30} weitere</div>`:''}${mw&&!p.some(x=>x.id)?'<div class="nebeninfo">Für 3MF-Knöpfe einmal über ••• → „Neu einlesen“.</div>':''}</div>`}
+async function profilLaden(id,knopf){
+ if(KONTEN&&!KONTEN.makerworld.verbunden){toast('Erst MakerWorld unter „Konten“ verbinden');return kontenAuf()}
+ knopf.disabled=true;knopf.textContent='…';
+ try{const a=await post('/api/profil_laden',{p:DETAIL.plattform,m:DETAIL.name,id});
+  while(true){await new Promise(r=>setTimeout(r,1500));const j=(await api('/api/auftraege')).find(x=>x.id===a.id);
+   if(!j||j.status==='läuft')continue;toast(j.schritt);if(j.status==='fertig'){await ladeBaum();oeffne(DETAIL.plattform,DETAIL.name,'dateien')}else{knopf.disabled=false;knopf.textContent='3MF'}break}
+ }catch(e){toast(e.message);knopf.disabled=false;knopf.textContent='3MF'}
+}
+let KONTEN=null;
+async function kontenAuf(){KONTEN=await api('/api/konten');zeichneKonten();$('dKonten').classList.add('auf')}
+function zeichneKonten(){
+ const mw=KONTEN.makerworld;
+ $('kInhalt').innerHTML=`<div class="konto"><div class="k1">MakerWorld <span class="pille ${mw.verbunden?'ja':'nein'}">${mw.verbunden?'Verbunden':'Nicht verbunden'}</span></div>
+ ${mw.verbunden?`<div class="hinweis">als „${esc(mw.name)}“ · geprüft ${esc(mw.geprueft)}<br>Beim Import wird das Standardprofil als 3MF mitgeladen, weitere Profile per „3MF“-Knopf in der Übersicht.</div><div style="margin-top:10px;display:flex;gap:8px"><button class="klein" onclick="kontoTrennen('makerworld')">Trennen</button></div>`
+ :`<div id="kSchritt1"><label>E-Mail deines Bambu-Kontos</label><input type="text" id="kMail" inputmode="email" autocomplete="username" autocapitalize="off" placeholder="du@mail.de">
+ <label>Passwort</label><input type="password" id="kPw" autocomplete="current-password">
+ <div style="margin-top:10px"><button class="haupt" onclick="kontoAnmelden()">Anmelden</button></div></div>
+ <div id="kSchritt2" style="display:none"><div class="hinweis" id="kCodeText"></div><input type="text" id="kCode" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" style="letter-spacing:4px;text-align:center;margin-top:8px">
+ <div style="margin-top:10px;display:flex;gap:8px"><button onclick="kontoZurueck()">Zurück</button><button class="haupt" onclick="kontoCode()">Bestätigen</button></div></div>
+ <div class="status" id="kStatus"></div>
+ <details style="margin-top:12px"><summary class="hinweis" style="cursor:pointer">Token selbst einfügen (am Mac)</summary>
+ <ol><li>Chrome → makerworld.com → Rechtsklick → <b>Untersuchen</b> → <b>Application</b> → <b>Cookies</b>.</li><li>Zeile <code>token</code> → Wert kopieren.</li></ol>
+ <input type="password" id="kToken" placeholder="Token hier einfügen" autocomplete="off"><div style="margin-top:8px"><button class="klein" onclick="kontoVerbinden()">Mit Token verbinden</button></div></details>
+ <div class="hinweis">Dein Passwort wird nur zum Anmelden an Bambu weitergegeben und nicht gespeichert.</div>`}</div>
+ <div class="konto"><div class="k1">Printables <span class="pille bald">folgt</span></div></div>
+ <div class="konto"><div class="k1">Cults 3D <span class="pille bald">folgt</span></div></div>
+ <div class="hinweis">Tokens werden nur auf deinem NUC gespeichert und nie an die Oberfläche zurückgegeben. Sie laufen nach einiger Zeit ab – dann hier neu verbinden.</div>
+ <div class="konto" style="margin-top:12px"><div class="k1">ModelBrowser</div><div class="hinweis">MakerWorld-Modelle werden täglich auf Updates geprüft.</div>
+ <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="klein" onclick="updatesJetzt(this)">Jetzt auf Updates prüfen</button><button class="klein" onclick="pinAendern()">PIN ändern</button><button class="klein gefahr" onclick="abmelden()">Abmelden</button></div></div>`;
+}
+function kStatus(t,art){const s=$('kStatus');s.style.display=t?'block':'none';s.className='status '+(art||'');s.textContent=t||''}
+let K_MAIL='';
+async function kontoAnmelden(){
+ const mail=$('kMail').value.trim(),pw=$('kPw').value;if(!mail||!pw)return kStatus('E-Mail und Passwort eingeben','fehler');
+ kStatus('Anmelden …');
+ try{const d=await post('/api/konten',{plattform:'makerworld',email:mail,passwort:pw});$('kPw').value='';K_MAIL=mail;
+  if(d.weiter){$('kSchritt1').style.display='none';$('kSchritt2').style.display='block';$('kCodeText').textContent=d.text;kStatus('');setTimeout(()=>$('kCode').focus(),50);return}
+  KONTEN=d;zeichneKonten();toast('MakerWorld verbunden');if(DETAIL)zeichneDetail()}
+ catch(e){kStatus(e.message,'fehler')}
+}
+async function kontoCode(){
+ const c=$('kCode').value.trim();if(!c)return;kStatus('Wird bestätigt …');
+ try{const d=await post('/api/konten',{plattform:'makerworld',email:K_MAIL,code:c});KONTEN=d;zeichneKonten();toast('MakerWorld verbunden');if(DETAIL)zeichneDetail()}
+ catch(e){kStatus(e.message,'fehler')}
+}
+function kontoZurueck(){$('kSchritt2').style.display='none';$('kSchritt1').style.display='block';kStatus('')}
+async function kontoVerbinden(){
+ const t=$('kToken').value.trim(),s=$('kStatus');if(!t)return;
+ s.style.display='block';s.className='status';s.textContent='Wird geprüft …';
+ try{KONTEN=await post('/api/konten',{plattform:'makerworld',token:t});zeichneKonten();toast('MakerWorld verbunden');if(DETAIL)zeichneDetail()}
+ catch(e){s.className='status fehler';s.textContent=e.message}
+}
+async function kontoTrennen(p){if(!confirm('Konto trennen?'))return;KONTEN=await post('/api/konten',{plattform:p,trennen:true});zeichneKonten()}
+function tagKarte(i){const t=[...new Set((i.tags||[]).filter(Boolean).map(x=>x.toLowerCase()))];return t.length?`<div class="karte2">${t.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>`:''}
+async function neuEinlesen(){
+ const d=DETAIL;dlgAuf('dImport');$('iUrl').value=d.info.url||'';status('Wird neu eingelesen …');$('iLos').disabled=true;
+ try{const a=await post('/api/import',{url:d.info.url,p:d.plattform,m:d.name});await warteAuf(a.id)}catch(e){status(e.message,'fehler')}
+ $('iLos').disabled=false;
+}
+async function warteAuf(id){
+ const t0=Date.now();
+ while(true){
+  await new Promise(r=>setTimeout(r,2000));
+  const j=(await api('/api/auftraege')).find(x=>x.id===id);if(!j)throw new Error('Auftrag verschwunden');
+  if(j.status==='fertig'){status(j.schritt,'ok');await ladeBaum();setTimeout(()=>{dlgZu();$('iUrl').value='';BILD=0;oeffne(j.plattform,j.modell,'uebersicht')},1500);return}
+  if(j.status==='fehler'){status(j.schritt,'fehler');return}
+  status(j.schritt+' ('+Math.round((Date.now()-t0)/1000)+' s)');
+ }
+}
+
+let N_STERNE=0;
+function notizKarte(i){
+ N_STERNE=i.bewertung||0;
+ return `<div class="karte2 notiz"><h3>Meine Notizen</h3>
+ <label>Status</label><select id="nStatus"><option value="">–</option><option value="will" ${i.status==='will'?'selected':''}>Will ich drucken</option><option value="gedruckt" ${i.status==='gedruckt'?'selected':''}>Gedruckt</option></select>
+ <label>Bewertung</label><div id="nSterne">${[1,2,3,4,5].map(k=>`<button class="stern ${k<=N_STERNE?'an':''}" onclick="setzeSterne(${k})" aria-label="${k} Sterne">★</button>`).join('')}</div>
+ <label>Filament</label><input type="text" id="nFilament" value="${esc(i.filament||'')}" placeholder="Bambu PLA Matte Schwarz">
+ <label>Notiz</label><textarea id="nNotiz" placeholder="Deckel 0,2 mm enger drucken">${esc(i.notiz||'')}</textarea>
+ <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="haupt" onclick="notizSpeichern()">Speichern</button><button onclick="$('fEigen').click()">Foto vom Druck hinzufügen</button><input type="file" id="fEigen" accept="image/*" multiple hidden onchange="fotosHochladen(this.files)"></div></div>`;
+}
+function setzeSterne(k){N_STERNE=N_STERNE===k?0:k;document.querySelectorAll('#nSterne .stern').forEach((b,j)=>b.classList.toggle('an',j<N_STERNE))}
+async function notizSpeichern(){
+ try{await post('/api/notiz',{p:AKT.p,m:AKT.m,status:$('nStatus').value,bewertung:N_STERNE,filament:$('nFilament').value,notiz:$('nNotiz').value});toast('Gespeichert');await ladeBaum();oeffne(AKT.p,AKT.m,'uebersicht')}
+ catch(e){toast(e.message)}
+}
+async function fotosHochladen(liste){
+ const fs=[...liste];if(!fs.length)return;
+ for(const f of fs){const end=(f.name.split('.').pop()||'jpg').toLowerCase();
+  try{await sendeDatei(`/api/hochladen?art=bilder&p=${enc(AKT.p)}&m=${enc(AKT.m)}&name=${enc('eigen_'+Date.now()+'.'+end)}`,f)}catch(e){toast(e.message)}}
+ toast('Foto gespeichert');await ladeBaum();oeffne(AKT.p,AKT.m,'uebersicht');
+}
+let BETR=null;
+async function betrachterAuf(datei){
+ const b=$('betrachter');b.classList.add('auf');$('bName').textContent=datei;$('bLade').style.display='flex';$('bLade').textContent='3D-Modell wird geladen …';
+ try{
+  const T=await import('three');const {STLLoader}=await import('three/addons/loaders/STLLoader.js');const {OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+  if(BETR)BETR.weg();
+  const lw=$('bLeinwand'),r=new T.WebGLRenderer({canvas:lw,antialias:true});r.setPixelRatio(Math.min(devicePixelRatio,2));
+  const szene=new T.Scene();szene.background=new T.Color(0x0b0d10);
+  const kam=new T.PerspectiveCamera(40,1,0.1,20000);
+  szene.add(new T.HemisphereLight(0xffffff,0x334155,1.4));const l=new T.DirectionalLight(0xffffff,1.6);l.position.set(1,2,1.5);szene.add(l);
+  const st=new OrbitControls(kam,lw);st.enableDamping=true;
+  const antw=await fetch('/vorschau/'+[AKT.p,AKT.m,datei].map(enc).join('/'));if(antw.status===401){zeigeLogin();throw new Error('Bitte anmelden')}if(!antw.ok)throw new Error('Datei nicht ladbar');
+  const geo=new STLLoader().parse(await antw.arrayBuffer());geo.rotateX(-Math.PI/2);geo.computeBoundingBox();
+  const bb=geo.boundingBox,mitte=new T.Vector3();bb.getCenter(mitte);geo.translate(-mitte.x,-bb.min.y,-mitte.z);
+  const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({color:0x22c55e,roughness:.55,metalness:.05}));szene.add(mesh);
+  const groesse=new T.Vector3();bb.getSize(groesse);const g=Math.max(groesse.x,groesse.y,groesse.z)||10;
+  const raster=new T.GridHelper(g*2,20,0x2e333b,0x1b1e23);szene.add(raster);
+  kam.position.set(g*1.2,g*0.9,g*1.4);st.target.set(0,groesse.y/2,0);st.update();
+  $('bName').textContent=datei+' · '+Math.round(groesse.x)+' × '+Math.round(groesse.z)+' × '+Math.round(groesse.y)+' mm';
+  let dreh=false,lauf=true;
+  const groesseAnpassen=()=>{const w=lw.clientWidth,h=lw.clientHeight;r.setSize(w,h,false);kam.aspect=w/h;kam.updateProjectionMatrix()};
+  addEventListener('resize',groesseAnpassen);groesseAnpassen();
+  const schleife=()=>{if(!lauf)return;if(dreh)mesh.rotation.y+=0.01;st.update();r.render(szene,kam);requestAnimationFrame(schleife)};schleife();
+  $('bLade').style.display='none';
+  BETR={drehen(){dreh=!dreh},weg(){lauf=false;removeEventListener('resize',groesseAnpassen);geo.dispose();r.dispose()}};
+ }catch(e){$('bLade').textContent='3D-Ansicht nicht möglich: '+e.message}
+}
+function betrachterZu(){$('betrachter').classList.remove('auf');if(BETR){BETR.weg();BETR=null}}
+let LOGIN_NEU=false;
+async function zeigeLogin(){
+ try{const s=await (await fetch('/api/status')).json();LOGIN_NEU=!s.pin}catch(e){}
+ $('lText').textContent=LOGIN_NEU?'Lege eine PIN fest (4–8 Ziffern). Damit schützt du deine Modelle und dein MakerWorld-Konto.':'PIN eingeben';
+ $('lPin2').style.display=LOGIN_NEU?'block':'none';$('login').classList.add('auf');setTimeout(()=>$('lPin').focus(),50);
+}
+async function anmelden(){
+ const p=$('lPin').value.trim(),s=$('lStatus');s.style.display='block';s.className='status';
+ if(LOGIN_NEU&&p!==$('lPin2').value.trim()){s.className='status fehler';s.textContent='Die beiden PINs stimmen nicht überein.';return}
+ s.textContent='Prüfe …';
+ const r=await fetch('/api/anmelden',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:p})});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok){s.className='status fehler';s.textContent=d.text||'Fehler';$('lPin').value='';return}
+ $('login').classList.remove('auf');s.style.display='none';$('lPin').value='';$('lPin2').value='';start2();
+}
+async function abmelden(){await fetch('/api/abmelden',{method:'POST'});location.reload()}
+async function pinAendern(){
+ const alt=prompt('Alte PIN');if(alt===null)return;const neu=prompt('Neue PIN (4–8 Ziffern)');if(neu===null)return;
+ try{await post('/api/pin_aendern',{alt,neu});toast('PIN geändert')}catch(e){toast(e.message)}
+}
+async function updatesJetzt(knopf){knopf.disabled=true;knopf.textContent='Prüfe …';try{const d=await post('/api/updates',{});toast(d.neu?d.neu+' neue Updates':'Keine neuen Updates');await ladeBaum()}catch(e){toast(e.message)}knopf.disabled=false;knopf.textContent='Jetzt auf Updates prüfen'}
+function sendeDatei(url,datei,fort){return new Promise((ok,nein)=>{const x=new XMLHttpRequest();x.open('PUT',url);x.upload.onprogress=e=>e.lengthComputable&&fort&&fort(e.loaded/e.total);x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch(e){}if(x.status===401)zeigeLogin();x.status<300?ok(d):nein(new Error(d.text||'Upload fehlgeschlagen'))};x.onerror=()=>nein(new Error('Verbindung abgebrochen'));x.send(datei)})}
+async function hochladen(liste,art){
+ const fs=[...liste];if(!fs.length)return;
+ const ges=fs.reduce((s,f)=>s+f.size,0);let fertig=0;
+ for(const f of fs){
+  try{await sendeDatei(`/api/hochladen?art=${art}&p=${enc(AKT.p)}&m=${enc(AKT.m)}&name=${enc(f.name)}`,f,q=>{const b=$('balken');if(b)b.style.width=((fertig+q*f.size)/ges*100)+'%'})}
+  catch(e){toast(f.name+': '+e.message)}
+  fertig+=f.size;
+ }
+ toast(fs.length+(fs.length===1?' Datei':' Dateien')+' hochgeladen');
+ await ladeBaum();oeffne(AKT.p,AKT.m,art);
+}
+async function stlMachen(n,knopf){
+ knopf.disabled=true;knopf.textContent='…';
+ try{const a=await post('/api/stl',{p:AKT.p,m:AKT.m,datei:n});
+  while(true){await new Promise(r=>setTimeout(r,1500));const j=(await api('/api/auftraege')).find(x=>x.id===a.id);
+   if(!j||j.status==='läuft')continue;toast(j.schritt);await ladeBaum();oeffne(AKT.p,AKT.m,'dateien');break}
+ }catch(e){toast(e.message);knopf.disabled=false;knopf.textContent='STL'}
+}
+async function dateiLoeschen(n,art){if(!confirm(`„${n}“ löschen? (landet im Papierkorb-Ordner)`))return;await post('/api/loeschen',{p:AKT.p,m:AKT.m,datei:n,art});await ladeBaum();oeffne(AKT.p,AKT.m,art)}
+async function modellLoeschen(){if(!confirm(`Modell „${AKT.m}“ mit allen Dateien löschen? (landet im Papierkorb-Ordner)`))return;await post('/api/loeschen',{p:AKT.p,m:AKT.m});await ladeBaum();start()}
+function umbenennen(){UMBENENNEN=true;$('nTitel').textContent='Modell umbenennen / verschieben';$('nOk').textContent='Speichern';$('nP').value=AKT.p;$('nM').value=AKT.m;dlgAuf('dNeu')}
+async function neuOk(){
+ const p=$('nP').value.trim(),m=$('nM').value.trim();if(!p||!m)return toast('Plattform und Name ausfüllen');
+ try{const d=UMBENENNEN?await post('/api/umbenennen',{p:AKT.p,m:AKT.m,np:p,nm:m}):await post('/api/neu',{p,m});dlgZu();await ladeBaum();oeffne(d.plattform,d.modell,UMBENENNEN?REITER:'dateien')}catch(e){toast(e.message)}
+}
+
+function dlgAuf(id){if(id==='dNeu'&&!UMBENENNEN){$('nTitel').textContent='Neues Modell';$('nOk').textContent='Anlegen';$('nP').value=AKT?AKT.p:'';$('nM').value=''}
+ if(id==='dImport'){$('iStatus').style.display='none';$('iLos').disabled=false}
+ $(id).classList.add('auf');setTimeout(()=>$(id).querySelector('input').focus(),50)}
+function dlgZu(){document.querySelectorAll('.dialog').forEach(d=>d.classList.remove('auf'));UMBENENNEN=false}
+function status(t,art){const s=$('iStatus');s.style.display='block';s.className='status '+(art||'');s.textContent=t}
+async function importStart(){
+ const url=$('iUrl').value.trim();if(!url)return;
+ $('iLos').disabled=true;status('Startet …');
+ try{const a=await post('/api/import',{url});await warteAuf(a.id)}catch(e){status(e.message,'fehler')}
+ $('iLos').disabled=false;
+}
+function seiteFuer(){const i=$('iDatei');i.dataset.ziel='1';i.click()}
+async function seiteHochladen(f){
+ if(!f)return;const i=$('iDatei');const ziel=i.dataset.ziel&&AKT;i.dataset.ziel='';
+ status('Seite wird hochgeladen …');
+ try{const d=await sendeDatei('/api/hochladen?art=seite'+(ziel?`&p=${enc(AKT.p)}&m=${enc(AKT.m)}`:''),f);dlgZu();toast(`Gespeichert mit ${d.bilder} Bildern`);await ladeBaum();oeffne(d.plattform,d.modell,'uebersicht')}
+ catch(e){status(e.message,'fehler');toast(e.message)}
+ i.value='';
+}
+
+function lupeAuf(i){LUPE=i;$('lupe').classList.add('auf');lupeZeig()}
+function lupeZu(){$('lupe').classList.remove('auf')}
+function lupeSchritt(n){LUPE=(LUPE+n+DETAIL.bilder.length)%DETAIL.bilder.length;lupeZeig()}
+function lupeZeig(){const b=DETAIL.bilder[LUPE];$('lupeBild').src=durl(DETAIL.plattform,DETAIL.name,'Bilder',b.name)}
+document.addEventListener('keydown',e=>{if($('lupe').classList.contains('auf')){if(e.key==='Escape')lupeZu();if(e.key==='ArrowRight')lupeSchritt(1);if(e.key==='ArrowLeft')lupeSchritt(-1)}else if(e.key==='Escape'){dlgZu();betrachterZu()}if(e.key==='Enter'&&$('login').classList.contains('auf'))anmelden();if(e.key==='Enter'&&$('dImport').classList.contains('auf'))importStart()});
+
+async function start2(){try{KONTEN=await api('/api/konten')}catch(e){}await ladeBaum();const h=location.hash.slice(1);if(h.includes('/')){const [p,m]=h.split('/').map(decodeURIComponent);oeffne(p,m)}}
+(async()=>{let s={};try{s=await (await fetch('/api/status')).json()}catch(e){}if(!s.angemeldet)return zeigeLogin();start2()})();
+</script>
+</body>
+</html>
