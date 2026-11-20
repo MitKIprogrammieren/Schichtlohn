@@ -1,0 +1,11 @@
+services:
+  formwerk:
+    build: .
+    container_name: formwerk
+    ports:
+      - "8097:8097"
+    volumes:
+      - ./data:/data
+    environment:
+      - PORT=8097
+    restart: unless-stopped

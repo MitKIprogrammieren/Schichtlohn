@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formwerk – Großformat-Generator</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{
+  --green:#00AE42;--green-h:#00C24A;--green-bg:#E5F6EC;--bg:#F2F2F2;--panel:#FFFFFF;--panel2:#F7F7F7;
+  --line:#DBDBDB;--text:#262E30;--muted:#6B6B6B;--canvas:#E8E8E8;--warn:#C27400;--err:#D32F2F;
+}
+@media (prefers-color-scheme: dark){:root{
+  --green-bg:#1F3A2A;--bg:#1E1E21;--panel:#2D2D31;--panel2:#26262A;--line:#3E3E44;--text:#EFEFF0;--muted:#A0A0A8;--canvas:#38383D;--warn:#F0A030;--err:#FF6B6B;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font:13px/1.45 "HarmonyOS Sans","Segoe UI",system-ui,-apple-system,sans-serif}
+button,input,select{font:inherit;color:inherit}
+.top{display:flex;align-items:center;gap:14px;height:44px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.logo i{width:26px;height:26px;border-radius:6px;background:var(--green);display:grid;place-items:center}
+.tabs{display:flex;gap:2px;height:100%}
+.tab{display:flex;align-items:center;padding:0 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;user-select:none}
+.tab.on{color:var(--text);border-bottom-color:var(--green);font-weight:600}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 12px;cursor:pointer}
+.btn:hover{border-color:var(--green)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--green-h)}
+.btn:disabled{opacity:.55;cursor:wait}
+.main{display:flex;height:calc(100% - 44px)}
+.side{width:340px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);overflow:auto}
+.work{flex:1;display:flex;flex-direction:column;min-width:0}
+.modes{display:flex;gap:4px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+.mode{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;color:var(--muted);border:1px solid transparent}
+.mode:hover{background:var(--panel2)}
+.mode.on{background:var(--green-bg);color:var(--green);border-color:var(--green);font-weight:600}
+.view{position:relative;flex:1;background:var(--canvas);min-height:260px}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vtools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.vtools button{width:32px;height:32px;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+.hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);pointer-events:none}
+.busy{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.25);color:#fff;font-size:15px}
+.busy.on{display:grid}
+.spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:var(--green);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 10px}
+@keyframes s{to{transform:rotate(360deg)}}
+.plates{display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;min-height:56px}
+.plate{min-width:64px;height:40px;padding:0 8px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;font-size:12px;white-space:nowrap;background:var(--panel)}
+.plate.on{border:2px solid var(--green)}
+.sec{border-bottom:1px solid var(--line)}
+.sec h3{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;font-size:13px;cursor:pointer;user-select:none}
+.sec h3 .ic{color:var(--green)}
+.sec h3 .chev{margin-left:auto;color:var(--muted);transition:transform .15s}
+.sec.closed h3 .chev{transform:rotate(-90deg)}
+.sec.closed .body{display:none}
+.body{padding:0 12px 10px 34px}
+.row{display:grid;grid-template-columns:1fr 128px;align-items:center;gap:8px;min-height:30px}
+.row label{color:var(--muted)}
+.row .ctl{display:flex;align-items:center;gap:4px}
+.row input[type=number],.row input[type=text],.row select{width:100%;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);padding:0 6px}
+.row input:focus,.row select:focus{outline:none;border-color:var(--green)}
+.unit{color:var(--muted);font-size:12px;min-width:22px}
+.sw{position:relative;width:34px;height:18px;border-radius:9px;background:var(--line);cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--green)}.sw.on::after{left:18px}
+.drop{margin:10px 12px;border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--green);color:var(--text)}
+.drop b{color:var(--text)}
+.help{font-size:12px;color:var(--muted);margin:2px 0 6px}
+.pr{display:grid;grid-template-columns:1fr 52px 52px 52px 40px 20px;gap:4px;align-items:center;margin-bottom:4px}
+.pr input{width:100%;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);padding:0 4px;font-size:12px}
+.pr .x{cursor:pointer;color:var(--muted);text-align:center}
+.prh{font-size:11px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px}
+.stats span:nth-child(odd){color:var(--muted)}
+.warn{color:var(--warn);font-size:12px;margin-top:6px}
+.error{color:var(--err);font-size:12px;margin-top:6px}
+.page{display:none;flex:1;overflow:auto;padding:16px;background:var(--bg)}
+.page.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}
+.card img{width:100%;background:#fff;border-radius:4px;border:1px solid var(--line)}
+.card .t{display:flex;justify-content:space-between;margin-top:6px;font-size:12px}
+a{color:var(--green);text-decoration:none}
+.files{background:var(--panel);border:1px solid var(--line);border-radius:8px;max-width:760px}
+.file{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.file:last-child{border-bottom:none}
+.file .n{flex:1;word-break:break-all}
+.file .s{color:var(--muted);font-size:12px}
+.badge{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--green-bg);color:var(--green);font-weight:600}
+.legend{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:var(--panel);padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
+@media (max-width:520px){
+  .top{gap:6px;padding:0 8px}.logo span{display:none}.tab{padding:0 7px}.btn.primary{padding:5px 10px}
+  .pr{grid-template-columns:1fr 44px 44px 44px 36px 16px}
+}
+@media (max-width:820px){
+  .main{flex-direction:column;height:auto}
+  .side{width:100%;min-width:0;border-right:none;order:2}
+  .work{order:1;height:62vh}
+  .tab{padding:0 8px}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg></i><span>Formwerk</span></div>
+  <div class="tabs">
+    <div class="tab on" data-page="prep">Vorbereiten</div>
+    <div class="tab" data-page="sheets">Vorschau</div>
+    <div class="tab" data-page="export">Export</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn primary" id="go">Berechnen</button>
+</div>
+<div class="main">
+  <aside class="side">
+    <div class="drop" id="drop"><input type="file" id="file" hidden accept=".stl,.3mf,.obj,.jpg,.jpeg,.png,.webp,.bmp,.gif">
+      <div id="dropText"><b>Datei hierher ziehen</b> oder klicken<br>Foto (JPG, PNG) oder 3D-Modell (STL, 3MF, OBJ)</div>
+    </div>
+    <div class="sec" id="secPrinter">
+      <h3><span class="ic">&#9635;</span>Drucker<span class="chev">&#9662;</span></h3>
+      <div class="body">
+        <div class="row"><label>Vorlage</label><div class="ctl"><select id="preset"></select></div></div>
+        <div class="prh pr"><span>Name</span><span>X</span><span>Y</span><span>Z</span><span>Tempo</span><span></span></div>
+        <div id="printers"></div>
+        <div style="display:flex;gap:6px;margin-top:6px"><button class="btn" id="addPrinter">+ Drucker</button></div>
+        <div class="help">Mit mehreren Druckern verteilt Formwerk die Teile nach Tempo, so dass alle etwa gleichzeitig fertig sind.</div>
+        <div class="row"><label>Abstand zum Bettrand</label><div class="ctl"><input type="number" id="margin" value="5" step="1"><span class="unit">mm</span></div></div>
+      </div>
+    </div>
+    <div id="params"></div>
+    <div class="sec" id="secResult">
+      <h3><span class="ic">&#9679;</span>Messwerte<span class="chev">&#9662;</span></h3>
+      <div class="body"><div class="stats" id="stats"><span>Noch nicht berechnet</span><span></span></div><div id="msgs"></div></div>
+    </div>
+  </aside>
+  <section class="work">
+    <div class="modes" id="modes"></div>
+    <div class="page on" id="page-prep" style="padding:0;display:flex;flex-direction:column">
+      <div class="view">
+        <canvas id="cv"></canvas>
+        <div class="hint" id="hint">Datei laden, Modus wählen und auf „Berechnen“ klicken</div>
+        <div class="vtools">
+          <button title="Ansicht einpassen" id="vFit">&#10530;</button>
+          <button title="Von oben" id="vTop">&#8868;</button>
+          <button title="Auseinanderziehen" id="vExplode">&#8644;</button>
+        </div>
+        <div class="legend" id="legend" style="display:none"></div>
+        <div class="busy" id="busy"><div><div class="spin"></div><span id="busyText">Wird berechnet …</span></div></div>
+      </div>
+      <div class="plates" id="plateBar"><span style="color:var(--muted)">Teile erscheinen hier nach dem Berechnen</span></div>
+    </div>
+    <div class="page" id="page-sheets"><div class="grid" id="sheetGrid"></div></div>
+    <div class="page" id="page-export">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <a class="btn primary" id="zip" href="#">Alles als ZIP</a>
+        <span id="expInfo" style="align-self:center;color:var(--muted)"></span>
+      </div>
+      <div class="files" id="fileList"></div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from '/vendor/STLLoader.js';
+import { OrbitControls } from '/vendor/OrbitControls.js';
+
+const PRESETS = [
+  ['Bambu Lab H2C', 325, 320, 325], ['Bambu Lab H2D', 325, 320, 325], ['Bambu Lab H2S', 340, 320, 340],
+  ['Bambu Lab X1 Carbon', 256, 256, 256], ['Bambu Lab P2S', 256, 256, 256], ['Bambu Lab P1S', 256, 256, 256],
+  ['Bambu Lab A1', 256, 256, 256], ['Bambu Lab A1 mini', 180, 180, 180], ['Laser 400 × 400', 400, 400, 50],
+];
+
+const MODES = {
+  lithophane: { name: 'Lithophane', icon: '&#9634;', input: 'foto', groups: [
+    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.2,'mm/px',0.05]]],
+    ['Dicke', [['min_t','Dicke min','num',0.6,'mm',0.1],['max_t','Dicke max','num',2.4,'mm',0.1],['negative','Negativ','bool',false],['interior','Glatte Seite zum Betrachter','bool',false],['blur','Glätten','num',0,'px',1]]],
+    ['Rand', [['border_size','Randbreite','num',3,'mm'],['border_t','Randdicke','num',3,'mm',0.1]]],
+  ], help: 'Dunkle Bildstellen werden dick, helle dünn. Große Lithophanes werden automatisch in Kacheln geteilt, die aufs Druckbett passen.' },
+  relief_foto: { name: 'Foto-Relief', icon: '&#9650;', input: 'foto', groups: [
+    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
+    ['Relief', [['relief_t','Reliefhöhe','num',4,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['negative','Negativ (dunkel = hoch)','bool',false],['blur','Glätten','num',1,'px',1]]],
+    ['Rand', [['border_size','Randbreite','num',4,'mm'],['border_t','Randhöhe','num',4,'mm',0.5]]],
+  ], help: 'Helle Bildstellen werden hoch. Gut für Wandbilder, Prägungen und CNC.' },
+  relief: { name: 'Relief', icon: '&#9968;', input: 'mesh', groups: [
+    ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
+    ['Relief', [['direction','Richtung','sel','+Z',['+Z','-Z','+X','-X','+Y','-Y']],['relief_t','Reliefdicke','num',8,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['bury','Begraben','num',0,'0–0,9',0.05],['negative','Negativ (Form)','bool',false]]],
+    ['Rand', [['border_size','Randbreite','num',0,'mm'],['border_t','Randhöhe','num',5,'mm',0.5]]],
+  ], help: 'Macht aus einem 3D-Modell ein 2,5D-Relief ohne Überhänge – druckbar oder für die CNC.' },
+  split: { name: 'Teilen', icon: '&#9638;', input: 'mesh', groups: [
+    ['Größe', [['size','Größte Kante','num',600,'mm']]],
+    ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel'],['none','Keine']]],['dowel_d','Dübelgröße','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
+  ], help: 'Zerlegt das Modell so, dass jedes Teil in den Bauraum passt. Dübellöcher richten die Teile aus. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
+  stack: { name: 'Stack', icon: '&#9776;', input: 'mesh', groups: [
+    ['Größe', [['size','Größte Kante','num',400,'mm'],['axis','Schichtrichtung','sel','Z',['X','Y','Z']]]],
+    ['Material', [['sheet_t','Materialdicke','num',3,'mm',0.5],['sheet_w','Bogenbreite','num',400,'mm'],['sheet_h','Bogenhöhe','num',300,'mm']]],
+    ['Aufbau', [['ring_w','Ringbreite (0 = voll)','num',0,'mm',1],['dowel_d','Dübelloch Ø (0 = aus)','num',4,'mm',0.5],['engrave_next','Nächste Schicht gravieren','bool',true]]],
+  ], help: 'Zerlegt das Modell in Scheiben aus Platten (Laser, CNC oder Druck). Zu große Scheiben werden geteilt und verschachtelt. Beschriftung 2.1.3 = Schicht.Kontur.Stück.' },
+  hash: { name: 'Hash', icon: '&#9783;', input: 'mesh', groups: [
+    ['Größe', [['size','Größte Kante','num',400,'mm']]],
+    ['Scheiben', [['x_layers','X-Scheiben','num',8,'',1],['z_layers','Z-Scheiben','num',6,'',1],['sheet_t','Materialdicke','num',3,'mm',0.5],['tolerance','Toleranz','num',0,'mm',0.05],['ring_w','Ringbreite (0 = voll)','num',0,'mm',1]]],
+    ['Bogen', [['sheet_w','Bogenbreite','num',400,'mm'],['sheet_h','Bogenhöhe','num',300,'mm']]],
+  ], help: 'Ineinandergesteckte Scheiben in X und Z. Toleranz negativ für den 3D-Druck, positiv für den Laser (gleicht den Brand aus).' },
+  wireframe: { name: 'Wireframe', icon: '&#9707;', input: 'mesh', groups: [
+    ['Größe', [['size','Größte Kante','num',200,'mm']]],
+    ['Drähte', [['x_layers','X-Schichten','num',10,'',1],['y_layers','Y-Schichten','num',0,'',1],['z_layers','Z-Schichten','num',10,'',1],['wire_t','Drahtstärke','num',2,'mm',0.2]]],
+  ], help: 'Gitter aus Schnittkurven. Am besten ohne Stützen drucken – viele Schichten überbrücken sich selbst.' },
+};
+
+let mode = localStorage.getItem('fw_mode') || 'lithophane';
+let values = JSON.parse(localStorage.getItem('fw_values') || '{}');
+let printers = JSON.parse(localStorage.getItem('fw_printers') || 'null') || [{ name: 'Bambu Lab H2C', x: 325, y: 320, z: 325, speed: 1 }];
+let file = null, result = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const save = () => { localStorage.setItem('fw_mode', mode); localStorage.setItem('fw_values', JSON.stringify(values)); localStorage.setItem('fw_printers', JSON.stringify(printers)); };
+
+// ── Tabs
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + t.dataset.page));
+  $('#page-prep').style.display = t.dataset.page === 'prep' ? 'flex' : 'none';
+  if (t.dataset.page === 'prep') resize();
+});
+
+// ── Modi
+function renderModes() {
+  $('#modes').innerHTML = Object.entries(MODES).map(([k, m]) => `<div class="mode ${k === mode ? 'on' : ''}" data-m="${k}"><span>${m.icon}</span>${m.name}</div>`).join('');
+  document.querySelectorAll('.mode').forEach(el => el.onclick = () => { mode = el.dataset.m; save(); renderModes(); renderParams(); });
+}
+function val(key, def) { return (values[mode] && key in values[mode]) ? values[mode][key] : def; }
+function renderParams() {
+  const m = MODES[mode];
+  let h = '';
+  m.groups.forEach(([g, fields], gi) => {
+    h += `<div class="sec"><h3><span class="ic">&#9881;</span>${esc(g)}<span class="chev">&#9662;</span></h3><div class="body">`;
+    if (gi === 0) h += `<div class="help">${esc(m.help)}</div>`;
+    for (const [key, label, type, def, extra, step] of fields) {
+      const v = val(key, def);
+      let ctl;
+      if (type === 'bool') ctl = `<div class="sw ${v ? 'on' : ''}" data-k="${key}"></div>`;
+      else if (type === 'sel') ctl = `<select data-k="${key}">${extra.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${ov}" ${ov == v ? 'selected' : ''}>${ol}</option>`; }).join('')}</select>`;
+      else ctl = `<input type="number" data-k="${key}" value="${v}" step="${step || 1}"><span class="unit">${extra || ''}</span>`;
+      h += `<div class="row"><label>${esc(label)}</label><div class="ctl">${ctl}</div></div>`;
+    }
+    h += `</div></div>`;
+  });
+  $('#params').innerHTML = h;
+  $('#params').querySelectorAll('input,select').forEach(el => el.onchange = () => setVal(el.dataset.k, el.type === 'number' ? parseFloat(el.value) : el.value));
+  $('#params').querySelectorAll('.sw').forEach(el => el.onclick = () => { el.classList.toggle('on'); setVal(el.dataset.k, el.classList.contains('on')); });
+  bindSections();
+  updateDropText();
+}
+function setVal(k, v) { values[mode] = values[mode] || {}; values[mode][k] = v; save(); }
+function bindSections() { document.querySelectorAll('.sec h3').forEach(h => h.onclick = () => h.parentElement.classList.toggle('closed')); }
+
+// ── Drucker
+$('#preset').innerHTML = '<option value="">Vorlage einsetzen …</option>' + PRESETS.map((p, i) => `<option value="${i}">${p[0]} (${p[1]}×${p[2]}×${p[3]})</option>`).join('');
+$('#preset').onchange = e => { const p = PRESETS[e.target.value]; if (p) { printers[0] = { name: p[0], x: p[1], y: p[2], z: p[3], speed: printers[0]?.speed || 1 }; renderPrinters(); save(); } e.target.value = ''; };
+function renderPrinters() {
+  $('#printers').innerHTML = printers.map((p, i) => `<div class="pr" data-i="${i}">
+    <input data-f="name" value="${esc(p.name)}"><input type="number" data-f="x" value="${p.x}"><input type="number" data-f="y" value="${p.y}"><input type="number" data-f="z" value="${p.z}"><input type="number" data-f="speed" value="${p.speed}" step="0.1">
+    <span class="x" title="Entfernen">${printers.length > 1 ? '&#10005;' : ''}</span></div>`).join('');
+  $('#printers').querySelectorAll('.pr').forEach(row => {
+    const i = +row.dataset.i;
+    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { printers[i][inp.dataset.f] = inp.dataset.f === 'name' ? inp.value : parseFloat(inp.value); save(); drawPlate(); });
+    row.querySelector('.x').onclick = () => { if (printers.length > 1) { printers.splice(i, 1); renderPrinters(); save(); } };
+  });
+  drawPlate();
+}
+$('#addPrinter').onclick = () => { printers.push({ ...printers[printers.length - 1], name: 'Drucker ' + (printers.length + 1) }); renderPrinters(); save(); };
+$('#margin').value = localStorage.getItem('fw_margin') || 5;
+$('#margin').onchange = () => localStorage.setItem('fw_margin', $('#margin').value);
+
+// ── Datei
+const isMesh = n => /\.(stl|3mf|obj)$/i.test(n);
+function updateDropText() {
+  const need = MODES[mode].input === 'foto' ? 'Foto (JPG, PNG, WebP)' : '3D-Modell (STL, 3MF, OBJ)';
+  $('#dropText').innerHTML = file ? `<b>${esc(file.name)}</b><br>${(file.size / 1e6).toFixed(1).replace('.', ',')} MB · zum Wechseln klicken` : `<b>Datei hierher ziehen</b> oder klicken<br>${need}`;
+}
+function setFile(f) {
+  file = f;
+  const wantMesh = MODES[mode].input === 'mesh';
+  if (isMesh(f.name) !== wantMesh) { mode = isMesh(f.name) ? 'split' : 'lithophane'; save(); renderModes(); renderParams(); }
+  updateDropText();
+  showInput();
+}
+$('#drop').onclick = () => $('#file').click();
+$('#file').onchange = e => e.target.files[0] && setFile(e.target.files[0]);
+['dragover', 'dragenter'].forEach(ev => $('#drop').addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => $('#drop').addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.remove('over'); }));
+$('#drop').addEventListener('drop', e => e.dataTransfer.files[0] && setFile(e.dataTransfer.files[0]));
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => { e.preventDefault(); e.dataTransfer.files[0] && setFile(e.dataTransfer.files[0]); });
+
+// ── 3D-Ansicht
+const cv = $('#cv');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 1, 20000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, cv);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
+const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.set(1, -1.5, 2); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.5); dl2.position.set(-1, 1, 0.5); scene.add(dl2);
+let plateGroup = new THREE.Group(), partGroup = new THREE.Group();
+scene.add(plateGroup, partGroup);
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+scene.background = new THREE.Color(dark ? 0x38383d : 0xe8e8e8);
+const COLORS = [0x00ae42, 0x2f8fd8, 0xf2a93b, 0xd9534f, 0x8e6bd8, 0x1fb5a8, 0xe07bb0, 0x7a8a99, 0xc6b23b, 0x5bc26b];
+
+function drawPlate() {
+  scene.remove(plateGroup); plateGroup = new THREE.Group(); scene.add(plateGroup);
+  const p = printers[0]; if (!p) return;
+  const geo = new THREE.PlaneGeometry(p.x, p.y);
+  const mat = new THREE.MeshStandardMaterial({ color: dark ? 0x26262a : 0xd6d6d6, roughness: 0.9 });
+  const plane = new THREE.Mesh(geo, mat); plane.position.set(p.x / 2, p.y / 2, -0.05); plateGroup.add(plane);
+  const pts = [], step = 10;
+  for (let x = 0; x <= p.x + 0.01; x += step) pts.push(x, 0, 0, x, p.y, 0);
+  for (let y = 0; y <= p.y + 0.01; y += step) pts.push(0, y, 0, p.x, y, 0);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  plateGroup.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: dark ? 0x4a4a52 : 0xbdbdbd })));
+  const border = new THREE.BufferGeometry().setFromPoints([[0, 0], [p.x, 0], [p.x, p.y], [0, p.y], [0, 0]].map(([x, y]) => new THREE.Vector3(x, y, 0.05)));
+  plateGroup.add(new THREE.Line(border, new THREE.LineBasicMaterial({ color: 0x00ae42 })));
+  if (!partGroup.children.length) fit();
+}
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  if (!r.width) return;
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+function bounds() {
+  const b = new THREE.Box3();
+  b.expandByObject(partGroup.children.length ? partGroup : plateGroup);
+  return b;
+}
+function fit(top = false) {
+  const b = bounds(); if (b.isEmpty()) return;
+  const c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3()).length();
+  controls.target.copy(c);
+  const d = s * 1.15;
+  camera.position.copy(c).add(top ? new THREE.Vector3(0, -0.001, 1).multiplyScalar(d) : new THREE.Vector3(0.55, -1, 0.75).normalize().multiplyScalar(d));
+  camera.near = s / 500; camera.far = s * 20; camera.updateProjectionMatrix();
+}
+$('#vFit').onclick = () => fit(); $('#vTop').onclick = () => fit(true);
+let exploded = false;
+$('#vExplode').onclick = () => {
+  exploded = !exploded;
+  const b = new THREE.Box3().expandByObject(partGroup), c = b.getCenter(new THREE.Vector3());
+  partGroup.children.forEach(m => {
+    m.geometry.computeBoundingBox();
+    const mc = m.geometry.boundingBox.getCenter(new THREE.Vector3());
+    m.position.copy(exploded ? mc.sub(c).multiplyScalar(0.35) : new THREE.Vector3());
+  });
+};
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+function clearParts() { partGroup.children.forEach(m => m.geometry.dispose()); scene.remove(partGroup); partGroup = new THREE.Group(); scene.add(partGroup); }
+
+// Eingabe anzeigen (Foto als Fläche, Modell als Netz)
+function showInput() {
+  clearParts(); $('#hint').style.display = 'none'; $('#legend').style.display = 'none';
+  if (isMesh(file.name) && /\.stl$/i.test(file.name)) {
+    file.arrayBuffer().then(buf => {
+      const g = new STLLoader().parse(buf); g.computeBoundingBox();
+      const s = g.boundingBox.getSize(new THREE.Vector3()), mx = Math.max(s.x, s.y, s.z);
+      g.translate(-g.boundingBox.min.x, -g.boundingBox.min.y, -g.boundingBox.min.z);
+      const k = Math.min(printers[0].x, printers[0].y) * 0.8 / mx; g.scale(k, k, k);
+      partGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.6 })));
+      fit();
+    });
+  } else if (!isMesh(file.name)) {
+    const url = URL.createObjectURL(file);
+    new THREE.TextureLoader().load(url, tex => {
+      const ar = tex.image.width / tex.image.height, w = Math.min(printers[0].x, printers[0].y) * 0.8;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / ar), new THREE.MeshBasicMaterial({ map: tex }));
+      m.position.set(w / 2, w / ar / 2, 0.5); partGroup.add(m); fit(true);
+    });
+  } else { $('#hint').textContent = 'Modell geladen – Vorschau nach dem Berechnen'; $('#hint').style.display = ''; }
+}
+
+// ── Berechnen
+$('#go').onclick = async () => {
+  if (!file) { $('#file').click(); return; }
+  const p = { mode, printers, margin: parseFloat($('#margin').value) || 5 };
+  for (const [, fields] of MODES[mode].groups) for (const [key, , , def] of fields) p[key] = val(key, def);
+  const fd = new FormData(); fd.append('params', JSON.stringify(p)); fd.append('file', file);
+  $('#busy').classList.add('on'); $('#go').disabled = true; $('#msgs').innerHTML = '';
+  try {
+    const r = await fetch('/api/run', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Fehler');
+    result = j; await showResult(j);
+  } catch (e) { $('#msgs').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+  finally { $('#busy').classList.remove('on'); $('#go').disabled = false; }
+};
+
+async function showResult(j) {
+  $('#stats').innerHTML = j.summary.map(([k, v]) => `<span>${esc(k)}</span><span>${esc(v)}</span>`).join('') + `<span>Rechenzeit</span><span>${j.seconds.toFixed(1).replace('.', ',')} s</span>`;
+  $('#msgs').innerHTML = j.warnings.map(w => `<div class="warn">&#9888; ${esc(w)}</div>`).join('');
+  $('#secResult').classList.remove('closed');
+  // 3D
+  clearParts(); $('#hint').style.display = 'none'; exploded = false;
+  const loader = new STLLoader();
+  $('#busyText').textContent = 'Vorschau wird geladen …';
+  await Promise.all(j.preview.map(async (pv, i) => {
+    const buf = await (await fetch(pv.url)).arrayBuffer();
+    const g = loader.parse(buf);
+    const photo = ['lithophane', 'relief_foto', 'relief'].includes(mode);
+    const col = photo ? [0xf4f1ea, 0xe9e4d8, 0xf0ece2, 0xe4dfd2][i % 4] : COLORS[i % COLORS.length];
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: col, roughness: photo ? 0.8 : 0.55, metalness: 0.05, side: THREE.DoubleSide }));
+    mesh.name = pv.name; partGroup.add(mesh);
+  }));
+  $('#busyText').textContent = 'Wird berechnet …';
+  // auf die Platte setzen (zentriert)
+  const b = new THREE.Box3().expandByObject(partGroup), p = printers[0];
+  const off = new THREE.Vector3(p.x / 2 - (b.min.x + b.max.x) / 2, p.y / 2 - (b.min.y + b.max.y) / 2, -b.min.z);
+  partGroup.position.copy(off);
+  fit();
+  const names = j.preview.map(x => x.name);
+  $('#legend').style.display = names.length > 1 ? '' : 'none';
+  $('#legend').textContent = `${names.length} Teile in der Vorschau`;
+  // Teileleiste
+  $('#plateBar').innerHTML = names.map((n, i) => `<div class="plate" data-i="${i}" style="border-left:4px solid #${COLORS[i % COLORS.length].toString(16).padStart(6, '0')}">${esc(n)}</div>`).join('') + (j.plates ? `<span style="margin-left:auto;color:var(--muted);white-space:nowrap">${j.plates} ${j.plates == 1 ? "Platte" : "Platten"} im 3MF</span>` : '');
+  document.querySelectorAll('#plateBar .plate').forEach(el => el.onclick = () => {
+    const on = !el.classList.contains('on');
+    document.querySelectorAll('#plateBar .plate').forEach(x => x.classList.remove('on'));
+    partGroup.children.forEach((m, i) => { m.material.transparent = on && i != el.dataset.i; m.material.opacity = on && i != el.dataset.i ? 0.12 : 1; });
+    if (on) el.classList.add('on');
+  });
+  // Laser-Bögen
+  const svgs = j.files.filter(f => f.name.endsWith('.svg'));
+  $('#sheetGrid').innerHTML = svgs.length ? svgs.map(f => `<div class="card"><img src="/api/job/${j.id}/file/${f.name}" loading="lazy"><div class="t"><span>${esc(f.name.split('/').pop())}</span><a href="/api/job/${j.id}/file/${f.name}" download>SVG</a></div></div>`).join('') : '<div style="color:var(--muted)">Dieser Modus erzeugt keine Laser-Bögen. Stack und Hash liefern SVG/DXF.</div>';
+  // Export
+  const total = j.files.reduce((a, f) => a + f.size, 0);
+  $('#zip').href = `/api/job/${j.id}/zip`;
+  $('#expInfo').textContent = `${j.files.length} Dateien · ${(total / 1e6).toFixed(1).replace('.', ',')} MB`;
+  const kind = n => n.endsWith('.3mf') ? 'Bambu Studio' : n.endsWith('.svg') || n.endsWith('.dxf') ? 'Laser' : n.endsWith('.txt') ? 'Anleitung' : 'STL';
+  const sorted = [...j.files].sort((a, b) => (b.name.endsWith('.3mf') - a.name.endsWith('.3mf')) || a.name.localeCompare(b.name));
+  $('#fileList').innerHTML = sorted.map(f => `<div class="file"><span class="badge">${kind(f.name)}</span><span class="n">${esc(f.name)}</span><span class="s">${(f.size / 1e6).toFixed(2).replace('.', ',')} MB</span><a href="/api/job/${j.id}/file/${f.name}" download>Laden</a></div>`).join('');
+}
+
+renderModes(); renderParams(); renderPrinters(); bindSections(); resize(); fit();
+new ResizeObserver(resize).observe(cv.parentElement);
+</script>
+</body>
+</html>
