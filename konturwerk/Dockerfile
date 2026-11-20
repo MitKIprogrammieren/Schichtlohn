@@ -12,7 +12,7 @@ RUN pip download "onnxruntime>=1.22,<1.23" --no-deps --only-binary=:all: -d /whl
  && python -c "import zipfile,glob,re; z=zipfile.ZipFile(glob.glob('/whl/*.whl')[0]); n=[x for x in z.namelist() if re.search(r'capi/libonnxruntime\.so\.[0-9.]+$', x)][0]; open('/libonnxruntime.so','wb').write(z.read(n))"
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libheif-examples libheif-plugin-libde265 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libheif-examples && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/target/release/konturwerk /usr/local/bin/konturwerk
 COPY --from=ort /libonnxruntime.so /usr/local/lib/libonnxruntime.so
 ENV KONTURWERK_DATA=/data PORT=8089 ORT_DYLIB_PATH=/usr/local/lib/libonnxruntime.so

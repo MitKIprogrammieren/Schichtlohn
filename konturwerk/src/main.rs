@@ -122,10 +122,12 @@ struct ErkennenParams {
     modell: String,
     empfindlichkeit: f64,
     min_flaeche: f64,
+    /// von Hand gesetzte Blattecken (Fotopixel, nach Drehung): oben links, oben rechts, unten rechts, unten links
+    ecken: Option<[[f64; 2]; 4]>,
 }
 impl Default for ErkennenParams {
     fn default() -> Self {
-        Self { papier: "a4".into(), modus: "klassisch".into(), modell: "schnell".into(), empfindlichkeit: 0.5, min_flaeche: 150.0 }
+        Self { papier: "a4".into(), modus: "klassisch".into(), modell: "schnell".into(), empfindlichkeit: 0.5, min_flaeche: 150.0, ecken: None }
     }
 }
 
@@ -167,24 +169,30 @@ async fn erkennen(mut mp: Multipart) -> Response {
 
 fn erkennen_rechnen(id: &str, p: &ErkennenParams, bytes: &[u8]) -> anyhow::Result<serde_json::Value> {
     let img = erkennung::laden(bytes)?;
-    let pap = erkennung::papier(&img, &p.papier)?;
+    let pap = match p.ecken {
+        Some(e) => erkennung::papier_mit_ecken(&img, e, &p.papier),
+        None => erkennung::papier(&img, &p.papier)?,
+    };
     let dir = job_ordner(id).unwrap();
     std::fs::create_dir_all(&dir)?;
+    // verkleinertes Originalfoto für den Rahmen-Editor
+    let mut fjpg = Vec::new();
+    img.resize(1800, 1800, image::imageops::FilterType::Triangle).to_rgb8().write_to(&mut std::io::Cursor::new(&mut fjpg), image::ImageFormat::Jpeg)?;
+    std::fs::write(dir.join("foto.jpg"), &fjpg)?;
     let (w, h) = (pap.bild.width() as usize, pap.bild.height() as usize);
     pap.bild.save_with_format(dir.join("papier.png"), image::ImageFormat::Png)?;
     let mut jpg = Vec::new();
     image::DynamicImage::ImageRgb8(pap.bild.clone()).write_to(&mut std::io::Cursor::new(&mut jpg), image::ImageFormat::Jpeg)?;
     std::fs::write(dir.join("papier.jpg"), &jpg)?;
-    let karte = erkennung::objektkarte(&pap.bild);
-    let (maske, schwelle) = erkennung::werkzeuge(&karte, w, h, p.empfindlichkeit.clamp(0.0, 1.0), p.min_flaeche.max(20.0));
+    let (karte, kanten) = erkennung::objektkarte(&pap.bild);
+    let (maske, schwelle) = erkennung::werkzeuge(&karte, &kanten, w, h, p.empfindlichkeit.clamp(0.0, 1.0), p.min_flaeche.max(20.0));
     let mut umrisse = erkennung::umrisse(&maske, w, h, [0.0, 0.0], "klassisch");
     let mut hinweise = Vec::new();
     let mut ki_fehler = None;
     if p.modus == "ki" {
-        // sicher erkannte Bereiche (deutlich dunkler/farbiger als Papier, keine weichen Schatten)
-        let mittel = (schwelle * 0.7).max(0.26);
-        let sicher: Vec<bool> = (0..w * h).map(|i| maske[i] && karte[i] > mittel).collect();
-        match ki_alles(&pap.bild, &maske, &sicher, &mut umrisse, &p.modell, p.min_flaeche.max(20.0)) {
+        // KI darf die klassischen Umrisse nur ergänzen (z. B. weiße Griffe), nicht beschneiden
+        let _ = &karte;
+        match ki_alles(&pap.bild, &maske, &maske, &mut umrisse, &p.modell, p.min_flaeche.max(20.0)) {
             Ok(n) => {
                 if n > 0 {
                     hinweise.push(format!("KI hat {n} Umriss(e) verfeinert."));
@@ -211,6 +219,7 @@ fn erkennen_rechnen(id: &str, p: &ErkennenParams, bytes: &[u8]) -> anyhow::Resul
         "hoehe_mm": pap.hoehe_mm,
         "ecken": pap.ecken,
         "foto": [img.width(), img.height()],
+        "foto_bild": format!("/api/job/{id}/file/foto.jpg"),
         "schwelle": schwelle,
         "umrisse": umrisse,
         "hinweise": hinweise,
@@ -273,12 +282,11 @@ fn ki_ausschnitt(bild: &image::RgbImage, rahmen: [f64; 4], punkt: Option<[f64; 2
     let m = ki::maske(&crop, modell)?;
     let mut b: Vec<bool> = m.iter().map(|&v| v > 0.5).collect();
     if let Some(si) = sicher {
-        for y in 0..ch {
-            for x in 0..cw {
-                if si[(y + y0 as usize) * w as usize + x + x0 as usize] {
-                    b[y * cw + x] = true;
-                }
-            }
+        // klassisch Erkanntes bleibt, KI ergänzt nur bis 4 mm daneben
+        let k: Vec<bool> = (0..cw * ch).map(|i| si[(i / cw + y0 as usize) * w as usize + i % cw + x0 as usize]).collect();
+        let nahe = erkennung::morph(&k, cw, ch, (4.0 * PX_MM) as usize, true);
+        for i in 0..cw * ch {
+            b[i] = k[i] || (b[i] && nahe[i]);
         }
     }
     erkennung::loecher_fuellen(&mut b, cw, ch);
@@ -347,8 +355,8 @@ async fn nachbessern(Json(p): Json<NachbessernParams>) -> Response {
         let bild = image::open(dir.join("papier.png")).map_err(|_| anyhow::anyhow!("Foto nicht mehr vorhanden – bitte neu erkennen."))?.to_rgb8();
         let u = if p.art == "klassisch" {
             let (w, h) = (bild.width() as usize, bild.height() as usize);
-            let karte = erkennung::objektkarte(&bild);
-            let (m, _) = erkennung::werkzeuge(&karte, w, h, p.empfindlichkeit.unwrap_or(0.5), 20.0);
+            let (karte, kanten) = erkennung::objektkarte(&bild);
+            let (m, _) = erkennung::werkzeuge(&karte, &kanten, w, h, p.empfindlichkeit.unwrap_or(0.5), 20.0);
             let r = p.rahmen;
             let (x0, y0, x1, y1) = ((r[0] * PX_MM) as usize, (r[1] * PX_MM) as usize, (r[2] * PX_MM) as usize, (r[3] * PX_MM) as usize);
             let teil: Vec<bool> = (0..w * h).map(|i| m[i] && (x0..=x1).contains(&(i % w)) && (y0..=y1).contains(&(i / w))).collect();

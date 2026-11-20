@@ -38,6 +38,7 @@ button,input,select{font:inherit;color:inherit}
 .work{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 .view{position:relative;flex:1;background:var(--canvas);min-height:260px;overflow:hidden}
 .view svg,.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.view{user-select:none;-webkit-user-select:none}
 .hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);pointer-events:none;max-width:80%}
 .busy{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.3);color:#fff;font-size:15px;z-index:5;text-align:center}
 .busy.on{display:grid}
@@ -238,8 +239,8 @@ input:focus,select:focus{outline:none;border-color:var(--green)}
 <section class="work">
   <div class="vpage on" data-v="1"><div class="view" id="v1"><img id="fotoVor" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none"><div class="hint" id="h1">Foto hierher ziehen oder links wählen</div></div></div>
   <div class="vpage" data-v="2">
-    <div class="leiste"><span id="l2">Umrisse prüfen</span><span class="t" id="l2t"></span></div>
-    <div class="view" id="v2"><svg id="svg2"></svg></div>
+    <div class="leiste"><div class="seg" id="ansicht2" style="width:auto"><div data-v="foto" class="on" style="padding:4px 12px">Foto</div><div data-v="blatt" style="padding:4px 12px">Entzerrt</div></div><span id="l2">Ecken ziehen, um den Rahmen anzupassen</span><span class="t" id="l2t"></span></div>
+    <div class="view" id="v2"><svg id="svg2"></svg><canvas id="lupe" width="300" height="300" style="position:absolute;inset:auto;top:12px;right:12px;width:150px;height:150px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;pointer-events:none"></canvas></div>
   </div>
   <div class="vpage" data-v="3">
     <div class="leiste">
@@ -383,16 +384,21 @@ async function kiStatus() {
     clearTimeout(kiTimer); if (s.laedt) kiTimer = setTimeout(kiStatus, 1000);
   } catch (e) { $('kiStatus').textContent = 'KI-Status nicht abrufbar.'; }
 }
-async function erkennen() {
+async function erkennen(ecken = null) {
   if (!S.datei) { $('datei').click(); return; }
   const fd = new FormData();
   fd.append('file', S.datei);
-  fd.append('params', JSON.stringify({ papier: $('papier').value, modus: S.modus, modell: $('modell').value, empfindlichkeit: +$('empf').value, min_flaeche: +$('minF').value }));
-  busy(true, S.modus === 'ki' ? 'Erkenne mit KI … (beim ersten Mal wird das Modell geladen)' : 'Erkenne Blatt und Umrisse …');
+  fd.append('params', JSON.stringify({ papier: $('papier').value, modus: S.modus, modell: $('modell').value, empfindlichkeit: +$('empf').value, min_flaeche: +$('minF').value, ecken }));
+  busy(true, ecken ? 'Erkenne mit neuem Rahmen …' : S.modus === 'ki' ? 'Erkenne mit KI … (beim ersten Mal wird das Modell geladen)' : 'Erkenne Blatt und Umrisse …');
   try {
     const r = await api('/api/erkennen', { method: 'POST', body: fd });
-    S.erk = r;
-    S.umrisse = r.umrisse.map((u, i) => ({ ...u, aktiv: true, tiefe: 12, farbe: FARBEN[i % FARBEN.length] }));
+    const alt = ecken ? S.umrisse : [];
+    S.erk = r; S.rahmen = r.ecken.map(p => [...p]); fotoLaden(r.foto_bild);
+    S.umrisse = r.umrisse.map((u, i) => {
+      // bei neuem Rahmen: Name, Tiefe und Haken vom passenden alten Umriss übernehmen
+      const g = u.grenzen, v = alt.find(a => { const cx = (a.grenzen[0] + a.grenzen[2]) / 2, cy = (a.grenzen[1] + a.grenzen[3]) / 2; return cx > g[0] && cx < g[2] && cy > g[1] && cy < g[3]; });
+      return { ...u, aktiv: v ? v.aktiv : true, tiefe: v ? v.tiefe : 12, name: v ? v.name : u.name, farbe: v ? v.farbe : FARBEN[i % FARBEN.length] };
+    });
     S.selU = null;
     const h = [...(r.hinweise || [])]; if (r.ki_fehler) h.unshift(r.ki_fehler);
     hinweise('umrissHinweise', h);
@@ -404,22 +410,79 @@ async function erkennen() {
 // ---------- 2 Umrisse ----------
 const svg2 = $('svg2');
 function pfad(pts) { return pts.length ? 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z' : ''; }
+// Homographie: bildet 4 Punkte src auf 4 Punkte dst ab
+function homographie(src, dst) {
+  const A = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u]);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y, v]);
+  }
+  for (let c = 0; c < 8; c++) {
+    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    const d = A[c][c] || 1e-12; for (let k = c; k < 9; k++) A[c][k] /= d;
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c]; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
+  }
+  const h = A.map(r => r[8]); h.push(1);
+  return p => { const z = h[6] * p[0] + h[7] * p[1] + 1; return [(h[0] * p[0] + h[1] * p[1] + h[2]) / z, (h[3] * p[0] + h[4] * p[1] + h[5]) / z]; };
+}
+function blattEcken() { const { breite_mm: w, hoehe_mm: h } = S.erk; return [[0, 0], [w, 0], [w, h], [0, h]]; }
+function mmZuFoto() { return homographie(blattEcken(), S.erk.ecken); }
+function fotoZuMm() { return homographie(S.erk.ecken, blattEcken()); }
+S.ansicht2 = 'foto';
+seg('ansicht2', 'foto', v => { S.ansicht2 = v; zeichne2(); });
+const fotoImg = new Image();
+function fotoLaden(url) { if (url && fotoImg.dataset.url !== url) { fotoImg.dataset.url = url; fotoImg.src = url; } }
 function zeichne2() {
   svg2.innerHTML = '';
   if (!S.erk) return;
   const { breite_mm: w, hoehe_mm: h } = S.erk;
-  svg2.setAttribute('viewBox', `-6 -6 ${w + 12} ${h + 12}`);
-  el('image', { href: S.erk.bild, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }, svg2);
-  S.umrisse.forEach(u => {
+  const foto = S.ansicht2 === 'foto' && S.erk.foto_bild;
+  const abb = foto ? mmZuFoto() : p => p;
+  let k = 1;
+  if (foto) {
+    const [fw, fh] = S.erk.foto; k = Math.max(fw, fh) / 300;
+    svg2.setAttribute('viewBox', `0 0 ${fw} ${fh}`);
+    el('image', { href: S.erk.foto_bild, x: 0, y: 0, width: fw, height: fh, preserveAspectRatio: 'none' }, svg2);
+    el('path', { d: pfad(S.rahmen), fill: 'rgba(255,255,255,.18)', stroke: '#00AE42', 'stroke-width': 1.2 * k, 'stroke-linejoin': 'round', style: 'pointer-events:none' }, svg2);
+  } else {
+    svg2.setAttribute('viewBox', `-6 -6 ${w + 12} ${h + 12}`);
+    el('image', { href: S.erk.bild, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }, svg2);
+  }
+  if (!S.rahmenZug) S.umrisse.forEach(u => {
     const g = el('g', { style: 'cursor:pointer' }, svg2);
     const sel = S.selU === u.id;
-    el('path', { d: pfad(u.punkte), fill: u.aktiv ? u.farbe : 'none', 'fill-opacity': sel ? 0.45 : 0.25, stroke: u.aktiv ? u.farbe : '#999', 'stroke-width': sel ? 1.2 : 0.7, 'stroke-dasharray': u.aktiv ? '' : '3 2' }, g);
-    const t = el('text', { x: (u.grenzen[0] + u.grenzen[2]) / 2, y: (u.grenzen[1] + u.grenzen[3]) / 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 6, fill: '#fff', stroke: '#000', 'stroke-width': 0.4, 'paint-order': 'stroke', style: 'pointer-events:none' }, g);
+    el('path', { d: pfad(u.punkte.map(abb)), fill: u.aktiv ? u.farbe : 'none', 'fill-opacity': sel ? 0.5 : 0.3, stroke: u.aktiv ? u.farbe : '#999', 'stroke-width': (sel ? 1.2 : 0.7) * k, 'stroke-dasharray': u.aktiv ? '' : `${3 * k} ${2 * k}`, 'stroke-linejoin': 'round' }, g);
+    const t = el('text', { x: 0, y: 0, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 6 * k, fill: '#fff', stroke: '#000', 'stroke-width': 0.4 * k, 'paint-order': 'stroke', style: 'pointer-events:none' }, g);
+    const m = abb([(u.grenzen[0] + u.grenzen[2]) / 2, (u.grenzen[1] + u.grenzen[3]) / 2]); t.setAttribute('x', m[0]); t.setAttribute('y', m[1]);
     t.textContent = u.name;
     g.onclick = ev => { if (S.werkzeugModus) return; ev.stopPropagation(); S.selU = u.id; zeichne2(); };
   });
+  if (foto) S.rahmen.forEach((p, i) => {
+    el('circle', { cx: p[0], cy: p[1], r: 6 * k, fill: 'rgba(255,255,255,.95)', stroke: '#00AE42', 'stroke-width': 1.6 * k, 'data-ecke': i, style: 'cursor:grab' }, svg2);
+  });
+  $('l2').textContent = S.werkzeugModus === 'rahmen' ? 'Rahmen um ein Werkzeug ziehen' : S.werkzeugModus === 'tipp' ? 'Auf ein Werkzeug tippen' : foto ? 'Ecken ziehen, um den Blatt-Rahmen anzupassen' : 'Umrisse prüfen';
   $('l2t').textContent = `${w} × ${h} mm · ${S.umrisse.filter(u => u.aktiv).length} von ${S.umrisse.length} aktiv`;
   liste2();
+}
+function lupe(p) {
+  const c = $('lupe');
+  if (!p || !fotoImg.complete || !fotoImg.naturalWidth) { c.style.display = 'none'; return; }
+  const ctx = c.getContext('2d'), sk = fotoImg.naturalWidth / S.erk.foto[0], zoom = 3, r = 150 / zoom;
+  c.style.display = 'block';
+  // Lupe auf die dem Finger abgewandte Seite legen
+  const links = p[0] > S.erk.foto[0] / 2;
+  c.style.left = links ? '12px' : 'auto'; c.style.right = links ? 'auto' : '12px';
+  ctx.clearRect(0, 0, 300, 300);
+  ctx.save(); ctx.beginPath(); ctx.arc(150, 150, 150, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(fotoImg, (p[0] * sk) - r * sk / sk, (p[1] * sk) - r, 2 * r, 2 * r, 0, 0, 300, 300);
+  // Rahmenkanten in der Lupe
+  const zu = q => [150 + (q[0] - p[0]) * sk * zoom, 150 + (q[1] - p[1]) * sk * zoom];
+  ctx.strokeStyle = '#00AE42'; ctx.lineWidth = 3; ctx.beginPath();
+  S.rahmen.forEach((q, i) => { const z = zu(q); i ? ctx.lineTo(z[0], z[1]) : ctx.moveTo(z[0], z[1]); }); ctx.closePath(); ctx.stroke();
+  ctx.strokeStyle = '#D32F2F'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(150, 135); ctx.lineTo(150, 165); ctx.moveTo(135, 150); ctx.lineTo(165, 150); ctx.stroke();
+  ctx.restore();
 }
 function liste2() {
   const L = $('umrissListe'); L.innerHTML = '';
@@ -448,23 +511,37 @@ $('wzRahmen').onclick = () => setWerkzeugModus('rahmen');
 $('wzTipp').onclick = () => setWerkzeugModus('tipp');
 $('wzNeu').onclick = () => { zeige(1); erkennen(); };
 let rahmenStart = null, rahmenEl = null;
+const inMm = p => S.ansicht2 === 'foto' && S.erk?.foto_bild ? fotoZuMm()(p) : p;
 svg2.addEventListener('pointerdown', ev => {
-  if (!S.werkzeugModus || !S.erk) return;
+  if (!S.erk) return;
   const p = svgPunkt(svg2, ev);
-  if (S.werkzeugModus === 'tipp') { nachbessern([p[0] - 45, p[1] - 45, p[0] + 45, p[1] + 45], p); return; }
+  if (ev.target.dataset.ecke !== undefined) {
+    S.rahmenZug = { i: +ev.target.dataset.ecke, dx: S.rahmen[+ev.target.dataset.ecke][0] - p[0], dy: S.rahmen[+ev.target.dataset.ecke][1] - p[1] };
+    svg2.setPointerCapture(ev.pointerId); zeichne2(); lupe(S.rahmen[S.rahmenZug.i]); return;
+  }
+  if (!S.werkzeugModus) return;
+  if (S.werkzeugModus === 'tipp') { const q = inMm(p); nachbessern([q[0] - 45, q[1] - 45, q[0] + 45, q[1] + 45], q); return; }
   rahmenStart = p; svg2.setPointerCapture(ev.pointerId);
-  rahmenEl = el('rect', { x: p[0], y: p[1], width: 0, height: 0, fill: 'rgba(0,174,66,.15)', stroke: '#00AE42', 'stroke-width': 0.8, 'stroke-dasharray': '3 2' }, svg2);
+  const k = S.ansicht2 === 'foto' ? Math.max(...S.erk.foto) / 300 : 1;
+  rahmenEl = el('rect', { x: p[0], y: p[1], width: 0, height: 0, fill: 'rgba(0,174,66,.15)', stroke: '#00AE42', 'stroke-width': 0.8 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` }, svg2);
 });
 svg2.addEventListener('pointermove', ev => {
-  if (!rahmenStart) return;
   const p = svgPunkt(svg2, ev);
+  if (S.rahmenZug) {
+    const [fw, fh] = S.erk.foto, z = S.rahmenZug;
+    S.rahmen[z.i] = [Math.max(0, Math.min(fw, p[0] + z.dx)), Math.max(0, Math.min(fh, p[1] + z.dy))];
+    zeichne2(); lupe(S.rahmen[z.i]); return;
+  }
+  if (!rahmenStart) return;
   rahmenEl.setAttribute('x', Math.min(p[0], rahmenStart[0])); rahmenEl.setAttribute('y', Math.min(p[1], rahmenStart[1]));
   rahmenEl.setAttribute('width', Math.abs(p[0] - rahmenStart[0])); rahmenEl.setAttribute('height', Math.abs(p[1] - rahmenStart[1]));
 });
 svg2.addEventListener('pointerup', ev => {
+  if (S.rahmenZug) { S.rahmenZug = null; lupe(null); erkennen(S.rahmen.map(p => [...p])); return; }
   if (!rahmenStart) return;
   const p = svgPunkt(svg2, ev), a = rahmenStart; rahmenStart = null;
-  const r = [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[0], p[0]), Math.max(a[1], p[1])];
+  const ecken = [[a[0], a[1]], [p[0], a[1]], [p[0], p[1]], [a[0], p[1]]].map(inMm);
+  const g = grenzen(ecken), r = [g[0], g[1], g[2], g[3]];
   if (r[2] - r[0] < 5 || r[3] - r[1] < 5) { zeichne2(); return; }
   nachbessern(r, null);
 });

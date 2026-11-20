@@ -317,6 +317,7 @@ fn schnitt(g1: (P2, P2), g2: (P2, P2)) -> Option<P2> {
 
 /// Papier im Foto finden und entzerren
 pub fn papier(img: &DynamicImage, format: &str) -> anyhow::Result<Papier> {
+    // Blatt automatisch finden
     let voll = img.to_rgb8();
     let (fw, fh) = voll.dimensions();
     let s = (1200.0 / fw.max(fh) as f64).min(1.0);
@@ -383,13 +384,22 @@ pub fn papier(img: &DynamicImage, format: &str) -> anyhow::Result<Papier> {
     let start = (0..4).min_by(|&i, &j| (e[i][0] + e[i][1]).partial_cmp(&(e[j][0] + e[j][1])).unwrap()).unwrap();
     e.rotate_left(start);
     let ecken: [P2; 4] = [e[0], e[1], e[2], e[3]].map(|p| [p[0] / s, p[1] / s]);
+    Ok(papier_aus_ecken(&voll, ecken, format))
+}
+
+/// Blatt mit vorgegebenen Ecken (oben links, oben rechts, unten rechts, unten links; Fotopixel) entzerren
+pub fn papier_mit_ecken(img: &DynamicImage, ecken: [P2; 4], format: &str) -> Papier {
+    papier_aus_ecken(&img.to_rgb8(), ecken, format)
+}
+
+fn papier_aus_ecken(voll: &RgbImage, ecken: [P2; 4], format: &str) -> Papier {
     let dist = |a: P2, b: P2| (a[0] - b[0]).hypot(a[1] - b[1]);
     let oben = (dist(ecken[0], ecken[1]) + dist(ecken[3], ecken[2])) / 2.0;
     let seite = (dist(ecken[0], ecken[3]) + dist(ecken[1], ecken[2])) / 2.0;
     let (kurz, lang) = papiermass(format);
     let (bw, bh) = if oben > seite { (lang, kurz) } else { (kurz, lang) };
-    let bild = entzerren(&voll, &ecken, bw, bh);
-    Ok(Papier { bild, breite_mm: bw, hoehe_mm: bh, ecken })
+    let bild = entzerren(voll, &ecken, bw, bh);
+    Papier { bild, breite_mm: bw, hoehe_mm: bh, ecken }
 }
 
 /// Homographie, die (0,0),(w,0),(w,h),(0,h) auf die vier Punkte abbildet
@@ -454,13 +464,58 @@ fn entzerren(voll: &RgbImage, ecken: &[P2; 4], bw: f64, bh: f64) -> RgbImage {
     out
 }
 
-/// Objektwahrscheinlichkeit je Pixel (0..1) auf dem entzerrten Blatt: dunkler oder farbiger als das Papier
-pub fn objektkarte(b: &RgbImage) -> Vec<f32> {
+/// Gauß-Weichzeichner (sigma ≈ 1 px), getrennt nach Zeilen und Spalten
+fn weich(a: &[f32], w: usize, h: usize) -> Vec<f32> {
+    let k = [0.054f32, 0.242, 0.399, 0.242, 0.054];
+    let mut t = vec![0f32; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let mut s = 0.0;
+            for (i, kk) in k.iter().enumerate() {
+                let xx = (x as i64 + i as i64 - 2).clamp(0, w as i64 - 1) as usize;
+                s += kk * a[y * w + xx];
+            }
+            t[y * w + x] = s;
+        }
+    }
+    let mut o = vec![0f32; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let mut s = 0.0;
+            for (i, kk) in k.iter().enumerate() {
+                let yy = (y as i64 + i as i64 - 2).clamp(0, h as i64 - 1) as usize;
+                s += kk * t[yy * w + x];
+            }
+            o[y * w + x] = s;
+        }
+    }
+    o
+}
+
+/// Sobel-Betrag (normiert)
+fn gradient(a: &[f32], w: usize, h: usize) -> Vec<f32> {
+    let mut g = vec![0f32; w * h];
+    for y in 1..h - 1 {
+        for x in 1..w - 1 {
+            let p = |dx: i64, dy: i64| a[(y as i64 + dy) as usize * w + (x as i64 + dx) as usize];
+            let gx = (p(1, -1) + 2.0 * p(1, 0) + p(1, 1)) - (p(-1, -1) + 2.0 * p(-1, 0) + p(-1, 1));
+            let gy = (p(-1, 1) + 2.0 * p(0, 1) + p(1, 1)) - (p(-1, -1) + 2.0 * p(0, -1) + p(1, -1));
+            g[y * w + x] = (gx * gx + gy * gy).sqrt() / 8.0;
+        }
+    }
+    g
+}
+
+/// Objektwahrscheinlichkeit je Pixel (0..1: dunkler oder farbiger als das Papier) und Kantenstärke.
+/// Kanten finden auch blanken Stahl auf weißem Papier; weiche Schatten haben kaum Kanten.
+pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>) {
     let (w, h) = (b.width() as usize, b.height() as usize);
     let l: Vec<f32> = b.pixels().map(|p| lum(&p.0)).collect();
     let s: Vec<f32> = b.pixels().map(|p| sat(&p.0)).collect();
-    let t = otsu(&l, 0.0, 255.0);
-    // Hintergrund (ungleichmäßiges Licht) als quadratische Fläche anpassen
+    // Papier = hellere Hälfte; Hintergrund (ungleichmäßiges Licht) als quadratische Fläche
+    let mut probe: Vec<f32> = l.iter().step_by(7).copied().collect();
+    probe.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let t = probe[probe.len() * 2 / 5];
     let mut ata = [[0f64; 6]; 6];
     let mut atb = [0f64; 6];
     let mut s_pap = Vec::new();
@@ -483,18 +538,23 @@ pub fn objektkarte(b: &RgbImage) -> Vec<f32> {
     let koef = loesen(ata, atb).unwrap_or([t as f64 + 40.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
     s_pap.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let s0 = s_pap.get(s_pap.len() / 2).copied().unwrap_or(0.05);
-    let mut out = vec![0f32; w * h];
+    let mut karte = vec![0f32; w * h];
+    let mut norm = vec![0f32; w * h];
     for y in 0..h {
         for x in 0..w {
             let (u, v) = (x as f64 / w as f64 - 0.5, y as f64 / h as f64 - 0.5);
             let bg = (koef[0] + koef[1] * u + koef[2] * v + koef[3] * u * u + koef[4] * u * v + koef[5] * v * v).max(30.0) as f32;
             let i = y * w + x;
-            let dunkel = (1.0 - l[i] / bg).clamp(0.0, 1.0);
+            norm[i] = l[i] / bg;
+            let dunkel = (1.0 - norm[i]).clamp(0.0, 1.0);
             let farbe = ((s[i] - s0) * 1.4).clamp(0.0, 1.0);
-            out[i] = dunkel.max(farbe);
+            karte[i] = dunkel.max(farbe);
         }
     }
-    out
+    let gl = gradient(&weich(&norm, w, h), w, h);
+    let gs = gradient(&weich(&s, w, h), w, h);
+    let kanten: Vec<f32> = gl.iter().zip(&gs).map(|(a, b)| a.max(b * 0.8)).collect();
+    (karte, kanten)
 }
 
 fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
@@ -518,38 +578,30 @@ fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
     Some(std::array::from_fn(|i| b[i] / a[i][i]))
 }
 
-/// Maske → Werkzeugkandidaten (zweistufige Schwelle). `empfindlichkeit` 0..1 (0,5 = normal)
-pub fn werkzeuge(karte: &[f32], w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
+/// Maske → Werkzeugkandidaten. Kräftige Bereiche (dunkel/farbig) plus deutliche Kanten,
+/// Lücken bis ca. 4 mm schließen, Innenflächen füllen. `empfindlichkeit` 0..1 (0,5 = normal)
+pub fn werkzeuge(karte: &[f32], kanten: &[f32], w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
     let f = (1.5 - empfindlichkeit) as f32;
-    let hoch = (otsu(karte, 0.0, 1.0).clamp(0.15, 0.45) * f).clamp(0.08, 0.7);
-    let tief = (0.17 * f).clamp(0.06, hoch);
+    let hoch = (otsu(karte, 0.0, 1.0).clamp(0.2, 0.45) * f).clamp(0.08, 0.7);
+    let kante = (0.04 * f).clamp(0.015, 0.1);
     let rand = (RAND_MM * PX_MM) as usize;
     let innen = |i: usize| {
         let (x, y) = (i % w, i / w);
         x >= rand && y >= rand && x + rand < w && y + rand < h
     };
-    let mut m: Vec<bool> = (0..w * h).map(|i| innen(i) && karte[i] > tief).collect();
-    m = morph(&morph(&m, w, h, 1, false), w, h, 1, true); // Rauschen weg
-    m = morph(&morph(&m, w, h, 3, true), w, h, 3, false); // Lücken schließen
+    let mut m: Vec<bool> = (0..w * h).map(|i| innen(i) && (karte[i] > hoch || kanten[i] > kante)).collect();
+    let r = (2.0 * PX_MM) as usize; // 2 mm
+    m = morph(&m, w, h, r, true);
+    loecher_fuellen(&mut m, w, h);
+    // Kantenband ist ca. 2 px breiter als das Werkzeug → beim Schrumpfen ausgleichen
+    m = morph(&m, w, h, r + 2, false);
+    m = morph(&morph(&m, w, h, 2, false), w, h, 2, true); // dünne Fransen weg
     let min_px = (min_flaeche_mm2 * PX_MM * PX_MM) as usize;
     let (lab, gr) = komponenten(&m, w, h);
-    // je Komponente: Anteil kräftiger Pixel und mittlere Stärke
-    let mut stark = vec![0usize; gr.len()];
-    let mut summe = vec![0f64; gr.len()];
     for i in 0..w * h {
-        let l = lab[i] as usize;
-        if l > 0 {
-            summe[l] += karte[i] as f64;
-            if karte[i] > hoch {
-                stark[l] += 1;
-            }
+        if m[i] && gr[lab[i] as usize] < min_px {
+            m[i] = false;
         }
-    }
-    let behalten: Vec<bool> = (0..gr.len()).map(|l| {
-        l > 0 && gr[l] >= min_px && (stark[l] as f64 >= 0.03 * gr[l] as f64 || summe[l] / gr[l] as f64 > (tief as f64) * 1.7)
-    }).collect();
-    for i in 0..w * h {
-        m[i] = behalten[lab[i] as usize];
     }
     loecher_fuellen(&mut m, w, h);
     (m, hoch)
