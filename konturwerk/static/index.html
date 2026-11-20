@@ -3,276 +3,233 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Konturwerk – Werkzeugeinsätze aus einem Foto</title>
+<title>Konturwerk – Werkzeugeinsatz mit TPU-Auskleidung</title>
 <link rel="icon" href="/favicon.svg">
 <style>
 :root{
-  --green:#00AE42;--green-h:#00C24A;--green-bg:#E5F6EC;--bg:#F2F2F2;--panel:#FFFFFF;--panel2:#F7F7F7;
-  --line:#DBDBDB;--text:#262E30;--muted:#6B6B6B;--canvas:#E8E8E8;--warn:#C27400;--err:#D32F2F;--tpu:#00AE42;--pla:#9AA0A6;
+  --akz:#D85A30;--akz-h:#C24E27;--akz-bg:#FBEDE7;--bg:#F4F4F2;--panel:#FFFFFF;--panel2:#F7F7F5;--line:#E2E1DC;
+  --text:#24262A;--muted:#6E6E6A;--hart:#7A8089;--hart2:#8E949C;--tasche:#2B2F36;--ok:#2E9E5B;--warn:#B8740F;--err:#D32F2F;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root{
-  --green-bg:#1F3A2A;--bg:#1E1E21;--panel:#2D2D31;--panel2:#26262A;--line:#3E3E44;--text:#EFEFF0;--muted:#A0A0A8;--canvas:#38383D;--warn:#F0A030;--err:#FF6B6B;--pla:#80868B;
+  --akz-bg:#3A2219;--bg:#1C1D20;--panel:#26272B;--panel2:#2E3034;--line:#3A3C42;--text:#ECECEE;--muted:#A2A3A8;--hart:#5D636B;--hart2:#6B717A;--tasche:#16181C;
 }}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font:13px/1.45 "HarmonyOS Sans","Segoe UI",system-ui,-apple-system,sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow-x:hidden}
 button,input,select{font:inherit;color:inherit}
-.top{display:flex;align-items:center;gap:14px;height:44px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
-.logo{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
-.logo i{width:26px;height:26px;border-radius:6px;background:var(--green);display:grid;place-items:center}
-.tabs{display:flex;gap:2px;height:100%}
-.tab{display:flex;align-items:center;gap:6px;padding:0 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;user-select:none;white-space:nowrap}
-.tab b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:11px}
-.tab.on{color:var(--text);border-bottom-color:var(--green);font-weight:600}
-.tab.on b{background:var(--green);border-color:var(--green);color:#fff}
-.tab.aus{opacity:.45;pointer-events:none}
+input[type=number],input[type=text],select{height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:0 7px;width:100%;font-family:var(--mono);font-size:12px}
+input:focus,select:focus{outline:none;border-color:var(--akz)}
+input[type=range]{width:100%;accent-color:var(--akz)}
+input[type=checkbox]{accent-color:var(--akz);width:16px;height:16px}
+.kopf{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.kopf h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px}
+.kopf .sub{color:var(--muted);font-size:12px}
 .spacer{flex:1}
-.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 12px;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:var(--green)}
-.btn.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
-.btn.primary:hover{background:var(--green-h)}
-.btn.klein{padding:2px 8px;font-size:12px}
-.btn.on{background:var(--green-bg);border-color:var(--green);color:var(--green);font-weight:600}
-.btn:disabled{opacity:.55;cursor:wait}
-.main{display:flex;height:calc(100% - 44px)}
-.side{width:340px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);overflow:auto}
-.work{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
-.view{position:relative;flex:1;background:var(--canvas);min-height:260px;overflow:hidden}
-.view svg,.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-.view{user-select:none;-webkit-user-select:none}
-.hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);pointer-events:none;max-width:80%}
-.busy{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.3);color:#fff;font-size:15px;z-index:5;text-align:center}
-.busy.on{display:grid}
-.spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:var(--green);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 10px}
-@keyframes s{to{transform:rotate(360deg)}}
-.leiste{display:flex;gap:6px;align-items:center;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;min-height:40px}
-.leiste .t{color:var(--muted);font-size:12px;margin-left:auto;white-space:nowrap}
-.sec{border-bottom:1px solid var(--line)}
-.sec h3{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;font-size:13px;cursor:pointer;user-select:none}
-.sec h3 .ic{color:var(--green);display:flex}
-.sec h3 .chev{margin-left:auto;color:var(--muted);transition:transform .15s}
-.sec.closed h3 .chev{transform:rotate(-90deg)}
-.sec.closed .body{display:none}
-.body{padding:0 12px 10px 34px}
-.row{display:grid;grid-template-columns:1fr 132px;align-items:center;gap:8px;min-height:30px}
-.row label{color:var(--muted)}
-.row .ctl{display:flex;align-items:center;gap:4px}
-.row input[type=number],.row input[type=text],.row select{width:100%;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);padding:0 6px}
-.row input[type=range]{width:100%;accent-color:var(--green)}
-input:focus,select:focus{outline:none;border-color:var(--green)}
-.unit{color:var(--muted);font-size:12px;min-width:22px}
-.sw{position:relative;width:34px;height:18px;border-radius:9px;background:var(--line);cursor:pointer;flex:none}
-.sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
-.sw.on{background:var(--green)}.sw.on::after{left:18px}
-.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:100%}
-.seg div{flex:1;text-align:center;padding:4px 2px;cursor:pointer;color:var(--muted);font-size:12px;border-right:1px solid var(--line)}
-.seg div:last-child{border-right:none}
-.seg div.on{background:var(--green-bg);color:var(--green);font-weight:600}
-.drop{margin:10px 12px;border:1.5px dashed var(--line);border-radius:8px;padding:16px;text-align:center;color:var(--muted);cursor:pointer}
-.drop:hover,.drop.over{border-color:var(--green);color:var(--text)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--akz)}
+.btn.prim{background:var(--akz);border-color:var(--akz);color:#fff;font-weight:600}
+.btn.prim:hover{background:var(--akz-h)}
+.btn.an{background:var(--text);border-color:var(--text);color:var(--panel)}
+.btn.k{padding:3px 9px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:default}
+.haupt{display:flex;height:calc(100% - 52px)}
+.seite{width:330px;min-width:330px;background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:4px 14px 30px}
+.arbeit{flex:1;display:flex;flex-direction:column;min-width:0}
+.abschnitt{padding:12px 0;border-bottom:1px solid var(--line)}
+.abschnitt h2{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;font-family:var(--mono)}
+.abschnitt h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;background:var(--text);color:var(--panel);font-size:11px;letter-spacing:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel2)}
+.seg div{flex:1;text-align:center;padding:5px 6px;cursor:pointer;font-weight:600;font-size:12px;user-select:none}
+.seg div.an{background:var(--text);color:var(--panel)}
+.feld{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
+.raster2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.raster3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.check{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+.hilfe{font-size:11.5px;color:var(--muted);margin:6px 0}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;margin-bottom:8px}
+.drop:hover,.drop.ueber{border-color:var(--akz);color:var(--text)}
 .drop b{color:var(--text)}
-.help{font-size:12px;color:var(--muted);margin:2px 0 6px}
-.tipps{margin:0;padding-left:16px;color:var(--muted);font-size:12px}
-.tipps li{margin:2px 0}
-.liste{display:flex;flex-direction:column;gap:4px}
-.item{display:grid;grid-template-columns:18px 1fr 58px auto;gap:6px;align-items:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);cursor:pointer}
-.item.sel{border-color:var(--green);background:var(--green-bg)}
-.item input[type=text]{width:100%;height:24px;border:1px solid transparent;background:transparent;border-radius:4px;padding:0 4px}
-.item input[type=text]:focus{border-color:var(--green);background:var(--panel)}
-.item input[type=number]{width:100%;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:0 4px;font-size:12px}
-.item .knoepfe{display:flex;gap:2px}
-.ib{width:24px;height:24px;border-radius:5px;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:grid;place-items:center;color:var(--muted);padding:0}
-.ib:hover{border-color:var(--green);color:var(--green)}
-.ib svg{width:14px;height:14px}
-.dot{width:12px;height:12px;border-radius:3px}
-.warn{color:var(--warn);font-size:12px;margin:4px 0}
-.error{color:var(--err);font-size:12px;margin:4px 0}
-.ok{color:var(--green);font-size:12px;margin:4px 0}
-.stats{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px}
-.stats span:nth-child(odd){color:var(--muted)}
-.files{display:flex;flex-direction:column;gap:6px}
-.file{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--text);text-decoration:none}
-.file:hover{border-color:var(--green)}
-.file .n{flex:1;word-break:break-all}
-.file .s{color:var(--muted);font-size:12px}
-.badge{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--green-bg);color:var(--green);font-weight:600}
-.legend{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:var(--panel);padding:4px 8px;border-radius:6px;border:1px solid var(--line);display:flex;gap:10px;align-items:center}
-.legend span{display:flex;align-items:center;gap:4px}
-.inlaybild{display:block;width:100%;margin:6px 0}
-.page{display:none}.page.on{display:block}
-.vpage{display:none;flex:1;flex-direction:column;min-height:0}.vpage.on{display:flex}
-@media (max-width:820px){
-  .main{flex-direction:column;height:auto}
-  .side{width:100%;min-width:0;border-right:none;order:2}
-  .work{order:1;height:62vh}
-  .tab{padding:0 8px}.tab span{display:none}
-  .top{gap:8px;padding:0 8px}.logo span{display:none}
-  .legend{display:none}
+.liste{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.wz{border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;background:var(--panel2);position:relative;cursor:pointer}
+.wz::before{content:"";position:absolute;left:4px;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--ok)}
+.wz.warn::before{background:var(--err)}
+.wz.sel{border-color:var(--akz);box-shadow:0 0 0 1px var(--akz)}
+.wz .z1{display:grid;grid-template-columns:1fr 54px 26px;gap:6px;align-items:center}
+.wz .z1 input[type=text]{background:var(--panel)}
+.wz .z2{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+.x{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;color:var(--muted);padding:0}
+.x:hover{border-color:var(--err);color:var(--err)}
+.reiter{display:flex;gap:4px;padding:8px 12px 0;background:var(--panel);border-bottom:1px solid var(--line)}
+.reiter div{padding:6px 14px;cursor:pointer;color:var(--muted);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;font-weight:600;user-select:none}
+.reiter div.an{color:var(--text);background:var(--bg);border-color:var(--line)}
+.leiste{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.leiste .tr{width:1px;height:22px;background:var(--line);margin:0 2px}
+.leiste input[type=number]{width:62px}
+.leiste label{color:var(--muted);font-size:12px}
+.blatt{display:none;flex:1;flex-direction:column;min-height:0}
+.blatt.an{display:flex}
+.ansicht{position:relative;flex:1;min-height:300px;background:var(--bg);overflow:hidden;user-select:none;-webkit-user-select:none}
+.ansicht svg,.ansicht canvas.voll{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hinw{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);text-align:center;pointer-events:none;max-width:80%}
+.fuss{display:flex;gap:14px;align-items:center;padding:6px 12px;background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);flex-wrap:wrap}
+.fuss b{color:var(--text);font-family:var(--mono)}
+.legende{display:flex;gap:10px}
+.legende span{display:flex;align-items:center;gap:4px}
+.legende i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.lupe{position:absolute;top:12px;right:12px;width:150px;height:150px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;pointer-events:none}
+.busy{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.3);color:#fff;font-size:15px;z-index:9;text-align:center}
+.busy.an{display:grid}
+.spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:var(--akz);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 10px}
+@keyframes s{to{transform:rotate(360deg)}}
+.dateien{display:flex;flex-direction:column;gap:5px}
+.datei{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:7px;color:var(--text);text-decoration:none;background:var(--panel2);font-size:12px}
+.datei:hover{border-color:var(--akz)}
+.datei .n{flex:1;word-break:break-all}
+.datei .t{font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:4px;background:var(--akz-bg);color:var(--akz);font-weight:700}
+.meldung{font-size:12px;margin:4px 0}
+.meldung.warn{color:var(--warn)}.meldung.err{color:var(--err)}.meldung.ok{color:var(--ok)}
+@media (max-width:860px){
+  .haupt{flex-direction:column;height:auto}
+  .seite{width:100%;min-width:0;border-right:none;order:2}
+  .arbeit{order:1;height:72vh}
+  .kopf .sub{display:none}
 }
 </style>
 </head>
 <body>
-<div class="top">
-  <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5h4M16 5h4v4M20 15v4h-4M8 19H4v-4"/><path d="M9 14.5 14.5 9a1.8 1.8 0 0 1 2.5 2.5L11.5 17"/></svg></i><span>Konturwerk</span></div>
-  <div class="tabs">
-    <div class="tab on" data-s="1"><b>1</b><span>Foto</span></div>
-    <div class="tab aus" data-s="2"><b>2</b><span>Umrisse</span></div>
-    <div class="tab" data-s="3"><b>3</b><span>Anordnen</span></div>
-    <div class="tab aus" data-s="4"><b>4</b><span>Export</span></div>
+<div class="kopf">
+  <h1>Konturwerk</h1>
+  <span class="sub">Werkzeugeinsatz aus Foto, Taschen mit 1–2 mm TPU ausgekleidet, Export für Mehrmaterial-Druck</span>
+  <span class="spacer"></span>
+  <button class="btn k" id="projOeffnen">Projekt öffnen</button>
+  <button class="btn k" id="projSichern">Projekt sichern</button>
+  <button class="btn prim" id="export">Export (.zip mit 3MF + STL)</button>
+  <input type="file" id="projDatei" hidden accept=".json">
+</div>
+<div class="haupt">
+<aside class="seite">
+
+  <div class="abschnitt">
+    <h2><b>1</b>Foto</h2>
+    <div class="drop" id="drop"><input type="file" id="datei" hidden accept="image/*,.heic,.heif">
+      <div id="dropText"><b>Foto aufnehmen oder wählen</b><br>Werkzeuge auf weißem Blatt, senkrecht von oben (wenig Schatten).</div>
+    </div>
+    <div class="raster2">
+      <label class="feld">Papierformat<select id="papier"><option value="a4">A4</option><option value="a3">A3</option><option value="a5">A5</option><option value="letter">Letter</option><option value="legal">Legal</option></select></label>
+      <label class="feld">Erkennung<select id="modus"><option value="klassisch">Automatisch</option><option value="ki">Mit KI</option></select></label>
+    </div>
+    <label class="feld" id="modellFeld" style="display:none;margin-top:8px">KI-Modell<select id="modell"><option value="schnell">Schnell</option><option value="genau">Genau</option></select></label>
+    <button class="btn k" id="alleNeu" style="margin-top:8px;width:100%">Alle Werkzeuge neu erkennen</button>
   </div>
-  <div class="spacer"></div>
-  <button class="btn primary" id="go">Erkennen</button>
-</div>
-<div class="main">
-<aside class="side">
 
-<!-- 1 Foto -->
-<div class="page on" data-s="1">
-  <div class="drop" id="drop"><input type="file" id="datei" hidden accept="image/*,.heic,.heif">
-    <div id="dropText"><b>Foto aufnehmen oder wählen</b><br>Werkzeuge auf einem weißen Blatt, von oben fotografiert</div>
-  </div>
-  <div class="sec"><h3><span class="ic">◧</span>Blatt und Erkennung<span class="chev">▾</span></h3><div class="body">
-    <div class="row"><label>Papierformat</label><div class="ctl"><select id="papier"><option value="a4">A4</option><option value="a3">A3</option><option value="a5">A5</option><option value="letter">Letter</option><option value="legal">Legal</option></select></div></div>
-    <div class="row"><label>Erkennung</label><div class="seg" id="modus"><div data-v="klassisch" class="on">Klassisch</div><div data-v="ki">KI</div></div></div>
-    <div id="kiBox" style="display:none">
-      <div class="row"><label>KI-Modell</label><div class="ctl"><select id="modell"><option value="schnell">Schnell</option><option value="genau">Genau</option></select></div></div>
-      <div class="help" id="kiStatus">KI-Status wird geprüft …</div>
+  <div class="abschnitt">
+    <h2><b>2</b>Werkzeuge</h2>
+    <div class="seg" id="werkzeugModus"><div data-v="zauber" class="an">Zauberstab</div><div data-v="polygon">Polygon</div><div data-v="bearbeiten">Bearbeiten</div></div>
+    <div id="mZauber">
+      <label class="feld" style="margin-top:8px">Zauberstab-Empfindlichkeit <span id="empfW" style="font-family:var(--mono)">50</span><input type="range" id="empf" min="0" max="100" value="50"></label>
+      <div class="hilfe">Im Foto auf ein Werkzeug tippen – es wird erkannt und übernommen. Antippen eines vorhandenen Umrisses wählt ihn aus.</div>
     </div>
-    <div class="row"><label>Empfindlichkeit</label><div class="ctl"><input type="range" id="empf" min="0" max="1" step="0.05" value="0.5"><span class="unit" id="empfW">50</span></div></div>
-    <div class="row"><label>Kleinste Teile</label><div class="ctl"><input type="number" id="minF" value="150" min="20" step="10"><span class="unit">mm²</span></div></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">✓</span>So klappt das Foto<span class="chev">▾</span></h3><div class="body">
-    <ul class="tipps">
-      <li>Weißes Blatt auf dunklem Untergrund, alle vier Ecken im Bild</li>
-      <li>Senkrecht von oben, Blatt füllt das Bild möglichst aus</li>
-      <li>Weiches Licht, keine harten Schatten (kein Blitz)</li>
-      <li>Werkzeuge mit etwas Abstand zueinander und zum Blattrand</li>
-      <li>Glänzende Teile und weiße Griffe: KI-Erkennung nutzen</li>
-    </ul>
-  </div></div>
-</div>
-
-<!-- 2 Umrisse -->
-<div class="page" data-s="2">
-  <div class="sec"><h3><span class="ic">✎</span>Erkannte Umrisse<span class="chev">▾</span></h3><div class="body">
-    <div class="help">Tippen wählt einen Umriss. Haken aus = wird nicht übernommen. Tiefe = wie tief die Tasche wird.</div>
-    <div class="liste" id="umrissListe"></div>
-    <div id="umrissHinweise"></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">✦</span>Nachbessern<span class="chev">▾</span></h3><div class="body">
-    <div class="help">Mit KI: Rahmen um ein Werkzeug ziehen oder auf ein Werkzeug tippen – der Umriss wird neu erkannt und ersetzt den alten.</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
-      <button class="btn klein" id="wzRahmen">Rahmen ziehen</button>
-      <button class="btn klein" id="wzTipp">Antippen</button>
-      <button class="btn klein" id="wzNeu">Ganz neu erkennen</button>
+    <div id="mPolygon" style="display:none">
+      <div class="hilfe">Im Foto Punkt für Punkt um das Werkzeug tippen. Auf den ersten Punkt tippen (oder „Fertig“) schließt den Umriss.</div>
+      <div style="display:flex;gap:6px"><button class="btn k" id="polyFertig">Fertig</button><button class="btn k" id="polyWeg">Abbrechen</button></div>
     </div>
-    <div class="row"><label>Nachbessern mit</label><div class="seg" id="nbArt"><div data-v="ki" class="on">KI</div><div data-v="klassisch">Klassisch</div></div></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">✐</span>Feinschliff<span class="chev">▾</span></h3><div class="body">
-    <div class="help">Umriss antippen, dann mit dem Pinsel über Schatten oder Reste malen (Radieren) bzw. fehlende Stellen übermalen (Ergänzen).</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
-      <button class="btn klein" id="wzMinus">Radieren</button>
-      <button class="btn klein" id="wzPlus">Ergänzen</button>
-    </div>
-    <div class="row"><label>Pinsel</label><div class="ctl"><input type="number" id="pinsel" value="3" min="0.5" max="20" step="0.5"><span class="unit">mm</span></div></div>
-    <div class="row"><label>Umriss</label><div class="ctl"><button class="btn klein" id="enger" style="flex:1">− 0,5</button><button class="btn klein" id="weiter" style="flex:1">+ 0,5</button><span class="unit">mm</span></div></div>
-    <div id="feinHinweis" class="help"></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">★</span>Bibliothek<span class="chev">▾</span></h3><div class="body">
-    <div class="help">Gewählte Umrisse speichern, um sie später ohne Foto wieder zu verwenden.</div>
-    <button class="btn klein" id="inBib">Ausgewählte speichern</button>
-  </div></div>
-</div>
-
-<!-- 3 Anordnen -->
-<div class="page" data-s="3">
-  <div class="sec"><h3><span class="ic">▦</span>Behälter<span class="chev">▾</span></h3><div class="body">
-    <div class="row"><label>Art</label><div class="seg" id="typ"><div data-v="gridfinity" class="on">Gridfinity</div><div data-v="platte">Freie Platte</div></div></div>
-    <div id="gridBox">
-      <div class="row"><label>Raster (B × T)</label><div class="ctl"><input type="number" id="rx" min="1" max="12" value="3"><span class="unit">×</span><input type="number" id="ry" min="1" max="12" value="2"></div></div>
-      <div class="row"><label>Höhe</label><div class="ctl"><input type="number" id="hu" min="2" max="20" value="4"><span class="unit">u</span></div></div>
-      <div class="row"><label>Magnetlöcher</label><div class="ctl"><div class="sw" id="magnete"></div><span class="unit">6×2 mm</span></div></div>
-      <div class="row"><label>Stapelrand</label><div class="ctl"><div class="sw on" id="rand"></div></div></div>
-    </div>
-    <div id="platteBox" style="display:none">
-      <div class="row"><label>Breite × Tiefe</label><div class="ctl"><input type="number" id="pb" value="200"><span class="unit">×</span><input type="number" id="pt" value="120"></div></div>
-      <div class="row"><label>Höhe</label><div class="ctl"><input type="number" id="ph" value="20" step="0.5"><span class="unit">mm</span></div></div>
-    </div>
-    <div class="row"><label>Automatisch</label><div class="ctl"><div class="sw on" id="auto"></div><span class="unit">Größe</span></div></div>
-    <div class="row"><label>Boden</label><div class="ctl"><input type="number" id="boden" value="1.2" step="0.2" min="0.6"><span class="unit">mm</span></div></div>
-    <div class="row"><label>Toleranz</label><div class="ctl"><input type="number" id="tol" value="1.0" step="0.1" min="0"><span class="unit">mm</span></div></div>
-    <div class="row"><label>Name</label><div class="ctl"><input type="text" id="name" value="Werkzeugeinsatz"></div></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">◩</span>TPU-Inlay<span class="chev">▾</span></h3><div class="body">
-    <div class="seg" id="inlay" style="margin-bottom:6px"><div data-v="aus" class="on">Aus</div><div data-v="separat">Separat</div><div data-v="kombiniert">Kombiniert</div></div>
-    <svg class="inlaybild" viewBox="0 0 300 64" aria-hidden="true"><path id="plaSchale" d="M8 8v48h284V8h-9v40H17V8Z" fill="var(--pla)"/><path id="plaVoll" d="M8 8h110v12q0 8 8 8h48q8 0 8-8V8h110v48H8Z" fill="var(--pla)"/><path id="inlayForm" d="M18 20h100v12q0 8 8 8h48q8 0 8-8V20h100v27H18Z" fill="var(--tpu)" opacity=".85"/><path id="plaKontur" d="M17 8h101v24q0 8 8 8h48q8 0 8-8V8h101v40H17Z" fill="var(--pla)"/><path id="tpuKontur" d="M114 8v24q0 12 12 12h48q12 0 12-12V8h-4v24q0 8-8 8h-48q-8 0-8-8V8Z" fill="var(--tpu)"/></svg>
-    <div class="help" id="inlayText">Taschen werden direkt in den Behälter gedruckt.</div>
-    <div id="inlayOpt" style="display:none">
-      <div class="row"><label>Form</label><div class="seg" id="inlayForm2"><div data-v="block" class="on">Ganzer Einsatz</div><div data-v="kontur">Nur Kontur</div></div></div>
-      <div id="konturOpt" style="display:none">
-        <div class="row"><label>TPU-Wand</label><div class="ctl"><input type="number" id="kw" value="1.2" step="0.2" min="0.6"><span class="unit">mm</span></div></div>
-        <div class="row"><label>TPU-Boden</label><div class="ctl"><input type="number" id="kb" value="0" step="0.2" min="0"><span class="unit">mm</span></div></div>
-      </div>
-      <div id="blockOpt">
-      <div class="row"><label>Spiel zur Wand</label><div class="ctl"><input type="number" id="spiel" value="0.3" step="0.05" min="0"><span class="unit">mm</span></div></div>
-      <div class="row"><label>TPU unter Tasche</label><div class="ctl"><input type="number" id="tpuB" value="1.0" step="0.2" min="0.4"><span class="unit">mm</span></div></div>
+    <div id="mBearbeiten" style="display:none">
+      <div class="hilfe">Werkzeug wählen, dann im Foto über Schatten malen (Radieren) oder fehlende Stellen übermalen (Ergänzen).</div>
+      <div class="seg" id="pinselArt"><div data-v="minus" class="an">Radieren</div><div data-v="plus">Ergänzen</div></div>
+      <div class="raster2" style="margin-top:8px">
+        <label class="feld">Pinsel (mm)<input type="number" id="pinsel" value="3" min="0.5" max="20" step="0.5"></label>
+        <label class="feld">Umriss rundum<span style="display:flex;gap:4px"><button class="btn k" id="enger" style="flex:1">−0,5</button><button class="btn k" id="weiter" style="flex:1">+0,5</button></span></label>
       </div>
     </div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">⌖</span>Werkzeuge und Formen<span class="chev">▾</span></h3><div class="body">
     <div class="liste" id="wzListe"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
-      <button class="btn klein" id="addFinger">+ Griffmulden</button>
-      <button class="btn klein" id="addRechteck">+ Rechteck</button>
-      <button class="btn klein" id="addLang">+ Langloch</button>
-      <button class="btn klein" id="anordnen">Automatisch anordnen</button>
-    </div>
-    <div id="auswahlBox"></div>
-  </div></div>
-  <div class="sec closed"><h3><span class="ic">★</span>Aus der Bibliothek<span class="chev">▾</span></h3><div class="body">
-    <div class="liste" id="bibListe"><div class="help">Noch nichts gespeichert.</div></div>
-  </div></div>
-</div>
+    <label class="feld" style="margin-top:10px">Standardtiefe neuer Taschen (mm)<input type="number" id="stdTiefe" value="15" min="1" step="0.5"></label>
+    <div id="meldungen"></div>
+  </div>
 
-<!-- 4 Export -->
-<div class="page" data-s="4">
-  <div class="sec"><h3><span class="ic">⬇</span>Dateien<span class="chev">▾</span></h3><div class="body">
-    <div class="files" id="dateien"></div>
-    <div id="expHinweise"></div>
-  </div></div>
-  <div class="sec"><h3><span class="ic">ⓘ</span>Maße<span class="chev">▾</span></h3><div class="body"><div class="stats" id="masse"></div></div></div>
-  <div class="sec"><h3><span class="ic">◩</span>Drucken<span class="chev">▾</span></h3><div class="body">
-    <ul class="tipps" id="druckTipps"></ul>
-  </div></div>
-</div>
+  <div class="abschnitt">
+    <h2><b>3</b>Einsatz</h2>
+    <div class="seg" id="typ"><div data-v="gridfinity" class="an">Gridfinity</div><div data-v="platte">Freie Platte</div></div>
+    <div id="gridBox" class="raster3" style="margin-top:8px">
+      <label class="feld">Breite (Raster)<input type="number" id="rx" min="1" max="12" value="3"></label>
+      <label class="feld">Tiefe (Raster)<input type="number" id="ry" min="1" max="12" value="2"></label>
+      <label class="feld">Höhe (×7 mm)<input type="number" id="hu" min="2" max="20" value="4"></label>
+    </div>
+    <div id="platteBox" class="raster3" style="margin-top:8px;display:none">
+      <label class="feld">Breite (mm)<input type="number" id="pb" value="200"></label>
+      <label class="feld">Tiefe (mm)<input type="number" id="pt" value="120"></label>
+      <label class="feld">Höhe (mm)<input type="number" id="ph" value="20" step="0.5"></label>
+    </div>
+    <label class="check" id="magnetZeile"><input type="checkbox" id="magnete">Magnetlöcher 6×2 mm</label>
+    <label class="check" id="randZeile"><input type="checkbox" id="rand" checked>Stapelrand</label>
+    <label class="check"><input type="checkbox" id="autoGr" checked>Größe und Höhe automatisch an Werkzeuge anpassen</label>
+    <div class="raster2"><label class="feld">Boden (mm)<input type="number" id="boden" value="1.2" step="0.2" min="0.6"></label><label class="feld">Name<input type="text" id="name" value="Werkzeugeinsatz"></label></div>
+  </div>
+
+  <div class="abschnitt">
+    <h2><b>4</b>TPU-Auskleidung</h2>
+    <div class="seg" id="inlay"><div data-v="aus">Aus</div><div data-v="kombiniert" class="an">Ein Druck</div><div data-v="separat">Separat</div></div>
+    <div id="tpuOpt">
+      <div class="seg" id="inlayForm" style="margin-top:8px"><div data-v="kontur" class="an">Nur Kontur</div><div data-v="block">Ganzer Einsatz</div></div>
+      <div class="raster2" style="margin-top:8px" id="konturFelder">
+        <label class="feld">Wand TPU (mm)<input type="number" id="kw" value="1.5" step="0.1" min="0.6"></label>
+        <label class="feld">Boden TPU (mm)<input type="number" id="kb" value="1.2" step="0.1" min="0"></label>
+        <label class="feld">Spiel zum Werkzeug<input type="number" id="tol" value="0.3" step="0.1" min="0"></label>
+        <label class="feld">Fuge Körper↔TPU<input type="number" id="fuge" value="0" step="0.05" min="0"></label>
+      </div>
+      <div class="raster2" style="margin-top:8px;display:none" id="blockFelder">
+        <label class="feld">Spiel zur Wand<input type="number" id="spiel" value="0.3" step="0.05" min="0"></label>
+        <label class="feld">TPU unter Tasche<input type="number" id="tpuB" value="1.0" step="0.2" min="0.4"></label>
+      </div>
+    </div>
+    <label class="feld" id="tolOhne" style="margin-top:8px;display:none">Spiel zum Werkzeug (mm)<input type="number" id="tol2" value="1.0" step="0.1" min="0"></label>
+  </div>
+
+  <div class="abschnitt" id="exportBox" style="display:none">
+    <h2><b>5</b>Export</h2>
+    <div class="dateien" id="dateien"></div>
+    <div id="expMeld"></div>
+  </div>
 </aside>
 
-<section class="work">
-  <div class="vpage on" data-v="1"><div class="view" id="v1"><img id="fotoVor" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none"><div class="hint" id="h1">Foto hierher ziehen oder links wählen</div></div></div>
-  <div class="vpage" data-v="2">
-    <div class="leiste"><div class="seg" id="ansicht2" style="width:auto"><div data-v="foto" class="on" style="padding:4px 12px">Foto</div><div data-v="blatt" style="padding:4px 12px">Entzerrt</div></div><span id="l2">Ecken ziehen, um den Rahmen anzupassen</span><span class="t" id="l2t"></span></div>
-    <div class="view" id="v2"><svg id="svg2"></svg><canvas id="lupe" width="300" height="300" style="position:absolute;inset:auto;top:12px;right:12px;width:150px;height:150px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;pointer-events:none"></canvas></div>
-  </div>
-  <div class="vpage" data-v="3">
+<section class="arbeit">
+  <div class="reiter"><div data-r="foto" class="an">Foto</div><div data-r="layout">Layout</div><div data-r="d3">3D-Vorschau</div></div>
+
+  <div class="blatt an" data-r="foto">
     <div class="leiste">
-      <button class="ib" id="rotL" title="Drehen −15°"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg></button>
-      <button class="ib" id="rotR" title="Drehen +15°"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/></svg></button>
-      <button class="ib" id="rot90" title="Drehen 90°">90</button>
-      <button class="ib" id="spieg" title="Spiegeln"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M8 7 3 12l5 5M16 7l5 5-5 5"/></svg></button>
-      <button class="ib" id="dupl" title="Duplizieren"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></button>
-      <button class="ib" id="loesch" title="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg></button>
-      <span class="t" id="l3t"></span>
+      <div class="seg" id="fotoAnsicht" style="width:auto"><div data-v="foto" class="an" style="padding:4px 12px">Foto</div><div data-v="blatt" style="padding:4px 12px">Entzerrt</div></div>
+      <span id="fotoInfo" style="color:var(--muted);font-size:12px">Ecken des grünen Rahmens ziehen, um das Blatt anzupassen</span>
     </div>
-    <div class="view" id="v3"><svg id="svg3"></svg>
-      <div class="legend"><span><i class="dot" style="background:var(--green)"></i>Tasche</span><span><i class="dot" style="background:var(--err)"></i>zu nah am Rand</span></div>
+    <div class="ansicht" id="vFoto"><svg id="svgFoto"></svg><canvas class="lupe" id="lupe" width="300" height="300"></canvas><div class="hinw" id="hFoto">Foto links laden – die Werkzeuge werden automatisch erkannt.</div></div>
+    <div class="fuss"><span id="fotoFuss">Kein Foto</span></div>
+  </div>
+
+  <div class="blatt" data-r="layout">
+    <div class="leiste">
+      <button class="btn k" id="rotL">⟲ 15°</button><button class="btn k" id="rotR">⟳ 15°</button><button class="btn k" id="rot90">⟳ 90°</button><button class="btn k" id="spieg">Spiegeln</button>
+      <label>Winkel</label><input type="number" id="winkel" step="1">
+      <input type="range" id="winkelR" min="0" max="359" step="1" style="width:120px">
+      <label>X</label><input type="number" id="posX" step="0.5"><label>Y</label><input type="number" id="posY" step="0.5"><label>mm</label>
+      <span class="tr"></span>
+      <button class="btn k" id="muldeSetzen">Griffmulde setzen</button><label>Ø</label><input type="number" id="muldeD" value="20" min="8" max="40" step="1"><label>mm</label>
+      <div class="seg" id="muldeForm" style="width:auto"><div data-v="rund" class="an" style="padding:3px 10px">Rund</div><div data-v="oval" style="padding:3px 10px">Oval</div></div>
+      <button class="btn k" id="muldeWeg">Mulde entfernen</button>
+      <button class="btn k" id="koppeln">Mulden koppeln</button>
+      <span class="tr"></span>
+      <button class="btn k" id="anordnen">Automatisch anordnen</button><button class="btn k" id="groesse">Größe anpassen</button>
+      <button class="btn k" id="dupl">Duplizieren</button><button class="btn k" id="entf">Entfernen</button>
     </div>
+    <div class="ansicht" id="vLayout"><svg id="svgLayout"></svg><div class="hinw" id="hLayout">Noch keine Werkzeuge.</div></div>
+    <div class="fuss"><span class="legende"><span><i style="background:var(--hart)"></i>Hartteil</span><span><i style="background:var(--akz)"></i>TPU</span><span><i style="background:var(--tasche)"></i>Tasche</span></span><b id="layoutMass"></b><span id="layoutHinweis"></span></div>
   </div>
-  <div class="vpage" data-v="4">
-    <div class="leiste"><button class="btn klein on" id="expl">Inlay anheben</button><button class="btn klein" id="schnitt">Schnitt</button><span class="t" id="l4t"></span></div>
-    <div class="view" id="v4"><canvas id="cv"></canvas></div>
+
+  <div class="blatt" data-r="d3">
+    <div class="leiste"><button class="btn k an" id="anheben">TPU anheben</button><button class="btn k" id="schnitt">Schnitt</button><button class="btn k" id="neuRechnen">Neu berechnen</button><span id="d3Info" style="color:var(--muted);font-size:12px"></span></div>
+    <div class="ansicht" id="v3d"><canvas class="voll" id="cv"></canvas><div class="hinw" id="h3d">Vorschau wird berechnet …</div></div>
+    <div class="fuss"><b id="d3Mass"></b><span id="d3Hinweis"></span></div>
   </div>
-  <div class="busy" id="busy"><div><div class="spin"></div><div id="busyText">Rechne …</div></div></div>
 </section>
 </div>
+<div class="busy" id="busy"><div><div class="spin"></div><div id="busyText">Rechne …</div></div></div>
 
 <script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
 <script type="module">
@@ -282,345 +239,64 @@ import { OrbitControls } from '/vendor/OrbitControls.js';
 
 const $ = id => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
-const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
-const r1 = v => Math.round(v * 10) / 10;
-const FARBEN = ['#00AE42', '#2F8FD8', '#F2A93B', '#D9534F', '#8E6BD8', '#1FB5A8', '#E07BB0', '#7A8A99', '#C6B23B', '#5BC26B'];
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const r1 = v => (Math.round(v * 10) / 10).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const FARBEN = ['#2E9E5B', '#2F8FD8', '#F2A93B', '#D9534F', '#8E6BD8', '#1FB5A8', '#E07BB0', '#7A8A99', '#C6B23B', '#5BC26B'];
 
-// ---------- Zustand ----------
+// ================= Zustand =================
 const S = {
-  schritt: 1, datei: null, erk: null, umrisse: [], selU: null,
-  teile: [], sel: null, // teile: {uid, art:'wz'|'kreis'|'rechteck'|'langloch', name, umriss, x, y, winkel, spiegeln, tiefe, b, h}
-  e: { typ: 'gridfinity', raster_x: 3, raster_y: 2, hoehe_u: 4, platte_b: 200, platte_t: 120, platte_h: 20, toleranz: 1.0, boden: 1.2, magnete: false, stapelrand: true, inlay: 'aus', inlay_spiel: 0.3, tpu_boden: 1.0, inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0, name: 'Werkzeugeinsatz' },
-  auto: true, modus: 'klassisch', nbArt: 'ki', werkzeugModus: null, ergebnis: null, bib: [],
+  datei: null, erk: null, rahmen: null, fotoAnsicht: 'foto', reiter: 'foto',
+  modus: 'zauber', pinselArt: 'minus', poly: [], sel: null, setzModus: false,
+  teile: [], // {uid, art:'wz', name, punkte, umriss, x, y, winkel, spiegeln, tiefe, farbe} | {uid, art:'griff', wz, s, d, form, partner}
+  e: { typ: 'gridfinity', raster_x: 3, raster_y: 2, hoehe_u: 4, platte_b: 200, platte_t: 120, platte_h: 20, toleranz: 0.3, boden: 1.2, magnete: false, stapelrand: true, inlay: 'kombiniert', inlay_form: 'kontur', kontur_wand: 1.5, kontur_boden: 1.2, kontur_fuge: 0, inlay_spiel: 0.3, tpu_boden: 1.0, name: 'Werkzeugeinsatz' },
+  auto: true, stdTiefe: 15, ergebnis: null, dirty: true,
 };
 let uidZ = 1;
-function speichern() { try { localStorage.setItem('konturwerk', JSON.stringify({ teile: S.teile, e: S.e, auto: S.auto })); } catch (_) {} }
+const neuUid = () => uidZ++;
+const werkzeuge = () => S.teile.filter(t => t.art === 'wz');
+const teil = uid => S.teile.find(t => t.uid === uid);
+function speichern() { try { localStorage.setItem('konturwerk2', JSON.stringify({ teile: S.teile, e: S.e, auto: S.auto, stdTiefe: S.stdTiefe })); } catch (_) {} S.dirty = true; }
 function laden() {
   try {
-    const d = JSON.parse(localStorage.getItem('konturwerk') || 'null');
-    if (d) { S.teile = d.teile || []; Object.assign(S.e, d.e || {}); S.auto = d.auto !== false; uidZ = Math.max(1, ...S.teile.map(t => t.uid + 1)); }
+    const d = JSON.parse(localStorage.getItem('konturwerk2') || 'null');
+    if (d) { S.teile = d.teile || []; Object.assign(S.e, d.e || {}); S.auto = d.auto !== false; S.stdTiefe = d.stdTiefe || 15; uidZ = Math.max(1, ...S.teile.map(t => t.uid + 1)); }
   } catch (_) {}
 }
 
-// ---------- Allgemeines ----------
-function busy(on, t) { $('busy').classList.toggle('on', on); if (t) $('busyText').textContent = t; }
+// ================= Allgemein =================
+function busy(an, t) { $('busy').classList.toggle('an', an); if (t) $('busyText').textContent = t; }
 async function api(url, opt) {
   const r = await fetch(url, opt);
   const j = await r.json().catch(() => ({ error: 'Antwort nicht lesbar' }));
   if (!r.ok || j.error) throw new Error(j.error || r.statusText);
   return j;
 }
-document.querySelectorAll('.sec h3').forEach(h => h.onclick = () => h.parentElement.classList.toggle('closed'));
+const postJson = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 function seg(id, wert, cb) {
   const s = $(id);
-  const set = v => s.querySelectorAll('div').forEach(d => d.classList.toggle('on', d.dataset.v === v));
+  const set = v => s.querySelectorAll('div').forEach(d => d.classList.toggle('an', d.dataset.v === v));
   set(wert);
   s.querySelectorAll('div').forEach(d => d.onclick = () => { set(d.dataset.v); cb(d.dataset.v); });
   return set;
 }
-function schalter(id, wert, cb) {
-  const s = $(id); s.classList.toggle('on', !!wert);
-  s.onclick = () => { s.classList.toggle('on'); cb(s.classList.contains('on')); };
-}
-function hinweise(box, liste, cls = 'warn') { $(box).innerHTML = ''; (liste || []).forEach(t => { const d = document.createElement('div'); d.className = cls; d.textContent = t; $(box).appendChild(d); }); }
-
-// ---------- Schritte ----------
-function zeige(n) {
-  S.schritt = n;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', +t.dataset.s === n));
-  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', +p.dataset.s === n));
-  document.querySelectorAll('.vpage').forEach(p => p.classList.toggle('on', +p.dataset.v === n));
-  $('go').textContent = { 1: 'Erkennen', 2: 'Übernehmen', 3: 'Erzeugen', 4: 'Neu erzeugen' }[n];
-  if (n === 2) zeichne2();
-  if (n === 3) { zeichne3(); liste3(); }
-  if (n === 4) { setTimeout(groesse3d, 0); }
-}
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => zeige(+t.dataset.s));
-function freigeben() {
-  document.querySelector('.tab[data-s="2"]').classList.toggle('aus', !S.erk);
-  document.querySelector('.tab[data-s="4"]').classList.toggle('aus', !S.ergebnis);
-}
-$('go').onclick = () => {
-  if (S.schritt === 1) erkennen();
-  else if (S.schritt === 2) uebernehmen();
-  else erzeugen();
-};
-
-// ---------- 1 Foto ----------
-const drop = $('drop');
-drop.onclick = () => $('datei').click();
-$('datei').onchange = e => e.target.files[0] && waehle(e.target.files[0]);
-for (const z of [drop, $('v1')]) {
-  z.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
-  z.addEventListener('dragleave', () => drop.classList.remove('over'));
-  z.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && waehle(e.dataTransfer.files[0]); });
-}
-// HEIC (iPhone/Mac): wenn der Browser es anzeigen kann (Safari), vorher in JPEG umwandeln – sonst wandelt der Server um
-async function alsJpeg(f) {
-  const heic = /\.(heic|heif)$/i.test(f.name) || /hei[cf]/i.test(f.type);
-  if (!heic) return f;
-  try {
-    const url = URL.createObjectURL(f);
-    const img = new Image(); img.src = url; await img.decode();
-    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
-    c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url);
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.93));
-    if (!blob) return f;
-    return new File([blob], f.name.replace(/\.(heic|heif)$/i, '') + '.jpg', { type: 'image/jpeg' });
-  } catch (_) { return f; }
-}
-async function waehle(f) {
-  f = await alsJpeg(f);
-  S.datei = f;
-  $('dropText').innerHTML = `<b>${f.name.replace(/[<>&]/g, '')}</b><br>${(f.size / 1e6).toFixed(1)} MB – zum Ändern tippen`;
-  const img = $('fotoVor'); img.src = URL.createObjectURL(f); img.style.display = 'block'; $('h1').style.display = 'none';
-}
-seg('modus', S.modus, v => { S.modus = v; $('kiBox').style.display = v === 'ki' ? '' : 'none'; if (v === 'ki') kiStatus(); });
-seg('nbArt', S.nbArt, v => S.nbArt = v);
-$('empf').oninput = () => $('empfW').textContent = Math.round($('empf').value * 100);
-$('modell').onchange = kiStatus;
-let kiTimer = null;
-async function kiStatus() {
-  try {
-    const s = await api('/api/ki');
-    const m = s.modelle.find(x => x.id === $('modell').value);
-    let t;
-    if (!s.runtime) t = `<span class="error">KI nicht verfügbar: ${s.fehler || ''}</span>`;
-    else if (s.laedt) t = `Lade ${s.laedt.modell}: ${Math.round(s.laedt.bytes / 1e6)} von ${Math.round(s.laedt.gesamt / 1e6)} MB …`;
-    else if (m && m.vorhanden) t = `<span class="ok">${m.name} ist bereit – läuft lokal auf dem Server.</span>`;
-    else t = `${m ? m.name : ''} wird beim ersten Erkennen geladen (${m ? m.mb : '?'} MB). <a href="#" id="kiLaden">Jetzt laden</a>`;
-    $('kiStatus').innerHTML = t;
-    const a = $('kiLaden'); if (a) a.onclick = async ev => { ev.preventDefault(); await api('/api/ki/laden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modell: $('modell').value }) }); setTimeout(kiStatus, 500); };
-    clearTimeout(kiTimer); if (s.laedt) kiTimer = setTimeout(kiStatus, 1000);
-  } catch (e) { $('kiStatus').textContent = 'KI-Status nicht abrufbar.'; }
-}
-async function erkennen(ecken = null) {
-  if (!S.datei) { $('datei').click(); return; }
-  const fd = new FormData();
-  fd.append('file', S.datei);
-  fd.append('params', JSON.stringify({ papier: $('papier').value, modus: S.modus, modell: $('modell').value, empfindlichkeit: +$('empf').value, min_flaeche: +$('minF').value, ecken }));
-  busy(true, ecken ? 'Erkenne mit neuem Rahmen …' : S.modus === 'ki' ? 'Erkenne mit KI … (beim ersten Mal wird das Modell geladen)' : 'Erkenne Blatt und Umrisse …');
-  try {
-    const r = await api('/api/erkennen', { method: 'POST', body: fd });
-    const alt = ecken ? S.umrisse : [];
-    S.erk = r; S.rahmen = r.ecken.map(p => [...p]); fotoLaden(r.foto_bild);
-    // bei neuem Rahmen: Name, Tiefe und Haken vom alten Umriss mit der größten Überdeckung übernehmen – jeden alten nur einmal
-    const ueber = (a, b) => { const x = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), y = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); if (x <= 0 || y <= 0) return 0; const f = q => (q[2] - q[0]) * (q[3] - q[1]); return x * y / (f(a) + f(b) - x * y); };
-    const paare = [];
-    r.umrisse.forEach((u, i) => alt.forEach((a, j) => { const q = ueber(u.grenzen, a.grenzen); if (q > 0.3) paare.push([q, i, j]); }));
-    paare.sort((a, b) => b[0] - a[0]);
-    const zu = new Map(), vergeben = new Set();
-    for (const [, i, j] of paare) if (!zu.has(i) && !vergeben.has(j)) { zu.set(i, alt[j]); vergeben.add(j); }
-    const namen = new Set([...zu.values()].map(v => v.name));
-    let nr = 1;
-    S.umrisse = r.umrisse.map((u, i) => {
-      const v = zu.get(i);
-      let name = v ? v.name : null;
-      if (!name) { while (namen.has(`Werkzeug ${nr}`)) nr++; name = `Werkzeug ${nr}`; namen.add(name); }
-      return { ...u, aktiv: v ? v.aktiv : true, tiefe: v ? v.tiefe : 12, name, farbe: v ? v.farbe : FARBEN[i % FARBEN.length] };
-    });
-    S.selU = null;
-    const h = [...(r.hinweise || [])]; if (r.ki_fehler) h.unshift(r.ki_fehler);
-    hinweise('umrissHinweise', h);
-    freigeben(); zeige(2);
-  } catch (e) { alert(e.message); }
-  busy(false);
-}
-
-// ---------- 2 Umrisse ----------
-const svg2 = $('svg2');
-function pfad(pts) { return pts.length ? 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z' : ''; }
-// Homographie: bildet 4 Punkte src auf 4 Punkte dst ab
-function homographie(src, dst) {
-  const A = [];
-  for (let i = 0; i < 4; i++) {
-    const [x, y] = src[i], [u, v] = dst[i];
-    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u]);
-    A.push([0, 0, 0, x, y, 1, -v * x, -v * y, v]);
-  }
-  for (let c = 0; c < 8; c++) {
-    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
-    [A[c], A[p]] = [A[p], A[c]];
-    const d = A[c][c] || 1e-12; for (let k = c; k < 9; k++) A[c][k] /= d;
-    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c]; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
-  }
-  const h = A.map(r => r[8]); h.push(1);
-  return p => { const z = h[6] * p[0] + h[7] * p[1] + 1; return [(h[0] * p[0] + h[1] * p[1] + h[2]) / z, (h[3] * p[0] + h[4] * p[1] + h[5]) / z]; };
-}
-function blattEcken() { const { breite_mm: w, hoehe_mm: h } = S.erk; return [[0, 0], [w, 0], [w, h], [0, h]]; }
-function mmZuFoto() { return homographie(blattEcken(), S.erk.ecken); }
-function fotoZuMm() { return homographie(S.erk.ecken, blattEcken()); }
-S.ansicht2 = 'foto';
-seg('ansicht2', 'foto', v => { S.ansicht2 = v; zeichne2(); });
-const fotoImg = new Image();
-function fotoLaden(url) { if (url && fotoImg.dataset.url !== url) { fotoImg.dataset.url = url; fotoImg.src = url; } }
-function zeichne2() {
-  svg2.innerHTML = '';
-  if (!S.erk) return;
-  const { breite_mm: w, hoehe_mm: h } = S.erk;
-  const foto = S.ansicht2 === 'foto' && S.erk.foto_bild;
-  const abb = foto ? mmZuFoto() : p => p;
-  let k = 1;
-  if (foto) {
-    const [fw, fh] = S.erk.foto; k = Math.max(fw, fh) / 300;
-    svg2.setAttribute('viewBox', `0 0 ${fw} ${fh}`);
-    el('image', { href: S.erk.foto_bild, x: 0, y: 0, width: fw, height: fh, preserveAspectRatio: 'none' }, svg2);
-    el('path', { d: pfad(S.rahmen), fill: 'rgba(255,255,255,.18)', stroke: '#00AE42', 'stroke-width': 1.2 * k, 'stroke-linejoin': 'round', style: 'pointer-events:none' }, svg2);
-  } else {
-    svg2.setAttribute('viewBox', `-6 -6 ${w + 12} ${h + 12}`);
-    el('image', { href: S.erk.bild, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }, svg2);
-  }
-  if (!S.rahmenZug) S.umrisse.forEach(u => {
-    const g = el('g', { style: 'cursor:pointer' }, svg2);
-    const sel = S.selU === u.id;
-    el('path', { d: pfad(u.punkte.map(abb)), fill: u.aktiv ? u.farbe : 'none', 'fill-opacity': sel ? 0.5 : 0.3, stroke: u.aktiv ? u.farbe : '#999', 'stroke-width': (sel ? 1.2 : 0.7) * k, 'stroke-dasharray': u.aktiv ? '' : `${3 * k} ${2 * k}`, 'stroke-linejoin': 'round' }, g);
-    const t = el('text', { x: 0, y: 0, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 6 * k, fill: '#fff', stroke: '#000', 'stroke-width': 0.4 * k, 'paint-order': 'stroke', style: 'pointer-events:none' }, g);
-    const m = abb([(u.grenzen[0] + u.grenzen[2]) / 2, (u.grenzen[1] + u.grenzen[3]) / 2]); t.setAttribute('x', m[0]); t.setAttribute('y', m[1]);
-    t.textContent = u.name;
-    g.onclick = ev => { if (S.werkzeugModus) return; ev.stopPropagation(); S.selU = u.id; zeichne2(); };
-  });
-  if (foto) S.rahmen.forEach((p, i) => {
-    el('circle', { cx: p[0], cy: p[1], r: 6 * k, fill: 'rgba(255,255,255,.95)', stroke: '#00AE42', 'stroke-width': 1.6 * k, 'data-ecke': i, style: 'cursor:grab' }, svg2);
-  });
-  $('l2').textContent = { rahmen: 'Rahmen um ein Werkzeug ziehen', tipp: 'Auf ein Werkzeug tippen', minus: 'Über Schatten oder Reste malen – wird weggenommen', plus: 'Über fehlende Stellen malen – wird ergänzt' }[S.werkzeugModus] || (foto ? 'Ecken ziehen, um den Blatt-Rahmen anzupassen' : 'Umrisse prüfen');
-  $('l2t').textContent = `${w} × ${h} mm · ${S.umrisse.filter(u => u.aktiv).length} von ${S.umrisse.length} aktiv`;
-  liste2();
-}
-function lupe(p) {
-  const c = $('lupe');
-  if (!p || !fotoImg.complete || !fotoImg.naturalWidth) { c.style.display = 'none'; return; }
-  const ctx = c.getContext('2d'), sk = fotoImg.naturalWidth / S.erk.foto[0], zoom = 3, r = 150 / zoom;
-  c.style.display = 'block';
-  // Lupe auf die dem Finger abgewandte Seite legen
-  const links = p[0] > S.erk.foto[0] / 2;
-  c.style.left = links ? '12px' : 'auto'; c.style.right = links ? 'auto' : '12px';
-  ctx.clearRect(0, 0, 300, 300);
-  ctx.save(); ctx.beginPath(); ctx.arc(150, 150, 150, 0, Math.PI * 2); ctx.clip();
-  ctx.drawImage(fotoImg, (p[0] * sk) - r * sk / sk, (p[1] * sk) - r, 2 * r, 2 * r, 0, 0, 300, 300);
-  // Rahmenkanten in der Lupe
-  const zu = q => [150 + (q[0] - p[0]) * sk * zoom, 150 + (q[1] - p[1]) * sk * zoom];
-  ctx.strokeStyle = '#00AE42'; ctx.lineWidth = 3; ctx.beginPath();
-  S.rahmen.forEach((q, i) => { const z = zu(q); i ? ctx.lineTo(z[0], z[1]) : ctx.moveTo(z[0], z[1]); }); ctx.closePath(); ctx.stroke();
-  ctx.strokeStyle = '#D32F2F'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(150, 135); ctx.lineTo(150, 165); ctx.moveTo(135, 150); ctx.lineTo(165, 150); ctx.stroke();
-  ctx.restore();
-}
-function liste2() {
-  const L = $('umrissListe'); L.innerHTML = '';
-  S.umrisse.forEach(u => {
-    const d = document.createElement('div'); d.className = 'item' + (S.selU === u.id ? ' sel' : '');
-    d.innerHTML = `<input type="checkbox" ${u.aktiv ? 'checked' : ''}><input type="text" value=""><input type="number" min="1" step="0.5" title="Tiefe (mm)"><div class="knoepfe"><span class="dot" style="background:${u.farbe}"></span><button class="ib" title="Entfernen">✕</button></div>`;
-    const [cb, nm, tf] = d.querySelectorAll('input');
-    nm.value = u.name; tf.value = u.tiefe;
-    cb.onchange = () => { u.aktiv = cb.checked; zeichne2(); };
-    nm.onchange = () => { u.name = nm.value; zeichne2(); };
-    tf.onchange = () => { u.tiefe = Math.max(1, +tf.value || 12); };
-    d.querySelector('button').onclick = ev => { ev.stopPropagation(); S.umrisse = S.umrisse.filter(x => x !== u); zeichne2(); };
-    d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; S.selU = u.id; zeichne2(); };
-    L.appendChild(d);
-  });
-  if (!S.umrisse.length) L.innerHTML = '<div class="help">Keine Umrisse – Rahmen ziehen oder Empfindlichkeit erhöhen.</div>';
-}
+function meldungen(box, liste, art = 'warn') { $(box).innerHTML = ''; (liste || []).forEach(t => { const d = document.createElement('div'); d.className = 'meldung ' + art; d.textContent = t; $(box).appendChild(d); }); }
 function svgPunkt(svg, ev) { const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [q.x, q.y]; }
-function setWerkzeugModus(m) {
-  S.werkzeugModus = S.werkzeugModus === m ? null : m;
-  $('wzRahmen').classList.toggle('on', S.werkzeugModus === 'rahmen');
-  $('wzTipp').classList.toggle('on', S.werkzeugModus === 'tipp');
-  $('wzMinus').classList.toggle('on', S.werkzeugModus === 'minus');
-  $('wzPlus').classList.toggle('on', S.werkzeugModus === 'plus');
-  zeichne2();
-  $('l2').textContent = S.werkzeugModus === 'rahmen' ? 'Rahmen um ein Werkzeug ziehen' : S.werkzeugModus === 'tipp' ? 'Auf ein Werkzeug tippen' : 'Umrisse prüfen';
-}
-$('wzRahmen').onclick = () => setWerkzeugModus('rahmen');
-$('wzTipp').onclick = () => setWerkzeugModus('tipp');
-$('wzMinus').onclick = () => setWerkzeugModus('minus');
-$('wzPlus').onclick = () => setWerkzeugModus('plus');
-async function umrissAendern(u, extra) {
-  try {
-    const r = await api('/api/umriss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ punkte: u.punkte, pinsel: +$('pinsel').value || 3, ...extra }) });
-    Object.assign(u, { punkte: r.umriss.punkte, grenzen: r.umriss.grenzen, flaeche: r.umriss.flaeche });
-  } catch (e) { alert(e.message); }
-  zeichne2();
-}
-const gewaehlt = () => S.umrisse.find(u => u.id === S.selU);
-$('enger').onclick = () => { const u = gewaehlt(); if (!u) return alert('Erst einen Umriss antippen.'); umrissAendern(u, { versatz: -0.5 }); };
-$('weiter').onclick = () => { const u = gewaehlt(); if (!u) return alert('Erst einen Umriss antippen.'); umrissAendern(u, { versatz: 0.5 }); };
-$('wzNeu').onclick = () => { zeige(1); erkennen(); };
-let rahmenStart = null, rahmenEl = null;
-const inMm = p => S.ansicht2 === 'foto' && S.erk?.foto_bild ? fotoZuMm()(p) : p;
-svg2.addEventListener('pointerdown', ev => {
-  if (!S.erk) return;
-  const p = svgPunkt(svg2, ev);
-  if (ev.target.dataset.ecke !== undefined) {
-    S.rahmenZug = { i: +ev.target.dataset.ecke, dx: S.rahmen[+ev.target.dataset.ecke][0] - p[0], dy: S.rahmen[+ev.target.dataset.ecke][1] - p[1] };
-    svg2.setPointerCapture(ev.pointerId); zeichne2(); lupe(S.rahmen[S.rahmenZug.i]); return;
-  }
-  if (!S.werkzeugModus) return;
-  if (S.werkzeugModus === 'minus' || S.werkzeugModus === 'plus') {
-    const q = inMm(p);
-    // Ziel: gewählter Umriss, sonst der nächstliegende
-    let ziel = gewaehlt();
-    if (!ziel) {
-      let best = Infinity;
-      S.umrisse.forEach(u => { const g = u.grenzen, d = Math.hypot(Math.max(g[0] - q[0], 0, q[0] - g[2]), Math.max(g[1] - q[1], 0, q[1] - g[3])); if (d < best) { best = d; ziel = u; } });
-      if (ziel) { S.selU = ziel.id; }
-    }
-    if (!ziel) return;
-    const foto = S.ansicht2 === 'foto' && S.erk.foto_bild;
-    const sk = foto ? (() => { const f = mmZuFoto(), a = f(q), b = f([q[0] + 1, q[1]]); return Math.hypot(b[0] - a[0], b[1] - a[1]); })() : 1;
-    S.pinselZug = { ziel, mm: [q], punkte: [p], el: el('path', { d: '', fill: 'none', stroke: S.werkzeugModus === 'minus' ? 'rgba(211,47,47,.55)' : 'rgba(0,174,66,.55)', 'stroke-width': (+$('pinsel').value || 3) * sk, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: 'pointer-events:none' }, svg2) };
-    svg2.setPointerCapture(ev.pointerId); return;
-  }
-  if (S.werkzeugModus === 'tipp') { const q = inMm(p); nachbessern([q[0] - 45, q[1] - 45, q[0] + 45, q[1] + 45], q); return; }
-  rahmenStart = p; svg2.setPointerCapture(ev.pointerId);
-  const k = S.ansicht2 === 'foto' ? Math.max(...S.erk.foto) / 300 : 1;
-  rahmenEl = el('rect', { x: p[0], y: p[1], width: 0, height: 0, fill: 'rgba(0,174,66,.15)', stroke: '#00AE42', 'stroke-width': 0.8 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` }, svg2);
-});
-svg2.addEventListener('pointermove', ev => {
-  const p = svgPunkt(svg2, ev);
-  if (S.rahmenZug) {
-    const [fw, fh] = S.erk.foto, z = S.rahmenZug;
-    S.rahmen[z.i] = [Math.max(0, Math.min(fw, p[0] + z.dx)), Math.max(0, Math.min(fh, p[1] + z.dy))];
-    zeichne2(); lupe(S.rahmen[z.i]); return;
-  }
-  if (S.pinselZug) {
-    const z = S.pinselZug; z.punkte.push(p); z.mm.push(inMm(p));
-    z.el.setAttribute('d', 'M' + z.punkte.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L')); return;
-  }
-  if (!rahmenStart) return;
-  rahmenEl.setAttribute('x', Math.min(p[0], rahmenStart[0])); rahmenEl.setAttribute('y', Math.min(p[1], rahmenStart[1]));
-  rahmenEl.setAttribute('width', Math.abs(p[0] - rahmenStart[0])); rahmenEl.setAttribute('height', Math.abs(p[1] - rahmenStart[1]));
-});
-svg2.addEventListener('pointerup', ev => {
-  if (S.rahmenZug) { S.rahmenZug = null; lupe(null); erkennen(S.rahmen.map(p => [...p])); return; }
-  if (S.pinselZug) { const z = S.pinselZug; S.pinselZug = null; umrissAendern(z.ziel, { [S.werkzeugModus]: [z.mm] }); return; }
-  if (!rahmenStart) return;
-  const p = svgPunkt(svg2, ev), a = rahmenStart; rahmenStart = null;
-  const ecken = [[a[0], a[1]], [p[0], a[1]], [p[0], p[1]], [a[0], p[1]]].map(inMm);
-  const g = grenzen(ecken), r = [g[0], g[1], g[2], g[3]];
-  if (r[2] - r[0] < 5 || r[3] - r[1] < 5) { zeichne2(); return; }
-  nachbessern(r, null);
-});
-svg2.addEventListener('click', ev => { if (!S.werkzeugModus && ev.target.tagName === 'image') { S.selU = null; zeichne2(); } });
-async function nachbessern(rahmen, punkt) {
-  busy(true, S.nbArt === 'ki' ? 'KI erkennt den Bereich …' : 'Erkenne den Bereich …');
-  try {
-    const r = await api('/api/nachbessern', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: S.erk.id, rahmen, punkt, art: S.nbArt, modell: $('modell').value, empfindlichkeit: +$('empf').value }) });
-    if (!r.umriss) { alert('In diesem Bereich wurde nichts gefunden.'); }
-    else {
-      const u = r.umriss, g = u.grenzen;
-      // ersetzt Umrisse, deren Mitte im neuen Umriss-Rahmen liegt
-      const alt = S.umrisse.filter(x => { const cx = (x.grenzen[0] + x.grenzen[2]) / 2, cy = (x.grenzen[1] + x.grenzen[3]) / 2; return cx > g[0] && cx < g[2] && cy > g[1] && cy < g[3]; });
-      const vor = alt[0];
-      S.umrisse = S.umrisse.filter(x => !alt.includes(x));
-      const id = Math.max(0, ...S.umrisse.map(x => x.id), ...alt.map(x => x.id)) + 1;
-      const neu = { ...u, id, name: vor ? vor.name : `Werkzeug ${id}`, aktiv: true, tiefe: vor ? vor.tiefe : 12, farbe: vor ? vor.farbe : FARBEN[(id - 1) % FARBEN.length] };
-      S.umrisse.push(neu); S.selU = id;
-    }
-  } catch (e) { alert(e.message); }
-  setWerkzeugModus(null); busy(false); zeichne2();
-}
+function pfad(pts) { return pts.length ? 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z' : ''; }
+function grenzen(pts) { const b = [1e9, 1e9, -1e9, -1e9]; pts.forEach(p => { b[0] = Math.min(b[0], p[0]); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], p[0]); b[3] = Math.max(b[3], p[1]); }); return b; }
+function ladeDatei(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
 
-// Umriss lokal: um die Mitte, nach dem kleinsten umschließenden Rechteck ausgerichtet, liegend
+// ================= Reiter =================
+function reiter(r) {
+  S.reiter = r;
+  document.querySelectorAll('.reiter div').forEach(d => d.classList.toggle('an', d.dataset.r === r));
+  document.querySelectorAll('.blatt').forEach(d => d.classList.toggle('an', d.dataset.r === r));
+  if (r === 'foto') zeichneFoto();
+  if (r === 'layout') zeichneLayout();
+  if (r === 'd3') { setTimeout(groesse3d, 0); if (S.dirty || !S.ergebnis) erzeugen(false); else if (!gruppe.children.length) ladeVorschau(S.ergebnis.vorschau); }
+}
+document.querySelectorAll('.reiter div').forEach(d => d.onclick = () => reiter(d.dataset.r));
+
+// ================= Geometrie =================
 function huelle(pts) {
   const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const kr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -630,9 +306,10 @@ function huelle(pts) {
   lo.pop(); hi.pop(); return lo.concat(hi);
 }
 function drehe(pts, a) { const c = Math.cos(a), s = Math.sin(a); return pts.map(p => [p[0] * c - p[1] * s, p[0] * s + p[1] * c]); }
+// Umriss lokal: kleinstes umschließendes Rechteck, liegend, um die Mitte
 function lokal(pts) {
   const h = huelle(pts);
-  let best = { f: Infinity, a: 0 };
+  let best = { f: Infinity, a: 0, w: 0, h: 0 };
   for (let i = 0; i < h.length; i++) {
     const q = h[(i + 1) % h.length], a = -Math.atan2(q[1] - h[i][1], q[0] - h[i][0]);
     const g = grenzen(drehe(h, a)), f = (g[2] - g[0]) * (g[3] - g[1]);
@@ -642,62 +319,6 @@ function lokal(pts) {
   const q = drehe(pts, a), g = grenzen(q), mx = (g[0] + g[2]) / 2, my = (g[1] + g[3]) / 2;
   return q.map(p => [p[0] - mx, p[1] - my]);
 }
-function grenzen(pts) { const b = [1e9, 1e9, -1e9, -1e9]; pts.forEach(p => { b[0] = Math.min(b[0], p[0]); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], p[0]); b[3] = Math.max(b[3], p[1]); }); return b; }
-function uebernehmen() {
-  const neu = S.umrisse.filter(u => u.aktiv);
-  if (!neu.length) { alert('Kein Umriss aktiv.'); return; }
-  if (S.teile.some(t => t.art === 'wz') && !confirm('Die bisherige Anordnung ersetzen?\n(Abbrechen = Werkzeuge dazulegen)')) {
-    neu.forEach(u => S.teile.push(wzTeil(u.name, lokal(u.punkte), u.tiefe)));
-  } else {
-    S.teile = neu.map(u => wzTeil(u.name, lokal(u.punkte), u.tiefe));
-  }
-  autoAnordnen(); zeige(3);
-}
-function wzTeil(name, umriss, tiefe) { return { uid: uidZ++, art: 'wz', name, umriss, x: 0, y: 0, winkel: 0, spiegeln: false, tiefe }; }
-$('inBib').onclick = async () => {
-  const ausw = S.umrisse.filter(u => u.aktiv);
-  if (!ausw.length) return;
-  await bibLaden();
-  ausw.forEach(u => S.bib.push({ name: u.name, umriss: lokal(u.punkte), tiefe: u.tiefe, zeit: Date.now() }));
-  try { await api('/api/bibliothek', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.bib) }); alert(`${ausw.length} Umriss(e) gespeichert.`); bibListe(); } catch (e) { alert(e.message); }
-};
-
-// ---------- 3 Anordnen ----------
-const svg3 = $('svg3');
-function mass() {
-  const e = S.e;
-  if (e.typ === 'platte') return [e.platte_b, e.platte_t];
-  return [42 * e.raster_x - 0.5, 42 * e.raster_y - 0.5];
-}
-function wand() { const e = S.e; return e.typ === 'platte' ? 2.0 : e.stapelrand ? 2.6 : 1.6; }
-function kontur() { return S.e.inlay !== 'aus' && S.e.inlay_form === 'kontur'; }
-function block() { return S.e.inlay !== 'aus' && S.e.inlay_form !== 'kontur'; }
-function innenAbstand() { return wand() + (block() ? 1.2 : 0) + 0.5; }
-function umrissVon(t) {
-  if (t.art === 'wz') return t.umriss;
-  if (t.art === 'griff') return t.form === 'oval' ? formPunkte('langloch', t.d * 1.7, t.d) : formPunkte('kreis', t.d, t.d);
-  return formPunkte(t.art, t.b, t.h);
-}
-function formPunkte(art, b, h) {
-  const n = 40, out = [];
-  if (art === 'kreis') { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return out; }
-  if (art === 'rechteck') return [[-b / 2, -h / 2], [b / 2, -h / 2], [b / 2, h / 2], [-b / 2, h / 2]];
-  const r = Math.min(b, h) / 2, lx = b / 2 - r, ly = h / 2 - r;
-  for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI; out.push([lx + r * Math.cos(a), ly + r * Math.sin(a)]); }
-  for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + i / 12 * Math.PI; out.push([-lx + r * Math.cos(a), -ly + r * Math.sin(a)]); }
-  return out;
-}
-function transform(pts, x, y, winkel, spiegeln) {
-  const a = winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-  return pts.map(p => { const px = spiegeln ? -p[0] : p[0]; return [x + px * c - p[1] * s, y + px * s + p[1] * c]; });
-}
-function welt(t) {
-  if (t.art === 'griff') { const l = griffLage(t); return l ? transform(umrissVon(t), l.x, l.y, l.winkel, false) : []; }
-  return transform(umrissVon(t), t.x, t.y, t.winkel, t.spiegeln);
-}
-function tol(t) { return t.art === 'wz' ? S.e.toleranz + (kontur() ? S.e.kontur_wand : 0) : 0; }
-
-// ---- Geometrie-Helfer ----
 function innen(p, poly) {
   let c = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -715,18 +336,56 @@ function abstand(P, Q) {
   if (!P.length || !Q.length) return Infinity;
   if (innen(P[0], Q) || innen(Q[0], P)) return 0;
   let m = Infinity;
-  for (const [A, B] of [[P, Q], [Q, P]])
-    for (const p of A) for (let i = 0; i < B.length; i++) { const d = punktStrecke(p, B[i], B[(i + 1) % B.length])[0]; if (d < m) m = d; }
+  for (const [A, B] of [[P, Q], [Q, P]]) for (const p of A) for (let i = 0; i < B.length; i++) { const d = punktStrecke(p, B[i], B[(i + 1) % B.length])[0]; if (d < m) m = d; }
   return m;
 }
-
-// ---- Griffmulden: am Werkzeug angedockt, mittig auf der Taschenkante ----
-function griffeVon(uid) { return S.teile.filter(t => t.art === 'griff' && t.wz === uid); }
 function laengen(pts) { const c = [0]; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; c.push(c[i] + Math.hypot(b[0] - a[0], b[1] - a[1])); } return c; }
+function homographie(src, dst) {
+  const A = [];
+  for (let i = 0; i < 4; i++) { const [x, y] = src[i], [u, v] = dst[i]; A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u]); A.push([0, 0, 0, x, y, 1, -v * x, -v * y, v]); }
+  for (let c = 0; c < 8; c++) {
+    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    const d = A[c][c] || 1e-12; for (let k = c; k < 9; k++) A[c][k] /= d;
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c]; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
+  }
+  const h = A.map(r => r[8]); h.push(1);
+  return p => { const z = h[6] * p[0] + h[7] * p[1] + 1; return [(h[0] * p[0] + h[1] * p[1] + h[2]) / z, (h[3] * p[0] + h[4] * p[1] + h[5]) / z]; };
+}
+
+// ================= Einsatz-Maße =================
+function mass() { const e = S.e; return e.typ === 'platte' ? [e.platte_b, e.platte_t] : [42 * e.raster_x - 0.5, 42 * e.raster_y - 0.5]; }
+function hoehe() { const e = S.e; return e.typ === 'platte' ? e.platte_h : e.hoehe_u * 7; }
+function wand() { const e = S.e; return e.typ === 'platte' ? 2.0 : e.stapelrand ? 2.6 : 1.6; }
+const kontur = () => S.e.inlay !== 'aus' && S.e.inlay_form === 'kontur';
+const block = () => S.e.inlay !== 'aus' && S.e.inlay_form !== 'kontur';
+function innenAbstand() { return wand() + (block() ? 1.2 : 0) + 0.5; }
+function rand(t) { return t.art === 'wz' ? S.e.toleranz + (kontur() ? S.e.kontur_wand + S.e.kontur_fuge : 0) : 0; }
+
+// ================= Layout-Geometrie =================
+function transform(pts, x, y, winkel, spiegeln) {
+  const a = winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return pts.map(p => { const px = spiegeln ? -p[0] : p[0]; return [x + px * c - p[1] * s, y + px * s + p[1] * c]; });
+}
+function formPunkte(art, b, h) {
+  const out = [];
+  if (art === 'kreis') { for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; out.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return out; }
+  const r = Math.min(b, h) / 2, lx = b / 2 - r, ly = h / 2 - r;
+  for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI; out.push([lx + r * Math.cos(a), ly + r * Math.sin(a)]); }
+  for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + i / 12 * Math.PI; out.push([-lx + r * Math.cos(a), -ly + r * Math.sin(a)]); }
+  return out;
+}
+function griffForm(g) { return g.form === 'oval' ? formPunkte('langloch', g.d * 1.7, g.d) : formPunkte('kreis', g.d, g.d); }
+function welt(t) {
+  if (t.art === 'griff') { const l = griffLage(t); return l ? transform(griffForm(t), l.x, l.y, l.winkel, false) : []; }
+  return transform(t.umriss, t.x, t.y, t.winkel, t.spiegeln);
+}
+// ---- Griffmulden: angedockt an die Werkzeugkante ----
+const griffeVon = uid => S.teile.filter(t => t.art === 'griff' && t.wz === uid);
 function griffLage(g, s = g.s) {
-  const wz = S.teile.find(t => t.uid === g.wz); if (!wz) return null;
+  const wz = teil(g.wz); if (!wz) return null;
   const pts = welt(wz), c = laengen(pts), L = c[c.length - 1];
-  let ziel = (((s % 1) + 1) % 1) * L, i = 0;
+  const ziel = (((s % 1) + 1) % 1) * L; let i = 0;
   while (i < pts.length - 1 && c[i + 1] < ziel) i++;
   const a = pts[i], b = pts[(i + 1) % pts.length], sl = (c[i + 1] - c[i]) || 1, f = (ziel - c[i]) / sl;
   const p = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
@@ -734,21 +393,45 @@ function griffLage(g, s = g.s) {
   let n = [ty, -tx];
   if (innen([p[0] + n[0] * 0.3, p[1] + n[1] * 0.3], pts)) n = [-n[0], -n[1]];
   const tl = S.e.toleranz;
-  return { x: p[0] + n[0] * tl, y: p[1] + n[1] * tl, winkel: Math.atan2(ty, tx) * 180 / Math.PI, tiefe: wz.tiefe, rand: p };
+  return { x: p[0] + n[0] * tl, y: p[1] + n[1] * tl, winkel: Math.atan2(ty, tx) * 180 / Math.PI, tiefe: wz.tiefe, rand: p, n };
 }
-function griffOk(g, s = g.s) {
+function sAufKante(wz, p) {
+  const pts = welt(wz), c = laengen(pts); let best = [Infinity, 0];
+  for (let i = 0; i < pts.length; i++) { const [d, t] = punktStrecke(p, pts[i], pts[(i + 1) % pts.length]); if (d < best[0]) best = [d, (c[i] + t * (c[i + 1] - c[i])) / c[c.length - 1]]; }
+  return best[1];
+}
+function abstandZuKante(wz, p) { const pts = welt(wz); let m = Infinity; for (let i = 0; i < pts.length; i++) m = Math.min(m, punktStrecke(p, pts[i], pts[(i + 1) % pts.length])[0]); return m; }
+function griffOk(g, s = g.s, ohne = null) {
   const P = welt({ ...g, s }); if (!P.length) return false;
   const [w, d] = mass(), m = innenAbstand();
   if (P.some(q => q[0] < m || q[1] < m || q[0] > w - m || q[1] > d - m)) return false;
   for (const t of S.teile) {
-    if (t === g) continue;
-    if (t.art === 'wz') { if (t.uid !== g.wz && abstand(P, welt(t)) < tol(t) + 2.5) return false; }
+    if (t === g || t === ohne || t.uid === g.uid || t.uid === g.partner) continue;
+    if (t.art === 'wz') { if (t.uid !== g.wz && abstand(P, welt(t)) < rand(t) + 2.5) return false; }
     else if (abstand(P, welt(t)) < 3) return false;
   }
   return true;
 }
+// Gegenstelle quer über das Werkzeug (senkrecht zur Längsachse), außen am Werkzeug
+function gegenueber(g) {
+  const wz = teil(g.wz), l = griffLage(g); if (!wz || !l) return null;
+  const a = wz.winkel * Math.PI / 180;
+  let d = [-Math.sin(a), Math.cos(a)]; // lokale y-Achse = quer
+  if (d[0] * -l.n[0] + d[1] * -l.n[1] < 0) d = [-d[0], -d[1]];
+  const pts = welt(wz); let tMax = -1;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length], e = [q[0] - p[0], q[1] - p[1]];
+    const den = d[0] * e[1] - d[1] * e[0]; if (Math.abs(den) < 1e-9) continue;
+    const w0 = [p[0] - l.rand[0], p[1] - l.rand[1]];
+    const t = (w0[0] * e[1] - w0[1] * e[0]) / den, u = (w0[0] * d[1] - w0[1] * d[0]) / den;
+    if (t > 0.5 && u >= 0 && u <= 1 && t > tMax) tMax = t;
+  }
+  if (tMax < 0) return null;
+  return sAufKante(wz, [l.rand[0] + d[0] * tMax, l.rand[1] + d[1] * tMax]);
+}
+function partnerNachziehen() { S.teile.forEach(g => { if (g.art === 'griff' && g.partner && g.uid < g.partner) { const p = teil(g.partner); const s = gegenueber(g); if (p && s != null) { p.s = s; p.d = g.d; p.form = g.form; } } }); }
 function griffPlatzieren(g, nahe) {
-  const wz = S.teile.find(t => t.uid === g.wz); if (!wz) return false;
+  const wz = teil(g.wz); if (!wz) return false;
   const pts = welt(wz), N = Math.min(400, Math.max(60, Math.round(laengen(pts).at(-1))));
   const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
   const andere = griffeVon(g.wz).filter(x => x !== g).map(x => griffLage(x)).filter(Boolean);
@@ -758,427 +441,539 @@ function griffPlatzieren(g, nahe) {
     const l = griffLage(g, s);
     let score;
     if (nahe != null) { const dd = Math.abs(s - nahe); score = Math.min(dd, 1 - dd); }
-    else {
-      score = Math.hypot(l.rand[0] - cx, l.rand[1] - cy);
-      for (const o of andere) score -= 0.6 * Math.min(40, Math.hypot(o.x - l.x, o.y - l.y));
-    }
+    else { score = Math.hypot(l.rand[0] - cx, l.rand[1] - cy); for (const o of andere) score -= 0.6 * Math.min(40, Math.hypot(o.x - l.x, o.y - l.y)); }
     if (!best || score < best.score) best = { s, score };
   }
   if (best) { g.s = best.s; return true; }
   return false;
 }
-function griffNeu(wz, d = 20) {
-  const g = { uid: uidZ++, art: 'griff', wz: wz.uid, s: 0, d, form: 'rund' };
-  S.teile.push(g);
-  if (!griffPlatzieren(g)) { S.teile = S.teile.filter(x => x !== g); return null; }
-  return g;
-}
-function griffeReparieren() { S.teile.filter(t => t.art === 'griff').forEach(g => { if (!griffOk(g)) griffPlatzieren(g, g.s); }); }
-
+function griffeReparieren() { partnerNachziehen(); S.teile.filter(t => t.art === 'griff' && !t.partner).forEach(g => { if (!griffOk(g)) griffPlatzieren(g, g.s); }); }
 function zuNah(t) {
   if (t.art === 'griff') return !griffOk(t);
-  const [w, d] = mass(), m = innenAbstand() + tol(t);
+  const [w, d] = mass(), m = innenAbstand() + rand(t);
   return welt(t).some(p => p[0] < m || p[1] < m || p[0] > w - m || p[1] > d - m);
 }
-function zeichne3() {
-  svg3.innerHTML = '';
-  const [w, d] = mass(), e = S.e;
-  svg3.setAttribute('viewBox', `-8 -8 ${w + 16} ${d + 16}`);
-  const r = e.typ === 'platte' ? 4 : 3.75;
-  el('rect', { x: 0, y: 0, width: w, height: d, rx: r, fill: 'var(--panel)', stroke: 'var(--muted)', 'stroke-width': 0.6 }, svg3);
-  if (e.typ !== 'platte') {
-    for (let i = 1; i < e.raster_x; i++) el('line', { x1: i * 42 - 0.25, y1: 0, x2: i * 42 - 0.25, y2: d, stroke: 'var(--line)', 'stroke-width': 0.4 }, svg3);
-    for (let i = 1; i < e.raster_y; i++) el('line', { x1: 0, y1: i * 42 - 0.25, x2: w, y2: i * 42 - 0.25, stroke: 'var(--line)', 'stroke-width': 0.4 }, svg3);
-  }
-  const wd = wand();
-  el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: block() ? 'rgba(0,174,66,.08)' : 'none', stroke: 'var(--muted)', 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svg3);
-  // Ebenen: Halo/TPU-Ring → Kontur (doppelt breit) → Fläche → Beschriftung. So verschmelzen Werkzeug und Mulde zu einer sauberen Kante.
-  const halo = el('g', {}, svg3), kanten = el('g', {}, svg3), flaechen = el('g', {}, svg3), oben = el('g', { style: 'pointer-events:none' }, svg3);
-  const reihenfolge = [...S.teile].sort((a, b) => (a.art === 'wz' ? 0 : 1) - (b.art === 'wz' ? 0 : 1));
-  for (const t of reihenfolge) {
-    const pts = welt(t); if (!pts.length) continue;
-    const d0 = pfad(pts), nah = zuNah(t);
-    const gruppeSel = S.sel === t.uid || (t.art === 'griff' && S.sel === t.wz) || (t.art === 'wz' && selTeil()?.art === 'griff' && selTeil().wz === t.uid);
-    const frei = t.art !== 'wz' && t.art !== 'griff';
-    const strich = nah ? 'var(--err)' : frei ? '#2F8FD8' : kontur() ? 'var(--pla)' : 'var(--green)';
-    const fuell = nah ? 'rgba(211,47,47,.18)' : frei ? 'rgba(47,143,216,.25)' : kontur() ? 'var(--panel2)' : 'var(--green-bg)';
-    if (t.art === 'wz') {
-      if (kontur()) el('path', { d: d0, fill: 'none', stroke: 'var(--tpu)', 'stroke-width': 2 * (S.e.toleranz + S.e.kontur_wand), 'stroke-linejoin': 'round' }, halo);
-      else if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: strich, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, halo);
-    }
-    el('path', { d: d0, fill: strich, stroke: strich, 'stroke-width': gruppeSel ? 1.8 : 1.0, 'stroke-linejoin': 'round' }, kanten);
-    const f = el('path', { d: d0, fill: fuell, stroke: 'none', 'data-uid': t.uid, style: t.art === 'griff' ? 'cursor:ew-resize' : 'cursor:move' }, flaechen);
-    if (nah) f.setAttribute('stroke-dasharray', '2 1');
-    if (t.art === 'wz') {
-      const tx = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 4.5, fill: 'var(--text)' }, oben);
-      tx.textContent = `${t.name} · ${t.tiefe} mm`;
-    }
-  }
-  const t = selTeil();
-  if (t && t.art !== 'griff') {
-    const b = grenzen(welt(t));
-    const sg = el('g', { 'data-uid': t.uid }, svg3);
-    el('rect', { x: b[0] - 1, y: b[1] - 1, width: b[2] - b[0] + 2, height: b[3] - b[1] + 2, fill: 'none', stroke: 'var(--green)', 'stroke-width': 0.3, 'stroke-dasharray': '1.5 1', style: 'pointer-events:none' }, sg);
-    const hx = (b[0] + b[2]) / 2, hy = b[1] - 7;
-    el('line', { x1: hx, y1: b[1] - 1, x2: hx, y2: hy, stroke: 'var(--green)', 'stroke-width': 0.4 }, sg);
-    el('circle', { cx: hx, cy: hy, r: 2.6, fill: 'var(--panel)', stroke: 'var(--green)', 'stroke-width': 0.6, 'data-dreh': 1, 'data-uid': t.uid, style: 'cursor:grab' }, sg);
-  }
-  if (t && t.art === 'griff') {
-    const l = griffLage(t);
-    if (l) { el('circle', { cx: l.x, cy: l.y, r: 1.2, fill: 'var(--green)', style: 'pointer-events:none' }, svg3); }
-  }
-  const hoehe = e.typ === 'platte' ? `${e.platte_h} mm` : `${e.hoehe_u}u = ${e.hoehe_u * 7} mm`;
-  $('l3t').textContent = `${r1(w)} × ${r1(d)} mm · Höhe ${hoehe}${block() ? ' · TPU-Inlay ' + r1(inlayDicke()) + ' mm' : kontur() ? ' · TPU-Kontur ' + r1(e.kontur_wand) + ' mm' : ''}`;
-}
-function inlayDicke() { const e = S.e, top = e.typ === 'platte' ? e.platte_h : e.hoehe_u * 7, base = e.typ === 'platte' ? 0 : 5; return top - base - e.boden; }
-function selTeil() { return S.teile.find(t => t.uid === S.sel); }
-function teilName(t) {
-  if (t.art === 'wz') return t.name;
-  if (t.art === 'griff') { const wz = S.teile.find(x => x.uid === t.wz); return `Griffmulde · ${wz ? wz.name : '?'}`; }
-  return { kreis: 'Kreis', rechteck: 'Rechteck', langloch: 'Langloch' }[t.art];
-}
-function liste3() {
-  const L = $('wzListe'); L.innerHTML = '';
-  const ordnung = [];
-  S.teile.filter(t => t.art === 'wz').forEach(t => { ordnung.push(t); ordnung.push(...griffeVon(t.uid)); });
-  S.teile.filter(t => t.art !== 'wz' && t.art !== 'griff').forEach(t => ordnung.push(t));
-  ordnung.forEach(t => {
-    const d = document.createElement('div'); d.className = 'item' + (S.sel === t.uid ? ' sel' : '');
-    if (t.art === 'griff') d.style.marginLeft = '16px';
-    const farbe = zuNah(t) ? 'var(--err)' : t.art === 'wz' || t.art === 'griff' ? 'var(--green)' : '#2F8FD8';
-    d.innerHTML = `<span class="dot" style="background:${farbe}"></span><input type="text"><input type="number" min="1" step="0.5"><div class="knoepfe"><button class="ib" title="Entfernen">✕</button></div>`;
-    const [nm, tf] = d.querySelectorAll('input');
-    nm.value = teilName(t); nm.disabled = t.art !== 'wz';
-    if (t.art === 'griff') { tf.value = t.d; tf.title = 'Durchmesser (mm)'; tf.min = 10; }
-    else { tf.value = t.tiefe; tf.title = 'Tiefe (mm)'; }
-    nm.onchange = () => { t.name = nm.value; zeichne3(); liste3(); speichern(); };
-    tf.onchange = () => {
-      if (t.art === 'griff') { const alt = t.d; t.d = Math.max(10, +tf.value || 20); if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.d = alt; tf.value = alt; } }
-      else { t.tiefe = Math.max(1, +tf.value || 10); autoHoehe(); }
-      zeichne3(); speichern();
-    };
-    d.querySelector('button').onclick = ev => { ev.stopPropagation(); entfernen(t); };
-    d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; S.sel = t.uid; zeichne3(); liste3(); };
-    L.appendChild(d);
-  });
-  if (!S.teile.length) L.innerHTML = '<div class="help">Noch nichts angeordnet – erst ein Foto erkennen oder aus der Bibliothek hinzufügen.</div>';
-  $('addFinger').textContent = selTeil()?.art === 'wz' ? '+ Griffmulde hier' : '+ Griffmulden';
-  auswahlBox();
-}
-function entfernen(t) {
-  const weg = new Set([t.uid, ...(t.art === 'wz' ? griffeVon(t.uid).map(g => g.uid) : [])]);
-  S.teile = S.teile.filter(x => !weg.has(x.uid));
-  if (weg.has(S.sel)) S.sel = null;
-  geaendert();
-}
-function auswahlBox() {
-  const t = selTeil(), B = $('auswahlBox'); B.innerHTML = '';
-  if (!t) return;
-  if (t.art === 'griff') {
-    const r = document.createElement('div');
-    r.innerHTML = `<div class="help">Griffmulde ziehen = entlang der Kante schieben. Sie sitzt immer mittig auf der Kante und weicht anderen Taschen aus.</div>
-      <div class="row"><label>Form</label><div class="seg" id="gForm"><div data-v="rund">Rund</div><div data-v="oval">Oval</div></div></div>
-      <div class="row"><label>Durchmesser</label><div class="ctl"><input type="number" id="gD" min="10" step="1"><span class="unit">mm</span></div></div>
-      <div style="display:flex;gap:6px;margin-top:4px"><button class="btn klein" id="gAuto">Beste Stelle suchen</button></div>`;
-    B.appendChild(r);
-    seg('gForm', t.form, v => { const alt = t.form; t.form = v; if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.form = alt; alert('Dafür ist an dieser Kante kein Platz.'); auswahlBox(); } zeichne3(); speichern(); });
-    $('gD').value = t.d;
-    $('gD').onchange = () => { const alt = t.d; t.d = Math.max(10, +$('gD').value || 20); if (!griffOk(t) && !griffPlatzieren(t, t.s)) { t.d = alt; $('gD').value = alt; alert('Dafür ist an dieser Kante kein Platz.'); } zeichne3(); liste3(); speichern(); };
-    $('gAuto').onclick = () => { griffPlatzieren(t); zeichne3(); speichern(); };
-    return;
-  }
-  const zeile = (lab, key, step = 1, einheit = 'mm') => {
-    const r = document.createElement('div'); r.className = 'row';
-    r.innerHTML = `<label>${lab}</label><div class="ctl"><input type="number" step="${step}"><span class="unit">${einheit}</span></div>`;
-    const i = r.querySelector('input'); i.value = r1(t[key]);
-    i.onchange = () => { t[key] = +i.value; if (key === 'tiefe') autoHoehe(); griffeReparieren(); zeichne3(); liste3(); speichern(); };
-    B.appendChild(r);
-  };
-  zeile('Position X', 'x', 0.5); zeile('Position Y', 'y', 0.5); zeile('Drehung', 'winkel', 1, '°');
-  if (t.art !== 'wz') { zeile('Breite', 'b', 0.5); if (t.art !== 'kreis') zeile('Höhe', 'h', 0.5); }
-}
-function geaendert() { if (S.auto) autoGroesse(); griffeReparieren(); zeichne3(); liste3(); speichern(); }
-function autoHoehe() {
-  if (!S.auto) return;
-  const e = S.e, maxT = Math.max(8, ...S.teile.filter(t => t.art !== 'griff').map(t => t.tiefe));
-  const extra = block() ? e.tpu_boden : kontur() ? e.kontur_boden : 0;
-  if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + extra) * 2) / 2;
-  else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + extra) / 7));
-  formularSetzen();
-}
-function autoGroesse() {
-  if (!S.teile.length) return;
-  const e = S.e, m = innenAbstand();
-  const b = [1e9, 1e9, -1e9, -1e9];
-  S.teile.forEach(t => { const g = grenzen(welt(t)), tt = tol(t); if (!isFinite(g[0])) return; b[0] = Math.min(b[0], g[0] - tt); b[1] = Math.min(b[1], g[1] - tt); b[2] = Math.max(b[2], g[2] + tt); b[3] = Math.max(b[3], g[3] + tt); });
-  if (!isFinite(b[0])) return;
-  const bw = b[2] - b[0] + 2 * m, bd = b[3] - b[1] + 2 * m;
-  let w, d;
-  if (e.typ === 'platte') { e.platte_b = Math.ceil(bw); e.platte_t = Math.ceil(bd); w = e.platte_b; d = e.platte_t; }
-  else { e.raster_x = Math.max(1, Math.ceil((bw + 0.5) / 42)); e.raster_y = Math.max(1, Math.ceil((bd + 0.5) / 42)); [w, d] = mass(); }
-  // Gruppe mittig setzen (Griffmulden hängen an ihren Werkzeugen und wandern mit)
-  const dx = w / 2 - (b[0] + b[2]) / 2, dy = d / 2 - (b[1] + b[3]) / 2;
-  S.teile.forEach(t => { if (t.art !== 'griff') { t.x += dx; t.y += dy; } });
-  autoHoehe();
-}
-function gruppenGrenzen(t) {
-  const g = grenzen(welt(t)).map((v, i) => v + (i < 2 ? -tol(t) : tol(t)));
-  griffeVon(t.uid).forEach(x => { const q = grenzen(welt(x)); if (isFinite(q[0])) { g[0] = Math.min(g[0], q[0]); g[1] = Math.min(g[1], q[1]); g[2] = Math.max(g[2], q[2]); g[3] = Math.max(g[3], q[3]); } });
-  return g;
-}
-function autoAnordnen() {
-  const wz = S.teile.filter(t => t.art === 'wz'), rest = S.teile.filter(t => t.art !== 'wz');
-  const abstand = 5;
-  wz.forEach(t => { t.winkel = 0; t.spiegeln = false; t.x = 0; t.y = 0; });
-  const groessen = wz.map(t => { const g = gruppenGrenzen(t); return { t, w: g[2] - g[0], h: g[3] - g[1], g }; });
-  groessen.sort((a, b) => b.w - a.w);
-  const breit = Math.max(groessen.length ? groessen[0].w : 0, Math.sqrt(groessen.reduce((s, x) => s + (x.w + abstand) * (x.h + abstand), 0)) * 1.25);
-  let x = 0, y = 0, zeileH = 0;
-  for (const it of groessen) {
-    if (x > 0 && x + it.w > breit) { x = 0; y += zeileH + abstand; zeileH = 0; }
-    it.t.x = x - it.g[0]; it.t.y = y - it.g[1];
-    x += it.w + abstand; zeileH = Math.max(zeileH, it.h);
-  }
-  S.teile = [...wz, ...rest];
-  S.auto = true; $('auto').classList.add('on');
-  autoGroesse(); griffeReparieren(); zeichne3(); liste3(); speichern();
-}
-$('anordnen').onclick = autoAnordnen;
-function neueForm(art) {
-  const [w, d] = mass();
-  const t = { uid: uidZ++, art, name: '', x: w / 2, y: d / 2, winkel: 0, spiegeln: false, tiefe: 10, b: art === 'rechteck' ? 30 : 40, h: art === 'rechteck' ? 20 : 14 };
-  if (S.teile.length) t.tiefe = Math.max(...S.teile.filter(x => x.art === 'wz').map(x => x.tiefe), 10);
-  S.teile.push(t); S.sel = t.uid; zeichne3(); liste3(); speichern();
-}
-$('addFinger').onclick = () => {
-  const sel = selTeil();
-  const ziele = sel && sel.art === 'wz' ? [sel] : sel && sel.art === 'griff' ? S.teile.filter(t => t.uid === sel.wz) : S.teile.filter(t => t.art === 'wz' && !griffeVon(t.uid).length);
-  if (!ziele.length) { alert('Alle Werkzeuge haben schon eine Griffmulde. Werkzeug antippen, um eine weitere hinzuzufügen.'); return; }
-  let neu = null, fehl = 0;
-  ziele.forEach(wz => { const g = griffNeu(wz); if (g) neu = g; else fehl++; });
-  if (fehl) alert(`Bei ${fehl} Werkzeug(en) war kein Platz für eine Griffmulde – mehr Abstand lassen oder den Behälter vergrößern.`);
-  if (neu && ziele.length === 1) S.sel = neu.uid;
-  geaendert();
-};
-$('addRechteck').onclick = () => neueForm('rechteck');
-$('addLang').onclick = () => neueForm('langloch');
-const drehen = g => { const t = selTeil(); if (!t || t.art === 'griff') return; t.winkel = ((t.winkel + g) % 360 + 360) % 360; geaendert(); };
-$('rotL').onclick = () => drehen(-15); $('rotR').onclick = () => drehen(15); $('rot90').onclick = () => drehen(90);
-$('spieg').onclick = () => { const t = selTeil(); if (t && t.art === 'wz') { t.spiegeln = !t.spiegeln; geaendert(); } };
-$('dupl').onclick = () => {
-  const t = selTeil(); if (!t) return;
-  if (t.art === 'griff') { const wz = S.teile.find(x => x.uid === t.wz); const g = wz && griffNeu(wz, t.d); if (g) { g.form = t.form; S.sel = g.uid; } else alert('Kein Platz für eine weitere Griffmulde.'); geaendert(); return; }
-  const n = JSON.parse(JSON.stringify(t)); n.uid = uidZ++; n.x += 8; n.y += 8; S.teile.push(n);
-  if (t.art === 'wz') griffeVon(t.uid).forEach(g => { const k = { ...g, uid: uidZ++, wz: n.uid }; S.teile.push(k); });
-  S.sel = n.uid; geaendert();
-};
-$('loesch').onclick = () => { const t = selTeil(); if (t) entfernen(t); };
-addEventListener('keydown', ev => {
-  if (S.schritt !== 3 || ev.target.tagName === 'INPUT') return;
-  const t = selTeil(); if (!t) return;
-  const sch = ev.shiftKey ? 5 : 0.5;
-  if (ev.key === 'Delete' || ev.key === 'Backspace') $('loesch').click();
-  else if (ev.key === 'r') drehen(ev.shiftKey ? -15 : 15);
-  else if (ev.key.startsWith('Arrow') && t.art === 'griff') {
-    const L = laengen(welt(S.teile.find(x => x.uid === t.wz))).at(-1) || 100, ds = (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1) * sch / L;
-    if (griffOk(t, t.s + ds)) t.s = (t.s + ds + 1) % 1; zeichne3(); speichern();
-  }
-  else if (ev.key.startsWith('Arrow')) { t.x += ev.key === 'ArrowLeft' ? -sch : ev.key === 'ArrowRight' ? sch : 0; t.y += ev.key === 'ArrowUp' ? -sch : ev.key === 'ArrowDown' ? sch : 0; zeichne3(); speichern(); }
-  else return;
-  ev.preventDefault();
-});
-// Punkt auf die Werkzeugkante projizieren → Parameter s (0..1)
-function sAufKante(wz, p) {
-  const pts = welt(wz), c = laengen(pts); let best = [Infinity, 0];
-  for (let i = 0; i < pts.length; i++) { const [dd, t] = punktStrecke(p, pts[i], pts[(i + 1) % pts.length]); if (dd < best[0]) best = [dd, (c[i] + t * (c[i + 1] - c[i])) / c[c.length - 1]]; }
-  return best[1];
-}
-let zug = null;
-svg3.addEventListener('pointerdown', ev => {
-  const hit = ev.target.closest('[data-uid]');
-  if (!hit) { S.sel = null; zeichne3(); liste3(); return; }
-  const t = S.teile.find(x => x.uid === +hit.dataset.uid); if (!t) return;
-  const p = svgPunkt(svg3, ev);
-  S.sel = t.uid;
-  if (t.art === 'griff') zug = { t, griff: true };
-  else zug = ev.target.dataset.dreh ? { t, dreh: true, w0: t.winkel, a0: Math.atan2(p[1] - t.y, p[0] - t.x) } : { t, dx: t.x - p[0], dy: t.y - p[1] };
-  svg3.setPointerCapture(ev.pointerId); zeichne3(); liste3();
-});
-svg3.addEventListener('pointermove', ev => {
-  if (!zug) return;
-  const p = svgPunkt(svg3, ev), t = zug.t;
-  if (zug.griff) {
-    const wz = S.teile.find(x => x.uid === t.wz); if (!wz) return;
-    const s = sAufKante(wz, p);
-    // nur gültige Lagen übernehmen; über eine gesperrte Stelle springt die Mulde nicht
-    if (griffOk(t, s)) t.s = s;
-  }
-  else if (zug.dreh) { let w = zug.w0 + (Math.atan2(p[1] - t.y, p[0] - t.x) - zug.a0) * 180 / Math.PI; if (!ev.shiftKey) w = Math.round(w / 5) * 5; t.winkel = ((w % 360) + 360) % 360; }
-  else { t.x = Math.round((p[0] + zug.dx) * 2) / 2; t.y = Math.round((p[1] + zug.dy) * 2) / 2; }
-  zeichne3();
-});
-svg3.addEventListener('pointerup', () => { if (zug) { const war = zug; zug = null; if (!war.griff) griffeReparieren(); zeichne3(); liste3(); speichern(); } });
 
-// Formular Behälter
-const setTyp = seg('typ', S.e.typ, v => { S.e.typ = v; $('gridBox').style.display = v === 'platte' ? 'none' : ''; $('platteBox').style.display = v === 'platte' ? '' : 'none'; geaendert(); });
-const setInlay = seg('inlay', S.e.inlay, v => { S.e.inlay = v; inlayInfo(); geaendert(); });
-const setForm = seg('inlayForm2', S.e.inlay_form, v => { S.e.inlay_form = v; inlayInfo(); geaendert(); });
-function inlayInfo() {
-  const v = S.e.inlay, k = kontur();
-  $('inlayOpt').style.display = v === 'aus' ? 'none' : '';
-  $('konturOpt').style.display = k ? '' : 'none';
-  $('blockOpt').style.display = k ? 'none' : '';
-  $('inlayForm').style.display = block() ? '' : 'none';
-  $('plaVoll').style.display = v === 'aus' ? '' : 'none';
-  $('plaSchale').style.display = block() ? '' : 'none';
-  $('plaKontur').style.display = k ? '' : 'none';
-  $('tpuKontur').style.display = k ? '' : 'none';
-  if (k) {
-    $('inlayText').textContent = v === 'separat'
-      ? 'Behälter in PLA mit den Taschen, dazu dünne TPU-Ringe entlang jeder Werkzeugkontur – separat drucken und einklipsen.'
-      : 'Behälter in PLA, nur eine dünne TPU-Schicht entlang jeder Werkzeugkontur – in einem Druck mit zwei Filamenten.';
-    return;
-  }
-  $('inlayText').textContent = {
-    aus: 'Taschen werden direkt in den Behälter gedruckt.',
-    separat: 'Flache Schale in PLA/PETG plus TPU-Einsatz mit den Taschen – zwei Druckplatten, danach einlegen. Spiel 0,2–0,4 mm.',
-    kombiniert: 'Ein Objekt mit zwei Teilen: Schale (Filament 1) und TPU-Einsatz (Filament 2) in einem Druck – für AMS/H2C. Spiel 0 mm genügt.',
-  }[v];
+// ================= Werkzeuge anlegen/ändern =================
+function neuesWerkzeug(u, name) {
+  const t = { uid: neuUid(), art: 'wz', name: name || `Werkzeug ${werkzeuge().length + 1}`, punkte: u.punkte, umriss: lokal(u.punkte), x: 0, y: 0, winkel: 0, spiegeln: false, tiefe: S.stdTiefe, farbe: FARBEN[werkzeuge().length % FARBEN.length] };
+  const namen = new Set(werkzeuge().map(x => x.name)); let n = werkzeuge().length + 1;
+  while (namen.has(t.name)) t.name = `Werkzeug ${++n}`;
+  S.teile.push(t);
+  return t;
 }
-function formularSetzen() {
-  const e = S.e;
-  $('rx').value = e.raster_x; $('ry').value = e.raster_y; $('hu').value = e.hoehe_u;
-  $('pb').value = e.platte_b; $('pt').value = e.platte_t; $('ph').value = e.platte_h;
-  $('boden').value = e.boden; $('tol').value = e.toleranz; $('name').value = e.name;
-  $('spiel').value = e.inlay_spiel; $('tpuB').value = e.tpu_boden; $('kw').value = e.kontur_wand; $('kb').value = e.kontur_boden;
-}
-const feld = (id, key, autoAus = false) => $(id).onchange = () => {
-  const v = $(id).type === 'number' ? +$(id).value : $(id).value;
-  S.e[key] = v;
-  if (autoAus) { S.auto = false; $('auto').classList.remove('on'); }
-  if (key === 'inlay' && S.e.inlay === 'kombiniert') S.e.inlay_spiel = 0;
-  if (S.auto) autoGroesse(); zeichne3(); liste3(); speichern();
-};
-feld('rx', 'raster_x', true); feld('ry', 'raster_y', true); feld('hu', 'hoehe_u', true);
-feld('pb', 'platte_b', true); feld('pt', 'platte_t', true); feld('ph', 'platte_h', true);
-feld('boden', 'boden'); feld('tol', 'toleranz'); feld('name', 'name'); feld('spiel', 'inlay_spiel'); feld('tpuB', 'tpu_boden'); feld('kw', 'kontur_wand'); feld('kb', 'kontur_boden');
-schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
-schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });
-schalter('auto', S.auto, v => { S.auto = v; geaendert(); });
+function umrissSetzen(t, u) { t.punkte = u.punkte; t.umriss = lokal(u.punkte); }
+function ueberdeckung(a, b) { const x = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), y = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); if (x <= 0 || y <= 0) return 0; const f = q => (q[2] - q[0]) * (q[3] - q[1]); return x * y / (f(a) + f(b) - x * y); }
+function nachAenderung(neuAnordnen) { if (neuAnordnen && S.auto) autoAnordnen(); else { if (S.auto) autoGroesse(); griffeReparieren(); } speichern(); liste(); zeichneFoto(); zeichneLayout(); }
 
-// Bibliothek
-async function bibLaden() { try { S.bib = await api('/api/bibliothek'); } catch (_) { S.bib = []; } }
-function bibListe() {
-  const L = $('bibListe'); L.innerHTML = '';
-  if (!S.bib.length) { L.innerHTML = '<div class="help">Noch nichts gespeichert.</div>'; return; }
-  S.bib.forEach((b, i) => {
-    const g = grenzen(b.umriss);
-    const d = document.createElement('div'); d.className = 'item'; d.style.gridTemplateColumns = '1fr auto auto';
-    d.innerHTML = `<span></span><button class="btn klein">+</button><button class="ib" title="Aus Bibliothek löschen">✕</button>`;
-    d.querySelector('span').textContent = `${b.name} (${Math.round(g[2] - g[0])} × ${Math.round(g[3] - g[1])} mm)`;
-    d.querySelector('.btn').onclick = () => { const [w, dd] = mass(); const t = wzTeil(b.name, b.umriss, b.tiefe || 12); t.x = w / 2; t.y = dd / 2; S.teile.push(t); S.sel = t.uid; geaendert(); };
-    d.querySelector('.ib').onclick = async () => { if (!confirm(`„${b.name}“ aus der Bibliothek löschen?`)) return; S.bib.splice(i, 1); await api('/api/bibliothek', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.bib) }); bibListe(); };
-    L.appendChild(d);
-  });
+// ================= 1 Foto =================
+const drop = $('drop');
+drop.onclick = ev => { if (ev.target.id !== 'datei') $('datei').click(); };
+$('datei').onchange = e => e.target.files[0] && waehle(e.target.files[0]);
+for (const z of [drop, $('vFoto')]) {
+  z.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('ueber'); });
+  z.addEventListener('dragleave', () => drop.classList.remove('ueber'));
+  z.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('ueber'); e.dataTransfer.files[0] && waehle(e.dataTransfer.files[0]); });
 }
-
-// ---------- 4 Erzeugen / Vorschau ----------
-async function erzeugen() {
-  if (!S.teile.length) { alert('Es ist noch nichts angeordnet.'); return; }
-  const layout = {
-    werkzeuge: S.teile.filter(t => t.art === 'wz').map(t => ({ name: t.name, umriss: t.umriss, x: t.x, y: t.y, winkel: t.winkel, spiegeln: t.spiegeln, tiefe: t.tiefe })),
-    formen: S.teile.filter(t => t.art !== 'wz').map(t => {
-      if (t.art !== 'griff') return { art: t.art, x: t.x, y: t.y, b: t.b, h: t.h, winkel: t.winkel, tiefe: t.tiefe };
-      const l = griffLage(t); if (!l) return null;
-      return t.form === 'oval' ? { art: 'langloch', x: l.x, y: l.y, b: t.d * 1.7, h: t.d, winkel: l.winkel, tiefe: l.tiefe } : { art: 'kreis', x: l.x, y: l.y, b: t.d, h: t.d, winkel: 0, tiefe: l.tiefe };
-    }).filter(Boolean),
-    einstellungen: S.e,
-  };
-  busy(true, 'Erzeuge Behälter …');
+async function alsJpeg(f) {
+  if (!/\.(heic|heif)$/i.test(f.name) && !/hei[cf]/i.test(f.type)) return f;
   try {
-    const r = await api('/api/erzeugen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(layout) });
-    S.ergebnis = r; freigeben();
-    const D = $('dateien'); D.innerHTML = '';
-    const sym = { '3mf': 'Bambu Studio', stl: 'STL', svg: 'Laser / Schaumstoff', dxf: 'CAD / Laser' };
-    r.dateien.forEach(f => {
-      const a = document.createElement('a'); a.className = 'file'; a.href = f.url; a.download = f.name;
-      a.innerHTML = `<span class="badge"></span><span class="n"></span><span class="s"></span>`;
-      a.querySelector('.badge').textContent = f.art.toUpperCase(); a.querySelector('.n').textContent = f.name;
-      a.querySelector('.s').textContent = `${sym[f.art] || ''} · ${f.groesse > 1e6 ? (f.groesse / 1e6).toFixed(1) + ' MB' : Math.round(f.groesse / 1e3) + ' kB'}`;
-      D.appendChild(a);
-    });
-    hinweise('expHinweise', r.hinweise);
-    const [w, d, h] = r.mass;
-    $('masse').innerHTML = `<span>Außenmaß</span><span>${r1(w)} × ${r1(d)} mm</span><span>Höhe gesamt</span><span>${r1(h)} mm</span>` + (r.inlay_dicke ? `<span>TPU-Inlay</span><span>${r1(r.inlay_dicke)} mm dick</span>` : '') + `<span>Berechnet in</span><span>${r.sekunden.toFixed(2)} s</span>`;
-    const tipps = ['Behälter: PLA oder PETG, 0,2 mm Schicht, keine Stützen nötig.'];
-    if (kontur()) tipps.push(S.e.inlay === 'separat' ? 'TPU-Kontur: Ringe liegen flach auf eigener Platte, 2 Wände reichen. Nach dem Druck in die Taschen drücken.' : 'TPU-Kontur ist Filament 2 – dünne Wände, langsam drucken (≈ 30–40 mm/s).');
-    else if (S.e.inlay === 'separat') tipps.push('TPU-Inlay (95A) auf eigener Platte: langsam (≈ 40 mm/s), 2–3 Wände, 15–20 % Füllung – wird weich und griffig.');
-    if (S.e.inlay === 'kombiniert' && !kontur()) tipps.push('Kombiniert: Teil „TPU-Inlay“ ist Filament 2. TPU nicht aus dem AMS – externe Spule bzw. zweite Düse am H2C nutzen.');
-    if (S.e.magnete) tipps.push('Magnete 6 × 2 mm nach dem Druck in die Löcher kleben.');
-    $('druckTipps').innerHTML = ''; tipps.forEach(t => { const li = document.createElement('li'); li.textContent = t; $('druckTipps').appendChild(li); });
-    zeige(4);
-    await ladeVorschau(r.vorschau);
-    $('l4t').textContent = `${r1(w)} × ${r1(d)} × ${r1(h)} mm`;
+    const url = URL.createObjectURL(f); const img = new Image(); img.src = url; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.93));
+    return blob ? new File([blob], f.name.replace(/\.(heic|heif)$/i, '') + '.jpg', { type: 'image/jpeg' }) : f;
+  } catch (_) { return f; }
+}
+async function waehle(f) {
+  f = await alsJpeg(f); S.datei = f;
+  $('dropText').innerHTML = `<b></b><br>${(f.size / 1e6).toFixed(1)} MB – zum Ändern tippen`; $('dropText').querySelector('b').textContent = f.name;
+  await erkennen(null, true);
+}
+$('modus').onchange = () => { $('modellFeld').style.display = $('modus').value === 'ki' ? '' : 'none'; };
+$('alleNeu').onclick = () => { if (!S.datei) return $('datei').click(); if (werkzeuge().length && !confirm('Alle Werkzeuge neu erkennen? Bisherige Umrisse werden ersetzt.')) return; erkennen(S.rahmen, true); };
+const empf = () => +$('empf').value / 100;
+$('empf').oninput = () => $('empfW').textContent = $('empf').value;
+async function erkennen(ecken, ersetzen) {
+  if (!S.datei) return;
+  const fd = new FormData();
+  fd.append('file', S.datei);
+  fd.append('params', JSON.stringify({ papier: $('papier').value, modus: $('modus').value, modell: $('modell').value, empfindlichkeit: empf(), min_flaeche: 150, ecken }));
+  busy(true, ecken ? 'Erkenne mit neuem Rahmen …' : $('modus').value === 'ki' ? 'Erkenne mit KI … (beim ersten Mal wird das Modell geladen)' : 'Erkenne Blatt und Werkzeuge …');
+  try {
+    const r = await api('/api/erkennen', { method: 'POST', body: fd });
+    S.erk = r; S.rahmen = r.ecken.map(p => [...p]); fotoLaden(r.foto_bild);
+    if (ersetzen) {
+      const alt = werkzeuge();
+      // Namen/Tiefen eindeutig über die größte Überdeckung übernehmen
+      const paare = [];
+      r.umrisse.forEach((u, i) => alt.forEach((a, j) => { if (!a.punkte) return; const q = ueberdeckung(u.grenzen, grenzen(a.punkte)); if (q > 0.3) paare.push([q, i, j]); }));
+      paare.sort((a, b) => b[0] - a[0]);
+      const zu = new Map(), vergeben = new Set();
+      for (const [, i, j] of paare) if (!zu.has(i) && !vergeben.has(j)) { zu.set(i, alt[j]); vergeben.add(j); }
+      const behalten = new Set([...zu.values()].map(v => v.uid));
+      S.teile = S.teile.filter(t => (t.art === 'wz' && behalten.has(t.uid)) || (t.art === 'griff' && behalten.has(t.wz)));
+      if (S.sel && !teil(S.sel)) S.sel = null;
+      r.umrisse.forEach((u, i) => { const v = zu.get(i); if (v) umrissSetzen(v, u); else neuesWerkzeug(u); });
+      nachAenderung(true);
+    }
+    const h = [...(r.hinweise || [])]; if (r.ki_fehler) h.unshift(r.ki_fehler);
+    meldungen('meldungen', h);
+    reiter('foto');
   } catch (e) { alert(e.message); }
   busy(false);
 }
+const fotoImg = new Image();
+function fotoLaden(url) { if (url && fotoImg.dataset.url !== url) { fotoImg.dataset.url = url; fotoImg.src = url; } }
+seg('fotoAnsicht', 'foto', v => { S.fotoAnsicht = v; zeichneFoto(); });
+function blattEcken() { const { breite_mm: w, hoehe_mm: h } = S.erk; return [[0, 0], [w, 0], [w, h], [0, h]]; }
+const mmZuFoto = () => homographie(blattEcken(), S.erk.ecken);
+const fotoZuMm = () => homographie(S.erk.ecken, blattEcken());
+const imFoto = () => S.fotoAnsicht === 'foto' && S.erk?.foto_bild;
+const svgFoto = $('svgFoto');
+function massstab() { return imFoto() ? Math.max(...S.erk.foto) / 300 : 1; }
+function zeichneFoto() {
+  svgFoto.innerHTML = '';
+  $('hFoto').style.display = S.erk ? 'none' : '';
+  if (!S.erk) { $('fotoFuss').textContent = werkzeuge().length ? `${werkzeuge().length} Werkzeuge aus Projekt – für Zauberstab und Bearbeiten das Foto erneut laden` : 'Kein Foto'; return; }
+  const { breite_mm: w, hoehe_mm: h } = S.erk, foto = imFoto(), abb = foto ? mmZuFoto() : p => p, k = massstab();
+  if (foto) {
+    const [fw, fh] = S.erk.foto;
+    svgFoto.setAttribute('viewBox', `0 0 ${fw} ${fh}`);
+    el('image', { href: S.erk.foto_bild, x: 0, y: 0, width: fw, height: fh, preserveAspectRatio: 'none' }, svgFoto);
+    el('path', { d: pfad(S.rahmen), fill: 'rgba(255,255,255,.15)', stroke: '#2E9E5B', 'stroke-width': 1.2 * k, style: 'pointer-events:none' }, svgFoto);
+  } else {
+    svgFoto.setAttribute('viewBox', `-6 -6 ${w + 12} ${h + 12}`);
+    el('image', { href: S.erk.bild, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }, svgFoto);
+  }
+  if (!S.rahmenZug) werkzeuge().filter(t => t.punkte).forEach(t => {
+    const sel = S.sel === t.uid;
+    el('path', { d: pfad(t.punkte.map(abb)), fill: t.farbe, 'fill-opacity': sel ? 0.45 : 0.25, stroke: sel ? '#fff' : t.farbe, 'stroke-width': (sel ? 1.4 : 0.8) * k, 'stroke-linejoin': 'round', 'data-wz': t.uid, style: 'cursor:pointer' }, svgFoto);
+    const g = grenzen(t.punkte), m = abb([(g[0] + g[2]) / 2, (g[1] + g[3]) / 2]);
+    const tx = el('text', { x: m[0], y: m[1], 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 6 * k, fill: '#fff', stroke: '#000', 'stroke-width': 0.4 * k, 'paint-order': 'stroke', style: 'pointer-events:none;font-weight:600' }, svgFoto);
+    tx.textContent = t.name;
+  });
+  if (S.poly.length) {
+    const pp = S.poly.map(abb);
+    el('path', { d: 'M' + pp.map(q => q.join(',')).join('L'), fill: 'none', stroke: '#D85A30', 'stroke-width': 1 * k, style: 'pointer-events:none' }, svgFoto);
+    pp.forEach((q, i) => el('circle', { cx: q[0], cy: q[1], r: (i ? 2 : 3.5) * k, fill: i ? '#D85A30' : '#fff', stroke: '#D85A30', 'stroke-width': 0.8 * k, 'data-poly0': i === 0 ? 1 : null }, svgFoto));
+  }
+  if (foto) S.rahmen.forEach((p, i) => el('circle', { cx: p[0], cy: p[1], r: 6 * k, fill: 'rgba(255,255,255,.95)', stroke: '#2E9E5B', 'stroke-width': 1.6 * k, 'data-ecke': i, style: 'cursor:grab' }, svgFoto));
+  $('fotoInfo').textContent = { zauber: 'Zauberstab: auf ein Werkzeug tippen', polygon: 'Polygon: Punkte um das Werkzeug setzen', bearbeiten: S.pinselArt === 'minus' ? 'Radieren: über Schatten oder Reste malen' : 'Ergänzen: über fehlende Stellen malen' }[S.modus] + (foto ? ' · Ecken ziehen = Blatt anpassen' : '');
+  $('fotoFuss').textContent = `Blatt ${w} × ${h} mm · ${werkzeuge().length} Werkzeuge`;
+}
+function lupe(p) {
+  const c = $('lupe');
+  if (!p || !fotoImg.complete || !fotoImg.naturalWidth) { c.style.display = 'none'; return; }
+  const ctx = c.getContext('2d'), sk = fotoImg.naturalWidth / S.erk.foto[0], zoom = 3, r = 150 / zoom;
+  c.style.display = 'block';
+  const links = p[0] > S.erk.foto[0] / 2; c.style.left = links ? '12px' : 'auto'; c.style.right = links ? 'auto' : '12px';
+  ctx.clearRect(0, 0, 300, 300); ctx.save(); ctx.beginPath(); ctx.arc(150, 150, 150, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(fotoImg, p[0] * sk - r, p[1] * sk - r, 2 * r, 2 * r, 0, 0, 300, 300);
+  const zu = q => [150 + (q[0] - p[0]) * sk * zoom, 150 + (q[1] - p[1]) * sk * zoom];
+  ctx.strokeStyle = '#2E9E5B'; ctx.lineWidth = 3; ctx.beginPath(); S.rahmen.forEach((q, i) => { const z = zu(q); i ? ctx.lineTo(z[0], z[1]) : ctx.moveTo(z[0], z[1]); }); ctx.closePath(); ctx.stroke();
+  ctx.strokeStyle = '#D32F2F'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(150, 135); ctx.lineTo(150, 165); ctx.moveTo(135, 150); ctx.lineTo(165, 150); ctx.stroke(); ctx.restore();
+}
+const inMm = p => imFoto() ? fotoZuMm()(p) : p;
+svgFoto.addEventListener('pointerdown', async ev => {
+  if (!S.erk) return;
+  const p = svgPunkt(svgFoto, ev);
+  if (ev.target.dataset.ecke !== undefined) {
+    const i = +ev.target.dataset.ecke; S.rahmenZug = { i, dx: S.rahmen[i][0] - p[0], dy: S.rahmen[i][1] - p[1] };
+    svgFoto.setPointerCapture(ev.pointerId); zeichneFoto(); lupe(S.rahmen[i]); return;
+  }
+  const q = inMm(p), getroffen = ev.target.dataset.wz ? +ev.target.dataset.wz : null;
+  if (S.modus === 'zauber') {
+    if (getroffen) { waehlen(getroffen); return; }
+    busy(true, 'Zauberstab …');
+    try {
+      const r = await postJson('/api/zauberstab', { id: S.erk.id, punkt: q, empfindlichkeit: empf(), ki: $('modus').value === 'ki', modell: $('modell').value });
+      if (!r.umriss) alert('Hier wurde kein Werkzeug gefunden. Empfindlichkeit erhöhen oder mit Polygon nachzeichnen.');
+      else {
+        const vor = werkzeuge().find(t => t.punkte && ueberdeckung(grenzen(t.punkte), r.umriss.grenzen) > 0.5);
+        if (vor) { umrissSetzen(vor, r.umriss); S.sel = vor.uid; nachAenderung(false); }
+        else { const t = neuesWerkzeug(r.umriss); S.sel = t.uid; nachAenderung(true); }
+      }
+    } catch (e) { alert(e.message); }
+    busy(false); return;
+  }
+  if (S.modus === 'polygon') {
+    if (ev.target.dataset.poly0 && S.poly.length >= 3) { polygonFertig(); return; }
+    S.poly.push(q); zeichneFoto(); return;
+  }
+  if (S.modus === 'bearbeiten') {
+    let ziel = getroffen ? teil(getroffen) : teil(S.sel);
+    if (!ziel || ziel.art !== 'wz' || !ziel.punkte) {
+      ziel = null; let best = Infinity;
+      werkzeuge().filter(t => t.punkte).forEach(t => { const g = grenzen(t.punkte), d = Math.hypot(Math.max(g[0] - q[0], 0, q[0] - g[2]), Math.max(g[1] - q[1], 0, q[1] - g[3])); if (d < best) { best = d; ziel = t; } });
+    }
+    if (!ziel) return;
+    S.sel = ziel.uid;
+    const sk = imFoto() ? (() => { const f = mmZuFoto(), a = f(q), b = f([q[0] + 1, q[1]]); return Math.hypot(b[0] - a[0], b[1] - a[1]); })() : 1;
+    S.pinselZug = { ziel, mm: [q], pts: [p], el: el('path', { d: '', fill: 'none', stroke: S.pinselArt === 'minus' ? 'rgba(211,47,47,.55)' : 'rgba(46,158,91,.6)', 'stroke-width': (+$('pinsel').value || 3) * sk, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: 'pointer-events:none' }, svgFoto) };
+    svgFoto.setPointerCapture(ev.pointerId);
+  }
+});
+svgFoto.addEventListener('pointermove', ev => {
+  if (!S.rahmenZug && !S.pinselZug) return;
+  const p = svgPunkt(svgFoto, ev);
+  if (S.rahmenZug) { const [fw, fh] = S.erk.foto, z = S.rahmenZug; S.rahmen[z.i] = [Math.max(0, Math.min(fw, p[0] + z.dx)), Math.max(0, Math.min(fh, p[1] + z.dy))]; zeichneFoto(); lupe(S.rahmen[z.i]); return; }
+  const z = S.pinselZug; z.pts.push(p); z.mm.push(inMm(p)); z.el.setAttribute('d', 'M' + z.pts.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L'));
+});
+svgFoto.addEventListener('pointerup', () => {
+  if (S.rahmenZug) { S.rahmenZug = null; lupe(null); erkennen(S.rahmen.map(p => [...p]), true); return; }
+  if (S.pinselZug) { const z = S.pinselZug; S.pinselZug = null; umrissAendern(z.ziel, { [S.pinselArt]: [z.mm] }); }
+});
+async function umrissAendern(t, extra) {
+  try { const r = await postJson('/api/umriss', { punkte: t.punkte, pinsel: +$('pinsel').value || 3, ...extra }); umrissSetzen(t, r.umriss); nachAenderung(false); }
+  catch (e) { alert(e.message); zeichneFoto(); }
+}
+function polygonFertig() {
+  if (S.poly.length < 3) { S.poly = []; zeichneFoto(); return; }
+  const t = neuesWerkzeug({ punkte: S.poly.slice() }); S.poly = []; S.sel = t.uid; nachAenderung(true);
+}
+$('polyFertig').onclick = polygonFertig;
+$('polyWeg').onclick = () => { S.poly = []; zeichneFoto(); };
+seg('werkzeugModus', S.modus, v => { S.modus = v; S.poly = []; $('mZauber').style.display = v === 'zauber' ? '' : 'none'; $('mPolygon').style.display = v === 'polygon' ? '' : 'none'; $('mBearbeiten').style.display = v === 'bearbeiten' ? '' : 'none'; if (S.reiter !== 'foto') reiter('foto'); else zeichneFoto(); });
+seg('pinselArt', S.pinselArt, v => { S.pinselArt = v; zeichneFoto(); });
+const gewaehltesWz = () => { const t = teil(S.sel); return t && t.art === 'wz' ? t : null; };
+$('enger').onclick = () => { const t = gewaehltesWz(); if (!t?.punkte) return alert('Erst ein Werkzeug wählen.'); umrissAendern(t, { versatz: -0.5 }); };
+$('weiter').onclick = () => { const t = gewaehltesWz(); if (!t?.punkte) return alert('Erst ein Werkzeug wählen.'); umrissAendern(t, { versatz: 0.5 }); };
 
-// three.js
+// ================= Werkzeugliste =================
+function waehlen(uid) { S.sel = uid; liste(); zeichneFoto(); zeichneLayout(); werteLeiste(); }
+function liste() {
+  const L = $('wzListe'); L.innerHTML = '';
+  werkzeuge().forEach(t => {
+    const g = grenzen(t.umriss), mulden = griffeVon(t.uid).length;
+    const d = document.createElement('div'); d.className = 'wz' + (S.sel === t.uid || griffeVon(t.uid).some(x => x.uid === S.sel) ? ' sel' : '') + (zuNah(t) ? ' warn' : '');
+    d.innerHTML = `<div class="z1"><input type="text"><input type="number" min="1" step="0.5" title="Tiefe (mm)"><button class="x" title="Entfernen">✕</button></div><div class="z2"></div>`;
+    const [nm, tf] = d.querySelectorAll('input');
+    nm.value = t.name; tf.value = t.tiefe;
+    d.querySelector('.z2').textContent = `${Math.round(g[2] - g[0])} × ${Math.round(g[3] - g[1])} mm · Tiefe ${r1(t.tiefe)} mm · ${mulden} ${mulden === 1 ? 'Mulde' : 'Mulden'}`;
+    nm.onchange = () => { t.name = nm.value; speichern(); zeichneFoto(); zeichneLayout(); };
+    tf.onchange = () => { t.tiefe = Math.max(1, +tf.value || S.stdTiefe); nachAenderung(false); };
+    d.querySelector('.x').onclick = ev => { ev.stopPropagation(); entfernen(t); };
+    d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; waehlen(t.uid); };
+    L.appendChild(d);
+  });
+  if (!werkzeuge().length) L.innerHTML = '<div class="hilfe">Noch keine Werkzeuge – Foto laden, mit dem Zauberstab antippen oder ein Polygon zeichnen.</div>';
+}
+function entfernen(t) {
+  const weg = new Set([t.uid]);
+  if (t.art === 'wz') griffeVon(t.uid).forEach(g => weg.add(g.uid));
+  if (t.art === 'griff' && t.partner) { const p = teil(t.partner); if (p) p.partner = null; }
+  S.teile = S.teile.filter(x => !weg.has(x.uid));
+  if (weg.has(S.sel)) S.sel = null;
+  nachAenderung(false); werteLeiste();
+}
+$('stdTiefe').onchange = () => { S.stdTiefe = Math.max(1, +$('stdTiefe').value || 15); speichern(); };
+
+// ================= 3 Einsatz + 4 TPU =================
+const setTyp = seg('typ', S.e.typ, v => { S.e.typ = v; formular(); nachAenderung(false); });
+const setInlay = seg('inlay', S.e.inlay, v => { S.e.inlay = v; formular(); nachAenderung(false); });
+const setForm = seg('inlayForm', S.e.inlay_form, v => { S.e.inlay_form = v; formular(); nachAenderung(false); });
+function formular() {
+  const e = S.e, platte = e.typ === 'platte';
+  $('gridBox').style.display = platte ? 'none' : ''; $('platteBox').style.display = platte ? '' : 'none';
+  $('magnetZeile').style.display = platte ? 'none' : ''; $('randZeile').style.display = platte ? 'none' : '';
+  $('tpuOpt').style.display = e.inlay === 'aus' ? 'none' : ''; $('tolOhne').style.display = e.inlay === 'aus' ? '' : 'none';
+  $('konturFelder').style.display = kontur() ? '' : 'none'; $('blockFelder').style.display = block() ? '' : 'none';
+  $('rx').value = e.raster_x; $('ry').value = e.raster_y; $('hu').value = e.hoehe_u;
+  $('pb').value = e.platte_b; $('pt').value = e.platte_t; $('ph').value = e.platte_h;
+  $('magnete').checked = e.magnete; $('rand').checked = e.stapelrand; $('autoGr').checked = S.auto;
+  $('boden').value = e.boden; $('name').value = e.name;
+  $('kw').value = e.kontur_wand; $('kb').value = e.kontur_boden; $('tol').value = e.toleranz; $('tol2').value = e.toleranz; $('fuge').value = e.kontur_fuge;
+  $('spiel').value = e.inlay_spiel; $('tpuB').value = e.tpu_boden; $('stdTiefe').value = S.stdTiefe;
+}
+const zahl = (id, key, autoAus) => $(id).onchange = () => { S.e[key] = $(id).type === 'number' ? +$(id).value : $(id).value; if (autoAus) S.auto = false; formular(); nachAenderung(false); };
+zahl('rx', 'raster_x', true); zahl('ry', 'raster_y', true); zahl('hu', 'hoehe_u', true); zahl('pb', 'platte_b', true); zahl('pt', 'platte_t', true); zahl('ph', 'platte_h', true);
+zahl('boden', 'boden'); zahl('name', 'name'); zahl('kw', 'kontur_wand'); zahl('kb', 'kontur_boden'); zahl('tol', 'toleranz'); zahl('tol2', 'toleranz'); zahl('fuge', 'kontur_fuge'); zahl('spiel', 'inlay_spiel'); zahl('tpuB', 'tpu_boden');
+$('magnete').onchange = () => { S.e.magnete = $('magnete').checked; nachAenderung(false); };
+$('rand').onchange = () => { S.e.stapelrand = $('rand').checked; nachAenderung(false); };
+$('autoGr').onchange = () => { S.auto = $('autoGr').checked; nachAenderung(false); };
+
+// ================= Automatik =================
+function autoHoehe() {
+  const e = S.e, wz = werkzeuge(); if (!wz.length) return;
+  const maxT = Math.max(...wz.map(t => t.tiefe));
+  const extra = block() ? e.tpu_boden : kontur() ? e.kontur_boden : 0;
+  if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + extra) * 2) / 2;
+  else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + extra) / 7));
+}
+function autoGroesse() {
+  if (!S.teile.length) return;
+  const e = S.e, m = innenAbstand(), b = [1e9, 1e9, -1e9, -1e9];
+  S.teile.forEach(t => { const g = grenzen(welt(t)), tt = rand(t); if (g[0] > 1e8) return; b[0] = Math.min(b[0], g[0] - tt); b[1] = Math.min(b[1], g[1] - tt); b[2] = Math.max(b[2], g[2] + tt); b[3] = Math.max(b[3], g[3] + tt); });
+  if (b[0] > 1e8) return;
+  const bw = b[2] - b[0] + 2 * m, bd = b[3] - b[1] + 2 * m;
+  if (e.typ === 'platte') { e.platte_b = Math.ceil(bw); e.platte_t = Math.ceil(bd); }
+  else { e.raster_x = Math.max(1, Math.ceil((bw + 0.5) / 42)); e.raster_y = Math.max(1, Math.ceil((bd + 0.5) / 42)); }
+  const [w, d] = mass(), dx = w / 2 - (b[0] + b[2]) / 2, dy = d / 2 - (b[1] + b[3]) / 2;
+  werkzeuge().forEach(t => { t.x += dx; t.y += dy; });
+  autoHoehe(); formular();
+}
+function gruppenGrenzen(t) {
+  const g = grenzen(welt(t)).map((v, i) => v + (i < 2 ? -rand(t) : rand(t)));
+  griffeVon(t.uid).forEach(x => { const q = grenzen(welt(x)); if (q[0] < 1e8) { g[0] = Math.min(g[0], q[0]); g[1] = Math.min(g[1], q[1]); g[2] = Math.max(g[2], q[2]); g[3] = Math.max(g[3], q[3]); } });
+  return g;
+}
+function autoAnordnen() {
+  const wz = werkzeuge(), luft = 5;
+  wz.forEach(t => { t.winkel = 0; t.spiegeln = false; t.x = 0; t.y = 0; });
+  partnerNachziehen();
+  const gr = wz.map(t => { const g = gruppenGrenzen(t); return { t, w: g[2] - g[0], h: g[3] - g[1], g }; }).sort((a, b) => b.w - a.w);
+  const breit = Math.max(gr.length ? gr[0].w : 0, Math.sqrt(gr.reduce((s, x) => s + (x.w + luft) * (x.h + luft), 0)) * 1.25);
+  let x = 0, y = 0, zh = 0;
+  for (const it of gr) { if (x > 0 && x + it.w > breit) { x = 0; y += zh + luft; zh = 0; } it.t.x = x - it.g[0]; it.t.y = y - it.g[1]; x += it.w + luft; zh = Math.max(zh, it.h); }
+  autoGroesse(); griffeReparieren();
+}
+$('anordnen').onclick = () => { S.auto = true; autoAnordnen(); nachAenderung(false); };
+$('groesse').onclick = () => { const a = S.auto; S.auto = true; autoGroesse(); S.auto = a; nachAenderung(false); };
+
+// ================= Layout =================
+const svgLayout = $('svgLayout');
+let muldeForm = 'rund';
+function muldeFormNeu() {
+  const g = teil(S.sel);
+  seg('muldeForm', g?.art === 'griff' ? g.form : muldeForm, v => {
+    muldeForm = v; const g = teil(S.sel);
+    if (g?.art === 'griff') { const alt = g.form; g.form = v; if (!griffOk(g) && !griffPlatzieren(g, g.s)) { g.form = alt; alert('Dafür ist an dieser Kante kein Platz.'); } partnerNachziehen(); nachAenderung(false); muldeFormNeu(); }
+  });
+}
+function zeichneLayout() {
+  svgLayout.innerHTML = '';
+  $('hLayout').style.display = werkzeuge().length ? 'none' : '';
+  const [w, d] = mass(), e = S.e, r = e.typ === 'platte' ? 4 : 3.75;
+  svgLayout.setAttribute('viewBox', `-12 -14 ${w + 24} ${d + 26}`);
+  el('rect', { x: 0, y: 0, width: w, height: d, rx: r, fill: 'var(--hart)', stroke: 'var(--tasche)', 'stroke-width': 0.6 }, svgLayout);
+  if (e.typ !== 'platte') {
+    for (let i = 1; i < e.raster_x; i++) el('line', { x1: i * 42 - 0.25, y1: 0, x2: i * 42 - 0.25, y2: d, stroke: 'var(--hart2)', 'stroke-width': 0.35 }, svgLayout);
+    for (let i = 1; i < e.raster_y; i++) el('line', { x1: 0, y1: i * 42 - 0.25, x2: w, y2: i * 42 - 0.25, stroke: 'var(--hart2)', 'stroke-width': 0.35 }, svgLayout);
+  }
+  const wd = wand();
+  if (block()) el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: 'var(--akz)', 'fill-opacity': 0.8 }, svgLayout);
+  else el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: 'none', stroke: 'var(--tasche)', 'stroke-opacity': 0.4, 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svgLayout);
+  // Ebenen: Fuge → TPU-Rand → Kontur → Fläche → Beschriftung (Werkzeug und Mulde verschmelzen sauber)
+  const fugeG = el('g', {}, svgLayout), ring = el('g', {}, svgLayout), kanten = el('g', {}, svgLayout), flaechen = el('g', {}, svgLayout), oben = el('g', { style: 'pointer-events:none' }, svgLayout);
+  const sel = teil(S.sel), selWz = sel ? (sel.art === 'griff' ? sel.wz : sel.uid) : null;
+  for (const t of [...werkzeuge(), ...S.teile.filter(x => x.art === 'griff')]) {
+    const pts = welt(t); if (!pts.length) continue;
+    const d0 = pfad(pts), nah = zuNah(t), gruppe = (t.art === 'wz' ? t.uid : t.wz) === selWz;
+    if (t.art === 'wz' && kontur()) {
+      const tpu = e.kontur_wand + e.toleranz;
+      if (e.kontur_fuge > 0) el('path', { d: d0, fill: 'none', stroke: 'var(--tasche)', 'stroke-opacity': 0.7, 'stroke-width': 2 * (tpu + e.kontur_fuge), 'stroke-linejoin': 'round' }, fugeG);
+      el('path', { d: d0, fill: 'none', stroke: 'var(--akz)', 'stroke-width': 2 * tpu, 'stroke-linejoin': 'round' }, ring);
+    }
+    el('path', { d: d0, fill: nah ? 'var(--err)' : kontur() ? 'var(--akz)' : 'var(--tasche)', stroke: nah ? 'var(--err)' : gruppe ? '#fff' : kontur() ? 'var(--akz)' : 'var(--tasche)', 'stroke-width': gruppe ? 1.6 : 0.8, 'stroke-dasharray': gruppe ? '2 1.2' : null, 'stroke-linejoin': 'round' }, kanten);
+    el('path', { d: d0, fill: 'var(--tasche)', 'data-uid': t.uid, style: t.art === 'griff' ? 'cursor:ew-resize' : 'cursor:move' }, flaechen);
+    if (t.art === 'wz') {
+      const a = el('text', { x: t.x, y: t.y - 1.5, 'text-anchor': 'middle', 'font-size': 4.2, fill: '#fff', style: 'font-weight:700' }, oben); a.textContent = t.name;
+      const b = el('text', { x: t.x, y: t.y + 3.8, 'text-anchor': 'middle', 'font-size': 3.4, fill: '#C9CCD1', style: 'font-family:var(--mono)' }, oben); b.textContent = `${r1(t.tiefe)} mm tief`;
+    }
+  }
+  // gekoppelte Mulden: Verbindungslinie
+  S.teile.filter(g => g.art === 'griff' && g.partner && g.uid < g.partner).forEach(g => { const a = griffLage(g), p = teil(g.partner), b = p && griffLage(p); if (a && b) el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#FAC775', 'stroke-width': 0.4, 'stroke-dasharray': '1.5 1' }, oben); });
+  if (sel && sel.art === 'wz') {
+    const b = grenzen(welt(sel)), hx = (b[0] + b[2]) / 2, hy = b[1] - 8;
+    el('line', { x1: hx, y1: b[1] - 1, x2: hx, y2: hy, stroke: 'var(--akz)', 'stroke-width': 0.4, style: 'pointer-events:none' }, svgLayout);
+    el('circle', { cx: hx, cy: hy, r: 2.8, fill: 'var(--panel)', stroke: 'var(--akz)', 'stroke-width': 0.7, 'data-dreh': 1, 'data-uid': sel.uid, style: 'cursor:grab' }, svgLayout);
+  }
+  if (sel && sel.art === 'griff') { const l = griffLage(sel); if (l) el('circle', { cx: l.x, cy: l.y, r: 1.3, fill: '#fff', style: 'pointer-events:none' }, svgLayout); }
+  const typ = e.typ === 'platte' ? 'Platte' : `Gridfinity ${e.raster_x}×${e.raster_y}×${e.hoehe_u}`;
+  $('layoutMass').textContent = `${typ} · ${r1(w)} × ${r1(d)} × ${r1(hoehe() + (e.typ !== 'platte' && e.stapelrand ? 4.4 : 0))} mm · ${werkzeuge().length} Werkzeuge`;
+  $('layoutHinweis').textContent = S.setzModus ? 'Griffmulde setzen: an eine Werkzeugkante tippen' : sel?.art === 'griff' ? 'Mulde gewählt: ziehen = entlang der Kante verschieben' : sel ? 'Werkzeug ziehen oder mit Pfeiltasten verschieben (Shift = 5 mm) · oranger Griff = drehen' : 'Werkzeug antippen zum Bearbeiten';
+  $('koppeln').textContent = sel?.art === 'griff' && sel.partner ? 'Kopplung lösen' : 'Mulden koppeln';
+  $('koppeln').classList.toggle('an', !!(sel?.art === 'griff' && sel.partner));
+  $('muldeSetzen').classList.toggle('an', S.setzModus);
+}
+function werteLeiste() {
+  const t = teil(S.sel), wz = t?.art === 'wz' ? t : null;
+  for (const id of ['winkel', 'winkelR', 'posX', 'posY']) $(id).disabled = !wz;
+  if (wz) { $('winkel').value = Math.round(wz.winkel); $('winkelR').value = Math.round(wz.winkel); $('posX').value = Math.round(wz.x * 10) / 10; $('posY').value = Math.round(wz.y * 10) / 10; }
+  if (t?.art === 'griff') $('muldeD').value = t.d;
+  muldeFormNeu();
+}
+const drehen = g => { const t = gewaehltesWz(); if (!t) return; t.winkel = ((t.winkel + g) % 360 + 360) % 360; nachAenderung(false); werteLeiste(); };
+$('rotL').onclick = () => drehen(-15); $('rotR').onclick = () => drehen(15); $('rot90').onclick = () => drehen(90);
+$('spieg').onclick = () => { const t = gewaehltesWz(); if (t) { t.spiegeln = !t.spiegeln; nachAenderung(false); } };
+$('winkel').onchange = () => { const t = gewaehltesWz(); if (t) { t.winkel = ((+$('winkel').value % 360) + 360) % 360; nachAenderung(false); werteLeiste(); } };
+$('winkelR').oninput = () => { const t = gewaehltesWz(); if (t) { t.winkel = +$('winkelR').value; $('winkel').value = t.winkel; partnerNachziehen(); zeichneLayout(); } };
+$('winkelR').onchange = () => nachAenderung(false);
+$('posX').onchange = () => { const t = gewaehltesWz(); if (t) { t.x = +$('posX').value; nachAenderung(false); } };
+$('posY').onchange = () => { const t = gewaehltesWz(); if (t) { t.y = +$('posY').value; nachAenderung(false); } };
+$('muldeD').onchange = () => { const g = teil(S.sel); if (g?.art !== 'griff') return; const alt = g.d; g.d = Math.max(8, +$('muldeD').value || 20); if (!griffOk(g) && !griffPlatzieren(g, g.s)) { g.d = alt; $('muldeD').value = alt; alert('Dafür ist an dieser Kante kein Platz.'); } partnerNachziehen(); nachAenderung(false); };
+$('muldeSetzen').onclick = () => {
+  // gewähltes Werkzeug: automatisch an die beste Stelle; sonst Setzmodus (an Kante tippen)
+  const t = gewaehltesWz();
+  if (t && !S.setzModus) {
+    const g = { uid: neuUid(), art: 'griff', wz: t.uid, s: 0, d: +$('muldeD').value || 20, form: muldeForm, partner: null }; S.teile.push(g);
+    if (griffPlatzieren(g)) { S.sel = g.uid; nachAenderung(false); werteLeiste(); } else { S.teile.pop(); alert('An diesem Werkzeug ist kein Platz für eine Mulde.'); }
+    return;
+  }
+  S.setzModus = !S.setzModus; zeichneLayout();
+};
+$('muldeWeg').onclick = () => { const g = teil(S.sel); if (g?.art === 'griff') entfernen(g); else alert('Erst eine Mulde antippen.'); };
+$('koppeln').onclick = () => {
+  const g = teil(S.sel); if (g?.art !== 'griff') return alert('Erst eine Mulde antippen.');
+  if (g.partner) { const p = teil(g.partner); if (p) p.partner = null; g.partner = null; nachAenderung(false); return; }
+  const s = gegenueber(g); if (s == null) return alert('Auf der Gegenseite wurde keine Kante gefunden.');
+  const p = { uid: neuUid(), art: 'griff', wz: g.wz, s, d: g.d, form: g.form, partner: g.uid };
+  g.partner = p.uid; S.teile.push(p);
+  if (!griffOk(p)) meldungen('meldungen', ['Die gekoppelte Mulde liegt zu nah an etwas anderem – Werkzeug etwas verschieben.']);
+  nachAenderung(false);
+};
+$('dupl').onclick = () => {
+  const t = gewaehltesWz(); if (!t) return;
+  const n = JSON.parse(JSON.stringify(t)); n.uid = neuUid(); n.x += 10; n.y += 10; n.name = t.name + ' (2)'; S.teile.push(n);
+  griffeVon(t.uid).forEach(g => { if (!g.partner) S.teile.push({ ...g, uid: neuUid(), wz: n.uid }); });
+  S.sel = n.uid; nachAenderung(false);
+};
+$('entf').onclick = () => { const t = teil(S.sel); if (t) entfernen(t); };
+addEventListener('keydown', ev => {
+  if (S.reiter !== 'layout' || ev.target.tagName === 'INPUT') return;
+  const t = teil(S.sel); if (!t) return;
+  const sch = ev.shiftKey ? 5 : 0.5;
+  if (ev.key === 'Delete' || ev.key === 'Backspace') entfernen(t);
+  else if (ev.key === 'r') drehen(ev.shiftKey ? -15 : 15);
+  else if (ev.key.startsWith('Arrow') && t.art === 'wz') { t.x += ev.key === 'ArrowLeft' ? -sch : ev.key === 'ArrowRight' ? sch : 0; t.y += ev.key === 'ArrowUp' ? -sch : ev.key === 'ArrowDown' ? sch : 0; partnerNachziehen(); zeichneLayout(); werteLeiste(); speichern(); }
+  else return;
+  ev.preventDefault();
+});
+let zug = null;
+svgLayout.addEventListener('pointerdown', ev => {
+  const p = svgPunkt(svgLayout, ev);
+  if (S.setzModus) {
+    let best = null; werkzeuge().forEach(t => { const d = abstandZuKante(t, p); if (!best || d < best.d) best = { t, d }; });
+    if (best && best.d < 15) {
+      const g = { uid: neuUid(), art: 'griff', wz: best.t.uid, s: sAufKante(best.t, p), d: +$('muldeD').value || 20, form: muldeForm, partner: null }; S.teile.push(g);
+      if (!griffOk(g) && !griffPlatzieren(g, g.s)) { S.teile.pop(); alert('Hier ist kein Platz für eine Mulde.'); } else S.sel = g.uid;
+    }
+    S.setzModus = false; nachAenderung(false); werteLeiste(); return;
+  }
+  const hit = ev.target.closest('[data-uid]');
+  if (!hit) { S.sel = null; liste(); zeichneLayout(); werteLeiste(); return; }
+  const t = teil(+hit.dataset.uid); if (!t) return;
+  S.sel = t.uid;
+  if (t.art === 'griff') zug = { t, griff: true };
+  else zug = ev.target.dataset.dreh ? { t, dreh: true, w0: t.winkel, a0: Math.atan2(p[1] - t.y, p[0] - t.x) } : { t, dx: t.x - p[0], dy: t.y - p[1] };
+  svgLayout.setPointerCapture(ev.pointerId); liste(); zeichneLayout(); werteLeiste();
+});
+svgLayout.addEventListener('pointermove', ev => {
+  if (!zug) return;
+  const p = svgPunkt(svgLayout, ev), t = zug.t;
+  if (zug.griff) {
+    const wz = teil(t.wz); if (!wz) return;
+    const s = sAufKante(wz, p);
+    if (t.partner) {
+      const p2 = teil(t.partner), alt = t.s; t.s = s; const s2 = gegenueber(t);
+      if (p2 && s2 != null && griffOk(t) && griffOk({ ...p2, s: s2 }, s2, t)) p2.s = s2; else t.s = alt;
+    } else if (griffOk(t, s)) t.s = s;
+  } else if (zug.dreh) { let w = zug.w0 + (Math.atan2(p[1] - t.y, p[0] - t.x) - zug.a0) * 180 / Math.PI; if (!ev.shiftKey) w = Math.round(w / 5) * 5; t.winkel = ((w % 360) + 360) % 360; partnerNachziehen(); }
+  else { t.x = Math.round((p[0] + zug.dx) * 2) / 2; t.y = Math.round((p[1] + zug.dy) * 2) / 2; partnerNachziehen(); }
+  zeichneLayout(); werteLeiste();
+});
+svgLayout.addEventListener('pointerup', () => { if (zug) { const war = zug; zug = null; if (!war.griff) griffeReparieren(); nachAenderung(false); } });
+
+// ================= Erzeugen / Export =================
+function layoutDaten() {
+  partnerNachziehen();
+  return {
+    werkzeuge: werkzeuge().map(t => ({ name: t.name, umriss: t.umriss, x: t.x, y: t.y, winkel: t.winkel, spiegeln: t.spiegeln, tiefe: t.tiefe })),
+    formen: S.teile.filter(t => t.art === 'griff').map(g => { const l = griffLage(g); if (!l) return null; return g.form === 'oval' ? { art: 'langloch', x: l.x, y: l.y, b: g.d * 1.7, h: g.d, winkel: l.winkel, tiefe: l.tiefe } : { art: 'kreis', x: l.x, y: l.y, b: g.d, h: g.d, winkel: 0, tiefe: l.tiefe }; }).filter(Boolean),
+    einstellungen: S.e,
+  };
+}
+async function erzeugen(herunterladen) {
+  if (!werkzeuge().length) { if (herunterladen) alert('Es gibt noch keine Werkzeuge.'); $('h3d').textContent = 'Noch keine Werkzeuge.'; return null; }
+  busy(true, 'Erzeuge Einsatz …');
+  try {
+    const r = await postJson('/api/erzeugen', layoutDaten());
+    S.ergebnis = r; S.dirty = false;
+    const D = $('dateien'); D.innerHTML = '';
+    const art = { zip: 'Alles', '3mf': 'Bambu Studio', stl: 'STL', svg: 'Laser/Schaumstoff', dxf: 'CAD' };
+    r.dateien.forEach(f => {
+      const a = document.createElement('a'); a.className = 'datei'; a.href = f.url; a.download = f.name;
+      a.innerHTML = `<span class="t"></span><span class="n"></span><span style="color:var(--muted);font-size:11px"></span>`;
+      a.querySelector('.t').textContent = f.art.toUpperCase(); a.querySelector('.n').textContent = f.name;
+      a.lastChild.textContent = `${art[f.art] || ''} · ${f.groesse > 1e6 ? (f.groesse / 1e6).toFixed(1) + ' MB' : Math.round(f.groesse / 1e3) + ' kB'}`;
+      D.appendChild(a);
+    });
+    $('exportBox').style.display = '';
+    const tipps = [];
+    if (S.e.inlay === 'kombiniert') tipps.push('3MF: Teil „TPU“ ist Filament 2 – TPU über externe Spule bzw. zweite Düse (H2C), nicht aus dem AMS.');
+    if (S.e.inlay === 'separat') tipps.push('3MF: TPU-Teile liegen flach auf eigener Platte, nach dem Druck einsetzen.');
+    meldungen('expMeld', [...(r.hinweise || []), ...tipps]);
+    const [w, d, h] = r.mass;
+    $('d3Mass').textContent = `${r1(w)} × ${r1(d)} × ${r1(h)} mm`;
+    $('d3Info').textContent = `berechnet in ${r.sekunden.toFixed(2).replace('.', ',')} s`;
+    if (S.reiter === 'd3') await ladeVorschau(r.vorschau);
+    if (herunterladen) { const z = r.dateien.find(f => f.art === 'zip'); if (z) { const a = document.createElement('a'); a.href = z.url; a.download = z.name; document.body.appendChild(a); a.click(); a.remove(); } }
+    return r;
+  } catch (e) { alert(e.message); return null; }
+  finally { busy(false); }
+}
+$('export').onclick = () => erzeugen(true);
+$('neuRechnen').onclick = () => erzeugen(false);
+
+// ================= Projekt =================
+$('projSichern').onclick = () => {
+  const daten = { programm: 'Konturwerk', version: 2, e: S.e, auto: S.auto, stdTiefe: S.stdTiefe, teile: S.teile };
+  ladeDatei(new Blob([JSON.stringify(daten)], { type: 'application/json' }), `${(S.e.name || 'konturwerk').replace(/[^\wäöüÄÖÜß-]+/g, '_')}.konturwerk.json`);
+};
+$('projOeffnen').onclick = () => $('projDatei').click();
+$('projDatei').onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.teile)) throw new Error('Keine Konturwerk-Projektdatei.');
+    S.teile = d.teile; Object.assign(S.e, d.e || {}); S.auto = d.auto !== false; S.stdTiefe = d.stdTiefe || 15;
+    uidZ = Math.max(1, ...S.teile.map(t => t.uid + 1)); S.sel = null; S.erk = null;
+    formular(); setTyp(S.e.typ); setInlay(S.e.inlay); setForm(S.e.inlay_form); nachAenderung(false); reiter('layout');
+  } catch (e) { alert('Projekt nicht lesbar: ' + e.message); }
+  ev.target.value = '';
+};
+
+// ================= 3D =================
 const cv = $('cv');
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.localClippingEnabled = true;
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, 1, 1, 20000);
-camera.up.set(0, 0, 1);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.localClippingEnabled = true;
+const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(40, 1, 1, 20000); camera.up.set(0, 0, 1);
 const controls = new OrbitControls(camera, cv); controls.enableDamping = true;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
 const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(1, -1.5, 2); scene.add(dl);
 const dl2 = new THREE.DirectionalLight(0xffffff, 0.5); dl2.position.set(-1, 1, 0.5); scene.add(dl2);
 const dunkel = matchMedia('(prefers-color-scheme: dark)').matches;
-scene.background = new THREE.Color(dunkel ? 0x38383d : 0xe8e8e8);
+scene.background = new THREE.Color(dunkel ? 0x1c1d20 : 0xf0f0ee);
 let gruppe = new THREE.Group(); scene.add(gruppe);
 const schnittEbene = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
 let angehoben = true, schnitt = false;
 function groesse3d() { const r = cv.parentElement.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); }
 addEventListener('resize', groesse3d);
-async function ladeVorschau(liste) {
+async function ladeVorschau(liste_) {
   scene.remove(gruppe); gruppe = new THREE.Group(); scene.add(gruppe);
   const loader = new STLLoader();
-  for (const v of liste) {
-    const buf = await (await fetch(v.url)).arrayBuffer();
-    const geo = loader.parse(buf); geo.computeVertexNormals();
+  for (const v of liste_) {
+    const geo = loader.parse(await (await fetch(v.url)).arrayBuffer()); geo.computeVertexNormals();
     const tpu = v.filament === 2;
-    const mat = new THREE.MeshStandardMaterial({ color: tpu ? 0x00ae42 : (dunkel ? 0x9aa0a6 : 0xb8bcc2), roughness: tpu ? 0.85 : 0.55, metalness: 0.05, side: THREE.DoubleSide, clippingPlanes: schnitt ? [schnittEbene] : [] });
-    const m = new THREE.Mesh(geo, mat); m.userData.tpu = tpu; gruppe.add(m);
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: tpu ? 0xd85a30 : 0x8e949c, roughness: tpu ? 0.85 : 0.55, metalness: 0.05, side: THREE.DoubleSide, clippingPlanes: schnitt ? [schnittEbene] : [] }));
+    m.userData.tpu = tpu; gruppe.add(m);
   }
-  anheben(); passend();
+  anheben(); passend(); $('h3d').style.display = 'none';
 }
-function anheben() {
-  gruppe.children.forEach(m => { if (m.userData.tpu) m.position.z = angehoben ? 25 : 0; });
-}
+function anheben() { gruppe.children.forEach(m => { if (m.userData.tpu) m.position.z = angehoben ? 25 : 0; }); }
 function passend() {
-  const b = new THREE.Box3().expandByObject(gruppe); const c = b.getCenter(new THREE.Vector3()); const s = b.getSize(new THREE.Vector3()).length() || 100;
-  controls.target.copy(c); camera.position.set(c.x + s * 0.55, c.y - s * 0.9, c.z + s * 0.75); camera.near = s / 100; camera.far = s * 20; camera.updateProjectionMatrix();
-  schnittEbene.constant = c.y;
+  const b = new THREE.Box3().expandByObject(gruppe), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3()).length() || 100;
+  controls.target.copy(c); camera.position.set(c.x + s * 0.55, c.y - s * 0.9, c.z + s * 0.75); camera.near = s / 100; camera.far = s * 20; camera.updateProjectionMatrix(); schnittEbene.constant = c.y;
 }
-$('expl').onclick = () => { angehoben = !angehoben; $('expl').classList.toggle('on', angehoben); anheben(); };
-$('schnitt').onclick = () => { schnitt = !schnitt; $('schnitt').classList.toggle('on', schnitt); gruppe.children.forEach(m => { m.material.clippingPlanes = schnitt ? [schnittEbene] : []; m.material.needsUpdate = true; }); };
-(function loop() { requestAnimationFrame(loop); if (S.schritt === 4) { controls.update(); renderer.render(scene, camera); } })();
+$('anheben').onclick = () => { angehoben = !angehoben; $('anheben').classList.toggle('an', angehoben); anheben(); };
+$('schnitt').onclick = () => { schnitt = !schnitt; $('schnitt').classList.toggle('an', schnitt); gruppe.children.forEach(m => { m.material.clippingPlanes = schnitt ? [schnittEbene] : []; m.material.needsUpdate = true; }); };
+(function loop() { requestAnimationFrame(loop); if (S.reiter === 'd3') { controls.update(); renderer.render(scene, camera); } })();
 
-// ---------- Start ----------
+// ================= Start =================
 laden();
-S.teile.filter(t => t.art === 'kreis').forEach(k => {
-  const wz = S.teile.filter(t => t.art === 'wz').sort((a, b) => abstand([[k.x, k.y]], welt(a)) - abstand([[k.x, k.y]], welt(b)))[0];
-  if (wz) Object.assign(k, { art: 'griff', wz: wz.uid, s: sAufKante(wz, [k.x, k.y]), d: k.b || 20, form: 'rund' });
-});
-if (!S.e.inlay_form) Object.assign(S.e, { inlay_form: 'block', kontur_wand: 1.2, kontur_boden: 0 });
-formularSetzen(); setTyp(S.e.typ); setInlay(S.e.inlay); setForm(S.e.inlay_form); inlayInfo();
-$('gridBox').style.display = S.e.typ === 'platte' ? 'none' : ''; $('platteBox').style.display = S.e.typ === 'platte' ? '' : 'none';
-schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
-schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });
-schalter('auto', S.auto, v => { S.auto = v; geaendert(); });
-bibLaden().then(bibListe);
-freigeben();
+setTyp(S.e.typ); setInlay(S.e.inlay); setForm(S.e.inlay_form); formular();
+liste(); zeichneFoto(); zeichneLayout(); werteLeiste();
+if (werkzeuge().length) reiter('layout');
 </script>
 </body>
+</html>

@@ -43,6 +43,7 @@ async fn main() {
         .route("/api/nachbessern", post(nachbessern))
         .route("/api/erzeugen", post(erzeugen))
         .route("/api/umriss", post(umriss_bearbeiten))
+        .route("/api/zauberstab", post(zauberstab))
         .route("/api/bibliothek", get(bibliothek_lesen).post(bibliothek_schreiben))
         .route("/api/job/{id}/file/{*path}", get(job_datei))
         .layer(DefaultBodyLimit::max(80 * 1024 * 1024));
@@ -402,6 +403,24 @@ async fn erzeugen(Json(l): Json<behaelter::Layout>) -> Response {
         }
         schreib(format!("{basis}_umrisse.svg"), export::svg(&e).into_bytes(), "svg")?;
         schreib(format!("{basis}_umrisse.dxf"), export::dxf(&e).into_bytes(), "dxf")?;
+        // alles zusammen als ZIP
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            use std::io::Write;
+            let mut z = zip::ZipWriter::new(&mut buf);
+            let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            for d in &dateien {
+                let n = d["name"].as_str().unwrap_or_default().to_string();
+                if let Ok(b) = std::fs::read(dir.join(&n)) {
+                    let _ = z.start_file(n, opt);
+                    let _ = z.write_all(&b);
+                }
+            }
+            let _ = z.finish();
+        }
+        let zip_daten = buf.into_inner();
+        std::fs::write(dir.join(format!("{basis}.zip")), &zip_daten)?;
+        dateien.insert(0, json!({ "name": format!("{basis}.zip"), "groesse": zip_daten.len(), "art": "zip", "url": format!("/api/job/{id}/file/{basis}.zip") }));
         Ok(json!({
             "id": id,
             "dateien": dateien,
@@ -491,4 +510,69 @@ async fn umriss_bearbeiten(Json(p): Json<UmrissBearbeiten>) -> Response {
     pts.pop();
     let u = erkennung::umriss_aus(pts, "hand", false);
     Json(json!({ "umriss": u })).into_response()
+}
+
+#[derive(Deserialize)]
+struct ZauberstabParams {
+    id: String,
+    punkt: [f64; 2],
+    #[serde(default = "halb")]
+    empfindlichkeit: f64,
+    #[serde(default)]
+    ki: bool,
+    #[serde(default)]
+    modell: String,
+}
+fn halb() -> f64 {
+    0.5
+}
+
+/// Zauberstab: das Werkzeug unter dem angetippten Punkt erkennen
+async fn zauberstab(Json(p): Json<ZauberstabParams>) -> Response {
+    let r = tokio::task::spawn_blocking(move || -> anyhow::Result<serde_json::Value> {
+        let dir = job_ordner(&p.id).ok_or_else(|| anyhow::anyhow!("Unbekanntes Foto."))?;
+        let bild = image::open(dir.join("papier.png")).map_err(|_| anyhow::anyhow!("Foto nicht mehr vorhanden – bitte neu laden."))?.to_rgb8();
+        let (w, h) = (bild.width() as usize, bild.height() as usize);
+        let (px, py) = ((p.punkt[0] * PX_MM) as i64, (p.punkt[1] * PX_MM) as i64);
+        if px < 0 || py < 0 || px >= w as i64 || py >= h as i64 {
+            anyhow::bail!("Der Punkt liegt außerhalb des Blatts.");
+        }
+        let (karte, kanten, schatten) = erkennung::objektkarte(&bild);
+        let (m, _) = erkennung::werkzeuge(&karte, &kanten, &schatten, w, h, p.empfindlichkeit.clamp(0.0, 1.0), 20.0);
+        let (lab, _) = erkennung::komponenten(&m, w, h);
+        // Komponente unter dem Punkt, sonst die nächste im Umkreis von 8 mm
+        let mut wahl = lab[py as usize * w + px as usize];
+        if wahl == 0 {
+            let r = (8.0 * PX_MM) as i64;
+            let mut best = i64::MAX;
+            for y in (py - r).max(0)..(py + r).min(h as i64) {
+                for x in (px - r).max(0)..(px + r).min(w as i64) {
+                    let l = lab[y as usize * w + x as usize];
+                    let d = (x - px).pow(2) + (y - py).pow(2);
+                    if l != 0 && d < best {
+                        best = d;
+                        wahl = l;
+                    }
+                }
+            }
+        }
+        let mut u = None;
+        if wahl != 0 {
+            let sel: Vec<bool> = lab.iter().map(|&v| v == wahl).collect();
+            u = erkennung::umrisse(&sel, w, h, [0.0, 0.0], "zauberstab").into_iter().max_by(|a, b| a.flaeche.partial_cmp(&b.flaeche).unwrap());
+        }
+        // nichts gefunden oder KI gewünscht: KI im Ausschnitt um den Punkt
+        if u.is_none() || p.ki {
+            let rahmen = [p.punkt[0] - 60.0, p.punkt[1] - 60.0, p.punkt[0] + 60.0, p.punkt[1] + 60.0];
+            if let Ok(Some(k)) = ki_ausschnitt(&bild, rahmen, Some(p.punkt), None, None, if p.modell.is_empty() { "schnell" } else { &p.modell }) {
+                u = Some(k);
+            }
+        }
+        Ok(json!({ "umriss": u }))
+    }).await;
+    match r {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(e)) => fehler(e),
+        Err(_) => fehler("Zauberstab abgestürzt."),
+    }
 }

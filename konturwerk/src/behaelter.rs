@@ -60,6 +60,8 @@ pub struct Einstellungen {
     pub inlay_form: String,
     pub kontur_wand: f64,
     pub kontur_boden: f64,
+    /// Luft zwischen Hartteil-Tasche und TPU-Auskleidung (0 = bündig)
+    pub kontur_fuge: f64,
     pub name: String,
 }
 
@@ -83,6 +85,7 @@ impl Default for Einstellungen {
             inlay_form: "block".into(),
             kontur_wand: 1.2,
             kontur_boden: 0.0,
+            kontur_fuge: 0.0,
             name: "Werkzeugeinsatz".into(),
         }
     }
@@ -184,6 +187,8 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
     let mut taschen: Vec<(MultiPolygon<f64>, f64, String)> = Vec::new();
     // nur bei „Kontur“: Innenfläche je Werkzeug (Platz fürs Werkzeug) und Tiefe
     let mut innen_wz: Vec<(MultiPolygon<f64>, f64)> = Vec::new();
+    let mut aussen_tpu: Vec<MultiPolygon<f64>> = Vec::new();
+    let fuge = e.kontur_fuge.clamp(0.0, 2.0);
     for t in &l.werkzeuge {
         if t.umriss.len() < 3 {
             continue;
@@ -193,7 +198,8 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
         let p = if tol > 0.0 { roh.buffer(tol) } else { roh.clone() };
         if kontur {
             innen_wz.push((p.simplify(0.03), t.tiefe.max(1.0)));
-            taschen.push((roh.buffer(tol + kw).simplify(0.03), t.tiefe.max(1.0) + kb, t.name.clone()));
+            aussen_tpu.push(roh.buffer(tol + kw).simplify(0.03));
+            taschen.push((roh.buffer(tol + kw + fuge).simplify(0.03), t.tiefe.max(1.0) + kb, t.name.clone()));
         } else {
             taschen.push((p.simplify(0.03), t.tiefe.max(1.0), t.name.clone()));
         }
@@ -214,6 +220,9 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
         }
     }
     for (p, _) in innen_wz.iter_mut() {
+        *p = p.intersection(&erlaubt);
+    }
+    for p in aussen_tpu.iter_mut() {
         *p = p.intersection(&erlaubt);
     }
 
@@ -295,7 +304,7 @@ pub fn bauen(l: &Layout) -> anyhow::Result<Ergebnis> {
         let mut ort = Netz::default();
         let mut druck = Netz::default();
         for (i, (_, tiefe)) in innen_wz.iter().enumerate() {
-            let aussen = &taschen[i].0;
+            let aussen = &aussen_tpu[i];
             let b = (top - tiefe - kb).max(zf);
             let mut stufen = vec![b, top];
             if kb > 0.0 && b + kb < top - 0.2 {
