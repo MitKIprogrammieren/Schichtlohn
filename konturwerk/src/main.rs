@@ -42,6 +42,7 @@ async fn main() {
         .route("/api/erkennen", post(erkennen))
         .route("/api/nachbessern", post(nachbessern))
         .route("/api/erzeugen", post(erzeugen))
+        .route("/api/umriss", post(umriss_bearbeiten))
         .route("/api/bibliothek", get(bibliothek_lesen).post(bibliothek_schreiben))
         .route("/api/job/{id}/file/{*path}", get(job_datei))
         .layer(DefaultBodyLimit::max(80 * 1024 * 1024));
@@ -434,4 +435,60 @@ async fn bibliothek_schreiben(Json(v): Json<serde_json::Value>) -> Response {
         Ok(_) => Json(json!({ "ok": true })).into_response(),
         Err(e) => fehler(format!("Speichern fehlgeschlagen: {e}")),
     }
+}
+
+#[derive(Deserialize)]
+struct UmrissBearbeiten {
+    punkte: Vec<[f64; 2]>,
+    /// mm: positiv = weiter, negativ = enger
+    #[serde(default)]
+    versatz: f64,
+    /// Pinselstriche zum Wegnehmen bzw. Hinzufügen (Punkte in mm)
+    #[serde(default)]
+    minus: Vec<Vec<[f64; 2]>>,
+    #[serde(default)]
+    plus: Vec<Vec<[f64; 2]>>,
+    #[serde(default = "pinsel_std")]
+    pinsel: f64,
+}
+fn pinsel_std() -> f64 {
+    3.0
+}
+
+/// Umriss von Hand nachbessern: enger/weiter und mit dem Pinsel radieren/ergänzen
+async fn umriss_bearbeiten(Json(p): Json<UmrissBearbeiten>) -> Response {
+    use geo::{Area, BooleanOps, Buffer, Coord, LineString, MultiPolygon, Point};
+    if p.punkte.len() < 3 {
+        return fehler("Umriss fehlt.");
+    }
+    let mut mp = MultiPolygon::new(vec![netz::poly(&p.punkte)]);
+    let strich = |pts: &Vec<[f64; 2]>| -> MultiPolygon<f64> {
+        let r = p.pinsel.clamp(0.5, 20.0) / 2.0;
+        if pts.len() == 1 {
+            Point::new(pts[0][0], pts[0][1]).buffer(r)
+        } else {
+            LineString::new(pts.iter().map(|q| Coord { x: q[0], y: q[1] }).collect()).buffer(r)
+        }
+    };
+    for s in &p.plus {
+        if !s.is_empty() {
+            mp = mp.union(&strich(s));
+        }
+    }
+    for s in &p.minus {
+        if !s.is_empty() {
+            mp = mp.difference(&strich(s));
+        }
+    }
+    if p.versatz.abs() > 1e-6 {
+        mp = mp.buffer(p.versatz.clamp(-10.0, 10.0));
+    }
+    // größtes Teilstück behalten, Löcher fallen weg (Taschen haben keine Inseln)
+    let Some(best) = mp.0.iter().max_by(|a, b| a.unsigned_area().partial_cmp(&b.unsigned_area()).unwrap()) else {
+        return fehler("Vom Umriss ist nichts übrig.");
+    };
+    let mut pts: Vec<[f64; 2]> = best.exterior().0.iter().map(|c| [c.x, c.y]).collect();
+    pts.pop();
+    let u = erkennung::umriss_aus(pts, "hand", false);
+    Json(json!({ "umriss": u })).into_response()
 }

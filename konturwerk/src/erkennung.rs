@@ -508,7 +508,16 @@ fn gradient(a: &[f32], w: usize, h: usize) -> Vec<f32> {
 
 /// Objektwahrscheinlichkeit je Pixel (0..1: dunkler oder farbiger als das Papier) und Kantenstärke.
 /// Kanten finden auch blanken Stahl auf weißem Papier; weiche Schatten haben kaum Kanten.
-pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>, Vec<bool>) {
+pub struct Schatten {
+    /// glatt, mäßig dunkel, Papierfarbe
+    pub glatt: Vec<bool>,
+    /// mäßig dunkel, Papierfarbe (Struktur egal) – fürs Randband
+    pub weich: Vec<bool>,
+    /// sehr dunkel (Werkzeug) im Umkreis von 2 px
+    pub sehr_dunkel: Vec<bool>,
+}
+
+pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>, Schatten) {
     let (w, h) = (b.width() as usize, b.height() as usize);
     let l: Vec<f32> = b.pixels().map(|p| lum(&p.0)).collect();
     let s: Vec<f32> = b.pixels().map(|p| sat(&p.0)).collect();
@@ -562,7 +571,7 @@ const FARB_GRENZE: f32 = 0.04;
 const SCHATTEN_TIEFE: u32 = (6.0 * PX_MM) as u32;
 
 /// Schatten: mäßig dunkler als das Papier, glatt (keine Struktur) und in Papierfarbe
-fn schattenkarte(b: &RgbImage, norm: &[f32], l: &[f32], t: f32, w: usize, h: usize) -> Vec<bool> {
+fn schattenkarte(b: &RgbImage, norm: &[f32], l: &[f32], t: f32, w: usize, h: usize) -> Schatten {
     // Papierfarbe (Farbanteile r, g, b) aus hellen Pixeln
     let mut pf = [0f64; 3];
     let mut n = 0f64;
@@ -607,13 +616,19 @@ fn schattenkarte(b: &RgbImage, norm: &[f32], l: &[f32], t: f32, w: usize, h: usi
         o
     };
     let (m1, m2) = (kasten(&s1), kasten(&s2));
-    b.pixels().enumerate().map(|(i, p)| {
+    let mut glatt = vec![false; w * h];
+    let mut weich = vec![false; w * h];
+    let mut dunkel_m = vec![false; w * h];
+    for (i, p) in b.pixels().enumerate() {
         let dunkel = 1.0 - norm[i];
         let streu = (m2[i] - m1[i] * m1[i]).max(0.0).sqrt();
         let su = p.0[0] as f32 + p.0[1] as f32 + p.0[2] as f32 + 1.0;
         let fa = (0..3).map(|k| (p.0[k] as f32 / su - pf[k]).abs()).sum::<f32>();
-        dunkel > 0.05 && dunkel < 0.62 && streu < 0.035 && fa < FARB_GRENZE
-    }).collect()
+        weich[i] = dunkel < 0.62 && fa < FARB_GRENZE;
+        glatt[i] = weich[i] && dunkel > 0.05 && streu < 0.035;
+        dunkel_m[i] = dunkel > 0.6;
+    }
+    Schatten { glatt, weich, sehr_dunkel: morph(&dunkel_m, w, h, 2, true) }
 }
 
 fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
@@ -639,7 +654,7 @@ fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
 
 /// Maske → Werkzeugkandidaten. Kräftige Bereiche (dunkel/farbig) plus deutliche Kanten,
 /// Lücken bis ca. 4 mm schließen, Innenflächen füllen. `empfindlichkeit` 0..1 (0,5 = normal)
-pub fn werkzeuge(karte: &[f32], kanten: &[f32], schatten: &[bool], w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
+pub fn werkzeuge(karte: &[f32], kanten: &[f32], schatten: &Schatten, w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
     let f = (1.5 - empfindlichkeit) as f32;
     let hoch = (otsu(karte, 0.0, 1.0).clamp(0.2, 0.45) * f).clamp(0.08, 0.7);
     let kante = (0.04 * f).clamp(0.015, 0.1);
@@ -704,43 +719,67 @@ pub fn werkzeuge(karte: &[f32], kanten: &[f32], schatten: &[bool], w: usize, h: 
             aus[i] = false;
         }
     }
-    // Schatten vom Papier her abschälen: alles Schattenartige, das von außen erreichbar ist, gehört nicht zum Werkzeug
-    let mut weg = vec![false; w * h];
-    let mut tiefe = vec![0u32; w * h];
-    let mut st: std::collections::VecDeque<usize> = Default::default();
+    // Schatten abschälen: Schattenartiges am Rand des Umrisses (bis 6 mm tief), das an ein sehr dunkles Werkzeug grenzt.
+    // Glatter Stahl grenzt nicht an Dunkles und bleibt deshalb erhalten.
+    let n4 = |i: usize| {
+        let (x, y) = (i % w, i / w);
+        [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)].into_iter().filter(move |&(a, b)| a < w && b < h).map(move |(a, b)| b * w + a)
+    };
+    // Abstand zum Äußeren (Pixelschritte)
+    let mut abst = vec![u32::MAX; w * h];
+    let mut q: std::collections::VecDeque<usize> = Default::default();
     for i in 0..w * h {
-        if !aus[i] {
-            let (x, y) = (i % w, i / w);
-            for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
-                if nx < w && ny < h {
-                    let j = ny * w + nx;
-                    if aus[j] && schatten[j] && !weg[j] {
-                        weg[j] = true;
-                        tiefe[j] = 1;
-                        st.push_back(j);
-                    }
-                }
-            }
+        if aus[i] && n4(i).any(|j| !aus[j]) {
+            abst[i] = 1;
+            q.push_back(i);
         }
     }
-    while let Some(i) = st.pop_front() {
-        if tiefe[i] >= SCHATTEN_TIEFE {
+    while let Some(i) = q.pop_front() {
+        if abst[i] >= SCHATTEN_TIEFE {
             continue;
         }
-        let (x, y) = (i % w, i / w);
-        for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
-            if nx < w && ny < h {
-                let j = ny * w + nx;
-                if aus[j] && schatten[j] && !weg[j] {
-                    weg[j] = true;
-                    tiefe[j] = tiefe[i] + 1;
-                    st.push_back(j);
-                }
+        for j in n4(i) {
+            if aus[j] && abst[j] == u32::MAX {
+                abst[j] = abst[i] + 1;
+                q.push_back(j);
             }
         }
     }
+    let erlaubt: Vec<bool> = (0..w * h).map(|i| aus[i] && abst[i] <= SCHATTEN_TIEFE && (schatten.glatt[i] || (abst[i] <= 8 && schatten.weich[i]))).collect();
+    // Entscheidung je Stück und Kachel (8 mm), damit lange Schattenstreifen nicht an fremden Flächen hängen
+    let (lab0, _) = komponenten(&erlaubt, w, h);
+    let kachel = (8.0 * PX_MM) as usize;
+    let mut idx: std::collections::HashMap<(u32, usize, usize), usize> = Default::default();
+    let mut lab = vec![0usize; w * h];
     for i in 0..w * h {
-        if weg[i] {
+        if lab0[i] != 0 {
+            let k = (lab0[i], (i % w) / kachel, (i / w) / kachel);
+            let n = idx.len() + 1;
+            lab[i] = *idx.entry(k).or_insert(n);
+        }
+    }
+    let anz = idx.len() + 1;
+    let mut am_rand = vec![false; anz];
+    let mut grenze = vec![0usize; anz];
+    let mut grenze_dunkel = vec![0usize; anz];
+    for i in 0..w * h {
+        let l = lab[i];
+        if l == 0 {
+            continue;
+        }
+        if n4(i).any(|j| !aus[j]) {
+            am_rand[l] = true;
+        }
+        if n4(i).any(|j| aus[j] && !erlaubt[j]) {
+            grenze[l] += 1;
+            if schatten.sehr_dunkel[i] {
+                grenze_dunkel[l] += 1;
+            }
+        }
+    }
+    let weg: Vec<bool> = (0..anz).map(|l| l > 0 && am_rand[l] && grenze[l] >= 6 && grenze_dunkel[l] as f64 >= 0.6 * grenze[l] as f64).collect();
+    for i in 0..w * h {
+        if weg[lab[i]] {
             aus[i] = false;
         }
     }

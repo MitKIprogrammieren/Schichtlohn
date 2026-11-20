@@ -167,6 +167,16 @@ input:focus,select:focus{outline:none;border-color:var(--green)}
     </div>
     <div class="row"><label>Nachbessern mit</label><div class="seg" id="nbArt"><div data-v="ki" class="on">KI</div><div data-v="klassisch">Klassisch</div></div></div>
   </div></div>
+  <div class="sec"><h3><span class="ic">✐</span>Feinschliff<span class="chev">▾</span></h3><div class="body">
+    <div class="help">Umriss antippen, dann mit dem Pinsel über Schatten oder Reste malen (Radieren) bzw. fehlende Stellen übermalen (Ergänzen).</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
+      <button class="btn klein" id="wzMinus">Radieren</button>
+      <button class="btn klein" id="wzPlus">Ergänzen</button>
+    </div>
+    <div class="row"><label>Pinsel</label><div class="ctl"><input type="number" id="pinsel" value="3" min="0.5" max="20" step="0.5"><span class="unit">mm</span></div></div>
+    <div class="row"><label>Umriss</label><div class="ctl"><button class="btn klein" id="enger" style="flex:1">− 0,5</button><button class="btn klein" id="weiter" style="flex:1">+ 0,5</button><span class="unit">mm</span></div></div>
+    <div id="feinHinweis" class="help"></div>
+  </div></div>
   <div class="sec"><h3><span class="ic">★</span>Bibliothek<span class="chev">▾</span></h3><div class="body">
     <div class="help">Gewählte Umrisse speichern, um sie später ohne Foto wieder zu verwenden.</div>
     <button class="btn klein" id="inBib">Ausgewählte speichern</button>
@@ -472,7 +482,7 @@ function zeichne2() {
   if (foto) S.rahmen.forEach((p, i) => {
     el('circle', { cx: p[0], cy: p[1], r: 6 * k, fill: 'rgba(255,255,255,.95)', stroke: '#00AE42', 'stroke-width': 1.6 * k, 'data-ecke': i, style: 'cursor:grab' }, svg2);
   });
-  $('l2').textContent = S.werkzeugModus === 'rahmen' ? 'Rahmen um ein Werkzeug ziehen' : S.werkzeugModus === 'tipp' ? 'Auf ein Werkzeug tippen' : foto ? 'Ecken ziehen, um den Blatt-Rahmen anzupassen' : 'Umrisse prüfen';
+  $('l2').textContent = { rahmen: 'Rahmen um ein Werkzeug ziehen', tipp: 'Auf ein Werkzeug tippen', minus: 'Über Schatten oder Reste malen – wird weggenommen', plus: 'Über fehlende Stellen malen – wird ergänzt' }[S.werkzeugModus] || (foto ? 'Ecken ziehen, um den Blatt-Rahmen anzupassen' : 'Umrisse prüfen');
   $('l2t').textContent = `${w} × ${h} mm · ${S.umrisse.filter(u => u.aktiv).length} von ${S.umrisse.length} aktiv`;
   liste2();
 }
@@ -515,10 +525,25 @@ function setWerkzeugModus(m) {
   S.werkzeugModus = S.werkzeugModus === m ? null : m;
   $('wzRahmen').classList.toggle('on', S.werkzeugModus === 'rahmen');
   $('wzTipp').classList.toggle('on', S.werkzeugModus === 'tipp');
+  $('wzMinus').classList.toggle('on', S.werkzeugModus === 'minus');
+  $('wzPlus').classList.toggle('on', S.werkzeugModus === 'plus');
+  zeichne2();
   $('l2').textContent = S.werkzeugModus === 'rahmen' ? 'Rahmen um ein Werkzeug ziehen' : S.werkzeugModus === 'tipp' ? 'Auf ein Werkzeug tippen' : 'Umrisse prüfen';
 }
 $('wzRahmen').onclick = () => setWerkzeugModus('rahmen');
 $('wzTipp').onclick = () => setWerkzeugModus('tipp');
+$('wzMinus').onclick = () => setWerkzeugModus('minus');
+$('wzPlus').onclick = () => setWerkzeugModus('plus');
+async function umrissAendern(u, extra) {
+  try {
+    const r = await api('/api/umriss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ punkte: u.punkte, pinsel: +$('pinsel').value || 3, ...extra }) });
+    Object.assign(u, { punkte: r.umriss.punkte, grenzen: r.umriss.grenzen, flaeche: r.umriss.flaeche });
+  } catch (e) { alert(e.message); }
+  zeichne2();
+}
+const gewaehlt = () => S.umrisse.find(u => u.id === S.selU);
+$('enger').onclick = () => { const u = gewaehlt(); if (!u) return alert('Erst einen Umriss antippen.'); umrissAendern(u, { versatz: -0.5 }); };
+$('weiter').onclick = () => { const u = gewaehlt(); if (!u) return alert('Erst einen Umriss antippen.'); umrissAendern(u, { versatz: 0.5 }); };
 $('wzNeu').onclick = () => { zeige(1); erkennen(); };
 let rahmenStart = null, rahmenEl = null;
 const inMm = p => S.ansicht2 === 'foto' && S.erk?.foto_bild ? fotoZuMm()(p) : p;
@@ -530,6 +555,21 @@ svg2.addEventListener('pointerdown', ev => {
     svg2.setPointerCapture(ev.pointerId); zeichne2(); lupe(S.rahmen[S.rahmenZug.i]); return;
   }
   if (!S.werkzeugModus) return;
+  if (S.werkzeugModus === 'minus' || S.werkzeugModus === 'plus') {
+    const q = inMm(p);
+    // Ziel: gewählter Umriss, sonst der nächstliegende
+    let ziel = gewaehlt();
+    if (!ziel) {
+      let best = Infinity;
+      S.umrisse.forEach(u => { const g = u.grenzen, d = Math.hypot(Math.max(g[0] - q[0], 0, q[0] - g[2]), Math.max(g[1] - q[1], 0, q[1] - g[3])); if (d < best) { best = d; ziel = u; } });
+      if (ziel) { S.selU = ziel.id; }
+    }
+    if (!ziel) return;
+    const foto = S.ansicht2 === 'foto' && S.erk.foto_bild;
+    const sk = foto ? (() => { const f = mmZuFoto(), a = f(q), b = f([q[0] + 1, q[1]]); return Math.hypot(b[0] - a[0], b[1] - a[1]); })() : 1;
+    S.pinselZug = { ziel, mm: [q], punkte: [p], el: el('path', { d: '', fill: 'none', stroke: S.werkzeugModus === 'minus' ? 'rgba(211,47,47,.55)' : 'rgba(0,174,66,.55)', 'stroke-width': (+$('pinsel').value || 3) * sk, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: 'pointer-events:none' }, svg2) };
+    svg2.setPointerCapture(ev.pointerId); return;
+  }
   if (S.werkzeugModus === 'tipp') { const q = inMm(p); nachbessern([q[0] - 45, q[1] - 45, q[0] + 45, q[1] + 45], q); return; }
   rahmenStart = p; svg2.setPointerCapture(ev.pointerId);
   const k = S.ansicht2 === 'foto' ? Math.max(...S.erk.foto) / 300 : 1;
@@ -542,12 +582,17 @@ svg2.addEventListener('pointermove', ev => {
     S.rahmen[z.i] = [Math.max(0, Math.min(fw, p[0] + z.dx)), Math.max(0, Math.min(fh, p[1] + z.dy))];
     zeichne2(); lupe(S.rahmen[z.i]); return;
   }
+  if (S.pinselZug) {
+    const z = S.pinselZug; z.punkte.push(p); z.mm.push(inMm(p));
+    z.el.setAttribute('d', 'M' + z.punkte.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L')); return;
+  }
   if (!rahmenStart) return;
   rahmenEl.setAttribute('x', Math.min(p[0], rahmenStart[0])); rahmenEl.setAttribute('y', Math.min(p[1], rahmenStart[1]));
   rahmenEl.setAttribute('width', Math.abs(p[0] - rahmenStart[0])); rahmenEl.setAttribute('height', Math.abs(p[1] - rahmenStart[1]));
 });
 svg2.addEventListener('pointerup', ev => {
   if (S.rahmenZug) { S.rahmenZug = null; lupe(null); erkennen(S.rahmen.map(p => [...p])); return; }
+  if (S.pinselZug) { const z = S.pinselZug; S.pinselZug = null; umrissAendern(z.ziel, { [S.werkzeugModus]: [z.mm] }); return; }
   if (!rahmenStart) return;
   const p = svgPunkt(svg2, ev), a = rahmenStart; rahmenStart = null;
   const ecken = [[a[0], a[1]], [p[0], a[1]], [p[0], p[1]], [a[0], p[1]]].map(inMm);
