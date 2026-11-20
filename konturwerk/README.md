@@ -6,7 +6,7 @@ Nachbau der Tooltrace-Kernfunktionen in Rust, Oberfläche im Bambu-Studio-Look. 
 
 ## Ablauf
 
-1. **Foto** – Werkzeuge auf ein weißes Blatt (A4, A3, A5, Letter, Legal) legen, von oben fotografieren.
+1. **Foto** (JPEG, PNG, WebP oder HEIC vom iPhone/Mac) – Werkzeuge auf ein weißes Blatt (A4, A3, A5, Letter, Legal) legen, von oben fotografieren.
 2. **Umrisse** – Blatt wird gefunden und entzerrt (1 mm = 4 Pixel), Werkzeuge werden als Umrisse in mm erkannt.
    Nachbessern per Rahmen oder Antippen, Umrisse in der Bibliothek speichern.
 3. **Anordnen** – Werkzeuge ziehen, drehen, spiegeln, Fingermulden, Rechtecke, Langlöcher. Raster und Höhe

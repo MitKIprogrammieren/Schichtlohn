@@ -37,10 +37,41 @@ pub fn papiermass(name: &str) -> (f64, f64) {
     }
 }
 
+/// HEIC/HEIF/AVIF (iPhone, Mac) erkennen: ISO-BMFF mit passender ftyp-Marke
+fn ist_heif(b: &[u8]) -> bool {
+    b.len() > 12 && &b[4..8] == b"ftyp" && {
+        let marke = &b[8..12];
+        [&b"heic"[..], b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"avif", b"avis"].contains(&marke)
+    }
+}
+
+/// HEIC über heif-convert (libheif) in JPEG umwandeln – Drehung wird dabei angewendet
+fn heif_zu_jpeg(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let dir = std::env::temp_dir().join(format!("kw-heif-{}", uuid::Uuid::new_v4().simple()));
+    std::fs::create_dir_all(&dir)?;
+    let (ein, aus) = (dir.join("foto.heic"), dir.join("foto.jpg"));
+    std::fs::write(&ein, bytes)?;
+    let r = std::process::Command::new("heif-convert").arg("-q").arg("95").arg(&ein).arg(&aus).output();
+    let ergebnis = match r {
+        Ok(o) if o.status.success() => std::fs::read(&aus).map_err(|e| anyhow::anyhow!("HEIC-Umwandlung ohne Ergebnis: {e}")),
+        Ok(o) => Err(anyhow::anyhow!("HEIC-Foto nicht lesbar: {}", String::from_utf8_lossy(&o.stderr).trim())),
+        Err(_) => Err(anyhow::anyhow!("HEIC wird auf diesem Server nicht unterstützt – bitte als JPEG exportieren.")),
+    };
+    let _ = std::fs::remove_dir_all(&dir);
+    ergebnis
+}
+
 pub fn laden(bytes: &[u8]) -> anyhow::Result<DynamicImage> {
     use image::ImageDecoder;
+    let umgewandelt;
+    let bytes = if ist_heif(bytes) {
+        umgewandelt = heif_zu_jpeg(bytes)?;
+        &umgewandelt[..]
+    } else {
+        bytes
+    };
     let r = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
-    let mut dec = r.into_decoder().map_err(|e| anyhow::anyhow!("Foto nicht lesbar: {e}"))?;
+    let mut dec = r.into_decoder().map_err(|e| anyhow::anyhow!("Foto nicht lesbar ({e}). Bitte JPEG, PNG, WebP oder HEIC verwenden."))?;
     let orient = dec.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
     let mut img = DynamicImage::from_decoder(dec).map_err(|e| anyhow::anyhow!("Foto nicht lesbar: {e}"))?;
     img.apply_orientation(orient);

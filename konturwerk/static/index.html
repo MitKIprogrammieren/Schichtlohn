@@ -126,7 +126,7 @@ input:focus,select:focus{outline:none;border-color:var(--green)}
 
 <!-- 1 Foto -->
 <div class="page on" data-s="1">
-  <div class="drop" id="drop"><input type="file" id="datei" hidden accept="image/*">
+  <div class="drop" id="drop"><input type="file" id="datei" hidden accept="image/*,.heic,.heif">
     <div id="dropText"><b>Foto aufnehmen oder wählen</b><br>Werkzeuge auf einem weißen Blatt, von oben fotografiert</div>
   </div>
   <div class="sec"><h3><span class="ic">◧</span>Blatt und Erkennung<span class="chev">▾</span></h3><div class="body">
@@ -344,7 +344,22 @@ for (const z of [drop, $('v1')]) {
   z.addEventListener('dragleave', () => drop.classList.remove('over'));
   z.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && waehle(e.dataTransfer.files[0]); });
 }
-function waehle(f) {
+// HEIC (iPhone/Mac): wenn der Browser es anzeigen kann (Safari), vorher in JPEG umwandeln – sonst wandelt der Server um
+async function alsJpeg(f) {
+  const heic = /\.(heic|heif)$/i.test(f.name) || /hei[cf]/i.test(f.type);
+  if (!heic) return f;
+  try {
+    const url = URL.createObjectURL(f);
+    const img = new Image(); img.src = url; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.93));
+    if (!blob) return f;
+    return new File([blob], f.name.replace(/\.(heic|heif)$/i, '') + '.jpg', { type: 'image/jpeg' });
+  } catch (_) { return f; }
+}
+async function waehle(f) {
+  f = await alsJpeg(f);
   S.datei = f;
   $('dropText').innerHTML = `<b>${f.name.replace(/[<>&]/g, '')}</b><br>${(f.size / 1e6).toFixed(1)} MB – zum Ändern tippen`;
   const img = $('fotoVor'); img.src = URL.createObjectURL(f); img.style.display = 'block'; $('h1').style.display = 'none';
