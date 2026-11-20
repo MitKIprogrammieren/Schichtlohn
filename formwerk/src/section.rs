@@ -218,11 +218,16 @@ impl Poly {
         }
         let idx = earcutr::earcut(&flat, &holes_idx, 2).unwrap_or_default();
         let tris: Vec<[P2; 3]> = idx.chunks(3).map(|c| [pts[c[0]], pts[c[1]], pts[c[2]]]).collect();
-        // Earcut lässt Punkte auf Geraden weg, und Kanten können über Punkte anderer Ringe laufen → T-Stöße.
-        // Alle Eckpunkte prüfen, die auf einer Dreieckskante liegen, und dort einbauen (nach x sortiert für schnelle Suche).
-        let mut dropped: Vec<P2> = pts.clone();
+        // Earcut lässt Punkte auf Geraden weg → T-Stöße. Diese Punkte wieder einbauen.
+        let mut usedv = vec![false; pts.len()];
+        for i in &idx {
+            usedv[*i] = true;
+        }
+        let mut dropped: Vec<P2> = pts.iter().zip(&usedv).filter(|(_, u)| !**u).map(|(p, _)| *p).collect();
+        if dropped.is_empty() {
+            return tris;
+        }
         dropped.sort_by(|a, b| a[0].partial_cmp(&b[0]).unwrap());
-        dropped.dedup_by(|a, b| (a[0] - b[0]).abs() < 1e-12 && (a[1] - b[1]).abs() < 1e-12);
         let on_edge = |a: P2, b: P2, p: P2| -> Option<f64> {
             let ab = [b[0] - a[0], b[1] - a[1]];
             let l2 = ab[0] * ab[0] + ab[1] * ab[1];
@@ -244,8 +249,15 @@ impl Poly {
                 let (a, b) = (t[e], t[(e + 1) % 3]);
                 ring.push(a);
                 let (x0, x1) = (a[0].min(b[0]) - 1e-6, a[0].max(b[0]) + 1e-6);
-                let start = dropped.partition_point(|p| p[0] < x0);
-                let mut on: Vec<(f64, P2)> = dropped[start..].iter().take_while(|p| p[0] <= x1).filter_map(|p| on_edge(a, b, *p).map(|s| (s, *p))).collect();
+                let src = &dropped;
+                let start = src.partition_point(|p| p[0] < x0);
+                // eigene Eckpunkte nie einbauen (Earcut liefert manchmal flache Dreiecke mit drei Punkten auf einer Linie)
+                let mut on: Vec<(f64, P2)> = src[start..]
+                    .iter()
+                    .take_while(|p| p[0] <= x1)
+                    .filter(|p| !t.iter().any(|q| q[0] == p[0] && q[1] == p[1]))
+                    .filter_map(|p| on_edge(a, b, *p).map(|s| (s, *p)))
+                    .collect();
                 if !on.is_empty() {
                     extra = true;
                     on.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
@@ -365,7 +377,9 @@ impl Pocket {
 
 pub fn ring_for(c: P2, r: f64, square: bool) -> Vec<P2> {
     if square {
-        vec![[c[0] - r, c[1] - r], [c[0] + r, c[1] - r], [c[0] + r, c[1] + r], [c[0] - r, c[1] + r]]
+        let ang = 0.004 + ((c[0] * 12.9898 + c[1] * 78.233).sin() * 43758.5453).fract().abs() * 0.01;
+        let (s, k) = ang.sin_cos();
+        [[-r, -r], [r, -r], [r, r], [-r, r]].iter().map(|q| [c[0] + q[0] * k - q[1] * s, c[1] + q[0] * s + q[1] * k]).collect()
     } else {
         circle(c, r, 32)
     }

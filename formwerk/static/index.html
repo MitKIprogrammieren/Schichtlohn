@@ -264,27 +264,27 @@ function showRows() {
     depth_ratio: !['magnet', 'none'].includes(kind), magnet_d: kind === 'magnet', magnet_h: kind === 'magnet', tolerance: kind !== 'none' };
   Object.entries(vis).forEach(([k, on]) => { const r = document.querySelector(`[data-row="${k}"]`); if (r) r.style.display = on ? '' : 'none'; });
 }
-function setVal(k, v) { values[mode] = values[mode] || {}; values[mode][k] = v; save(); }
+function setVal(k, v) { values[mode] = values[mode] || {}; values[mode][k] = v; save(); if (showingInput && (k === 'scale' || k === 'size')) showInput(); }
 function bindSections() { document.querySelectorAll('.sec h3').forEach(h => h.onclick = () => h.parentElement.classList.toggle('closed')); }
 
 // ── Drucker
 $('#preset').innerHTML = '<option value="">Vorlage einsetzen …</option>' + [...new Set(PRESETS.map(p => p[0]))].map(brand =>
   `<optgroup label="${brand}">` + PRESETS.map((p, i) => p[0] === brand ? `<option value="${i}">${p[1]} (${p[2]}×${p[3]}×${p[4]})</option>` : '').join('') + '</optgroup>').join('');
-$('#preset').onchange = e => { const p = PRESETS[e.target.value]; if (p) { printers[printers.length - 1] = { name: `${p[0]} ${p[1]}`, x: p[2], y: p[3], z: p[4], speed: printers[printers.length - 1]?.speed || 1 }; renderPrinters(); save(); } e.target.value = ''; };
+$('#preset').onchange = e => { const p = PRESETS[e.target.value]; if (p) { printers[printers.length - 1] = { name: `${p[0]} ${p[1]}`, x: p[2], y: p[3], z: p[4], speed: printers[printers.length - 1]?.speed || 1 }; renderPrinters(); save(); if (showingInput) showInput(); } e.target.value = ''; };
 function renderPrinters() {
   $('#printers').innerHTML = printers.map((p, i) => `<div class="pr" data-i="${i}">
     <input data-f="name" value="${esc(p.name)}"><input type="number" data-f="x" value="${p.x}"><input type="number" data-f="y" value="${p.y}"><input type="number" data-f="z" value="${p.z}"><input type="number" data-f="speed" value="${p.speed}" step="0.1">
     <span class="x" title="Entfernen">${printers.length > 1 ? '&#10005;' : ''}</span></div>`).join('');
   $('#printers').querySelectorAll('.pr').forEach(row => {
     const i = +row.dataset.i;
-    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { printers[i][inp.dataset.f] = inp.dataset.f === 'name' ? inp.value : parseFloat(inp.value); save(); drawPlate(); });
+    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { printers[i][inp.dataset.f] = inp.dataset.f === 'name' ? inp.value : parseFloat(inp.value); save(); drawPlate(); if (showingInput) showInput(); });
     row.querySelector('.x').onclick = () => { if (printers.length > 1) { printers.splice(i, 1); renderPrinters(); save(); } };
   });
   drawPlate();
 }
 $('#addPrinter').onclick = () => { printers.push({ ...printers[printers.length - 1], name: 'Drucker ' + (printers.length + 1) }); renderPrinters(); save(); };
 $('#margin').value = localStorage.getItem('fw_margin') || 5;
-$('#margin').onchange = () => localStorage.setItem('fw_margin', $('#margin').value);
+$('#margin').onchange = () => { localStorage.setItem('fw_margin', $('#margin').value); if (showingInput) showInput(); };
 
 // ── Datei
 const isMesh = n => /\.(stl|3mf|obj)$/i.test(n);
@@ -442,18 +442,51 @@ $('#vSave').onclick = () => {
 };
 
 // Eingabe anzeigen (Foto als Fläche, Modell als Netz)
-function showInput() {
-  clearParts(); $('#hint').style.display = 'none'; $('#legend').style.display = 'none';
-  if (isMesh(file.name) && /\.stl$/i.test(file.name)) {
-    file.arrayBuffer().then(buf => {
-      const g = new STLLoader().parse(buf); g.computeBoundingBox();
-      const s = g.boundingBox.getSize(new THREE.Vector3()), mx = Math.max(s.x, s.y, s.z);
-      g.translate(-g.boundingBox.min.x, -g.boundingBox.min.y, -g.boundingBox.min.z);
-      const k = Math.min(printers[0].x, printers[0].y) * 0.8 / mx; g.scale(k, k, k);
-      partGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.6 })));
-      fit();
-    });
-  } else { $('#hint').textContent = 'Modell geladen – Vorschau nach dem Teilen'; $('#hint').style.display = ''; }
+// Modell gleich nach dem Laden in echter Größe auf dem Druckbett zeigen
+let loadTimer = null, showingInput = false;
+function showInput() { clearTimeout(loadTimer); loadTimer = setTimeout(loadPreview, 250); }
+async function loadPreview() {
+  if (!file) return;
+  const p = { printers, margin: parseFloat($('#margin').value) || 5, scale: val('scale', 100), size: val('size', 0) };
+  const fd = new FormData(); fd.append('params', JSON.stringify(p)); fd.append('file', file);
+  $('#hint').textContent = 'Modell wird geladen …'; $('#hint').style.display = '';
+  try {
+    const r = await fetch('/api/load', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Fehler');
+    const g = new STLLoader().parse(await (await fetch(j.url)).arrayBuffer());
+    g.computeBoundingBox();
+    const bb = g.boundingBox, pr = printers[0], m = p.margin;
+    // mittig aufs Bett, unten auf die Platte
+    g.translate(pr.x / 2 - (bb.min.x + bb.max.x) / 2, pr.y / 2 - (bb.min.y + bb.max.y) / 2, -bb.min.z);
+    // außerhalb des Bauraums rot färben
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+    const ok = new THREE.Color(0x8fa3ad), bad = new THREE.Color(0xe5484d);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const out = x < m - 0.01 || y < m - 0.01 || x > pr.x - m + 0.01 || y > pr.y - m + 0.01 || z > pr.z + 0.01;
+      const c = out ? bad : ok; col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    clearParts(); showingInput = true;
+    partGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
+    // Bauraum als Kasten
+    const boxG = new THREE.EdgesGeometry(new THREE.BoxGeometry(pr.x - 2 * m, pr.y - 2 * m, pr.z));
+    const box = new THREE.LineSegments(boxG, new THREE.LineDashedMaterial({ color: 0x00ae42, dashSize: 6, gapSize: 4 }));
+    box.computeLineDistances(); box.position.set(pr.x / 2, pr.y / 2, pr.z / 2); partGroup.add(box);
+    // passt es?
+    const bed = [pr.x - 2 * m, pr.y - 2 * m, pr.z].sort((a, b) => b - a);
+    const pieces = o => { const d = [...o.size].sort((a, b) => b - a); return d.reduce((n, v, i) => n * Math.max(1, Math.ceil(v / bed[i] - 1e-9)), 1); };
+    const fmt = v => v.map(x => Math.round(x)).join(' × ');
+    const tooBig = j.objects.filter(o => pieces(o) > 1);
+    const est = j.objects.reduce((n, o) => n + pieces(o), 0);
+    let msg;
+    if (!tooBig.length) msg = `<span style="color:var(--green)">&#10003;</span> Passt aufs Bett${j.objects.length > 1 ? ` · ${j.objects.length} Objekte` : ''} · ${fmt(j.size)} mm`;
+    else msg = `<span style="color:var(--warn)">&#9888;</span> Passt nicht: ${fmt(j.size)} mm · wird in ca. ${est} Teile geteilt${j.objects.length > 1 ? ` (${tooBig.length} von ${j.objects.length} Objekten zu groß)` : ''}`;
+    $('#legend').innerHTML = msg; $('#legend').style.display = '';
+    $('#hint').style.display = 'none';
+    fit();
+  } catch (e) { $('#hint').textContent = e.message; }
 }
 
 // ── Berechnen
@@ -473,6 +506,7 @@ $('#go').onclick = async () => {
 };
 
 async function showResult(j) {
+  showingInput = false;
   $('#stats').innerHTML = j.summary.map(([k, v]) => `<span>${esc(k)}</span><span>${esc(v)}</span>`).join('') + `<span>Rechenzeit</span><span>${j.seconds.toFixed(1).replace('.', ',')} s</span>`;
   $('#msgs').innerHTML = j.warnings.map(w => `<div class="warn">&#9888; ${esc(w)}</div>`).join('');
   $('#secResult').classList.remove('closed');

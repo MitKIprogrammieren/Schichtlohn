@@ -31,6 +31,7 @@ async fn main() {
         .route("/", get(|| async { Html(INDEX) }))
         .route("/vendor/{name}", get(vendor))
         .route("/api/run", post(run))
+        .route("/api/load", post(load_model))
         .route("/api/job/{id}/zip", get(job_zip))
         .route("/api/job/{id}/file/{*path}", get(job_file))
         .route("/health", get(|| async { "ok" }))
@@ -67,6 +68,60 @@ fn cleanup() {
                 let _ = std::fs::remove_dir_all(e.path());
             }
         }
+    }
+}
+
+/// Modell in echter Größe für die Ansicht auf dem Druckbett (vor dem Teilen)
+async fn load_model(mut mp: Multipart) -> Response {
+    let mut file: Option<(String, Vec<u8>)> = None;
+    let mut params = String::from("{}");
+    while let Ok(Some(field)) = mp.next_field().await {
+        match field.name().unwrap_or("") {
+            "file" => {
+                let fname = field.file_name().unwrap_or("upload").to_string();
+                if let Ok(b) = field.bytes().await {
+                    file = Some((fname, b.to_vec()));
+                }
+            }
+            "params" => params = field.text().await.unwrap_or_default(),
+            _ => {}
+        }
+    }
+    let Some((fname, bytes)) = file else { return err("Keine Datei") };
+    let p: werk::Params = serde_json::from_str(&params).unwrap_or_default();
+    let res = tokio::task::spawn_blocking(move || -> anyhow::Result<(Vec<u8>, Vec<serde_json::Value>, [f64; 3])> {
+        let lower = fname.to_lowercase();
+        if ![".stl", ".obj", ".3mf"].iter().any(|e| lower.ends_with(e)) {
+            anyhow::bail!("Bitte ein 3D-Modell laden (STL, 3MF oder OBJ).");
+        }
+        let objects = mesh::load(&bytes, &fname)?;
+        let mut all = mesh::Mesh::new();
+        for (_, m) in &objects {
+            all.extend(m);
+        }
+        let k = werk::scale_factor(all.bbox().size(), &p);
+        all.scale(k);
+        let infos = objects
+            .iter()
+            .map(|(n, m)| {
+                let s = m.bbox().size();
+                json!({ "name": n, "size": [s[0] * k, s[1] * k, s[2] * k] })
+            })
+            .collect();
+        let s = all.bbox().size();
+        Ok((all.to_stl("Modell"), infos, s))
+    })
+    .await;
+    match res {
+        Ok(Ok((stl, infos, size))) => {
+            let id = uuid::Uuid::new_v4().simple().to_string()[..12].to_string();
+            let dir = data_dir().join("jobs").join(&id).join("_vorschau");
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(dir.join("modell.stl"), stl);
+            Json(json!({ "url": format!("/api/job/{id}/file/_vorschau/modell.stl"), "objects": infos, "size": size })).into_response()
+        }
+        Ok(Err(e)) => err(e),
+        Err(_) => err("Laden abgestürzt"),
     }
 }
 

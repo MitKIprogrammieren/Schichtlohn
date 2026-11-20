@@ -341,6 +341,11 @@ fn really_overlap(a: &Mesh, b: &Mesh) -> bool {
     probe(a, b) || probe(b, a)
 }
 
+/// Maßstab aus Einstellungen: größte Kante (falls gesetzt) oder Prozent
+pub fn scale_factor(size: V3, p: &Params) -> f64 {
+    if p.size > 0.0 { p.size / size[0].max(size[1]).max(size[2]).max(1e-9) } else { p.scale.max(0.1) / 100.0 }
+}
+
 /// Größter Abstand eines inneren Punkts zum Rand (≈ halbe Breite an der dicksten Stelle)
 fn inner_radius(poly: &Poly) -> f64 {
     let (mn, mx) = poly.bbox();
@@ -379,7 +384,7 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
         all.extend(m);
     }
     let s0 = all.bbox().size();
-    let k = if p.size > 0.0 { p.size / s0[0].max(s0[1]).max(s0[2]).max(1e-9) } else { p.scale.max(0.1) / 100.0 };
+    let k = scale_factor(s0, p);
     out.stat("Modellgröße", format!("{:.0} × {:.0} × {:.0} mm", s0[0] * k, s0[1] * k, s0[2] * k));
     if objects.len() > 1 {
         out.stat("Objekte", objects.len());
@@ -433,11 +438,15 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
         m.scale(k);
         let d0 = m.bbox().size();
         let label = if oname.trim().is_empty() { format!("Objekt {}", oi + 1) } else { oname.trim().to_string() };
-        // passt schon? → nur auflegen
-        if printers.iter().any(|pr| fits_upright(d0, pr, p.margin)) {
-            preview.push((label.clone(), m.clone()));
-            parts.push((label, m));
-            continue;
+        // passt schon und liegt gut flach? → nur auflegen (auf die größte flache Fläche)
+        if fits_any(d0, bed) {
+            if let Some(f) = best_flat(&m, &[], &printers, p.margin) {
+                if f.good() {
+                    preview.push((label.clone(), m.clone()));
+                    parts.push((label, rotated(&m, &f.rot)));
+                    continue;
+                }
+            }
         }
         // beste Drehung suchen (möglichst wenige Teile, gerne unverändert)
         let mut best: (usize, f64, M3) = (est_pieces(d0, bed), 0.0, IDENT);
@@ -481,9 +490,15 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
             guard += 1;
             let bb = pc.mesh.bbox();
             let d = bb.size();
+            let mut force_cut = false;
             if fits_any(d, bed) || guard > 400 {
-                leaves.push(pc);
-                continue;
+                let flat_ok = guard > 400 || d[0].max(d[1]).max(d[2]) < 60.0 || best_flat(&pc.mesh, &pc.caps, &printers, p.margin).is_some_and(|f| f.good());
+                if flat_ok {
+                    leaves.push(pc);
+                    continue;
+                }
+                // passt, steht aber schlecht (dünne Beine, hochkant, rund) → noch einmal teilen
+                force_cut = true;
             }
             // Kandidaten-Achsen: alle, die (in sortierter Zuordnung) zu lang sind, die längste zuerst
             let mut order: Vec<usize> = vec![0, 1, 2];
@@ -494,8 +509,9 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
                 .filter(|&i| d[order[i]] > bs[i] + 1e-6)
                 .map(|i| (d[order[i]] / bs[i], order[i], bs[i]))
                 .collect();
-            if axes.is_empty() {
-                axes.push((1.0, order[0], bs[0]));
+            if axes.is_empty() || force_cut {
+                // erzwungener Schnitt: quer zur längsten Richtung, irgendwo im Teil
+                axes = vec![(1.0, order[0], d[order[0]])];
             }
             axes.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
             // Fenster je Achse: genau so viele Teile wie nötig; zweiter Versuch mit einem Teil mehr
@@ -525,7 +541,7 @@ pub fn split(objects: &[(String, Mesh)], p: &Params) -> Result<Output> {
                         .map(|i| lo_w + (hi_w - lo_w) * i as f64 / 32.0)
                         .filter(|v| !pc.feats.iter().any(|(mn, mx)| *v > mn[axis] - 1.5 && *v < mx[axis] + 1.5))
                         .map(|v| {
-                            let bias = 1.0 + 0.15 * ((v - mid).abs() / ((hi_w - lo_w) * 0.5 + 1e-9));
+                            let bias = 1.0 + (if force_cut { 3.0 } else { 0.15 }) * ((v - mid).abs() / ((hi_w - lo_w) * 0.5 + 1e-9));
                             (section::section_area(&pc.mesh, axis, v) * bias, v)
                         })
                         .collect();
@@ -787,36 +803,117 @@ fn down_mat(axis: usize, sign: f64) -> M3 {
 
 /// Teil so drehen, dass eine Schnittfläche (ohne Zapfen, möglichst groß) unten liegt
 fn orient_for_print(m: &Mesh, caps: &[Cap], printers: &[Printer], margin: f64) -> Mesh {
-    let down = down_mat;
-    let fits = |r: &M3| printers.iter().any(|pr| fits_upright(dims_after(m, r), pr, margin));
-    if std::env::var("FORMWERK_DEBUG").is_ok() {
-        let s = m.bbox();
-        eprintln!("Teil {:.0}×{:.0}×{:.0}: Flächen {:?}", s.size()[0], s.size()[1], s.size()[2], caps.iter().map(|c| (c.axis, c.sign, c.plug, (c.val - if c.sign > 0.0 { s.max[c.axis] } else { s.min[c.axis] }).abs() < 0.01, fits(&down(c.axis, c.sign)))).collect::<Vec<_>>());
+    if let Some(f) = best_flat(m, caps, printers, margin) {
+        return rotated(m, &f.rot);
     }
-    // flache Schnittflächen nach unten; Flächen mit Zapfen nach oben (dann liegt die Gegenseite unten)
-    let mut cands: Vec<(bool, f64, M3)> = caps
-        .iter()
-        .map(|c| {
-            let area = section::section_area(m, c.axis, c.val - c.sign * 0.05);
-            if c.plug { (true, area, down(c.axis, -c.sign)) } else { (false, area, down(c.axis, c.sign)) }
-        })
-        .collect();
-    cands.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.partial_cmp(&a.1).unwrap()));
-    for (_, _, r) in &cands {
-        if fits(r) {
-            return rotated(m, r);
-        }
-    }
-    if fits(&IDENT) {
+    if printers.iter().any(|pr| fits_upright(dims_after(m, &IDENT), pr, margin)) {
         return m.clone();
     }
     for (ax, s) in [(0, 1.0), (0, -1.0), (1, 1.0), (1, -1.0), (2, 1.0)] {
-        let r = down(ax, s);
-        if fits(&r) {
+        let r = down_mat(ax, s);
+        if printers.iter().any(|pr| fits_upright(dims_after(m, &r), pr, margin)) {
             return rotated(m, &r);
         }
     }
     m.clone()
+}
+
+struct Flat {
+    rot: M3,
+    /// Auflagefläche (mm²) und Grundfläche des Hüllquaders in dieser Lage
+    contact: f64,
+    footprint: f64,
+    height: f64,
+}
+
+impl Flat {
+    /// Liegt das Teil ordentlich? (genug Auflage im Verhältnis zur Grundfläche, oder flach)
+    fn good(&self) -> bool {
+        self.contact >= 0.12 * self.footprint || self.contact >= 4000.0 || self.height < 25.0
+    }
+}
+
+/// Drehung, die den Einheitsvektor `a` auf `b` bringt
+fn align(a: V3, b: V3) -> M3 {
+    use crate::mesh::{cross, dot};
+    let v = cross(a, b);
+    let c = dot(a, b);
+    if c > 1.0 - 1e-9 {
+        return IDENT;
+    }
+    if c < -1.0 + 1e-9 {
+        // 180° um eine Achse senkrecht zu a
+        let axis = if a[0].abs() < 0.9 { crate::mesh::norm(cross(a, [1.0, 0.0, 0.0])) } else { crate::mesh::norm(cross(a, [0.0, 1.0, 0.0])) };
+        let mut r = [[0.0; 3]; 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                r[i][j] = 2.0 * axis[i] * axis[j] - if i == j { 1.0 } else { 0.0 };
+            }
+        }
+        return r;
+    }
+    let k = 1.0 / (1.0 + c);
+    let vx = [[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]];
+    let vx2 = mat_mul(&vx, &vx);
+    let mut r = IDENT;
+    for i in 0..3 {
+        for j in 0..3 {
+            r[i][j] += vx[i][j] + vx2[i][j] * k;
+        }
+    }
+    r
+}
+
+/// Größte flache Auflagefläche suchen (Schnittflächen ohne Zapfen und ebene Flächen des Modells),
+/// die so gedreht aufs Bett passt.
+fn best_flat(m: &Mesh, caps: &[Cap], printers: &[Printer], margin: f64) -> Option<Flat> {
+    use crate::mesh::{cross, dot, len, norm, sub};
+    // Flächen nach Normale gruppieren
+    let mut groups: std::collections::HashMap<(i32, i32, i32), (V3, f64)> = Default::default();
+    for t in &m.tris {
+        let c = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+        let a = len(c) * 0.5;
+        if a < 1e-9 {
+            continue;
+        }
+        let n = norm(c);
+        let key = ((n[0] * 50.0).round() as i32, (n[1] * 50.0).round() as i32, (n[2] * 50.0).round() as i32);
+        let e = groups.entry(key).or_insert(([0.0; 3], 0.0));
+        e.0 = [e.0[0] + n[0] * a, e.0[1] + n[1] * a, e.0[2] + n[2] * a];
+        e.1 += a;
+    }
+    let mut normals: Vec<(V3, bool)> = caps.iter().filter(|c| !c.plug).map(|c| {
+        let mut n = [0.0; 3];
+        n[c.axis] = c.sign;
+        (n, true)
+    }).collect();
+    let mut g: Vec<(V3, f64)> = groups.into_values().map(|(s, a)| (norm(s), a)).collect();
+    g.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    normals.extend(g.into_iter().take(16).map(|(n, _)| (n, false)));
+    let mut best: Option<Flat> = None;
+    for (n, _) in normals {
+        // äußerste Ebene in Richtung n und die Dreiecke, die darin liegen
+        let top = m.tris.iter().flat_map(|t| t.iter()).map(|p| dot(*p, n)).fold(f64::MIN, f64::max);
+        let contact: f64 = m
+            .tris
+            .iter()
+            .filter(|t| t.iter().all(|p| dot(*p, n) > top - 0.05))
+            .map(|t| len(cross(sub(t[1], t[0]), sub(t[2], t[0]))) * 0.5)
+            .sum();
+        if contact < 1.0 {
+            continue;
+        }
+        let rot = align(n, [0.0, 0.0, -1.0]);
+        let d = dims_after(m, &rot);
+        if !printers.iter().any(|pr| fits_upright(d, pr, margin)) {
+            continue;
+        }
+        let f = Flat { rot, contact, footprint: d[0] * d[1], height: d[2] };
+        if best.as_ref().is_none_or(|b| f.contact > b.contact * 1.02 || (f.contact > b.contact * 0.98 && f.height < b.height)) {
+            best = Some(f);
+        }
+    }
+    best
 }
 
 fn mesh_center(parts: &[(String, Mesh)]) -> V3 {
