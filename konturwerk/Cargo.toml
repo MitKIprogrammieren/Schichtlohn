@@ -1,0 +1,26 @@
+[package]
+name = "konturwerk"
+version = "0.1.0"
+edition = "2024"
+description = "Konturwerk – Werkzeug-Umrisse aus einem Foto, Gridfinity-Einsätze mit TPU-Inlay (Tooltrace-Nachbau in Rust)"
+
+[dependencies]
+axum = { version = "0.8", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif"] }
+geo = "0.31"
+earcutr = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic", "std"] }
+ureq = { version = "2", features = ["native-certs"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+
+[profile.dev]
+opt-level = 2

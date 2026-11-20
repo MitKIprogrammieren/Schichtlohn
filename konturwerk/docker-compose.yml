@@ -1,0 +1,11 @@
+services:
+  konturwerk:
+    build: .
+    container_name: konturwerk
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./data:/data
+    environment:
+      - PORT=8089
+    restart: unless-stopped

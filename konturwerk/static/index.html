@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Konturwerk – Werkzeugeinsätze aus einem Foto</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{
+  --green:#00AE42;--green-h:#00C24A;--green-bg:#E5F6EC;--bg:#F2F2F2;--panel:#FFFFFF;--panel2:#F7F7F7;
+  --line:#DBDBDB;--text:#262E30;--muted:#6B6B6B;--canvas:#E8E8E8;--warn:#C27400;--err:#D32F2F;--tpu:#00AE42;--pla:#9AA0A6;
+}
+@media (prefers-color-scheme: dark){:root{
+  --green-bg:#1F3A2A;--bg:#1E1E21;--panel:#2D2D31;--panel2:#26262A;--line:#3E3E44;--text:#EFEFF0;--muted:#A0A0A8;--canvas:#38383D;--warn:#F0A030;--err:#FF6B6B;--pla:#80868B;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font:13px/1.45 "HarmonyOS Sans","Segoe UI",system-ui,-apple-system,sans-serif}
+button,input,select{font:inherit;color:inherit}
+.top{display:flex;align-items:center;gap:14px;height:44px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.logo i{width:26px;height:26px;border-radius:6px;background:var(--green);display:grid;place-items:center}
+.tabs{display:flex;gap:2px;height:100%}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;user-select:none;white-space:nowrap}
+.tab b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:11px}
+.tab.on{color:var(--text);border-bottom-color:var(--green);font-weight:600}
+.tab.on b{background:var(--green);border-color:var(--green);color:#fff}
+.tab.aus{opacity:.45;pointer-events:none}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--green)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--green-h)}
+.btn.klein{padding:2px 8px;font-size:12px}
+.btn.on{background:var(--green-bg);border-color:var(--green);color:var(--green);font-weight:600}
+.btn:disabled{opacity:.55;cursor:wait}
+.main{display:flex;height:calc(100% - 44px)}
+.side{width:340px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);overflow:auto}
+.work{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.view{position:relative;flex:1;background:var(--canvas);min-height:260px;overflow:hidden}
+.view svg,.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);pointer-events:none;max-width:80%}
+.busy{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.3);color:#fff;font-size:15px;z-index:5;text-align:center}
+.busy.on{display:grid}
+.spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:var(--green);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 10px}
+@keyframes s{to{transform:rotate(360deg)}}
+.leiste{display:flex;gap:6px;align-items:center;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;min-height:40px}
+.leiste .t{color:var(--muted);font-size:12px;margin-left:auto;white-space:nowrap}
+.sec{border-bottom:1px solid var(--line)}
+.sec h3{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;font-size:13px;cursor:pointer;user-select:none}
+.sec h3 .ic{color:var(--green);display:flex}
+.sec h3 .chev{margin-left:auto;color:var(--muted);transition:transform .15s}
+.sec.closed h3 .chev{transform:rotate(-90deg)}
+.sec.closed .body{display:none}
+.body{padding:0 12px 10px 34px}
+.row{display:grid;grid-template-columns:1fr 132px;align-items:center;gap:8px;min-height:30px}
+.row label{color:var(--muted)}
+.row .ctl{display:flex;align-items:center;gap:4px}
+.row input[type=number],.row input[type=text],.row select{width:100%;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);padding:0 6px}
+.row input[type=range]{width:100%;accent-color:var(--green)}
+input:focus,select:focus{outline:none;border-color:var(--green)}
+.unit{color:var(--muted);font-size:12px;min-width:22px}
+.sw{position:relative;width:34px;height:18px;border-radius:9px;background:var(--line);cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--green)}.sw.on::after{left:18px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:100%}
+.seg div{flex:1;text-align:center;padding:4px 2px;cursor:pointer;color:var(--muted);font-size:12px;border-right:1px solid var(--line)}
+.seg div:last-child{border-right:none}
+.seg div.on{background:var(--green-bg);color:var(--green);font-weight:600}
+.drop{margin:10px 12px;border:1.5px dashed var(--line);border-radius:8px;padding:16px;text-align:center;color:var(--muted);cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--green);color:var(--text)}
+.drop b{color:var(--text)}
+.help{font-size:12px;color:var(--muted);margin:2px 0 6px}
+.tipps{margin:0;padding-left:16px;color:var(--muted);font-size:12px}
+.tipps li{margin:2px 0}
+.liste{display:flex;flex-direction:column;gap:4px}
+.item{display:grid;grid-template-columns:18px 1fr 58px auto;gap:6px;align-items:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);cursor:pointer}
+.item.sel{border-color:var(--green);background:var(--green-bg)}
+.item input[type=text]{width:100%;height:24px;border:1px solid transparent;background:transparent;border-radius:4px;padding:0 4px}
+.item input[type=text]:focus{border-color:var(--green);background:var(--panel)}
+.item input[type=number]{width:100%;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:0 4px;font-size:12px}
+.item .knoepfe{display:flex;gap:2px}
+.ib{width:24px;height:24px;border-radius:5px;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:grid;place-items:center;color:var(--muted);padding:0}
+.ib:hover{border-color:var(--green);color:var(--green)}
+.ib svg{width:14px;height:14px}
+.dot{width:12px;height:12px;border-radius:3px}
+.warn{color:var(--warn);font-size:12px;margin:4px 0}
+.error{color:var(--err);font-size:12px;margin:4px 0}
+.ok{color:var(--green);font-size:12px;margin:4px 0}
+.stats{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px}
+.stats span:nth-child(odd){color:var(--muted)}
+.files{display:flex;flex-direction:column;gap:6px}
+.file{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--text);text-decoration:none}
+.file:hover{border-color:var(--green)}
+.file .n{flex:1;word-break:break-all}
+.file .s{color:var(--muted);font-size:12px}
+.badge{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--green-bg);color:var(--green);font-weight:600}
+.legend{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:var(--panel);padding:4px 8px;border-radius:6px;border:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.legend span{display:flex;align-items:center;gap:4px}
+.inlaybild{display:block;width:100%;margin:6px 0}
+.page{display:none}.page.on{display:block}
+.vpage{display:none;flex:1;flex-direction:column;min-height:0}.vpage.on{display:flex}
+@media (max-width:820px){
+  .main{flex-direction:column;height:auto}
+  .side{width:100%;min-width:0;border-right:none;order:2}
+  .work{order:1;height:62vh}
+  .tab{padding:0 8px}.tab span{display:none}
+  .top{gap:8px;padding:0 8px}.logo span{display:none}
+  .legend{display:none}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5h4M16 5h4v4M20 15v4h-4M8 19H4v-4"/><path d="M9 14.5 14.5 9a1.8 1.8 0 0 1 2.5 2.5L11.5 17"/></svg></i><span>Konturwerk</span></div>
+  <div class="tabs">
+    <div class="tab on" data-s="1"><b>1</b><span>Foto</span></div>
+    <div class="tab aus" data-s="2"><b>2</b><span>Umrisse</span></div>
+    <div class="tab" data-s="3"><b>3</b><span>Anordnen</span></div>
+    <div class="tab aus" data-s="4"><b>4</b><span>Export</span></div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn primary" id="go">Erkennen</button>
+</div>
+<div class="main">
+<aside class="side">
+
+<!-- 1 Foto -->
+<div class="page on" data-s="1">
+  <div class="drop" id="drop"><input type="file" id="datei" hidden accept="image/*">
+    <div id="dropText"><b>Foto aufnehmen oder wählen</b><br>Werkzeuge auf einem weißen Blatt, von oben fotografiert</div>
+  </div>
+  <div class="sec"><h3><span class="ic">◧</span>Blatt und Erkennung<span class="chev">▾</span></h3><div class="body">
+    <div class="row"><label>Papierformat</label><div class="ctl"><select id="papier"><option value="a4">A4</option><option value="a3">A3</option><option value="a5">A5</option><option value="letter">Letter</option><option value="legal">Legal</option></select></div></div>
+    <div class="row"><label>Erkennung</label><div class="seg" id="modus"><div data-v="klassisch" class="on">Klassisch</div><div data-v="ki">KI</div></div></div>
+    <div id="kiBox" style="display:none">
+      <div class="row"><label>KI-Modell</label><div class="ctl"><select id="modell"><option value="schnell">Schnell</option><option value="genau">Genau</option></select></div></div>
+      <div class="help" id="kiStatus">KI-Status wird geprüft …</div>
+    </div>
+    <div class="row"><label>Empfindlichkeit</label><div class="ctl"><input type="range" id="empf" min="0" max="1" step="0.05" value="0.5"><span class="unit" id="empfW">50</span></div></div>
+    <div class="row"><label>Kleinste Teile</label><div class="ctl"><input type="number" id="minF" value="150" min="20" step="10"><span class="unit">mm²</span></div></div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">✓</span>So klappt das Foto<span class="chev">▾</span></h3><div class="body">
+    <ul class="tipps">
+      <li>Weißes Blatt auf dunklem Untergrund, alle vier Ecken im Bild</li>
+      <li>Senkrecht von oben, Blatt füllt das Bild möglichst aus</li>
+      <li>Weiches Licht, keine harten Schatten (kein Blitz)</li>
+      <li>Werkzeuge mit etwas Abstand zueinander und zum Blattrand</li>
+      <li>Glänzende Teile und weiße Griffe: KI-Erkennung nutzen</li>
+    </ul>
+  </div></div>
+</div>
+
+<!-- 2 Umrisse -->
+<div class="page" data-s="2">
+  <div class="sec"><h3><span class="ic">✎</span>Erkannte Umrisse<span class="chev">▾</span></h3><div class="body">
+    <div class="help">Tippen wählt einen Umriss. Haken aus = wird nicht übernommen. Tiefe = wie tief die Tasche wird.</div>
+    <div class="liste" id="umrissListe"></div>
+    <div id="umrissHinweise"></div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">✦</span>Nachbessern<span class="chev">▾</span></h3><div class="body">
+    <div class="help">Mit KI: Rahmen um ein Werkzeug ziehen oder auf ein Werkzeug tippen – der Umriss wird neu erkannt und ersetzt den alten.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
+      <button class="btn klein" id="wzRahmen">Rahmen ziehen</button>
+      <button class="btn klein" id="wzTipp">Antippen</button>
+      <button class="btn klein" id="wzNeu">Ganz neu erkennen</button>
+    </div>
+    <div class="row"><label>Nachbessern mit</label><div class="seg" id="nbArt"><div data-v="ki" class="on">KI</div><div data-v="klassisch">Klassisch</div></div></div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">★</span>Bibliothek<span class="chev">▾</span></h3><div class="body">
+    <div class="help">Gewählte Umrisse speichern, um sie später ohne Foto wieder zu verwenden.</div>
+    <button class="btn klein" id="inBib">Ausgewählte speichern</button>
+  </div></div>
+</div>
+
+<!-- 3 Anordnen -->
+<div class="page" data-s="3">
+  <div class="sec"><h3><span class="ic">▦</span>Behälter<span class="chev">▾</span></h3><div class="body">
+    <div class="row"><label>Art</label><div class="seg" id="typ"><div data-v="gridfinity" class="on">Gridfinity</div><div data-v="platte">Freie Platte</div></div></div>
+    <div id="gridBox">
+      <div class="row"><label>Raster (B × T)</label><div class="ctl"><input type="number" id="rx" min="1" max="12" value="3"><span class="unit">×</span><input type="number" id="ry" min="1" max="12" value="2"></div></div>
+      <div class="row"><label>Höhe</label><div class="ctl"><input type="number" id="hu" min="2" max="20" value="4"><span class="unit">u</span></div></div>
+      <div class="row"><label>Magnetlöcher</label><div class="ctl"><div class="sw" id="magnete"></div><span class="unit">6×2 mm</span></div></div>
+      <div class="row"><label>Stapelrand</label><div class="ctl"><div class="sw on" id="rand"></div></div></div>
+    </div>
+    <div id="platteBox" style="display:none">
+      <div class="row"><label>Breite × Tiefe</label><div class="ctl"><input type="number" id="pb" value="200"><span class="unit">×</span><input type="number" id="pt" value="120"></div></div>
+      <div class="row"><label>Höhe</label><div class="ctl"><input type="number" id="ph" value="20" step="0.5"><span class="unit">mm</span></div></div>
+    </div>
+    <div class="row"><label>Automatisch</label><div class="ctl"><div class="sw on" id="auto"></div><span class="unit">Größe</span></div></div>
+    <div class="row"><label>Boden</label><div class="ctl"><input type="number" id="boden" value="1.2" step="0.2" min="0.6"><span class="unit">mm</span></div></div>
+    <div class="row"><label>Toleranz</label><div class="ctl"><input type="number" id="tol" value="1.0" step="0.1" min="0"><span class="unit">mm</span></div></div>
+    <div class="row"><label>Name</label><div class="ctl"><input type="text" id="name" value="Werkzeugeinsatz"></div></div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">◩</span>TPU-Inlay<span class="chev">▾</span></h3><div class="body">
+    <div class="seg" id="inlay" style="margin-bottom:6px"><div data-v="aus" class="on">Aus</div><div data-v="separat">Separat</div><div data-v="kombiniert">Kombiniert</div></div>
+    <svg class="inlaybild" viewBox="0 0 300 64" aria-hidden="true"><path id="plaSchale" d="M8 8v48h284V8h-9v40H17V8Z" fill="var(--pla)"/><path id="plaVoll" d="M8 8h110v12q0 8 8 8h48q8 0 8-8V8h110v48H8Z" fill="var(--pla)"/><path id="inlayForm" d="M18 20h100v12q0 8 8 8h48q8 0 8-8V20h100v27H18Z" fill="var(--tpu)" opacity=".85"/></svg>
+    <div class="help" id="inlayText">Taschen werden direkt in den Behälter gedruckt.</div>
+    <div id="inlayOpt" style="display:none">
+      <div class="row"><label>Spiel zur Wand</label><div class="ctl"><input type="number" id="spiel" value="0.3" step="0.05" min="0"><span class="unit">mm</span></div></div>
+      <div class="row"><label>TPU unter Tasche</label><div class="ctl"><input type="number" id="tpuB" value="1.0" step="0.2" min="0.4"><span class="unit">mm</span></div></div>
+    </div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">⌖</span>Werkzeuge und Formen<span class="chev">▾</span></h3><div class="body">
+    <div class="liste" id="wzListe"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
+      <button class="btn klein" id="addFinger">+ Fingermulde</button>
+      <button class="btn klein" id="addRechteck">+ Rechteck</button>
+      <button class="btn klein" id="addLang">+ Langloch</button>
+      <button class="btn klein" id="anordnen">Automatisch anordnen</button>
+    </div>
+    <div id="auswahlBox"></div>
+  </div></div>
+  <div class="sec closed"><h3><span class="ic">★</span>Aus der Bibliothek<span class="chev">▾</span></h3><div class="body">
+    <div class="liste" id="bibListe"><div class="help">Noch nichts gespeichert.</div></div>
+  </div></div>
+</div>
+
+<!-- 4 Export -->
+<div class="page" data-s="4">
+  <div class="sec"><h3><span class="ic">⬇</span>Dateien<span class="chev">▾</span></h3><div class="body">
+    <div class="files" id="dateien"></div>
+    <div id="expHinweise"></div>
+  </div></div>
+  <div class="sec"><h3><span class="ic">ⓘ</span>Maße<span class="chev">▾</span></h3><div class="body"><div class="stats" id="masse"></div></div></div>
+  <div class="sec"><h3><span class="ic">◩</span>Drucken<span class="chev">▾</span></h3><div class="body">
+    <ul class="tipps" id="druckTipps"></ul>
+  </div></div>
+</div>
+</aside>
+
+<section class="work">
+  <div class="vpage on" data-v="1"><div class="view" id="v1"><img id="fotoVor" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none"><div class="hint" id="h1">Foto hierher ziehen oder links wählen</div></div></div>
+  <div class="vpage" data-v="2">
+    <div class="leiste"><span id="l2">Umrisse prüfen</span><span class="t" id="l2t"></span></div>
+    <div class="view" id="v2"><svg id="svg2"></svg></div>
+  </div>
+  <div class="vpage" data-v="3">
+    <div class="leiste">
+      <button class="ib" id="rotL" title="Drehen −15°"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg></button>
+      <button class="ib" id="rotR" title="Drehen +15°"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/></svg></button>
+      <button class="ib" id="rot90" title="Drehen 90°">90</button>
+      <button class="ib" id="spieg" title="Spiegeln"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M8 7 3 12l5 5M16 7l5 5-5 5"/></svg></button>
+      <button class="ib" id="dupl" title="Duplizieren"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></button>
+      <button class="ib" id="loesch" title="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg></button>
+      <span class="t" id="l3t"></span>
+    </div>
+    <div class="view" id="v3"><svg id="svg3"></svg>
+      <div class="legend"><span><i class="dot" style="background:var(--green)"></i>Tasche</span><span><i class="dot" style="background:var(--err)"></i>zu nah am Rand</span></div>
+    </div>
+  </div>
+  <div class="vpage" data-v="4">
+    <div class="leiste"><button class="btn klein on" id="expl">Inlay anheben</button><button class="btn klein" id="schnitt">Schnitt</button><span class="t" id="l4t"></span></div>
+    <div class="view" id="v4"><canvas id="cv"></canvas></div>
+  </div>
+  <div class="busy" id="busy"><div><div class="spin"></div><div id="busyText">Rechne …</div></div></div>
+</section>
+</div>
+
+<script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from '/vendor/STLLoader.js';
+import { OrbitControls } from '/vendor/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const r1 = v => Math.round(v * 10) / 10;
+const FARBEN = ['#00AE42', '#2F8FD8', '#F2A93B', '#D9534F', '#8E6BD8', '#1FB5A8', '#E07BB0', '#7A8A99', '#C6B23B', '#5BC26B'];
+
+// ---------- Zustand ----------
+const S = {
+  schritt: 1, datei: null, erk: null, umrisse: [], selU: null,
+  teile: [], sel: null, // teile: {uid, art:'wz'|'kreis'|'rechteck'|'langloch', name, umriss, x, y, winkel, spiegeln, tiefe, b, h}
+  e: { typ: 'gridfinity', raster_x: 3, raster_y: 2, hoehe_u: 4, platte_b: 200, platte_t: 120, platte_h: 20, toleranz: 1.0, boden: 1.2, magnete: false, stapelrand: true, inlay: 'aus', inlay_spiel: 0.3, tpu_boden: 1.0, name: 'Werkzeugeinsatz' },
+  auto: true, modus: 'klassisch', nbArt: 'ki', werkzeugModus: null, ergebnis: null, bib: [],
+};
+let uidZ = 1;
+function speichern() { try { localStorage.setItem('konturwerk', JSON.stringify({ teile: S.teile, e: S.e, auto: S.auto })); } catch (_) {} }
+function laden() {
+  try {
+    const d = JSON.parse(localStorage.getItem('konturwerk') || 'null');
+    if (d) { S.teile = d.teile || []; Object.assign(S.e, d.e || {}); S.auto = d.auto !== false; uidZ = Math.max(1, ...S.teile.map(t => t.uid + 1)); }
+  } catch (_) {}
+}
+
+// ---------- Allgemeines ----------
+function busy(on, t) { $('busy').classList.toggle('on', on); if (t) $('busyText').textContent = t; }
+async function api(url, opt) {
+  const r = await fetch(url, opt);
+  const j = await r.json().catch(() => ({ error: 'Antwort nicht lesbar' }));
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+document.querySelectorAll('.sec h3').forEach(h => h.onclick = () => h.parentElement.classList.toggle('closed'));
+function seg(id, wert, cb) {
+  const s = $(id);
+  const set = v => s.querySelectorAll('div').forEach(d => d.classList.toggle('on', d.dataset.v === v));
+  set(wert);
+  s.querySelectorAll('div').forEach(d => d.onclick = () => { set(d.dataset.v); cb(d.dataset.v); });
+  return set;
+}
+function schalter(id, wert, cb) {
+  const s = $(id); s.classList.toggle('on', !!wert);
+  s.onclick = () => { s.classList.toggle('on'); cb(s.classList.contains('on')); };
+}
+function hinweise(box, liste, cls = 'warn') { $(box).innerHTML = ''; (liste || []).forEach(t => { const d = document.createElement('div'); d.className = cls; d.textContent = t; $(box).appendChild(d); }); }
+
+// ---------- Schritte ----------
+function zeige(n) {
+  S.schritt = n;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', +t.dataset.s === n));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', +p.dataset.s === n));
+  document.querySelectorAll('.vpage').forEach(p => p.classList.toggle('on', +p.dataset.v === n));
+  $('go').textContent = { 1: 'Erkennen', 2: 'Übernehmen', 3: 'Erzeugen', 4: 'Neu erzeugen' }[n];
+  if (n === 2) zeichne2();
+  if (n === 3) { zeichne3(); liste3(); }
+  if (n === 4) { setTimeout(groesse3d, 0); }
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => zeige(+t.dataset.s));
+function freigeben() {
+  document.querySelector('.tab[data-s="2"]').classList.toggle('aus', !S.erk);
+  document.querySelector('.tab[data-s="4"]').classList.toggle('aus', !S.ergebnis);
+}
+$('go').onclick = () => {
+  if (S.schritt === 1) erkennen();
+  else if (S.schritt === 2) uebernehmen();
+  else erzeugen();
+};
+
+// ---------- 1 Foto ----------
+const drop = $('drop');
+drop.onclick = () => $('datei').click();
+$('datei').onchange = e => e.target.files[0] && waehle(e.target.files[0]);
+for (const z of [drop, $('v1')]) {
+  z.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  z.addEventListener('dragleave', () => drop.classList.remove('over'));
+  z.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && waehle(e.dataTransfer.files[0]); });
+}
+function waehle(f) {
+  S.datei = f;
+  $('dropText').innerHTML = `<b>${f.name.replace(/[<>&]/g, '')}</b><br>${(f.size / 1e6).toFixed(1)} MB – zum Ändern tippen`;
+  const img = $('fotoVor'); img.src = URL.createObjectURL(f); img.style.display = 'block'; $('h1').style.display = 'none';
+}
+seg('modus', S.modus, v => { S.modus = v; $('kiBox').style.display = v === 'ki' ? '' : 'none'; if (v === 'ki') kiStatus(); });
+seg('nbArt', S.nbArt, v => S.nbArt = v);
+$('empf').oninput = () => $('empfW').textContent = Math.round($('empf').value * 100);
+$('modell').onchange = kiStatus;
+let kiTimer = null;
+async function kiStatus() {
+  try {
+    const s = await api('/api/ki');
+    const m = s.modelle.find(x => x.id === $('modell').value);
+    let t;
+    if (!s.runtime) t = `<span class="error">KI nicht verfügbar: ${s.fehler || ''}</span>`;
+    else if (s.laedt) t = `Lade ${s.laedt.modell}: ${Math.round(s.laedt.bytes / 1e6)} von ${Math.round(s.laedt.gesamt / 1e6)} MB …`;
+    else if (m && m.vorhanden) t = `<span class="ok">${m.name} ist bereit – läuft lokal auf dem Server.</span>`;
+    else t = `${m ? m.name : ''} wird beim ersten Erkennen geladen (${m ? m.mb : '?'} MB). <a href="#" id="kiLaden">Jetzt laden</a>`;
+    $('kiStatus').innerHTML = t;
+    const a = $('kiLaden'); if (a) a.onclick = async ev => { ev.preventDefault(); await api('/api/ki/laden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modell: $('modell').value }) }); setTimeout(kiStatus, 500); };
+    clearTimeout(kiTimer); if (s.laedt) kiTimer = setTimeout(kiStatus, 1000);
+  } catch (e) { $('kiStatus').textContent = 'KI-Status nicht abrufbar.'; }
+}
+async function erkennen() {
+  if (!S.datei) { $('datei').click(); return; }
+  const fd = new FormData();
+  fd.append('file', S.datei);
+  fd.append('params', JSON.stringify({ papier: $('papier').value, modus: S.modus, modell: $('modell').value, empfindlichkeit: +$('empf').value, min_flaeche: +$('minF').value }));
+  busy(true, S.modus === 'ki' ? 'Erkenne mit KI … (beim ersten Mal wird das Modell geladen)' : 'Erkenne Blatt und Umrisse …');
+  try {
+    const r = await api('/api/erkennen', { method: 'POST', body: fd });
+    S.erk = r;
+    S.umrisse = r.umrisse.map((u, i) => ({ ...u, aktiv: true, tiefe: 12, farbe: FARBEN[i % FARBEN.length] }));
+    S.selU = null;
+    const h = [...(r.hinweise || [])]; if (r.ki_fehler) h.unshift(r.ki_fehler);
+    hinweise('umrissHinweise', h);
+    freigeben(); zeige(2);
+  } catch (e) { alert(e.message); }
+  busy(false);
+}
+
+// ---------- 2 Umrisse ----------
+const svg2 = $('svg2');
+function pfad(pts) { return pts.length ? 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z' : ''; }
+function zeichne2() {
+  svg2.innerHTML = '';
+  if (!S.erk) return;
+  const { breite_mm: w, hoehe_mm: h } = S.erk;
+  svg2.setAttribute('viewBox', `-6 -6 ${w + 12} ${h + 12}`);
+  el('image', { href: S.erk.bild, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }, svg2);
+  S.umrisse.forEach(u => {
+    const g = el('g', { style: 'cursor:pointer' }, svg2);
+    const sel = S.selU === u.id;
+    el('path', { d: pfad(u.punkte), fill: u.aktiv ? u.farbe : 'none', 'fill-opacity': sel ? 0.45 : 0.25, stroke: u.aktiv ? u.farbe : '#999', 'stroke-width': sel ? 1.2 : 0.7, 'stroke-dasharray': u.aktiv ? '' : '3 2' }, g);
+    const t = el('text', { x: (u.grenzen[0] + u.grenzen[2]) / 2, y: (u.grenzen[1] + u.grenzen[3]) / 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 6, fill: '#fff', stroke: '#000', 'stroke-width': 0.4, 'paint-order': 'stroke', style: 'pointer-events:none' }, g);
+    t.textContent = u.name;
+    g.onclick = ev => { if (S.werkzeugModus) return; ev.stopPropagation(); S.selU = u.id; zeichne2(); };
+  });
+  $('l2t').textContent = `${w} × ${h} mm · ${S.umrisse.filter(u => u.aktiv).length} von ${S.umrisse.length} aktiv`;
+  liste2();
+}
+function liste2() {
+  const L = $('umrissListe'); L.innerHTML = '';
+  S.umrisse.forEach(u => {
+    const d = document.createElement('div'); d.className = 'item' + (S.selU === u.id ? ' sel' : '');
+    d.innerHTML = `<input type="checkbox" ${u.aktiv ? 'checked' : ''}><input type="text" value=""><input type="number" min="1" step="0.5" title="Tiefe (mm)"><div class="knoepfe"><span class="dot" style="background:${u.farbe}"></span><button class="ib" title="Entfernen">✕</button></div>`;
+    const [cb, nm, tf] = d.querySelectorAll('input');
+    nm.value = u.name; tf.value = u.tiefe;
+    cb.onchange = () => { u.aktiv = cb.checked; zeichne2(); };
+    nm.onchange = () => { u.name = nm.value; zeichne2(); };
+    tf.onchange = () => { u.tiefe = Math.max(1, +tf.value || 12); };
+    d.querySelector('button').onclick = ev => { ev.stopPropagation(); S.umrisse = S.umrisse.filter(x => x !== u); zeichne2(); };
+    d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; S.selU = u.id; zeichne2(); };
+    L.appendChild(d);
+  });
+  if (!S.umrisse.length) L.innerHTML = '<div class="help">Keine Umrisse – Rahmen ziehen oder Empfindlichkeit erhöhen.</div>';
+}
+function svgPunkt(svg, ev) { const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [q.x, q.y]; }
+function setWerkzeugModus(m) {
+  S.werkzeugModus = S.werkzeugModus === m ? null : m;
+  $('wzRahmen').classList.toggle('on', S.werkzeugModus === 'rahmen');
+  $('wzTipp').classList.toggle('on', S.werkzeugModus === 'tipp');
+  $('l2').textContent = S.werkzeugModus === 'rahmen' ? 'Rahmen um ein Werkzeug ziehen' : S.werkzeugModus === 'tipp' ? 'Auf ein Werkzeug tippen' : 'Umrisse prüfen';
+}
+$('wzRahmen').onclick = () => setWerkzeugModus('rahmen');
+$('wzTipp').onclick = () => setWerkzeugModus('tipp');
+$('wzNeu').onclick = () => { zeige(1); erkennen(); };
+let rahmenStart = null, rahmenEl = null;
+svg2.addEventListener('pointerdown', ev => {
+  if (!S.werkzeugModus || !S.erk) return;
+  const p = svgPunkt(svg2, ev);
+  if (S.werkzeugModus === 'tipp') { nachbessern([p[0] - 45, p[1] - 45, p[0] + 45, p[1] + 45], p); return; }
+  rahmenStart = p; svg2.setPointerCapture(ev.pointerId);
+  rahmenEl = el('rect', { x: p[0], y: p[1], width: 0, height: 0, fill: 'rgba(0,174,66,.15)', stroke: '#00AE42', 'stroke-width': 0.8, 'stroke-dasharray': '3 2' }, svg2);
+});
+svg2.addEventListener('pointermove', ev => {
+  if (!rahmenStart) return;
+  const p = svgPunkt(svg2, ev);
+  rahmenEl.setAttribute('x', Math.min(p[0], rahmenStart[0])); rahmenEl.setAttribute('y', Math.min(p[1], rahmenStart[1]));
+  rahmenEl.setAttribute('width', Math.abs(p[0] - rahmenStart[0])); rahmenEl.setAttribute('height', Math.abs(p[1] - rahmenStart[1]));
+});
+svg2.addEventListener('pointerup', ev => {
+  if (!rahmenStart) return;
+  const p = svgPunkt(svg2, ev), a = rahmenStart; rahmenStart = null;
+  const r = [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[0], p[0]), Math.max(a[1], p[1])];
+  if (r[2] - r[0] < 5 || r[3] - r[1] < 5) { zeichne2(); return; }
+  nachbessern(r, null);
+});
+svg2.addEventListener('click', ev => { if (!S.werkzeugModus && ev.target.tagName === 'image') { S.selU = null; zeichne2(); } });
+async function nachbessern(rahmen, punkt) {
+  busy(true, S.nbArt === 'ki' ? 'KI erkennt den Bereich …' : 'Erkenne den Bereich …');
+  try {
+    const r = await api('/api/nachbessern', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: S.erk.id, rahmen, punkt, art: S.nbArt, modell: $('modell').value, empfindlichkeit: +$('empf').value }) });
+    if (!r.umriss) { alert('In diesem Bereich wurde nichts gefunden.'); }
+    else {
+      const u = r.umriss, g = u.grenzen;
+      // ersetzt Umrisse, deren Mitte im neuen Umriss-Rahmen liegt
+      const alt = S.umrisse.filter(x => { const cx = (x.grenzen[0] + x.grenzen[2]) / 2, cy = (x.grenzen[1] + x.grenzen[3]) / 2; return cx > g[0] && cx < g[2] && cy > g[1] && cy < g[3]; });
+      const vor = alt[0];
+      S.umrisse = S.umrisse.filter(x => !alt.includes(x));
+      const id = Math.max(0, ...S.umrisse.map(x => x.id), ...alt.map(x => x.id)) + 1;
+      const neu = { ...u, id, name: vor ? vor.name : `Werkzeug ${id}`, aktiv: true, tiefe: vor ? vor.tiefe : 12, farbe: vor ? vor.farbe : FARBEN[(id - 1) % FARBEN.length] };
+      S.umrisse.push(neu); S.selU = id;
+    }
+  } catch (e) { alert(e.message); }
+  setWerkzeugModus(null); busy(false); zeichne2();
+}
+
+// Umriss lokal: um die Mitte, nach dem kleinsten umschließenden Rechteck ausgerichtet, liegend
+function huelle(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const kr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], hi = [];
+  for (const q of p) { while (lo.length >= 2 && kr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (hi.length >= 2 && kr(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop(); hi.push(q); }
+  lo.pop(); hi.pop(); return lo.concat(hi);
+}
+function drehe(pts, a) { const c = Math.cos(a), s = Math.sin(a); return pts.map(p => [p[0] * c - p[1] * s, p[0] * s + p[1] * c]); }
+function lokal(pts) {
+  const h = huelle(pts);
+  let best = { f: Infinity, a: 0 };
+  for (let i = 0; i < h.length; i++) {
+    const q = h[(i + 1) % h.length], a = -Math.atan2(q[1] - h[i][1], q[0] - h[i][0]);
+    const g = grenzen(drehe(h, a)), f = (g[2] - g[0]) * (g[3] - g[1]);
+    if (f < best.f - 1e-6) best = { f, a, w: g[2] - g[0], h: g[3] - g[1] };
+  }
+  let a = best.a; if (best.h > best.w) a += Math.PI / 2;
+  const q = drehe(pts, a), g = grenzen(q), mx = (g[0] + g[2]) / 2, my = (g[1] + g[3]) / 2;
+  return q.map(p => [p[0] - mx, p[1] - my]);
+}
+function grenzen(pts) { const b = [1e9, 1e9, -1e9, -1e9]; pts.forEach(p => { b[0] = Math.min(b[0], p[0]); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], p[0]); b[3] = Math.max(b[3], p[1]); }); return b; }
+function uebernehmen() {
+  const neu = S.umrisse.filter(u => u.aktiv);
+  if (!neu.length) { alert('Kein Umriss aktiv.'); return; }
+  if (S.teile.some(t => t.art === 'wz') && !confirm('Die bisherige Anordnung ersetzen?\n(Abbrechen = Werkzeuge dazulegen)')) {
+    neu.forEach(u => S.teile.push(wzTeil(u.name, lokal(u.punkte), u.tiefe)));
+  } else {
+    S.teile = neu.map(u => wzTeil(u.name, lokal(u.punkte), u.tiefe));
+  }
+  autoAnordnen(); zeige(3);
+}
+function wzTeil(name, umriss, tiefe) { return { uid: uidZ++, art: 'wz', name, umriss, x: 0, y: 0, winkel: 0, spiegeln: false, tiefe }; }
+$('inBib').onclick = async () => {
+  const ausw = S.umrisse.filter(u => u.aktiv);
+  if (!ausw.length) return;
+  await bibLaden();
+  ausw.forEach(u => S.bib.push({ name: u.name, umriss: lokal(u.punkte), tiefe: u.tiefe, zeit: Date.now() }));
+  try { await api('/api/bibliothek', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.bib) }); alert(`${ausw.length} Umriss(e) gespeichert.`); bibListe(); } catch (e) { alert(e.message); }
+};
+
+// ---------- 3 Anordnen ----------
+const svg3 = $('svg3');
+function mass() {
+  const e = S.e;
+  if (e.typ === 'platte') return [e.platte_b, e.platte_t];
+  return [42 * e.raster_x - 0.5, 42 * e.raster_y - 0.5];
+}
+function wand() { const e = S.e; return e.typ === 'platte' ? 2.0 : e.stapelrand ? 2.6 : 1.6; }
+function innenAbstand() { return wand() + (S.e.inlay !== 'aus' ? 1.2 : 0) + 0.5; }
+function umrissVon(t) {
+  if (t.art === 'wz') return t.umriss;
+  const b = t.b, h = t.h, n = 40, out = [];
+  if (t.art === 'kreis') { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return out; }
+  if (t.art === 'rechteck') return [[-b / 2, -h / 2], [b / 2, -h / 2], [b / 2, h / 2], [-b / 2, h / 2]];
+  const r = Math.min(b, h) / 2, lx = b / 2 - r, ly = h / 2 - r;
+  for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI; out.push([lx + r * Math.cos(a), ly + r * Math.sin(a)]); }
+  for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + i / 12 * Math.PI; out.push([-lx + r * Math.cos(a), -ly + r * Math.sin(a)]); }
+  return out;
+}
+function welt(t) {
+  const a = t.winkel * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return umrissVon(t).map(p => { const px = t.spiegeln ? -p[0] : p[0]; return [t.x + px * c - p[1] * s, t.y + px * s + p[1] * c]; });
+}
+function tol(t) { return t.art === 'wz' ? S.e.toleranz : 0; }
+function zuNah(t) {
+  const [w, d] = mass(), m = innenAbstand() + tol(t);
+  return welt(t).some(p => p[0] < m || p[1] < m || p[0] > w - m || p[1] > d - m);
+}
+function zeichne3() {
+  svg3.innerHTML = '';
+  const [w, d] = mass(), e = S.e;
+  svg3.setAttribute('viewBox', `-8 -8 ${w + 16} ${d + 16}`);
+  const r = e.typ === 'platte' ? 4 : 3.75;
+  el('rect', { x: 0, y: 0, width: w, height: d, rx: r, fill: 'var(--panel)', stroke: 'var(--muted)', 'stroke-width': 0.6 }, svg3);
+  if (e.typ !== 'platte') {
+    for (let i = 1; i < e.raster_x; i++) el('line', { x1: i * 42 - 0.25, y1: 0, x2: i * 42 - 0.25, y2: d, stroke: 'var(--line)', 'stroke-width': 0.4 }, svg3);
+    for (let i = 1; i < e.raster_y; i++) el('line', { x1: 0, y1: i * 42 - 0.25, x2: w, y2: i * 42 - 0.25, stroke: 'var(--line)', 'stroke-width': 0.4 }, svg3);
+  }
+  const wd = wand();
+  el('rect', { x: wd, y: wd, width: w - 2 * wd, height: d - 2 * wd, rx: Math.max(0.5, r - wd), fill: e.inlay !== 'aus' ? 'rgba(0,174,66,.08)' : 'none', stroke: 'var(--muted)', 'stroke-width': 0.3, 'stroke-dasharray': '2 1.5' }, svg3);
+  const sortiert = [...S.teile].sort((a, b) => (a.art === 'wz' ? 0 : 1) - (b.art === 'wz' ? 0 : 1));
+  sortiert.forEach(t => {
+    const g = el('g', { 'data-uid': t.uid, style: 'cursor:move' }, svg3);
+    const nah = zuNah(t), sel = S.sel === t.uid;
+    const farbe = nah ? 'var(--err)' : t.art === 'wz' ? 'var(--green)' : '#2F8FD8';
+    const d0 = pfad(welt(t));
+    if (tol(t) > 0) el('path', { d: d0, fill: 'none', stroke: farbe, 'stroke-opacity': 0.25, 'stroke-width': 2 * tol(t), 'stroke-linejoin': 'round' }, g);
+    el('path', { d: d0, fill: farbe, 'fill-opacity': sel ? 0.5 : 0.3, stroke: farbe, 'stroke-width': sel ? 0.9 : 0.5 }, g);
+    if (t.art === 'wz') {
+      const tx = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 4.5, fill: 'var(--text)', style: 'pointer-events:none' }, g);
+      tx.textContent = `${t.name} · ${t.tiefe} mm`;
+    }
+    if (sel) {
+      const b = grenzen(welt(t));
+      el('rect', { x: b[0] - 1, y: b[1] - 1, width: b[2] - b[0] + 2, height: b[3] - b[1] + 2, fill: 'none', stroke: 'var(--green)', 'stroke-width': 0.3, 'stroke-dasharray': '1.5 1' }, g);
+      const hx = (b[0] + b[2]) / 2, hy = b[1] - 7;
+      el('line', { x1: hx, y1: b[1] - 1, x2: hx, y2: hy, stroke: 'var(--green)', 'stroke-width': 0.4 }, g);
+      el('circle', { cx: hx, cy: hy, r: 2.6, fill: 'var(--panel)', stroke: 'var(--green)', 'stroke-width': 0.6, 'data-dreh': 1, style: 'cursor:grab' }, g);
+    }
+  });
+  const hoehe = e.typ === 'platte' ? `${e.platte_h} mm` : `${e.hoehe_u}u = ${e.hoehe_u * 7} mm`;
+  $('l3t').textContent = `${r1(w)} × ${r1(d)} mm · Höhe ${hoehe}${e.inlay !== 'aus' ? ' · TPU-Inlay ' + r1(inlayDicke()) + ' mm' : ''}`;
+}
+function inlayDicke() { const e = S.e, top = e.typ === 'platte' ? e.platte_h : e.hoehe_u * 7, base = e.typ === 'platte' ? 0 : 5; return top - base - e.boden; }
+function selTeil() { return S.teile.find(t => t.uid === S.sel); }
+function liste3() {
+  const L = $('wzListe'); L.innerHTML = '';
+  S.teile.forEach(t => {
+    const d = document.createElement('div'); d.className = 'item' + (S.sel === t.uid ? ' sel' : '');
+    const name = t.art === 'wz' ? t.name : { kreis: 'Fingermulde', rechteck: 'Rechteck', langloch: 'Langloch' }[t.art];
+    d.innerHTML = `<span class="dot" style="background:${zuNah(t) ? 'var(--err)' : t.art === 'wz' ? 'var(--green)' : '#2F8FD8'}"></span><input type="text"><input type="number" min="1" step="0.5" title="Tiefe (mm)"><div class="knoepfe"><button class="ib" title="Entfernen">✕</button></div>`;
+    const [nm, tf] = d.querySelectorAll('input');
+    nm.value = name; nm.disabled = t.art !== 'wz'; tf.value = t.tiefe;
+    nm.onchange = () => { t.name = nm.value; zeichne3(); speichern(); };
+    tf.onchange = () => { t.tiefe = Math.max(1, +tf.value || 10); autoHoehe(); zeichne3(); speichern(); };
+    d.querySelector('button').onclick = ev => { ev.stopPropagation(); S.teile = S.teile.filter(x => x !== t); if (S.sel === t.uid) S.sel = null; geaendert(); };
+    d.onclick = ev => { if (ev.target.tagName === 'INPUT') return; S.sel = t.uid; zeichne3(); liste3(); };
+    L.appendChild(d);
+  });
+  if (!S.teile.length) L.innerHTML = '<div class="help">Noch nichts angeordnet – erst ein Foto erkennen oder aus der Bibliothek hinzufügen.</div>';
+  auswahlBox();
+}
+function auswahlBox() {
+  const t = selTeil(), B = $('auswahlBox'); B.innerHTML = '';
+  if (!t) return;
+  const zeile = (lab, key, step = 1, einheit = 'mm') => {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = `<label>${lab}</label><div class="ctl"><input type="number" step="${step}"><span class="unit">${einheit}</span></div>`;
+    const i = r.querySelector('input'); i.value = r1(t[key]);
+    i.onchange = () => { t[key] = +i.value; if (key === 'tiefe') autoHoehe(); zeichne3(); liste3(); speichern(); };
+    B.appendChild(r);
+  };
+  zeile('Position X', 'x', 0.5); zeile('Position Y', 'y', 0.5); zeile('Drehung', 'winkel', 1, '°');
+  if (t.art !== 'wz') { zeile('Breite', 'b', 0.5); if (t.art !== 'kreis') zeile('Höhe', 'h', 0.5); }
+}
+function geaendert() { if (S.auto) autoGroesse(); zeichne3(); liste3(); speichern(); }
+function autoHoehe() {
+  if (!S.auto) return;
+  const e = S.e, maxT = Math.max(8, ...S.teile.map(t => t.tiefe));
+  if (e.typ === 'platte') e.platte_h = Math.ceil((maxT + e.boden + (e.inlay !== 'aus' ? e.tpu_boden : 0)) * 2) / 2;
+  else e.hoehe_u = Math.max(2, Math.ceil((5 + e.boden + maxT + (e.inlay !== 'aus' ? e.tpu_boden : 0)) / 7));
+  formularSetzen();
+}
+function autoGroesse() {
+  if (!S.teile.length) return;
+  const e = S.e, m = innenAbstand();
+  const b = [1e9, 1e9, -1e9, -1e9];
+  S.teile.forEach(t => { const g = grenzen(welt(t)), tt = tol(t); b[0] = Math.min(b[0], g[0] - tt); b[1] = Math.min(b[1], g[1] - tt); b[2] = Math.max(b[2], g[2] + tt); b[3] = Math.max(b[3], g[3] + tt); });
+  const bw = b[2] - b[0] + 2 * m, bd = b[3] - b[1] + 2 * m;
+  let w, d;
+  if (e.typ === 'platte') { e.platte_b = Math.ceil(bw); e.platte_t = Math.ceil(bd); w = e.platte_b; d = e.platte_t; }
+  else { e.raster_x = Math.max(1, Math.ceil((bw + 0.5) / 42)); e.raster_y = Math.max(1, Math.ceil((bd + 0.5) / 42)); [w, d] = mass(); }
+  // Gruppe mittig setzen
+  const dx = w / 2 - (b[0] + b[2]) / 2, dy = d / 2 - (b[1] + b[3]) / 2;
+  S.teile.forEach(t => { t.x += dx; t.y += dy; });
+  autoHoehe();
+}
+function autoAnordnen() {
+  const wz = S.teile.filter(t => t.art === 'wz'), rest = S.teile.filter(t => t.art !== 'wz');
+  const abstand = 6 + 2 * S.e.toleranz;
+  wz.forEach(t => { t.winkel = 0; t.spiegeln = false; });
+  const groessen = wz.map(t => { const g = grenzen(welt({ ...t, x: 0, y: 0 })); return { t, w: g[2] - g[0], h: g[3] - g[1], g }; });
+  groessen.sort((a, b) => b.w - a.w);
+  const breit = Math.max(groessen.length ? groessen[0].w : 0, Math.sqrt(groessen.reduce((s, x) => s + (x.w + abstand) * (x.h + abstand), 0)) * 1.25);
+  let x = 0, y = 0, zeileH = 0;
+  for (const it of groessen) {
+    if (x > 0 && x + it.w > breit) { x = 0; y += zeileH + abstand; zeileH = 0; }
+    it.t.x = x - it.g[0]; it.t.y = y - it.g[1];
+    x += it.w + abstand; zeileH = Math.max(zeileH, it.h);
+  }
+  // Formen folgen ihrem Werkzeug nicht – nur neu anordnen, wenn keine Werkzeuge da sind
+  S.teile = [...wz, ...rest];
+  S.auto = true; $('auto').classList.add('on');
+  autoGroesse(); zeichne3(); liste3(); speichern();
+}
+$('anordnen').onclick = autoAnordnen;
+function neueForm(art) {
+  const [w, d] = mass();
+  const t = { uid: uidZ++, art, name: '', x: w / 2, y: d / 2, winkel: 0, spiegeln: false, tiefe: 10, b: art === 'kreis' ? 22 : art === 'rechteck' ? 30 : 40, h: art === 'kreis' ? 22 : art === 'rechteck' ? 20 : 14 };
+  const sel = selTeil();
+  if (sel && sel.art === 'wz') { const g = grenzen(welt(sel)); t.x = (g[0] + g[2]) / 2; t.y = g[1]; t.tiefe = sel.tiefe; }
+  else if (S.teile.length) t.tiefe = Math.max(...S.teile.filter(x => x.art === 'wz').map(x => x.tiefe), 10);
+  S.teile.push(t); S.sel = t.uid; zeichne3(); liste3(); speichern();
+}
+$('addFinger').onclick = () => neueForm('kreis');
+$('addRechteck').onclick = () => neueForm('rechteck');
+$('addLang').onclick = () => neueForm('langloch');
+const drehen = g => { const t = selTeil(); if (!t) return; t.winkel = ((t.winkel + g) % 360 + 360) % 360; geaendert(); };
+$('rotL').onclick = () => drehen(-15); $('rotR').onclick = () => drehen(15); $('rot90').onclick = () => drehen(90);
+$('spieg').onclick = () => { const t = selTeil(); if (t) { t.spiegeln = !t.spiegeln; geaendert(); } };
+$('dupl').onclick = () => { const t = selTeil(); if (!t) return; const n = JSON.parse(JSON.stringify(t)); n.uid = uidZ++; n.x += 8; n.y += 8; S.teile.push(n); S.sel = n.uid; geaendert(); };
+$('loesch').onclick = () => { const t = selTeil(); if (!t) return; S.teile = S.teile.filter(x => x !== t); S.sel = null; geaendert(); };
+addEventListener('keydown', ev => {
+  if (S.schritt !== 3 || ev.target.tagName === 'INPUT') return;
+  const t = selTeil(); if (!t) return;
+  const sch = ev.shiftKey ? 5 : 0.5;
+  if (ev.key === 'Delete' || ev.key === 'Backspace') $('loesch').click();
+  else if (ev.key === 'r') drehen(ev.shiftKey ? -15 : 15);
+  else if (ev.key.startsWith('Arrow')) { t.x += ev.key === 'ArrowLeft' ? -sch : ev.key === 'ArrowRight' ? sch : 0; t.y += ev.key === 'ArrowUp' ? -sch : ev.key === 'ArrowDown' ? sch : 0; zeichne3(); speichern(); }
+  else return;
+  ev.preventDefault();
+});
+let zug = null;
+svg3.addEventListener('pointerdown', ev => {
+  const g = ev.target.closest('g[data-uid]');
+  if (!g) { S.sel = null; zeichne3(); liste3(); return; }
+  const t = S.teile.find(x => x.uid === +g.dataset.uid); const p = svgPunkt(svg3, ev);
+  S.sel = t.uid;
+  zug = ev.target.dataset.dreh ? { t, dreh: true, w0: t.winkel, a0: Math.atan2(p[1] - t.y, p[0] - t.x) } : { t, dx: t.x - p[0], dy: t.y - p[1] };
+  svg3.setPointerCapture(ev.pointerId); zeichne3(); liste3();
+});
+svg3.addEventListener('pointermove', ev => {
+  if (!zug) return;
+  const p = svgPunkt(svg3, ev), t = zug.t;
+  if (zug.dreh) { let w = zug.w0 + (Math.atan2(p[1] - t.y, p[0] - t.x) - zug.a0) * 180 / Math.PI; if (!ev.shiftKey) w = Math.round(w / 5) * 5; t.winkel = ((w % 360) + 360) % 360; }
+  else { t.x = Math.round((p[0] + zug.dx) * 2) / 2; t.y = Math.round((p[1] + zug.dy) * 2) / 2; }
+  zeichne3();
+});
+svg3.addEventListener('pointerup', () => { if (zug) { zug = null; liste3(); speichern(); } });
+
+// Formular Behälter
+const setTyp = seg('typ', S.e.typ, v => { S.e.typ = v; $('gridBox').style.display = v === 'platte' ? 'none' : ''; $('platteBox').style.display = v === 'platte' ? '' : 'none'; geaendert(); });
+const setInlay = seg('inlay', S.e.inlay, v => { S.e.inlay = v; inlayInfo(); geaendert(); });
+function inlayInfo() {
+  const v = S.e.inlay;
+  $('inlayOpt').style.display = v === 'aus' ? 'none' : '';
+  $('inlayForm').style.display = v === 'aus' ? 'none' : '';
+  $('plaVoll').style.display = v === 'aus' ? '' : 'none';
+  $('plaSchale').style.display = v === 'aus' ? 'none' : '';
+  $('inlayText').textContent = {
+    aus: 'Taschen werden direkt in den Behälter gedruckt.',
+    separat: 'Flache Schale in PLA/PETG plus TPU-Einsatz mit den Taschen – zwei Druckplatten, danach einlegen. Spiel 0,2–0,4 mm.',
+    kombiniert: 'Ein Objekt mit zwei Teilen: Schale (Filament 1) und TPU-Einsatz (Filament 2) in einem Druck – für AMS/H2C. Spiel 0 mm genügt.',
+  }[v];
+}
+function formularSetzen() {
+  const e = S.e;
+  $('rx').value = e.raster_x; $('ry').value = e.raster_y; $('hu').value = e.hoehe_u;
+  $('pb').value = e.platte_b; $('pt').value = e.platte_t; $('ph').value = e.platte_h;
+  $('boden').value = e.boden; $('tol').value = e.toleranz; $('name').value = e.name;
+  $('spiel').value = e.inlay_spiel; $('tpuB').value = e.tpu_boden;
+}
+const feld = (id, key, autoAus = false) => $(id).onchange = () => {
+  const v = $(id).type === 'number' ? +$(id).value : $(id).value;
+  S.e[key] = v;
+  if (autoAus) { S.auto = false; $('auto').classList.remove('on'); }
+  if (key === 'inlay' && S.e.inlay === 'kombiniert') S.e.inlay_spiel = 0;
+  if (S.auto) autoGroesse(); zeichne3(); liste3(); speichern();
+};
+feld('rx', 'raster_x', true); feld('ry', 'raster_y', true); feld('hu', 'hoehe_u', true);
+feld('pb', 'platte_b', true); feld('pt', 'platte_t', true); feld('ph', 'platte_h', true);
+feld('boden', 'boden'); feld('tol', 'toleranz'); feld('name', 'name'); feld('spiel', 'inlay_spiel'); feld('tpuB', 'tpu_boden');
+schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
+schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });
+schalter('auto', S.auto, v => { S.auto = v; geaendert(); });
+
+// Bibliothek
+async function bibLaden() { try { S.bib = await api('/api/bibliothek'); } catch (_) { S.bib = []; } }
+function bibListe() {
+  const L = $('bibListe'); L.innerHTML = '';
+  if (!S.bib.length) { L.innerHTML = '<div class="help">Noch nichts gespeichert.</div>'; return; }
+  S.bib.forEach((b, i) => {
+    const g = grenzen(b.umriss);
+    const d = document.createElement('div'); d.className = 'item'; d.style.gridTemplateColumns = '1fr auto auto';
+    d.innerHTML = `<span></span><button class="btn klein">+</button><button class="ib" title="Aus Bibliothek löschen">✕</button>`;
+    d.querySelector('span').textContent = `${b.name} (${Math.round(g[2] - g[0])} × ${Math.round(g[3] - g[1])} mm)`;
+    d.querySelector('.btn').onclick = () => { const [w, dd] = mass(); const t = wzTeil(b.name, b.umriss, b.tiefe || 12); t.x = w / 2; t.y = dd / 2; S.teile.push(t); S.sel = t.uid; geaendert(); };
+    d.querySelector('.ib').onclick = async () => { if (!confirm(`„${b.name}“ aus der Bibliothek löschen?`)) return; S.bib.splice(i, 1); await api('/api/bibliothek', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.bib) }); bibListe(); };
+    L.appendChild(d);
+  });
+}
+
+// ---------- 4 Erzeugen / Vorschau ----------
+async function erzeugen() {
+  if (!S.teile.length) { alert('Es ist noch nichts angeordnet.'); return; }
+  const layout = {
+    werkzeuge: S.teile.filter(t => t.art === 'wz').map(t => ({ name: t.name, umriss: t.umriss, x: t.x, y: t.y, winkel: t.winkel, spiegeln: t.spiegeln, tiefe: t.tiefe })),
+    formen: S.teile.filter(t => t.art !== 'wz').map(t => ({ art: t.art, x: t.x, y: t.y, b: t.b, h: t.h, winkel: t.winkel, tiefe: t.tiefe })),
+    einstellungen: S.e,
+  };
+  busy(true, 'Erzeuge Behälter …');
+  try {
+    const r = await api('/api/erzeugen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(layout) });
+    S.ergebnis = r; freigeben();
+    const D = $('dateien'); D.innerHTML = '';
+    const sym = { '3mf': 'Bambu Studio', stl: 'STL', svg: 'Laser / Schaumstoff', dxf: 'CAD / Laser' };
+    r.dateien.forEach(f => {
+      const a = document.createElement('a'); a.className = 'file'; a.href = f.url; a.download = f.name;
+      a.innerHTML = `<span class="badge"></span><span class="n"></span><span class="s"></span>`;
+      a.querySelector('.badge').textContent = f.art.toUpperCase(); a.querySelector('.n').textContent = f.name;
+      a.querySelector('.s').textContent = `${sym[f.art] || ''} · ${f.groesse > 1e6 ? (f.groesse / 1e6).toFixed(1) + ' MB' : Math.round(f.groesse / 1e3) + ' kB'}`;
+      D.appendChild(a);
+    });
+    hinweise('expHinweise', r.hinweise);
+    const [w, d, h] = r.mass;
+    $('masse').innerHTML = `<span>Außenmaß</span><span>${r1(w)} × ${r1(d)} mm</span><span>Höhe gesamt</span><span>${r1(h)} mm</span>` + (r.inlay_dicke ? `<span>TPU-Inlay</span><span>${r1(r.inlay_dicke)} mm dick</span>` : '') + `<span>Berechnet in</span><span>${r.sekunden.toFixed(2)} s</span>`;
+    const tipps = ['Behälter: PLA oder PETG, 0,2 mm Schicht, keine Stützen nötig.'];
+    if (S.e.inlay === 'separat') tipps.push('TPU-Inlay (95A) auf eigener Platte: langsam (≈ 40 mm/s), 2–3 Wände, 15–20 % Füllung – wird weich und griffig.');
+    if (S.e.inlay === 'kombiniert') tipps.push('Kombiniert: Teil „TPU-Inlay“ ist Filament 2. TPU nicht aus dem AMS – externe Spule bzw. zweite Düse am H2C nutzen.');
+    if (S.e.magnete) tipps.push('Magnete 6 × 2 mm nach dem Druck in die Löcher kleben.');
+    $('druckTipps').innerHTML = ''; tipps.forEach(t => { const li = document.createElement('li'); li.textContent = t; $('druckTipps').appendChild(li); });
+    zeige(4);
+    await ladeVorschau(r.vorschau);
+    $('l4t').textContent = `${r1(w)} × ${r1(d)} × ${r1(h)} mm`;
+  } catch (e) { alert(e.message); }
+  busy(false);
+}
+
+// three.js
+const cv = $('cv');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.localClippingEnabled = true;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 1, 20000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, cv); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
+const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(1, -1.5, 2); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.5); dl2.position.set(-1, 1, 0.5); scene.add(dl2);
+const dunkel = matchMedia('(prefers-color-scheme: dark)').matches;
+scene.background = new THREE.Color(dunkel ? 0x38383d : 0xe8e8e8);
+let gruppe = new THREE.Group(); scene.add(gruppe);
+const schnittEbene = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+let angehoben = true, schnitt = false;
+function groesse3d() { const r = cv.parentElement.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); }
+addEventListener('resize', groesse3d);
+async function ladeVorschau(liste) {
+  scene.remove(gruppe); gruppe = new THREE.Group(); scene.add(gruppe);
+  const loader = new STLLoader();
+  for (const v of liste) {
+    const buf = await (await fetch(v.url)).arrayBuffer();
+    const geo = loader.parse(buf); geo.computeVertexNormals();
+    const tpu = v.filament === 2;
+    const mat = new THREE.MeshStandardMaterial({ color: tpu ? 0x00ae42 : (dunkel ? 0x9aa0a6 : 0xb8bcc2), roughness: tpu ? 0.85 : 0.55, metalness: 0.05, side: THREE.DoubleSide, clippingPlanes: schnitt ? [schnittEbene] : [] });
+    const m = new THREE.Mesh(geo, mat); m.userData.tpu = tpu; gruppe.add(m);
+  }
+  anheben(); passend();
+}
+function anheben() {
+  const sep = S.ergebnis && !S.ergebnis.kombiniert;
+  gruppe.children.forEach(m => {
+    if (!m.userData.tpu) return;
+    if (sep) { const zf = S.e.typ === 'platte' ? S.e.boden : 5 + S.e.boden; m.position.z = zf + (angehoben ? 25 : 0); } // separat liegt das Inlay bei z = 0
+    else m.position.z = angehoben ? 25 : 0;
+  });
+}
+function passend() {
+  const b = new THREE.Box3().expandByObject(gruppe); const c = b.getCenter(new THREE.Vector3()); const s = b.getSize(new THREE.Vector3()).length() || 100;
+  controls.target.copy(c); camera.position.set(c.x + s * 0.55, c.y - s * 0.9, c.z + s * 0.75); camera.near = s / 100; camera.far = s * 20; camera.updateProjectionMatrix();
+  schnittEbene.constant = c.y;
+}
+$('expl').onclick = () => { angehoben = !angehoben; $('expl').classList.toggle('on', angehoben); anheben(); };
+$('schnitt').onclick = () => { schnitt = !schnitt; $('schnitt').classList.toggle('on', schnitt); gruppe.children.forEach(m => { m.material.clippingPlanes = schnitt ? [schnittEbene] : []; m.material.needsUpdate = true; }); };
+(function loop() { requestAnimationFrame(loop); if (S.schritt === 4) { controls.update(); renderer.render(scene, camera); } })();
+
+// ---------- Start ----------
+laden(); formularSetzen(); setTyp(S.e.typ); setInlay(S.e.inlay); inlayInfo();
+$('gridBox').style.display = S.e.typ === 'platte' ? 'none' : ''; $('platteBox').style.display = S.e.typ === 'platte' ? '' : 'none';
+schalter('magnete', S.e.magnete, v => { S.e.magnete = v; speichern(); });
+schalter('rand', S.e.stapelrand, v => { S.e.stapelrand = v; geaendert(); });
+schalter('auto', S.auto, v => { S.auto = v; geaendert(); });
+bibLaden().then(bibListe);
+freigeben();
+</script>
+</body>
