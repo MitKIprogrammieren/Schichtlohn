@@ -178,21 +178,24 @@ const MODES = {
     ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.2,'mm/px',0.05]]],
     ['Dicke', [['min_t','Dicke min','num',0.6,'mm',0.1],['max_t','Dicke max','num',2.4,'mm',0.1],['negative','Negativ','bool',false],['interior','Glatte Seite zum Betrachter','bool',false],['blur','Glätten','num',0,'px',1]]],
     ['Rand', [['border_size','Randbreite','num',3,'mm'],['border_t','Randdicke','num',3,'mm',0.1]]],
+    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
   ], help: 'Dunkle Bildstellen werden dick, helle dünn. Große Lithophanes werden automatisch in Kacheln geteilt, die aufs Druckbett passen.' },
   relief_foto: { name: 'Foto-Relief', icon: '&#9650;', input: 'foto', groups: [
     ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
     ['Relief', [['relief_t','Reliefhöhe','num',4,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['negative','Negativ (dunkel = hoch)','bool',false],['blur','Glätten','num',1,'px',1]]],
     ['Rand', [['border_size','Randbreite','num',4,'mm'],['border_t','Randhöhe','num',4,'mm',0.5]]],
+    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
   ], help: 'Helle Bildstellen werden hoch. Gut für Wandbilder, Prägungen und CNC.' },
   relief: { name: 'Relief', icon: '&#9968;', input: 'mesh', groups: [
     ['Größe', [['size','Größte Kante','num',200,'mm'],['resolution','Auflösung','num',0.3,'mm/px',0.05]]],
     ['Relief', [['direction','Richtung','sel','+Z',['+Z','-Z','+X','-X','+Y','-Y']],['relief_t','Reliefdicke','num',8,'mm',0.5],['base_t','Sockeldicke','num',2,'mm',0.5],['bury','Begraben','num',0,'0–0,9',0.05],['negative','Negativ (Form)','bool',false]]],
     ['Rand', [['border_size','Randbreite','num',0,'mm'],['border_t','Randhöhe','num',5,'mm',0.5]]],
+    ['Kacheln', [['puzzle','Puzzle-Kante','bool',true]]],
   ], help: 'Macht aus einem 3D-Modell ein 2,5D-Relief ohne Überhänge – druckbar oder für die CNC.' },
   split: { name: 'Teilen', icon: '&#9638;', input: 'mesh', groups: [
     ['Größe', [['size','Größte Kante','num',600,'mm']]],
-    ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel'],['none','Keine']]],['dowel_d','Dübelgröße','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
-  ], help: 'Zerlegt das Modell so, dass jedes Teil in den Bauraum passt. Dübellöcher richten die Teile aus. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
+    ['Verbinder', [['connector','Art','sel','dowel',[['dowel','Dübel rund'],['dowel_sq','Dübel eckig'],['plug','Steckzapfen rund'],['plug_sq','Steckzapfen eckig'],['cone','Kegelzapfen'],['magnet','Magnete'],['none','Keine']]],['dowel_d','Größe (Dübel/Zapfen)','num',5,'mm',0.1],['depth_ratio','Tiefenverhältnis','num',2,'×',0.5],['magnet_d','Magnet Ø','num',6,'mm',0.5],['magnet_h','Magnet Höhe','num',3,'mm',0.5],['tolerance','Toleranz','num',-0.2,'mm',0.05]]],
+  ], help: 'Zerlegt das Modell so, dass jedes Teil in den Bauraum passt. Dübel werden einzeln gedruckt, Zapfen sind angedruckt, Magnete werden eingeklebt. Negative Toleranz = Loch etwas größer (für den 3D-Druck).' },
   stack: { name: 'Stack', icon: '&#9776;', input: 'mesh', groups: [
     ['Größe', [['size','Größte Kante','num',400,'mm'],['axis','Schichtrichtung','sel','Z',['X','Y','Z']]]],
     ['Material', [['sheet_t','Materialdicke','num',3,'mm',0.5],['sheet_w','Bogenbreite','num',400,'mm'],['sheet_h','Bogenhöhe','num',300,'mm']]],

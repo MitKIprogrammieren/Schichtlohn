@@ -7,10 +7,10 @@ Läuft als Web-App (z. B. auf dem Proxmox-NUC) und im Browser auf Mac, iPhone un
 
 | Modus | Eingabe | Ergebnis |
 |---|---|---|
-| Lithophane | Foto | Lithophane, positiv/negativ, Rand, glatte Seite vorn; große Bilder werden in Kacheln fürs Druckbett geteilt |
+| Lithophane | Foto | Lithophane, positiv/negativ, Rand, glatte Seite vorn; große Bilder werden in Kacheln fürs Druckbett geteilt, auf Wunsch mit Puzzle-Kante |
 | Foto-Relief | Foto | Höhenrelief (hell = hoch) mit Sockel und Rand |
 | Relief | 3D-Modell | 2,5D-Relief aus Richtung ±X/±Y/±Z, Sockel, Rand, „Begraben“, Negativ |
-| Teilen | 3D-Modell | Zerlegung nach Bauraum, Dübeltaschen, Montagereihenfolge, mehrere Drucker nach Tempo |
+| Teilen | 3D-Modell | Zerlegung nach Bauraum, Verbinder (Dübel rund/eckig, Steckzapfen rund/eckig, Kegelzapfen, Magnete), Montagereihenfolge, mehrere Drucker nach Tempo |
 | Stack | 3D-Modell | Schichten aus Plattenmaterial, Ringe, Dübellöcher, Gravur der nächsten Schicht, Teilung zu großer Konturen, Verschachtelung auf Bögen |
 | Hash | 3D-Modell | Gesteckte X- und Z-Scheiben mit Schlitzen, Toleranz für Laser/Druck |
 | Wireframe | 3D-Modell | Drahtgitter aus X/Y/Z-Schnittkurven |

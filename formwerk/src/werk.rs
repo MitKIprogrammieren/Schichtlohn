@@ -47,6 +47,9 @@ pub struct Params {
     pub dowel_d: f64,
     pub depth_ratio: f64,
     pub tolerance: f64,
+    pub magnet_d: f64,
+    pub magnet_h: f64,
+    pub puzzle: bool,
     // Stack / Hash
     pub axis: String,
     pub sheet_t: f64,
@@ -83,6 +86,9 @@ impl Default for Params {
             dowel_d: 5.0,
             depth_ratio: 2.0,
             tolerance: -0.2,
+            magnet_d: 6.0,
+            magnet_h: 3.0,
+            puzzle: false,
             axis: "Z".into(),
             sheet_t: 3.0,
             sheet_w: 400.0,
@@ -249,7 +255,7 @@ pub fn lithophane(img: &image::DynamicImage, p: &Params, relief: bool) -> Result
 fn finish_grid(out: &mut Output, g: Grid, p: &Params, prefix: &str) {
     let pr = main_printer(p);
     let (mw, mh) = (pr.x - 2.0 * p.margin, pr.y - 2.0 * p.margin);
-    let tiles = g.tiles(mw, mh);
+    let tiles = if p.puzzle && (g.width() > mw || g.height() > mh) { g.puzzle_tiles(mw, mh, 0.3) } else { g.tiles(mw, mh) };
     let cols = tiles.iter().map(|t| t.0 + 1).max().unwrap_or(1);
     let rows = tiles.iter().map(|t| t.1 + 1).max().unwrap_or(1);
     let tris: usize = tiles.iter().map(|t| t.2.tris.len()).sum();
@@ -264,7 +270,8 @@ fn finish_grid(out: &mut Output, g: Grid, p: &Params, prefix: &str) {
         .collect();
     // Vorschau aus verkleinertem Raster, gleiche Kachelung
     let small = g.downsample(250_000);
-    for (c, r, m) in small.tiles(mw, mh) {
+    let small_tiles = if p.puzzle && (g.width() > mw || g.height() > mh) { small.puzzle_tiles(mw, mh, 0.3) } else { small.tiles(mw, mh) };
+    for (c, r, m) in small_tiles {
         out.preview.push((format!("Kachel {}-{}", c + 1, r + 1), m));
     }
     emit_parts(out, parts, p, prefix);
@@ -376,10 +383,34 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
     if n_cells == 1 {
         out.warnings.push("Das Modell passt in einem Stück auf die Platte – es wird nicht geteilt.".into());
     }
-    // Dübeltaschen je Schnittebene vorab bestimmen
-    let use_conn = p.connector != "none" && p.dowel_d > 0.0 && p.depth_ratio > 0.0;
-    let hole_r = (p.dowel_d - p.tolerance) * 0.5;
-    let depth = p.dowel_d * p.depth_ratio * 0.5;
+    // Verbinder je Schnittebene vorab bestimmen
+    let kind = p.connector.as_str();
+    let magnet = kind == "magnet";
+    let use_conn = kind != "none" && if magnet { p.magnet_d > 0.0 && p.magnet_h > 0.0 } else { p.dowel_d > 0.0 && p.depth_ratio > 0.0 };
+    let square = kind.ends_with("_sq");
+    let r = p.dowel_d * 0.5;
+    let clr = (-p.tolerance).max(0.0) * 0.5; // Spiel je Seite
+    let depth = if magnet { p.magnet_h + 0.1 } else { p.dowel_d * p.depth_ratio * 0.5 };
+    let proto = |c: P2| -> Pocket {
+        let side = |radius, ext, end_scale| section::Side { radius, ext, end_scale };
+        match kind {
+            "plug" | "plug_sq" => Pocket { center: c, square, lo: side(r, -depth, 1.0), hi: side(r + clr, depth + 0.4, 1.0) },
+            "cone" => {
+                let top = r * 0.45;
+                let hs = (top + clr) / (r + clr);
+                Pocket { center: c, square: false, lo: side(r, -depth, top / r), hi: side(r + clr, depth + 0.4, hs) }
+            }
+            "magnet" => {
+                let mr = p.magnet_d * 0.5 + clr.max(0.1);
+                Pocket { center: c, square: false, lo: side(mr, depth, 1.0), hi: side(mr, depth, 1.0) }
+            }
+            _ => {
+                let hr = (p.dowel_d - p.tolerance) * 0.5;
+                Pocket { center: c, square, lo: side(hr, depth, 1.0), hi: side(hr, depth, 1.0) }
+            }
+        }
+    };
+    let hole_r = proto([0.0, 0.0]).max_radius() * if square { 1.42 } else { 1.0 };
     let mut pockets: Vec<Vec<Vec<Pocket>>> = vec![vec![]; 3];
     let mut n_pockets = 0usize;
     for a in 0..3 {
@@ -404,7 +435,7 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
                             && above.iter().any(|b| b.contains(q) && b.boundary_dist(q) > hole_r + 0.8)
                     });
                     for c in spots {
-                        list.push(Pocket { center: c, radius: hole_r, depth });
+                        list.push(proto(c));
                     }
                 }
             }
@@ -505,15 +536,31 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
     if tiny > 0 {
         out.stat("Kleinstteile", tiny);
     }
-    if use_conn {
-        out.stat("Dübel", n_pockets);
-        let pin_d = p.dowel_d;
-        let pin_l = (2.0 * depth - 1.0).max(1.0);
-        let mut pin = cylinder(pin_d * 0.5, pin_l, 32);
-        pin.place_on_origin();
-        out.files.push(("duebel.stl".into(), pin.to_stl("Duebel")));
-        out.stat("Dübel je", format!("Ø {:.1} × {:.1} mm", pin_d, pin_l).replace('.', ","));
-    }
+    let conn_text = match kind {
+        "dowel" | "dowel_sq" => {
+            let pin_l = (2.0 * depth - 1.0).max(1.0);
+            let mut pin = if square {
+                export::extrude(&[rect_poly(-r, -r, r, r)], pin_l, &|q, z| [q[0], q[1], z])
+            } else {
+                cylinder(r, pin_l, 32)
+            };
+            pin.place_on_origin();
+            out.files.push(("duebel.stl".into(), pin.to_stl("Duebel")));
+            out.stat("Dübel", n_pockets);
+            let form = if square { format!("{:.1} × {:.1}", p.dowel_d, p.dowel_d) } else { format!("Ø {:.1}", p.dowel_d) };
+            out.stat("Dübel je", format!("{form} × {:.1} mm", pin_l).replace('.', ","));
+            format!("Dübel: {n_pockets} Stück, siehe duebel.stl. Tipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.")
+        }
+        "plug" | "plug_sq" | "cone" => {
+            out.stat(if kind == "cone" { "Kegelzapfen" } else { "Steckzapfen" }, n_pockets);
+            format!("{n_pockets} Zapfen sind direkt angedruckt (immer am Teil links/vorne/unten der Schnittfläche). Zapfen nach oben drucken oder Stützen nutzen.")
+        }
+        "magnet" => {
+            out.stat("Magnete", format!("{} ({} Paare)", n_pockets * 2, n_pockets));
+            format!("Magnete: {} Stück Ø {:.0} × {:.0} mm ({} Paare). Vor dem Einkleben die Polung prüfen – gegenüberliegende Magnete müssen sich anziehen!", n_pockets * 2, p.magnet_d, p.magnet_h, n_pockets)
+        }
+        _ => String::new(),
+    };
     // Vorschau: leicht auseinandergezogen
     let total = mesh_center(&parts);
     for (name, m) in &parts {
@@ -553,8 +600,8 @@ pub fn split(mesh: &Mesh, p: &Params) -> Result<Output> {
     if nx > 1 {
         txt.push_str(&format!("{step}. Alle Scheiben in X-Richtung verbinden.\n"));
     }
-    if use_conn {
-        txt.push_str(&format!("\nDübel: {n_pockets} Stück, siehe duebel.stl. Tipp: Filament Ø 1,75 mm geht als Dübel, wenn die Dübelgröße 1,7 mm ist.\n"));
+    if use_conn && !conn_text.is_empty() {
+        txt.push_str(&format!("\n{conn_text}\n"));
     }
     out.files.push(("montage.txt".into(), txt.into_bytes()));
     emit_parts(&mut out, parts, p, "teile");

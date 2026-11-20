@@ -339,12 +339,64 @@ pub fn push_facing(m: &mut Mesh, a: V3, b: V3, c: V3, want: V3) {
     }
 }
 
-/// Dübeltasche (Kreis in der Schnittebene)
+/// Eine Seite eines Verbinders: Tasche ins Teil hinein (ext > 0) oder Zapfen aus dem Teil heraus (ext < 0)
+#[derive(Clone, Copy, Debug)]
+pub struct Side {
+    pub radius: f64,
+    pub ext: f64,
+    /// Maßstab des Endrings (1 = gerade, < 1 = kegelig)
+    pub end_scale: f64,
+}
+
+/// Verbinder in der Schnittebene: untere Seite (lo) und obere Seite (hi)
 #[derive(Clone, Copy, Debug)]
 pub struct Pocket {
     pub center: P2,
-    pub radius: f64,
-    pub depth: f64,
+    pub square: bool,
+    pub lo: Side,
+    pub hi: Side,
+}
+
+impl Pocket {
+    pub fn max_radius(&self) -> f64 {
+        self.lo.radius.max(self.hi.radius)
+    }
+}
+
+pub fn ring_for(c: P2, r: f64, square: bool) -> Vec<P2> {
+    if square {
+        vec![[c[0] - r, c[1] - r], [c[0] + r, c[1] - r], [c[0] + r, c[1] + r], [c[0] - r, c[1] + r]]
+    } else {
+        circle(c, r, 32)
+    }
+}
+
+/// Tasche oder Zapfen an einen Ring in der Ebene anbauen. `s` = Richtung entlang der Achse (+1/-1).
+fn feature(m: &mut Mesh, ring: &[P2], center: P2, axis: usize, val: f64, s: f64, len: f64, end_scale: f64, plug: bool) {
+    let end = val + s * len;
+    let mut axv = [0.0; 3];
+    axv[axis] = 1.0;
+    let cap_dir = if plug { s } else { -s };
+    let want_cap = [axv[0] * cap_dir, axv[1] * cap_dir, axv[2] * cap_dir];
+    let n = ring.len();
+    let endp = |q: P2| [center[0] + (q[0] - center[0]) * end_scale, center[1] + (q[1] - center[1]) * end_scale];
+    let ce = to3(center, axis, end);
+    for i in 0..n {
+        let (a, b) = (ring[i], ring[(i + 1) % n]);
+        let p0 = to3(a, axis, val);
+        let p1 = to3(b, axis, val);
+        let q0 = to3(endp(a), axis, end);
+        let q1 = to3(endp(b), axis, end);
+        let mid = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
+        let mut rad2 = [mid[0] - center[0], mid[1] - center[1]];
+        if !plug {
+            rad2 = [-rad2[0], -rad2[1]];
+        }
+        let rad = sub(to3(rad2, axis, 0.0), to3([0.0, 0.0], axis, 0.0));
+        push_facing(m, p0, p1, q1, rad);
+        push_facing(m, p0, q1, q0, rad);
+        push_facing(m, ce, q0, q1, want_cap);
+    }
 }
 
 pub fn circle(c: P2, r: f64, n: usize) -> Vec<P2> {
@@ -385,47 +437,42 @@ pub fn cut(mesh: &Mesh, axis: usize, val: f64, pockets: &[Pocket]) -> (Mesh, Mes
         other.push(p, a, b);
         other.push(p, b, q);
     }
-    // Deckel
-    let mut polys = loops_to_polys(chain(segments(mesh, axis, val)));
-    let circ_n = 24;
-    let mut used_pockets: Vec<(Pocket, Vec<P2>)> = Vec::new();
+    // Deckel (unten und oben getrennt, weil Taschen und Zapfen verschieden groß sein können)
+    let base = loops_to_polys(chain(segments(mesh, axis, val)));
+    let mut polys_lo = base.clone();
+    let mut polys_hi = base.clone();
+    let mut used: Vec<(Pocket, Vec<P2>, Vec<P2>)> = Vec::new();
     for pk in pockets {
-        if let Some(poly) = polys.iter_mut().find(|p| p.contains(pk.center) && p.boundary_dist(pk.center) > pk.radius + 0.3) {
-            let ring = circle(pk.center, pk.radius, circ_n);
-            poly.holes.push(ring.clone());
-            used_pockets.push((*pk, ring));
+        if let Some(i) = base.iter().position(|p| p.contains(pk.center) && p.boundary_dist(pk.center) > pk.max_radius() * if pk.square { 1.42 } else { 1.0 } + 0.3) {
+            let rl = ring_for(pk.center, pk.lo.radius, pk.square);
+            let rh = ring_for(pk.center, pk.hi.radius, pk.square);
+            polys_lo[i].holes.push(rl.clone());
+            polys_hi[i].holes.push(rh.clone());
+            used.push((*pk, rl, rh));
         }
     }
     let mut up = [0.0; 3];
     up[axis] = 1.0;
     let down = [-up[0], -up[1], -up[2]];
-    for poly in &polys {
+    for poly in &polys_lo {
         for tri in poly.triangulate() {
-            let (a, b, c) = (to3(tri[0], axis, val), to3(tri[1], axis, val), to3(tri[2], axis, val));
-            push_facing(&mut lo, a, b, c, up);
-            push_facing(&mut hi, a, b, c, down);
+            push_facing(&mut lo, to3(tri[0], axis, val), to3(tri[1], axis, val), to3(tri[2], axis, val), up);
         }
     }
-    // Taschen: Wand + Boden
-    for (pk, ring) in &used_pockets {
-        for (m, sign) in [(&mut lo, -1.0), (&mut hi, 1.0)] {
-            let bottom = val + sign * pk.depth;
-            let n = ring.len();
-            let cb = to3(pk.center, axis, bottom);
-            for i in 0..n {
-                let p0 = to3(ring[i], axis, val);
-                let p1 = to3(ring[(i + 1) % n], axis, val);
-                let q0 = to3(ring[i], axis, bottom);
-                let q1 = to3(ring[(i + 1) % n], axis, bottom);
-                let mid = [(ring[i][0] + ring[(i + 1) % n][0]) * 0.5, (ring[i][1] + ring[(i + 1) % n][1]) * 0.5];
-                let inward2 = [pk.center[0] - mid[0], pk.center[1] - mid[1]];
-                let inward = sub(to3(inward2, axis, 0.0), to3([0.0, 0.0], axis, 0.0));
-                push_facing(m, p0, p1, q1, inward);
-                push_facing(m, p0, q1, q0, inward);
-                // Boden zeigt zur Schnittebene hin
-                let want = if sign < 0.0 { up } else { down };
-                push_facing(m, cb, q0, q1, want);
+    for poly in &polys_hi {
+        for tri in poly.triangulate() {
+            push_facing(&mut hi, to3(tri[0], axis, val), to3(tri[1], axis, val), to3(tri[2], axis, val), down);
+        }
+    }
+    // Taschen und Zapfen
+    for (pk, rl, rh) in &used {
+        for (m, side, ring, side_sign) in [(&mut lo, pk.lo, rl, -1.0), (&mut hi, pk.hi, rh, 1.0)] {
+            if side.ext == 0.0 {
+                continue;
             }
+            let plug = side.ext < 0.0;
+            let s = if plug { -side_sign } else { side_sign };
+            feature(m, ring, pk.center, axis, val, s, side.ext.abs(), side.end_scale, plug);
         }
     }
     (lo, hi)
