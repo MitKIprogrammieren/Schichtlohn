@@ -184,8 +184,8 @@ fn erkennen_rechnen(id: &str, p: &ErkennenParams, bytes: &[u8]) -> anyhow::Resul
     let mut jpg = Vec::new();
     image::DynamicImage::ImageRgb8(pap.bild.clone()).write_to(&mut std::io::Cursor::new(&mut jpg), image::ImageFormat::Jpeg)?;
     std::fs::write(dir.join("papier.jpg"), &jpg)?;
-    let (karte, kanten) = erkennung::objektkarte(&pap.bild);
-    let (maske, schwelle) = erkennung::werkzeuge(&karte, &kanten, w, h, p.empfindlichkeit.clamp(0.0, 1.0), p.min_flaeche.max(20.0));
+    let (karte, kanten, schatten) = erkennung::objektkarte(&pap.bild);
+    let (maske, schwelle) = erkennung::werkzeuge(&karte, &kanten, &schatten, w, h, p.empfindlichkeit.clamp(0.0, 1.0), p.min_flaeche.max(20.0));
     let mut umrisse = erkennung::umrisse(&maske, w, h, [0.0, 0.0], "klassisch");
     let mut hinweise = Vec::new();
     let mut ki_fehler = None;
@@ -355,8 +355,8 @@ async fn nachbessern(Json(p): Json<NachbessernParams>) -> Response {
         let bild = image::open(dir.join("papier.png")).map_err(|_| anyhow::anyhow!("Foto nicht mehr vorhanden – bitte neu erkennen."))?.to_rgb8();
         let u = if p.art == "klassisch" {
             let (w, h) = (bild.width() as usize, bild.height() as usize);
-            let (karte, kanten) = erkennung::objektkarte(&bild);
-            let (m, _) = erkennung::werkzeuge(&karte, &kanten, w, h, p.empfindlichkeit.unwrap_or(0.5), 20.0);
+            let (karte, kanten, schatten) = erkennung::objektkarte(&bild);
+            let (m, _) = erkennung::werkzeuge(&karte, &kanten, &schatten, w, h, p.empfindlichkeit.unwrap_or(0.5), 20.0);
             let r = p.rahmen;
             let (x0, y0, x1, y1) = ((r[0] * PX_MM) as usize, (r[1] * PX_MM) as usize, (r[2] * PX_MM) as usize, (r[3] * PX_MM) as usize);
             let teil: Vec<bool> = (0..w * h).map(|i| m[i] && (x0..=x1).contains(&(i % w)) && (y0..=y1).contains(&(i / w))).collect();

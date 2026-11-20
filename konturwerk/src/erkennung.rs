@@ -508,7 +508,7 @@ fn gradient(a: &[f32], w: usize, h: usize) -> Vec<f32> {
 
 /// Objektwahrscheinlichkeit je Pixel (0..1: dunkler oder farbiger als das Papier) und Kantenstärke.
 /// Kanten finden auch blanken Stahl auf weißem Papier; weiche Schatten haben kaum Kanten.
-pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>) {
+pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>, Vec<bool>) {
     let (w, h) = (b.width() as usize, b.height() as usize);
     let l: Vec<f32> = b.pixels().map(|p| lum(&p.0)).collect();
     let s: Vec<f32> = b.pixels().map(|p| sat(&p.0)).collect();
@@ -554,7 +554,66 @@ pub fn objektkarte(b: &RgbImage) -> (Vec<f32>, Vec<f32>) {
     let gl = gradient(&weich(&norm, w, h), w, h);
     let gs = gradient(&weich(&s, w, h), w, h);
     let kanten: Vec<f32> = gl.iter().zip(&gs).map(|(a, b)| a.max(b * 0.8)).collect();
-    (karte, kanten)
+    (karte, kanten, schattenkarte(b, &norm, &l, t, w, h))
+}
+
+const FARB_GRENZE: f32 = 0.04;
+/// höchstens so tief (Pixel) wird Schatten vom Rand her abgeschält – 6 mm
+const SCHATTEN_TIEFE: u32 = (6.0 * PX_MM) as u32;
+
+/// Schatten: mäßig dunkler als das Papier, glatt (keine Struktur) und in Papierfarbe
+fn schattenkarte(b: &RgbImage, norm: &[f32], l: &[f32], t: f32, w: usize, h: usize) -> Vec<bool> {
+    // Papierfarbe (Farbanteile r, g, b) aus hellen Pixeln
+    let mut pf = [0f64; 3];
+    let mut n = 0f64;
+    for (i, p) in b.pixels().enumerate().step_by(5) {
+        if l[i] > t {
+            let su = p.0[0] as f64 + p.0[1] as f64 + p.0[2] as f64 + 1.0;
+            for k in 0..3 {
+                pf[k] += p.0[k] as f64 / su;
+            }
+            n += 1.0;
+        }
+    }
+    let pf = pf.map(|v| (v / n.max(1.0)) as f32);
+    // örtliche Streuung der normierten Helligkeit (5×5)
+    let mut s1 = vec![0f32; w * h];
+    let mut s2 = vec![0f32; w * h];
+    for i in 0..w * h {
+        s1[i] = norm[i];
+        s2[i] = norm[i] * norm[i];
+    }
+    let kasten = |a: &[f32]| -> Vec<f32> {
+        let mut t = vec![0f32; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                let mut su = 0.0;
+                for dx in -2i64..=2 {
+                    su += a[y * w + (x as i64 + dx).clamp(0, w as i64 - 1) as usize];
+                }
+                t[y * w + x] = su / 5.0;
+            }
+        }
+        let mut o = vec![0f32; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                let mut su = 0.0;
+                for dy in -2i64..=2 {
+                    su += t[(y as i64 + dy).clamp(0, h as i64 - 1) as usize * w + x];
+                }
+                o[y * w + x] = su / 5.0;
+            }
+        }
+        o
+    };
+    let (m1, m2) = (kasten(&s1), kasten(&s2));
+    b.pixels().enumerate().map(|(i, p)| {
+        let dunkel = 1.0 - norm[i];
+        let streu = (m2[i] - m1[i] * m1[i]).max(0.0).sqrt();
+        let su = p.0[0] as f32 + p.0[1] as f32 + p.0[2] as f32 + 1.0;
+        let fa = (0..3).map(|k| (p.0[k] as f32 / su - pf[k]).abs()).sum::<f32>();
+        dunkel > 0.05 && dunkel < 0.62 && streu < 0.035 && fa < FARB_GRENZE
+    }).collect()
 }
 
 fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
@@ -580,7 +639,7 @@ fn loesen(mut a: [[f64; 6]; 6], mut b: [f64; 6]) -> Option<[f64; 6]> {
 
 /// Maske → Werkzeugkandidaten. Kräftige Bereiche (dunkel/farbig) plus deutliche Kanten,
 /// Lücken bis ca. 4 mm schließen, Innenflächen füllen. `empfindlichkeit` 0..1 (0,5 = normal)
-pub fn werkzeuge(karte: &[f32], kanten: &[f32], w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
+pub fn werkzeuge(karte: &[f32], kanten: &[f32], schatten: &[bool], w: usize, h: usize, empfindlichkeit: f64, min_flaeche_mm2: f64) -> (Vec<bool>, f32) {
     let f = (1.5 - empfindlichkeit) as f32;
     let hoch = (otsu(karte, 0.0, 1.0).clamp(0.2, 0.45) * f).clamp(0.08, 0.7);
     let kante = (0.04 * f).clamp(0.015, 0.1);
@@ -604,7 +663,97 @@ pub fn werkzeuge(karte: &[f32], kanten: &[f32], w: usize, h: usize, empfindlichk
         }
     }
     loecher_fuellen(&mut m, w, h);
-    (m, hoch)
+    // je Werkzeug einzeln größere Lücken/Kerben schließen (bis ca. 8 mm), ohne Nachbarn zu verbinden
+    let r2 = (4.0 * PX_MM) as usize;
+    let (lab, gr) = komponenten(&m, w, h);
+    let mut grenzen = vec![(usize::MAX, usize::MAX, 0usize, 0usize); gr.len()];
+    for i in 0..w * h {
+        let l = lab[i] as usize;
+        if l > 0 {
+            let (x, y) = (i % w, i / w);
+            let g = &mut grenzen[l];
+            g.0 = g.0.min(x); g.1 = g.1.min(y); g.2 = g.2.max(x); g.3 = g.3.max(y);
+        }
+    }
+    let mut aus = m.clone();
+    for l in 1..gr.len() {
+        let (x0, y0, x1, y1) = grenzen[l];
+        if x1 < x0 {
+            continue;
+        }
+        let (bx, by) = (x0.saturating_sub(r2 + 2), y0.saturating_sub(r2 + 2));
+        let (ex, ey) = ((x1 + r2 + 3).min(w), (y1 + r2 + 3).min(h));
+        let (cw, ch) = (ex - bx, ey - by);
+        let teil: Vec<bool> = (0..cw * ch).map(|i| lab[(i / cw + by) * w + i % cw + bx] as usize == l).collect();
+        let mut z = morph(&teil, cw, ch, r2, true);
+        loecher_fuellen(&mut z, cw, ch);
+        let z = morph(&z, cw, ch, r2, false);
+        for i in 0..cw * ch {
+            if z[i] {
+                let gi = (i / cw + by) * w + i % cw + bx;
+                // nur freie Fläche ergänzen, nie in ein anderes Werkzeug hinein
+                if lab[gi] == 0 || lab[gi] as usize == l {
+                    aus[gi] = true;
+                }
+            }
+        }
+    }
+    // nie in den Randstreifen des Blatts wachsen
+    for i in 0..w * h {
+        if !innen(i) {
+            aus[i] = false;
+        }
+    }
+    // Schatten vom Papier her abschälen: alles Schattenartige, das von außen erreichbar ist, gehört nicht zum Werkzeug
+    let mut weg = vec![false; w * h];
+    let mut tiefe = vec![0u32; w * h];
+    let mut st: std::collections::VecDeque<usize> = Default::default();
+    for i in 0..w * h {
+        if !aus[i] {
+            let (x, y) = (i % w, i / w);
+            for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+                if nx < w && ny < h {
+                    let j = ny * w + nx;
+                    if aus[j] && schatten[j] && !weg[j] {
+                        weg[j] = true;
+                        tiefe[j] = 1;
+                        st.push_back(j);
+                    }
+                }
+            }
+        }
+    }
+    while let Some(i) = st.pop_front() {
+        if tiefe[i] >= SCHATTEN_TIEFE {
+            continue;
+        }
+        let (x, y) = (i % w, i / w);
+        for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+            if nx < w && ny < h {
+                let j = ny * w + nx;
+                if aus[j] && schatten[j] && !weg[j] {
+                    weg[j] = true;
+                    tiefe[j] = tiefe[i] + 1;
+                    st.push_back(j);
+                }
+            }
+        }
+    }
+    for i in 0..w * h {
+        if weg[i] {
+            aus[i] = false;
+        }
+    }
+    // Kantenband am Übergang Werkzeug/Schatten glätten, Krümel entfernen
+    aus = morph(&morph(&aus, w, h, 2, false), w, h, 2, true);
+    let (lab, gr) = komponenten(&aus, w, h);
+    for i in 0..w * h {
+        if aus[i] && gr[lab[i] as usize] < min_px {
+            aus[i] = false;
+        }
+    }
+    loecher_fuellen(&mut aus, w, h);
+    (aus, hoch)
 }
 
 /// Umrisse aller Komponenten einer Maske (Pixelraster → mm, Ursprung oben links)

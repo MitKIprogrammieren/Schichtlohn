@@ -394,10 +394,20 @@ async function erkennen(ecken = null) {
     const r = await api('/api/erkennen', { method: 'POST', body: fd });
     const alt = ecken ? S.umrisse : [];
     S.erk = r; S.rahmen = r.ecken.map(p => [...p]); fotoLaden(r.foto_bild);
+    // bei neuem Rahmen: Name, Tiefe und Haken vom alten Umriss mit der größten Überdeckung übernehmen – jeden alten nur einmal
+    const ueber = (a, b) => { const x = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), y = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); if (x <= 0 || y <= 0) return 0; const f = q => (q[2] - q[0]) * (q[3] - q[1]); return x * y / (f(a) + f(b) - x * y); };
+    const paare = [];
+    r.umrisse.forEach((u, i) => alt.forEach((a, j) => { const q = ueber(u.grenzen, a.grenzen); if (q > 0.3) paare.push([q, i, j]); }));
+    paare.sort((a, b) => b[0] - a[0]);
+    const zu = new Map(), vergeben = new Set();
+    for (const [, i, j] of paare) if (!zu.has(i) && !vergeben.has(j)) { zu.set(i, alt[j]); vergeben.add(j); }
+    const namen = new Set([...zu.values()].map(v => v.name));
+    let nr = 1;
     S.umrisse = r.umrisse.map((u, i) => {
-      // bei neuem Rahmen: Name, Tiefe und Haken vom passenden alten Umriss übernehmen
-      const g = u.grenzen, v = alt.find(a => { const cx = (a.grenzen[0] + a.grenzen[2]) / 2, cy = (a.grenzen[1] + a.grenzen[3]) / 2; return cx > g[0] && cx < g[2] && cy > g[1] && cy < g[3]; });
-      return { ...u, aktiv: v ? v.aktiv : true, tiefe: v ? v.tiefe : 12, name: v ? v.name : u.name, farbe: v ? v.farbe : FARBEN[i % FARBEN.length] };
+      const v = zu.get(i);
+      let name = v ? v.name : null;
+      if (!name) { while (namen.has(`Werkzeug ${nr}`)) nr++; name = `Werkzeug ${nr}`; namen.add(name); }
+      return { ...u, aktiv: v ? v.aktiv : true, tiefe: v ? v.tiefe : 12, name, farbe: v ? v.farbe : FARBEN[i % FARBEN.length] };
     });
     S.selU = null;
     const h = [...(r.hinweise || [])]; if (r.ki_fehler) h.unshift(r.ki_fehler);
