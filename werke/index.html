@@ -61,8 +61,10 @@
   .pz:last-child{border-bottom:0}
   .pz .v{color:var(--mute);font:12px ui-monospace,Menlo,monospace;text-align:right;word-break:break-all}
   .sich{font-size:11px;padding:1px 6px;border-radius:6px;background:#ff6b5e22;color:var(--off);margin-left:6px;white-space:nowrap}
-  .fenster.gross{width:min(1000px,100%)}
-  .tbox{height:62vh;background:#16161a;border:1px solid var(--line);border-radius:12px;padding:6px;overflow:hidden}
+  .fenster.gross{width:min(1400px,100%);height:min(900px,92vh);display:flex;flex-direction:column;overflow:hidden}
+  .tbox{flex:1;min-height:0;background:#16161a;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .tbox .xterm{height:100%;padding:8px 4px 8px 10px}
+  .tbox .xterm-viewport{background:#16161a!important}
   .tasten .knopf{padding:6px 10px;font-size:12.5px}.tasten .knopf.an{background:var(--acc);border-color:var(--acc);color:#fff}
   .leer{color:var(--mute2);font-size:13px;margin:14px 0;text-align:center}
   .knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
