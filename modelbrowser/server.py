@@ -729,7 +729,10 @@ def katalog_3dsets(aid, kategorie="models", mit_anleitung=True):
             war_da = os.path.isdir(o)
             os.makedirs(os.path.join(o, "Daten"), exist_ok=True)
             bilder = [b.get("src") for b in p.get("images") or [] if b.get("src")]
-            if not any(d["name"].startswith("galerie_") for d in dateien(os.path.join(o, "Bilder"))):
+            if len([d for d in dateien(os.path.join(o, "Bilder")) if d["name"].startswith("galerie_")]) < min(len(bilder), 40):
+                for d in dateien(os.path.join(o, "Bilder")):
+                    if d["name"].startswith("galerie_"):
+                        os.remove(os.path.join(o, "Bilder", d["name"]))
                 if bilder_laden(bilder[:40], os.path.join(o, "Bilder")):
                     for d in dateien(os.path.join(o, "Bilder")):
                         if d["name"].startswith("bild_"):
