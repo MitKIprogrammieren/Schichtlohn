@@ -411,6 +411,8 @@ def seite_ablegen(html_bytes, p=None, m=None, url=""):
     d = daten_aus_html(html)
     if "3dsets.com" in (url or ""):
         dreidsets_daten(html, d, url)
+    elif "youmagine.com" in (url or ""):
+        youmagine_daten(html, d)
     p = p or plattform_aus_url(url)
     m = m or d["titel"] or "Neues Modell"
     o = pfad(p, m)
@@ -780,6 +782,39 @@ def dreidsets_daten(html, d, url):
         d["version"] = cl[0]["version"] or cl[0]["name"]
         d["version_datum"] = cl[0]["datum"]
         d["version_schluessel"] = cl[0]["name"] + "|" + cl[0]["datum"]
+
+
+def div_inhalt(html, start):
+    """Inhalt des <div>, das bei start beginnt (verschachtelte divs mitgezählt)."""
+    i = html.find(">", start) + 1
+    tiefe, pos = 1, i
+    for m in re.finditer(r"<(/?)div\b", html[i:]):
+        tiefe += -1 if m.group(1) else 1
+        if tiefe == 0:
+            return html[i:i + m.start()]
+    return html[i:i + 50000]
+
+
+def youmagine_daten(html, d):
+    """YouMagine: Bildergalerie, Beschreibung und Designer aus der Seite (Dateien gibt es nur angemeldet)."""
+    gal = []
+    for u in re.findall(r'data-yslider-url=["\']?([^"\' >]+)', html):
+        u = u if u.startswith("http") else "https://youmagine.com" + u
+        if u not in gal:
+            gal.append(u)
+    if gal:
+        d["galerie"] = gal[:40]
+    m = re.search(r'<div[^>]*class=["\']?prose max-w-none["\' >]', html)
+    if m:
+        d["beschreibung"] = saeubern(div_inhalt(html, m.start())) or d["beschreibung"]
+    t = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    if t:
+        d["titel"] = titel_sauber(re.sub(r"<[^>]+>", "", t.group(1)).strip()) or d["titel"]
+    a = re.search(r'href=["\']?/users/([\w.-]+)["\' >][^<]*(?:<[^>]+>\s*)*([^<]{2,40})', html)
+    if a and not d.get("autor"):
+        d["autor"] = a.group(1)
+    if re.search(r">\s*Giveaway\s*<", html):
+        d["tags"] = list(dict.fromkeys((d.get("tags") or []) + ["kostenlos"]))
 
 
 def anleitung_sichern(o, titel):
