@@ -996,8 +996,13 @@ BILD_ENDUNGEN = (".jpg", ".jpeg", ".png", ".webp")
 
 
 def nas_version(name):
-    m = re.search(r"[_\s-]v(?:ersion)?\s*(\d+(?:\.\d+)*)", name, re.I) or re.search(r"v(\d+\.\d+(?:\.\d+)*)", name, re.I)
-    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+    n = re.sub(r"\.(zip|rar|7z|stl|3mf|step|stp|obj|pdf)$", "", name, flags=re.I)
+    n = re.sub(r"-\d{8}T\d{6}Z-\d+-\d+$", "", n)
+    treffer = re.findall(r"(?:^|[_\s-]|\d)v(?:ersion)?\s*(\d+(?:\.\d+)+|\d+(?=$|[_\s-]))", n, re.I)
+    treffer = [t for t in treffer if not re.fullmatch(r"8", t) or "." in t] if re.search(r"v8[_\s-]?engine", n, re.I) else treffer
+    if not treffer:
+        treffer = re.findall(r"v(\d+\.\d+(?:\.\d+)*)", n, re.I)
+    return tuple(int(x) for x in treffer[-1].split(".")) if treffer else ()
 
 
 def nas_titel(name):
@@ -1626,6 +1631,16 @@ def update_schleife():
         time.sleep(24 * 3600)
 
 
+class StillerServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        import sys
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, TimeoutError)):
+            return  # Browser hat die Verbindung geschlossen – kein Fehler
+        super().handle_error(request, client_address)
+
+
 class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -2010,4 +2025,4 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(DATEN, ".tmp"), exist_ok=True)
     threading.Thread(target=update_schleife, daemon=True).start()
     print(f"ModelBrowser läuft auf Port {PORT}, Ablage {DATEN}", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()
+    StillerServer(("0.0.0.0", PORT), H).serve_forever()
