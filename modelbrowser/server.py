@@ -1054,6 +1054,24 @@ def nas_zuordnen_3dsets(eintraege, modelle):
                 wert += 0.3  # alle Wörter des Modellnamens stehen im Dateinamen
             if wert > bestwert or (wert == bestwert and best and len(mt) < len(modelle[best])):
                 best, bestwert = ordner, wert
+        if bestwert < 0.55:  # zweiter Versuch: seltene gemeinsame Begriffe zählen (Zubehör heißt in Datei und Shop oft anders)
+            import math
+            stamm = lambda w: {x[:5].rstrip("s") for x in w if not x.isdigit()} - {"acces", "upgra", "kit", "with", "ranch", "landy", "bambo", "4x4"}
+            alle = {o2: stamm(woerter(t2)) for o2, t2 in modelle.items()}
+            df = {}
+            for ws in alle.values():
+                for x in ws:
+                    df[x] = df.get(x, 0) + 1
+            fs = stamm(fw)
+            kand = []
+            for ordner, ms in alle.items():
+                gem = fs & ms
+                punkte = sum(math.log(len(alle) / df[x]) for x in gem if df[x] <= 2)
+                if punkte >= 1.5:
+                    kand.append((punkte, -len(modelle[ordner]), ordner))
+            if kand:
+                kand.sort(reverse=True)
+                best, bestwert = kand[0][2], 0.56
         erg.setdefault(best if bestwert >= 0.55 else None, []).append(e)
     return erg
 
