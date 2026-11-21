@@ -1222,6 +1222,11 @@ def nas_scan(aid=None, mit_vorschau=True):
                 versionen = [v for v in (nas_version(e["name"]) for e in l) if v]
                 eigene = "v" + ".".join(map(str, max(versionen))) if versionen else ""
                 aktuell = version_tupel(i.get("version") or "")
+                cl = i.get("changelog") or []
+                if cl and version_tupel(cl[0].get("name") or ""):
+                    aktuell = version_tupel(cl[0]["name"])  # neu berechnen (ältere Einträge lasen z. B. „V8“ als Version)
+                    if i.get("version") != "v" + ".".join(map(str, aktuell)):
+                        info_setzen(o, version="v" + ".".join(map(str, aktuell)))
                 werte = {"nas": [{"name": e["name"], "pfad": e["pfad"], "groesse": e["groesse"], "zeit": e["zeit"],
                                   "ordner": e["ordner"], "inhalt": e.get("inhalt") or [], "version": "v" + ".".join(map(str, nas_version(e["name"]))) if nas_version(e["name"]) else ""}
                                  for e in l],
