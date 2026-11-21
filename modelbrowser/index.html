@@ -33,6 +33,7 @@ nav{border-right:1px solid var(--rand);overflow-y:auto;overflow-x:hidden;padding
 .pl{margin-bottom:4px}
 .pl>div:first-child{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;cursor:pointer;color:var(--txt2);font-weight:600;font-size:13px;text-transform:none}
 .pl>div:first-child:hover{background:var(--fl2)}
+.pl svg.ord{width:22px;height:22px;flex:none}
 .pl>div.gewaehlt{background:var(--gruen-bg);color:var(--txt)}
 .pl .pfeil{padding:2px 4px;margin:-2px -2px -2px -4px;border-radius:4px}.pl .pfeil:hover{background:var(--rand)}
 .pl .pfeil{transition:transform .15s;display:inline-block;width:12px}
@@ -290,7 +291,7 @@ function zeichneBaum(){
   const mods=sortiere(p.modelle.filter(passt));
   if((s||FILTER)&&!mods.length)continue;
   treffer+=mods.length;
-  h+=`<div class="pl ${ZU[p.name]&&!s&&!FILTER?'zu':''}"><div class="${ANSICHT===p.name&&!AKT?'gewaehlt':''}" onclick="plattformZeigen('${esc(p.name).replace(/'/g,"\\'")}')"><span class="pfeil" onclick="event.stopPropagation();klapp('${esc(p.name).replace(/'/g,"\\'")}')">▾</span>📁 ${esc(p.name)} <span style="margin-left:auto;font-weight:400">${p.modelle.length}</span></div><div class="mods">`;
+  h+=`<div class="pl ${ZU[p.name]&&!s&&!FILTER?'zu':''}"><div class="${ANSICHT===p.name&&!AKT?'gewaehlt':''}" onclick="plattformZeigen('${esc(p.name).replace(/'/g,"\\'")}')"><span class="pfeil" onclick="event.stopPropagation();klapp('${esc(p.name).replace(/'/g,"\\'")}')">▾</span><svg class="ord" viewBox="0 0 24 24"><defs><mask id="ordm"><path fill="#fff" d="M1.5 5.5A1.5 1.5 0 0 1 3 4h6.5l2.2 2.4H21a1.5 1.5 0 0 1 1.5 1.5v11.6A1.5 1.5 0 0 1 21 21H3a1.5 1.5 0 0 1-1.5-1.5z"/></mask></defs><g mask="url(#ordm)" fill="#19d36b"><rect y="4.0" width="24" height="2"/><rect y="6.9" width="24" height="2"/><rect y="9.8" width="24" height="2"/><rect y="12.7" width="24" height="2"/><rect y="15.6" width="24" height="2"/><rect y="18.5" width="24" height="2"/></g></svg> ${esc(p.name)} <span style="margin-left:auto;font-weight:400">${p.modelle.length}</span></div><div class="mods">`;
   for(const m of mods){
    const akt=AKT&&AKT.p===p.name&&AKT.m===m.name;
    h+=`<div class="mod ${akt?'akt':''}" data-p="${esc(p.name)}" data-m="${esc(m.name)}" onclick="oeffne(this.dataset.p,this.dataset.m)">${m.titelbild?`<img loading="lazy" src="${durl(p.name,m.name,'Bilder',m.titelbild)}" alt="">`:'<div class="leer"></div>'}<div class="t"><div class="n">${esc(m.name)}</div><div class="z">${m.dateien} Dateien · ${m.bilder} Bilder${marken(m)}</div></div></div>`;
