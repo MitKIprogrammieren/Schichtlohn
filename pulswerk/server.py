@@ -79,6 +79,88 @@ def container():
     return sorted(erg, key=lambda x: -(x["cpu"] or 0))
 
 
+# ---------- Verlauf: läuft immer mit, auch wenn keine Seite offen ist ----------
+DATEN = os.environ.get("DATEN", "/daten")
+VERLAUF_DATEI = os.path.join(DATEN, "verlauf.json")
+KURZ = []          # alle 5 s, letzte Stunde: [zeit, cpu, temp, rx, tx]
+LANG = []          # je Minute, 30 Tage:     [zeit, cpu, temp, rx, tx, temp_max]
+MINUTE = []
+
+
+def prozessor_temp(t):
+    t = [x for x in (t or []) if -20 < x.get("grad", -999) < 130]
+    for x in t:
+        if "package" in x.get("name", "").lower():
+            return x["grad"]
+    kerne = [x["grad"] for x in t if x.get("quelle") == "coretemp"]
+    return max(kerne) if kerne else None
+
+
+def verlauf_laden():
+    try:
+        with open(VERLAUF_DATEI) as f:
+            LANG.extend(json.load(f)[-43200:])
+    except (OSError, ValueError):
+        pass
+
+
+def verlauf_sichern():
+    try:
+        os.makedirs(DATEN, exist_ok=True)
+        with open(VERLAUF_DATEI + ".tmp", "w") as f:
+            json.dump(LANG, f, separators=(",", ":"))
+        os.replace(VERLAUF_DATEI + ".tmp", VERLAUF_DATEI)
+    except OSError:
+        pass
+
+
+def verlauf_schleife():
+    gesichert = time.time()
+    while True:
+        try:
+            with urllib.request.urlopen(SENSOR, timeout=3) as r:
+                d = json.loads(r.read())
+            p = [round(time.time()), d.get("cpu"), prozessor_temp(d.get("temperaturen")), d.get("netz_rx"), d.get("netz_tx")]
+            with SPERRE:
+                KURZ.append(p)
+                del KURZ[:-720]
+                MINUTE.append(p)
+                if p[0] // 60 != MINUTE[0][0] // 60:
+                    alt = MINUTE[:-1]
+                    del MINUTE[:-1]
+                    if alt:
+                        mittel = lambda i: round(sum(x[i] or 0 for x in alt) / len(alt), 1)
+                        temps = [x[2] for x in alt if x[2] is not None]
+                        LANG.append([alt[0][0] // 60 * 60, mittel(1), round(sum(temps) / len(temps), 1) if temps else None,
+                                     round(mittel(3)), round(mittel(4)), max(temps) if temps else None])
+                        del LANG[:-43200]
+        except Exception:
+            pass
+        if time.time() - gesichert > 300:
+            verlauf_sichern()
+            gesichert = time.time()
+        time.sleep(5)
+
+
+def verlauf(bereich):
+    jetzt = time.time()
+    with SPERRE:
+        if bereich == "1h":
+            return {"punkte": list(KURZ), "schritt": 5}
+        sek = {"6h": 6 * 3600, "24h": 86400, "7t": 7 * 86400, "30t": 30 * 86400}.get(bereich, 86400)
+        daten = [x for x in LANG if x[0] >= jetzt - sek]
+    # auf höchstens ~400 Punkte zusammenfassen (Mittel, Temperatur-Spitze bleibt erhalten)
+    n = max(1, len(daten) // 400)
+    erg = []
+    for i in range(0, len(daten), n):
+        g = daten[i:i + n]
+        temps = [x[2] for x in g if x[2] is not None]
+        spitzen = [x[5] for x in g if x[5] is not None]
+        erg.append([g[0][0], round(sum(x[1] or 0 for x in g) / len(g), 1), round(sum(temps) / len(temps), 1) if temps else None,
+                    round(sum(x[3] or 0 for x in g) / len(g)), round(sum(x[4] or 0 for x in g) / len(g)), max(spitzen) if spitzen else None])
+    return {"punkte": erg, "schritt": 60 * n}
+
+
 def werte():
     try:
         with urllib.request.urlopen(SENSOR, timeout=2) as r:
@@ -104,7 +186,10 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         pfad = self.path.split("?")[0]
-        if pfad == "/api/werte":
+        if pfad == "/api/verlauf":
+            b = (self.path.split("bereich=")[1].split("&")[0] if "bereich=" in self.path else "1h")
+            self.senden(200, json.dumps(verlauf(b)).encode(), "application/json")
+        elif pfad == "/api/werte":
             self.senden(200, json.dumps(werte()).encode(), "application/json")
         elif pfad in ("/", "/index.html"):
             self.senden(200, lesen(HTML).encode(), "text/html; charset=utf-8")
@@ -120,5 +205,7 @@ class StillerServer(ThreadingHTTPServer):
 
 
 if __name__ == "__main__":
-    print(f"Pulswerk auf Port {PORT}, Messdienst {SENSOR}", flush=True)
+    verlauf_laden()
+    threading.Thread(target=verlauf_schleife, daemon=True).start()
+    print(f"Pulswerk auf Port {PORT}, Messdienst {SENSOR}, Verlauf: {len(LANG)} Minuten", flush=True)
     StillerServer(("0.0.0.0", PORT), H).serve_forever()

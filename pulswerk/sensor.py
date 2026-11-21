@@ -102,6 +102,36 @@ def temperaturen():
     return erg, luefter
 
 
+def prozesse():
+    """CPU-Zeit aller Prozesse (Host und Gäste teilen sich den Kernel): {pid: (name, ticks, ctid)}."""
+    erg = {}
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        st = lesen(f"/proc/{d}/stat", "")
+        if not st:
+            continue
+        try:
+            name = st[st.index("(") + 1:st.rindex(")")]
+            felder = st[st.rindex(")") + 2:].split()
+            ticks = int(felder[11]) + int(felder[12])
+        except (ValueError, IndexError):
+            continue
+        cg = lesen(f"/proc/{d}/cgroup", "")
+        m = re.search(r"/lxc/(\d+)/", cg) or re.search(r"/qemu\.slice/(\d+)\.scope", cg)
+        erg[d] = (name, ticks, int(m.group(1)) if m else 0)
+    return erg
+
+
+def kern_gruppen():
+    """Welche Rechen-Threads gehören zu welchem echten Kern (Hyper-Threading)."""
+    gruppen = {}
+    for p in sorted(glob.glob("/sys/devices/system/cpu/cpu[0-9]*/topology/core_id")):
+        n = int(re.search(r"cpu(\d+)/", p).group(1))
+        gruppen.setdefault(int(lesen(p, "0")), []).append(n)
+    return [gruppen[k] for k in sorted(gruppen)]
+
+
 def gaeste():
     """Gäste (LXC und VMs) mit ihren cgroups."""
     erg = []
@@ -121,6 +151,8 @@ def gaeste():
 
 def mess_schleife():
     kerne = os.cpu_count() or 1
+    hz = os.sysconf("SC_CLK_TCK")
+    gruppen = kern_gruppen()
     alt = None
     while True:
         jetzt = time.time()
@@ -128,13 +160,30 @@ def mess_schleife():
         ges, leer = zeiten[0]
         rx, tx = netz()
         g = gaeste()
+        pr = prozesse()
         if alt:
             dt = jetzt - alt["zeit"]
             d_ges = ges - alt["ges"]
             cpu = 100 * (1 - (leer - alt["leer"]) / d_ges) if d_ges else 0
-            je_kern = []
+            je_thread = []
             for (g1, l1), (g0, l0) in zip(zeiten[1:], alt["zeiten"][1:]):
-                je_kern.append(round(100 * (1 - (l1 - l0) / (g1 - g0)), 1) if g1 > g0 else 0)
+                je_thread.append(100 * (1 - (l1 - l0) / (g1 - g0)) if g1 > g0 else 0)
+            # je echtem Kern: Mittel seiner Threads
+            je_kern = [round(sum(je_thread[t] for t in grp if t < len(je_thread)) / len(grp), 1) for grp in gruppen] or \
+                [round(x, 1) for x in je_thread]
+            namen = {x["id"]: x["name"] for x in g}
+            top = []
+            for pid, (name, ticks, ct) in pr.items():
+                vorher = alt["pr"].get(pid)
+                if vorher and vorher[0] == name and ticks > vorher[1]:
+                    top.append({"name": name, "gast": namen.get(ct, "Proxmox" if not ct else str(ct)),
+                                "cpu": round((ticks - vorher[1]) / hz / dt / kerne * 100, 1)})
+            sammel = {}
+            for t in top:
+                k = (t["name"], t["gast"])
+                sammel[k] = sammel.get(k, 0) + t["cpu"]
+            top = sorted(({"name": k[0], "gast": k[1], "cpu": round(v, 1)} for k, v in sammel.items()),
+                         key=lambda x: -x["cpu"])[:8]
             vorher = {x["id"]: x["usec"] for x in alt["gaeste"]}
             gl = [{"id": x["id"], "name": x["name"], "ram": x["ram"],
                    "cpu": round(max(0, x["usec"] - vorher.get(x["id"], x["usec"])) / (dt * 1e6 * kerne) * 100, 1)}
@@ -143,13 +192,13 @@ def mess_schleife():
                    (z.split(":", 1) for z in lesen("/proc/meminfo").splitlines())}
             temps, luefter = temperaturen()
             with SPERRE:
-                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern,
+                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern, prozesse=top,
                              last=[float(x) for x in lesen("/proc/loadavg").split()[:3]],
                              ram=mem["MemTotal"] - mem["MemAvailable"], ram_max=mem["MemTotal"],
                              netz_rx=round((rx - alt["rx"]) * 8 / dt), netz_tx=round((tx - alt["tx"]) * 8 / dt),
                              temperaturen=temps, luefter=luefter, gpu=dict(GPU),
                              gaeste=sorted(gl, key=lambda x: -x["cpu"]))
-        alt = {"zeit": jetzt, "ges": ges, "leer": leer, "zeiten": zeiten, "rx": rx, "tx": tx, "gaeste": g}
+        alt = {"zeit": jetzt, "ges": ges, "leer": leer, "zeiten": zeiten, "pr": {k: (v[0], v[1]) for k, v in pr.items()}, "rx": rx, "tx": tx, "gaeste": g}
         time.sleep(1)
 
 
