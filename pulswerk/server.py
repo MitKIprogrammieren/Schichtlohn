@@ -19,6 +19,7 @@ SENSOR = os.environ.get("SENSOR", "http://192.168.1.5:9105/werte")
 HTML = os.environ.get("HTML", os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
 CG = os.environ.get("CG", "/cg")
 SOCK = "/var/run/docker.sock"
+NETZ = os.environ.get("NETZ", "http://127.0.0.1:8098").rstrip("/")
 NAMEN = {"zeit": 0, "namen": {}}
 ALT = {}
 SPERRE = threading.Lock()
@@ -190,6 +191,9 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        if self.path.startswith("/api/netz/"):
+            n = int(self.headers.get("Content-Length") or 0)
+            return self.senden(*netz_weiter("POST", self.path, self.rfile.read(min(n, 10000))))
         if self.path.split("?")[0] == "/api/turbo":
             n = int(self.headers.get("Content-Length") or 0)
             try:
@@ -202,6 +206,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         pfad = self.path.split("?")[0]
+        if pfad.startswith("/api/netz/"):
+            return self.senden(*netz_weiter("GET", self.path))
         if pfad == "/api/verlauf":
             b = (self.path.split("bereich=")[1].split("&")[0] if "bereich=" in self.path else "1h")
             self.senden(200, json.dumps(verlauf(b)).encode(), "application/json")
@@ -223,6 +229,19 @@ def turbo(an):
         return e.code, json.dumps({"ok": False, "text": "Messdienst lehnt ab – bitte Messdienst aktualisieren"}).encode()
     except Exception as e:
         return 502, json.dumps({"ok": False, "text": "Messdienst nicht erreichbar"}).encode()
+
+
+def netz_weiter(methode, pfad, daten=None):
+    """Reicht /api/netz/* an die Netzwerk-App (ntopng + AdGuard) weiter."""
+    req = urllib.request.Request(NETZ + "/api/" + pfad[len("/api/netz/"):], data=daten, method=methode,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return r.status, r.read(), r.headers.get("Content-Type") or "application/json"
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(), "application/json"
+    except Exception:
+        return 502, b'{"ok":false,"fehler":"Netzwerk-App nicht erreichbar"}', "application/json"
 
 
 class StillerServer(ThreadingHTTPServer):

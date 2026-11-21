@@ -80,6 +80,36 @@ h3.unter{font-size:13px;font-weight:600;color:var(--txt2);margin:18px 0 4px}
 .schalter i{position:absolute;top:3px;left:3px;width:28px;height:28px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px #0006}
 .schalter.an{background:var(--gruen)}.schalter.an i{left:27px}
 .schalter:disabled{opacity:.5}
+
+main{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+main>section{display:grid;gap:14px}main>section[hidden]{display:none}
+nav.unten{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:#1b1b1d;border-top:1px solid var(--rand);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+nav.unten button{flex:1;background:none;border:0;color:var(--txt3);font:600 12px "IBM Plex Sans",-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;position:relative}
+nav.unten svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav.unten svg circle{fill:currentColor;stroke:none}
+nav.unten button.an{color:var(--gruen2)}
+nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--gruen2)}
+.zeile2{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--rand)}
+.zeile2:first-child{border-top:0;padding-top:0}
+.av{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);grid-row:span 2;position:relative}
+.zn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zu{font-size:12px;color:var(--txt3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zw{font-weight:700;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.zr{font-size:12px;color:var(--txt3);text-align:right;white-space:nowrap}
+.zb{grid-column:2/4;height:6px;border-radius:3px;background:var(--fl2);overflow:hidden;margin-top:4px}.zb div{height:100%;background:linear-gradient(90deg,#6aa9ff,#19d36b);border-radius:3px}
+.leer{color:var(--txt3);font-size:14px}
+.mehr,.knopf{display:block;width:100%;margin-top:10px;border:0;border-radius:12px;padding:11px;font:600 14px inherit;cursor:pointer}
+.mehr{background:var(--fl2);color:var(--txt)}
+.knopf{background:var(--gruen);color:#fff}
+.feld{display:block;width:100%;margin-bottom:8px;background:#1f1f22;border:1px solid var(--rand);border-radius:12px;padding:11px 12px;color:var(--txt);font:inherit;font-size:16px;outline:none;-webkit-appearance:none}
+.feld:focus{border-color:var(--gruen)}
+a.link{display:inline-block;margin-top:12px;color:var(--gruen2);font-size:14px;font-weight:600;text-decoration:none}
+.log{max-height:520px;overflow:auto;-webkit-overflow-scrolling:touch}
+.lmin{position:sticky;top:0;background:var(--fl);font:600 12px "IBM Plex Sans",sans-serif;color:var(--txt3);padding:10px 0 4px;z-index:1}
+.zeile2.block .zn{color:var(--rot);text-decoration:line-through}
+.zeile2.block .av{--c:var(--rot)!important}
+.chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
+#nKurve{height:170px}
 .hinweis{background:#3a3222;border-color:#5b4a1f;color:#f6dca6;font-size:14px}
 .hinweis code{background:#00000040;padding:1px 5px;border-radius:4px}
 details summary{cursor:pointer;color:var(--txt2);font-size:13px}
@@ -89,10 +119,11 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 <body>
 <header>
 <svg viewBox="0 0 48 48"><rect x="11" y="11" width="26" height="26" rx="5" fill="none" stroke="#4c4c53" stroke-width="2.2"/><g stroke="#4c4c53" stroke-width="2.2" stroke-linecap="round"><path d="M17 5v6M24 5v6M31 5v6M17 37v6M24 37v6M31 37v6M5 17h6M5 24h6M5 31h6M37 17h6M37 24h6M37 31h6"/></g><path d="M7 25h10l3-7 4.5 13 3.5-9 2.5 3H41" fill="none" stroke="#00ae42" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-<h1>Pulswerk<small>So geht's dem NUC</small></h1>
+<h1>Pulswerk<small id="unterzeile">So geht's dem NUC</small></h1>
 <div id="live"><i></i><span>verbinde …</span></div>
 </header>
 <main>
+<section id="s-nuc">
 <div id="hinweis" class="karte hinweis" hidden></div>
 
 <div class="karte zustand"><div class="ampel" id="ampel">✓</div><div><b id="zTitel">–</b><span id="zText"></span></div></div>
@@ -134,7 +165,51 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 <div class="karte">
  <details><summary>Alle Messwerte für Technikfreunde</summary><div class="roh" id="roh"></div></details>
 </div>
+</section>
+
+<section id="s-netz" hidden>
+<div class="karte zustand"><div class="ampel" id="nAmpel">✓</div><div><b id="nTitel">–</b><span id="nText"></span></div></div>
+<div class="fragen">
+ <div class="karte frage"><div class="q">Gerade herunter</div><div class="a" id="nDown" style="--f:var(--blau)">–</div><div class="d">ins Heimnetz</div></div>
+ <div class="karte frage"><div class="q">Gerade hoch</div><div class="a" id="nUp" style="--f:var(--gruen2)">–</div><div class="d">ins Internet</div></div>
+ <div class="karte frage"><div class="q">Heute insgesamt</div><div class="a" id="nHeute">–</div><div class="d" id="nMonat"></div></div>
+ <div class="karte frage"><div class="q">Geräte im Netz</div><div class="a" id="nOnline">–</div><div class="d">gerade aktiv</div></div>
+</div>
+<div class="karte">
+ <h2>Datenverkehr · letzte 24 Stunden</h2>
+ <div class="lg"><span style="--c:#6aa9ff">herunter</span><span style="--c:#19d36b">hoch</span></div>
+ <canvas id="nKurve"></canvas>
+</div>
+<div class="karte"><h2>Wer braucht heute am meisten?</h2><div id="nTop"></div></div>
+<div class="karte"><h2>Diesen Monat</h2><div id="nMon"></div><a class="link" href="api/netz/export.csv">Stundenwerte als Tabelle (CSV) laden</a></div>
+<div class="karte"><h2>Meldungen</h2><div id="nWarn"></div><div class="erkl" id="nGrenze"></div></div>
+</section>
+
+<section id="s-prot" hidden>
+<div class="karte">
+ <h2>Welche Seiten wurden aufgerufen?</h2>
+ <select id="pFilter" class="feld"><option value="">Alle Geräte</option></select>
+ <div class="tabs" id="pTabs"><button data-a="" class="an">Alle <span id="pAlle"></span></button><button data-a="b">Blockiert <span id="pBlock"></span></button></div>
+ <div id="pLog" class="log"></div>
+</div>
+<div class="karte" id="pAg" hidden>
+ <h2>AdGuard verbinden</h2>
+ <div class="erkl" style="margin:-6px 0 10px">Damit hier die aufgerufenen Seiten erscheinen.</div>
+ <input id="pAgU" class="feld" placeholder="Benutzername" autocomplete="off"><input id="pAgP" class="feld" type="password" placeholder="Passwort">
+ <button class="knopf" id="pAgOk">Verbinden</button><div class="erkl" id="pAgMsg"></div>
+</div>
+<div class="karte">
+ <h2>Geräte benennen</h2>
+ <select id="pIp" class="feld"></select><input id="pName" class="feld" placeholder="Neuer Name, z. B. „Handy Lisa“">
+ <button class="knopf" id="pOk">Speichern</button><div class="erkl" id="pMsg"></div>
+</div>
+</section>
 </main>
+<nav class="unten">
+ <button data-s="nuc" class="an"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>NUC</button>
+ <button data-s="netz"><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1.2"/></svg>Netzwerk</button>
+ <button data-s="prot"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Protokoll</button>
+</nav>
 <script>
 const $=id=>document.getElementById(id);
 const VERLAUF=[];const NETZ=[];const MAX=150;
@@ -269,6 +344,78 @@ $('tSchalter').onclick=turboSchalten;
 addEventListener('resize',()=>{zeichnen();netzZeichnen()});
 holen();setInterval(holen,2000);
 verlaufHolen();setInterval(()=>{if(BEREICH==='1h'||Date.now()%60000<10000)verlaufHolen()},10000);
+
+// ================= Netzwerk & Protokoll =================
+let SEITE='nuc',NETZD=null,pFilter='',pAnsicht='',monAlle=false;
+const UNTER={nuc:"So geht's dem NUC",netz:'Heimnetz & Internet',prot:'Aufgerufene Seiten'};
+const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const FARB=['#6aa9ff','#19d36b','#c58bff','#f2b84b','#ff8a6b'];
+const farbe=t=>{let h=0;for(const c of String(t))h=(h*31+c.charCodeAt(0))|0;return FARB[Math.abs(h)%FARB.length]};
+const gross=b=>b>=1e9?z(b/1e9,1)+' GB':b>=1e6?z(b/1e6,0)+' MB':z(b/1e3,0)+' kB';
+const mbitS=b=>{const v=b/1e6;return v>=100?z(v,0)+' Mbit/s':v>=1?z(v,1)+' Mbit/s':z(b/1e3,0)+' kbit/s'};
+function kurzN(n){n=String(n||'');if(/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(n))return 'Gerät '+n.slice(0,4);if(/^100\.\d+\.\d+\.\d+$/.test(n))return 'Unterwegs ·'+n.split('.').pop();return n}
+const anfang=n=>(kurzN(n).replace(/^[^A-Za-zÄÖÜäöü0-9]+/,'')[0]||'?').toUpperCase();
+function seite(s){SEITE=s;['nuc','netz','prot'].forEach(k=>$('s-'+k).hidden=k!==s);
+ document.querySelectorAll('nav.unten button').forEach(b=>b.classList.toggle('an',b.dataset.s===s));
+ $('unterzeile').textContent=UNTER[s];scrollTo(0,0);if(s!=='nuc')netzHolen();else{zeichnen();netzZeichnen()}
+ try{localStorage.setItem('pw_seite',s)}catch(e){}}
+document.querySelectorAll('nav.unten button').forEach(b=>b.onclick=()=>seite(b.dataset.s));
+function geraetZeile(r,wert,unter,anteil){return `<div class="zeile2"><div class="av" style="--c:${farbe(r.ip)}">${esc(anfang(r.name))}</div><div class="zn">${esc(kurzN(r.name))}</div><div class="zw">${wert}</div><div class="zu">${esc(r.ip)}</div><div class="zr">${unter||''}</div>${anteil!=null?`<div class="zb"><div style="width:${Math.max(2,anteil)}%"></div></div>`:''}</div>`}
+function netzKurve(v){const c=$('nKurve'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;
+ c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);x.font='11px sans-serif';x.fillStyle='#7c7c84';
+ if(!v||!v.length){x.fillText('Daten sammeln sich …',10,h/2);return}
+ const U=18,t1=Date.now()/1000,t0=t1-86400,mx=Math.max(1e6,...v.map(p=>Math.max(p.down,p.up)))*1.1;
+ const X=t=>(t-t0)/86400*w,Y=b=>h-U-(h-U-6)*b/mx;
+ [1,2].forEach(i=>{const yy=Y(mx/1.1*i/2);x.strokeStyle='#3c3c42';x.beginPath();x.moveTo(0,yy);x.lineTo(w,yy);x.stroke();x.fillText(mbitS(mx/1.1*i/2),2,yy-4)});
+ [['down','#6aa9ff'],['up','#19d36b']].forEach(([k,col])=>{x.beginPath();v.forEach((p,i)=>i?x.lineTo(X(p.ts),Y(p[k])):x.moveTo(X(p.ts),Y(p[k])));
+  x.strokeStyle=col;x.lineWidth=2;x.lineJoin='round';x.stroke();x.lineTo(X(v[v.length-1].ts),h-U);x.lineTo(X(v[0].ts),h-U);x.closePath();x.fillStyle=col+'22';x.fill()});
+ x.fillStyle='#7c7c84';[0,6,12,18].forEach(hh=>{const t=t0+hh*3600,d=new Date(t*1000),tx=String(d.getHours()).padStart(2,'0')+':00';x.fillText(tx,Math.max(0,X(t)-(hh?15:0)),h-3)});
+ const j='jetzt';x.fillText(j,w-x.measureText(j).width,h-3);
+}
+function protokoll(d){
+ if(!d.dns_aktiv)return '<div class="leer">Für das Protokoll fehlt noch der AdGuard-Zugang (unten eintragen).</div>';
+ $('pAlle').textContent=d.dns.length;$('pBlock').textContent=d.dns.filter(e=>e.blockiert).length;
+ const liste=pAnsicht==='b'?d.dns.filter(e=>e.blockiert):d.dns;
+ if(!liste.length)return `<div class="leer">${pAnsicht==='b'?'Nichts blockiert.':'Noch keine Einträge.'}</div>`;
+ const g=[];for(const e of liste){const uz=new Date(e.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),l=g[g.length-1];
+  if(l&&l.uz===uz&&l.e.ip===e.ip&&l.e.domain===e.domain&&l.e.blockiert===e.blockiert)l.n++;else g.push({uz,e,n:1})}
+ let out='',zu='';
+ for(const {uz,e,n} of g){if(uz!==zu){out+=`<div class="lmin">${uz} Uhr</div>`;zu=uz}
+  const t=String(e.domain||'').split('.'),nn=t.length>2&&/^(co|com|org|net|gov|ac)$/.test(t[t.length-2])?3:2,basis=t.slice(-nn).join('.'),sub=t.length>nn?t.slice(0,-nn).join('.'):'';
+  out+=`<div class="zeile2${e.blockiert?' block':''}" title="${esc(e.domain)}"><div class="av" style="--c:${farbe(basis)}">${esc((basis[0]||'?').toUpperCase())}</div><div class="zn">${esc(basis)}</div><div class="zr">${pFilter?'':`<span class="chip" style="--c:${farbe(e.ip)}">${esc(kurzN(e.name))}</span>`}</div><div class="zu">${e.blockiert?'blockiert · ':''}${esc(sub)}</div><div class="zr">${n>1?n+'×':''}</div></div>`}
+ return out}
+function netzZeigen(d){
+ const st=d.status||{},ok=st.zustand==='aktiv';
+ const f=ok?F.gut:st.zustand==='fehler'?F.hoch:F.mittel;$('nAmpel').style.setProperty('--f',f);$('nAmpel').textContent=ok?'✓':'!';
+ $('nTitel').textContent=ok?'Netzwerk wird mitgezählt':st.zustand==='fehler'?'Mitzählen gestört':'Mitzählen startet';
+ $('nText').textContent=ok?'Die FritzBox liefert ihre Daten – alles läuft.':(st.text||'');
+ $('nDown').textContent=mbitS(d.live.down);$('nUp').textContent=mbitS(d.live.up);$('nHeute').textContent=gross(d.heute);
+ $('nMonat').textContent='Monat: '+gross(d.monat_gesamt);$('nOnline').textContent=d.online;
+ netzKurve(d.verlauf);
+ const m=Math.max(1,...d.tag.map(r=>r.rx+r.tx));
+ $('nTop').innerHTML=d.tag.length?d.tag.slice(0,6).map(r=>geraetZeile(r,gross(r.rx+r.tx),'↓ '+gross(r.rx)+' · ↑ '+gross(r.tx),(r.rx+r.tx)/m*100)).join(''):'<div class="leer">Noch keine Daten.</div>';
+ const mon=monAlle?d.monat:d.monat.slice(0,8);
+ $('nMon').innerHTML=d.monat.length?mon.map(r=>geraetZeile(r,gross(r.rx+r.tx),'↓ '+gross(r.rx)+' · ↑ '+gross(r.tx))).join('')+(d.monat.length>8?`<button class="mehr" id="nMehr">${monAlle?'Weniger zeigen':'Alle '+d.monat.length+' Geräte zeigen'}</button>`:''):'<div class="leer">Noch keine Daten.</div>';
+ if($('nMehr'))$('nMehr').onclick=()=>{monAlle=!monAlle;netzZeigen(NETZD)};
+ $('nWarn').innerHTML=d.warnungen.length?d.warnungen.slice(0,8).map(w=>{const neu=w.art==='neu',dt=new Date(w.ts*1000);
+  return `<div class="zeile2"><div class="av" style="--c:${neu?'#6aa9ff':'#f2b84b'}">${neu?'+':'!'}</div><div class="zn">${neu?'Neues Gerät':'Viel Datenverkehr'}</div><div class="zr">${dt.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div><div class="zu">${neu?esc(kurzN(w.name))+' · '+esc(w.ip):esc(String(w.text).replace(/(\d)\.(\d)/g,'$1,$2'))}</div><div class="zr">${dt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div></div>`}).join(''):'<div class="leer">Keine Meldungen – alles ruhig.</div>';
+ $('nGrenze').textContent=`Meldung aufs iPhone bei neuen Geräten und ab ${String(d.grenze_gb).replace('.',',')} GB pro Stunde und Gerät.`;
+ $('pAg').hidden=!!d.dns_aktiv;$('pLog').innerHTML=protokoll(d);
+ const opts=d.geraete.map(g=>`<option value="${esc(g.ip)}">${esc(kurzN(g.name))}${g.name!==g.ip?' · '+esc(g.ip):''}</option>`).join('');
+ const fs=$('pFilter');if(fs.options.length-1!==d.geraete.length){fs.innerHTML='<option value="">Alle Geräte</option>'+opts;fs.value=pFilter}
+ const ns=$('pIp');if(ns.options.length!==d.geraete.length){const alt=ns.value;ns.innerHTML=opts;if(alt)ns.value=alt}
+}
+async function netzHolen(){if(SEITE==='nuc')return;
+ try{NETZD=await (await fetch('api/netz/stand?ip='+encodeURIComponent(pFilter),{cache:'no-store'})).json();netzZeigen(NETZD)}
+ catch(e){$('nTitel').textContent='Netzwerk-App nicht erreichbar';$('nAmpel').style.setProperty('--f',F.hoch)}}
+document.querySelectorAll('#pTabs button').forEach(b=>b.onclick=()=>{pAnsicht=b.dataset.a;document.querySelectorAll('#pTabs button').forEach(x=>x.classList.toggle('an',x===b));if(NETZD)$('pLog').innerHTML=protokoll(NETZD)});
+$('pFilter').onchange=e=>{pFilter=e.target.value;netzHolen()};
+$('pOk').onclick=async()=>{const name=$('pName').value.trim();await fetch('api/netz/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip:$('pIp').value,name})});$('pMsg').textContent=name?'Gespeichert.':'Eigener Name entfernt.';$('pName').value='';$('pIp').innerHTML='';netzHolen()};
+$('pAgOk').onclick=async()=>{$('pAgMsg').textContent='Prüfe …';const r=await (await fetch('api/netz/adguard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:$('pAgU').value,pass:$('pAgP').value})})).json();$('pAgMsg').textContent=r.ok?'Verbunden.':'Anmeldung abgelehnt: '+(r.fehler||'');if(r.ok){$('pAgP').value='';netzHolen()}};
+setInterval(netzHolen,10000);
+addEventListener('resize',()=>{if(NETZD)netzKurve(NETZD.verlauf)});
+try{const s0=localStorage.getItem('pw_seite');if(s0&&s0!=='nuc')seite(s0)}catch(e){}
+if(location.hash==='#netz'||location.hash==='#prot')seite(location.hash.slice(1));
 </script>
 </body>
 </html>
