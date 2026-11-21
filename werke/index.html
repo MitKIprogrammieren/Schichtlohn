@@ -40,6 +40,32 @@
   .dot.off{background:var(--off)}
   .star{position:absolute;bottom:8px;right:10px;background:none;border:0;color:#4c4c53;font-size:16px;cursor:pointer;padding:2px}
   .star.on{color:var(--warn)}
+  .pikopf{display:flex;align-items:center;gap:10px;margin:22px 2px 12px;flex-wrap:wrap}
+  .pikopf h2{margin:0}
+  .knopf{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+  .knopf:hover{border-color:#4c4c53}
+  .knopf.gruen{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+  .knopf.rot{background:#ff6b5e22;border-color:#ff6b5e66;color:var(--off)}
+  .pi{padding:14px;border-radius:18px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+  .pizeile{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .marke{font-size:11.5px;padding:2px 8px;border-radius:8px;background:#4c4c5340;color:var(--mute);white-space:nowrap}
+  .marke.on{background:#00ae4226;color:#19d36b}.marke.off{background:#ff6b5e22;color:var(--off)}.marke.warn{background:#f2b84b22;color:var(--warn)}
+  .werte{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin:10px 0 4px}
+  .werte span{color:var(--mute)}.werte b{font-weight:500;text-align:right}.werte b.heiss{color:var(--off)}
+  .hin{font-size:12.5px;padding:5px 9px;border-radius:9px;margin:8px 0 2px}
+  .hin.ok{background:#00ae421a;color:#19d36b}.hin.warn{background:#f2b84b1f;color:var(--warn)}.hin.off{background:#ff6b5e1f;color:var(--off)}.hin.lauf{background:var(--panel2);color:var(--text)}
+  .leer{color:var(--mute2);font-size:13px;margin:14px 0;text-align:center}
+  .knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .schicht{position:fixed;inset:0;z-index:20;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px}
+  .schicht[hidden]{display:none}
+  .fenster{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;width:min(640px,100%);max-height:90vh;overflow:auto}
+  .fkopf{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+  .fenster pre{background:#1b1b1d;border:1px solid var(--line);border-radius:12px;padding:10px;height:50vh;overflow:auto;font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 8px}
+  .fenster label{display:block;font-size:12.5px;color:var(--mute);margin:10px 0 4px}
+  .fenster input,.fenster textarea{width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:#1b1b1d;color:var(--text);font:inherit;outline:none}
+  .fenster input:focus{border-color:var(--acc)}
+  .fenster textarea{font:12px/1.4 ui-monospace,Menlo,monospace;height:120px;resize:vertical}
+  .fenster ol{margin:6px 0;padding-left:20px;color:var(--mute);font-size:13px}
   footer{margin-top:28px;color:var(--mute2);font-size:12px;text-align:center}
 </style>
 </head>
@@ -53,8 +79,10 @@
 <div class="wrap">
   <input class="search" id="suche" placeholder="Werk suchen …" autocomplete="off">
   <div id="inhalt"></div>
-  <footer>Grüner Punkt = erreichbar · Stern = oben anheften</footer>
+  <section id="pibereich"></section>
+  <footer>Grüner Punkt = erreichbar · Stern = oben anheften · Pis über Piwerk</footer>
 </div>
+<div class="schicht" id="schicht" hidden><div class="fenster" id="fenster"></div></div>
 
 <script>
 // Logos im SchichtLohn-Stil: Form wird mit grünen Druckschichten gefüllt
@@ -113,6 +141,7 @@ function zeichne(){
   document.getElementById("zaehler").textContent =
     `${liste.length} Werke · ${netz==="lan"?"im Heimnetz":"über Tailscale"}`;
   pruefe();
+  piZeichnen();
 }
 function karte(w){
   return `<a class="card" href="${w[netz]}" target="_blank" rel="noopener" data-u="${w[netz]}">
@@ -144,7 +173,167 @@ document.querySelectorAll("#netz button").forEach(b=>{
   b.onclick=()=>{netz=b.dataset.n;speichere("werke_netz",netz);
     document.querySelectorAll("#netz button").forEach(x=>x.classList.toggle("on",x===b));zeichne();};
 });
+
+// ---------- Raspberry Pis: Status & Updates über Piwerk (Stack „piwerk“, nginx leitet /pi/ weiter) ----------
+const PIAPI = "/pi/api";
+const piBox = document.getElementById("pibereich");
+const schicht = document.getElementById("schicht"), fensterEl = document.getElementById("fenster");
+let piDaten, piSchluessel = "", logTimer = null;
+const ZUST = {online:["online","on"], kein_zugang:["kein Zugang","warn"], offline:["offline","off"],
+  ohne_ip:["keine IP",""], unbekannt:["prüfe …",""]};
+const LAUF = {update:"Update läuft …", container:"Container werden aktualisiert …", neustart:"Startet neu …", pruefen:"Sucht nach Updates …"};
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function gb(kb){return (kb/1048576).toFixed(1).replace(".",",")}
+function dauer(s){if(s==null)return "–";const t=Math.floor(s/86400),h=Math.floor(s%86400/3600);
+  return t?`${t} T ${h} h`:`${h} h ${Math.floor(s%3600/60)} min`}
+
+async function piLaden(){
+  try{const r=await fetch(PIAPI+"/pis",{cache:"no-store"}); if(!r.ok) throw 0; piDaten=await r.json();}
+  catch(e){piDaten=null}
+  piZeichnen();
+}
+function piZeichnen(){
+  const q=document.getElementById("suche").value.trim().toLowerCase();
+  if(piDaten===undefined){piBox.innerHTML=""; return;}
+  if(!piDaten){piBox.hidden=!!q; piBox.innerHTML=`<div class="pikopf"><h2>Raspberry Pis</h2></div><p class="d">Piwerk ist gerade nicht erreichbar.</p>`; return;}
+  const pis=piDaten.pis.filter(p=>!q||(p.name+" "+p.host+" raspberry pi").toLowerCase().includes(q));
+  piBox.hidden=!!q && !pis.length;
+  const on=piDaten.pis.filter(p=>p.status.zustand==="online").length;
+  piBox.innerHTML=`<div class="pikopf"><h2>Raspberry Pis</h2><span class="d">${on} von ${piDaten.pis.length} online</span><div class="grow"></div>
+    <button class="knopf" data-a="alle">Alle updaten</button><button class="knopf" data-a="neu" title="Pi hinzufügen">＋ Pi</button></div>
+    <div class="grid">${pis.map(piKarte).join("")}</div>`;
+}
+function piKarte(p){
+  const s=p.status||{}, [txt,kl]=ZUST[s.zustand]||ZUST.unbekannt, kn=[];
+  let mitte="", hinweis="";
+  if(s.zustand==="online"){
+    const r=s.ram, d=s.disk;
+    mitte=`<div class="werte">
+      <span>CPU</span><b>${s.cpu??"–"} %</b>
+      <span>Temp.</span><b class="${s.temp>=70?"heiss":""}">${s.temp!=null?String(s.temp).replace(".",",")+" °C":"–"}</b>
+      <span>RAM</span><b>${r?gb(r[0])+" / "+gb(r[1])+" GB":"–"}</b>
+      <span>Speicher</span><b>${d?Math.round(100*d[0]/d[1])+" % belegt":"–"}</b>
+      <span>Läuft seit</span><b>${dauer(s.uptime)}</b></div>`;
+    if(p.job) hinweis=`<div class="hin lauf">${LAUF[s.job]||"Läuft …"}</div>`;
+    else if(!s.sudo) hinweis=`<div class="hin warn">Updates noch nicht freigegeben</div>`;
+    else if(s.neustart) hinweis=`<div class="hin off">Neustart nötig</div>`;
+    else if(s.updates) hinweis=`<div class="hin warn">${s.updates} Update${s.updates==1?"":"s"} verfügbar</div>`;
+    else hinweis=`<div class="hin ok">Alles aktuell</div>`;
+    if(s.sudo && !p.job){
+      kn.push(`<button class="knopf ${s.updates?"gruen":""}" data-a="update">Updaten</button>`);
+      if(s.neustart) kn.push(`<button class="knopf rot" data-a="neustart">Neustart</button>`);
+      if(s.docker) kn.push(`<button class="knopf" data-a="container" title="Docker-Container aktualisieren">Container</button>`);
+      kn.push(`<button class="knopf" data-a="pruefen" title="Nach Updates suchen">Prüfen</button>`);
+    }
+    if(!s.sudo) kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
+  } else if(s.zustand==="kein_zugang"){
+    mitte=`<p class="leer">Pi ist erreichbar, aber der Schlüssel fehlt noch.</p>`;
+    kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
+  } else if(s.zustand==="ohne_ip"){
+    mitte=`<p class="leer">Noch keine IP eingetragen.</p>`;
+  } else if(s.zustand==="offline"){
+    mitte=`<p class="leer">Nicht erreichbar${s.zuletzt?"<br>zuletzt gesehen "+new Date(s.zuletzt*1000).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short"}):""}</p>`;
+  } else mitte=`<p class="leer">Wird abgefragt …</p>`;
+  if(p.letzter_job) kn.push(`<button class="knopf" data-a="log" title="Protokoll">${p.job?"Live":"Protokoll"}</button>`);
+  if(p.url) kn.push(`<a class="knopf" href="${esc(p.url)}" target="_blank" rel="noopener" title="Weboberfläche öffnen">↗</a>`);
+  kn.push(`<button class="knopf" data-a="einst" title="Einstellungen">⚙</button>`);
+  const modell=(s.modell||"").replace("Raspberry Pi","Pi").replace(/ Rev [\d.]+/,"").replace(/ Model /," ");
+  return `<div class="pi" data-id="${esc(p.id)}">
+    <div class="pizeile"><span class="t">${esc(p.name)}</span><span class="marke ${kl}">${txt}</span></div>
+    <div class="d">${esc(p.host||"IP folgt")}${modell?" · "+esc(modell):""}</div>
+    ${mitte}${hinweis}<div class="knoepfe">${kn.join("")}</div></div>`;
+}
+
+function oeffne(html){fensterEl.innerHTML=html; schicht.hidden=false;}
+function schliesse(){schicht.hidden=true; fensterEl.innerHTML=""; if(logTimer){clearInterval(logTimer); logTimer=null;}}
+schicht.addEventListener("click",e=>{ if(e.target===schicht||e.target.closest("[data-zu]")) schliesse(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!schicht.hidden) schliesse(); });
+
+async function piAktion(id,art){
+  const r=await fetch(`${PIAPI}/pis/${encodeURIComponent(id)}/${art}`,{method:"POST"});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.job){alert(j.fehler||"Das hat nicht geklappt."); return;}
+  piLaden(); return j.job;
+}
+function zeigeLog(jid,titel){
+  if(logTimer){clearInterval(logTimer); logTimer=null;}
+  oeffne(`<div class="fkopf"><b>${esc(titel)}</b><button class="knopf" data-zu>✕</button></div>
+    <pre id="logtext"></pre><div class="d" id="logstand">läuft …</div>`);
+  const pre=document.getElementById("logtext"); let ab=0;
+  const hol=async()=>{
+    try{
+      const j=await (await fetch(`${PIAPI}/job/${jid}?ab=${ab}`,{cache:"no-store"})).json();
+      if(j.fehler){document.getElementById("logstand").textContent=j.fehler; clearInterval(logTimer); logTimer=null; return;}
+      const unten=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-30;
+      pre.textContent+=j.zeilen.map(z=>z+"\n").join(""); ab=j.anzahl;
+      if(unten) pre.scrollTop=pre.scrollHeight;
+      document.getElementById("logstand").textContent=j.fertig?(j.ok?"Fertig":"Mit Fehler beendet – siehe Protokoll"):"läuft …";
+      if(j.fertig){clearInterval(logTimer); logTimer=null; piLaden();}
+    }catch(e){}
+  };
+  hol(); logTimer=setInterval(hol,1000);
+}
+function einrichtBefehl(){
+  const k=piSchluessel;
+  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && (grep -qF '${k}' ~/.ssh/authorized_keys 2>/dev/null || echo '${k}' >> ~/.ssh/authorized_keys) && chmod 600 ~/.ssh/authorized_keys && echo "$(whoami) ALL=(root) NOPASSWD:SETENV: /usr/bin/apt-get, /usr/bin/systemctl reboot, /usr/bin/docker" > /tmp/piwerk.sudo && sudo visudo -cf /tmp/piwerk.sudo && sudo install -m 440 -o root -g root /tmp/piwerk.sudo /etc/sudoers.d/piwerk && rm /tmp/piwerk.sudo && echo "Piwerk eingerichtet"`;
+}
+async function zeigeEinst(p){
+  if(!piSchluessel){try{piSchluessel=(await (await fetch(PIAPI+"/schluessel")).json()).schluessel}catch(e){}}
+  const n=p||{name:"",host:"",user:"pi",url:""};
+  oeffne(`<div class="fkopf"><b>${p?esc(p.name):"Pi hinzufügen"}</b><button class="knopf" data-zu>✕</button></div>
+    <label>Name</label><input id="f_name" value="${esc(n.name)}" placeholder="Immich">
+    <label>IP-Adresse</label><input id="f_host" value="${esc(n.host)}" placeholder="192.168.1.150" inputmode="decimal">
+    <label>Benutzer auf dem Pi</label><input id="f_user" value="${esc(n.user)}" placeholder="pi">
+    <label>Weboberfläche (optional)</label><input id="f_url" value="${esc(n.url)}" placeholder="http://192.168.1.150/">
+    <label>Einrichten – einmal auf dem Pi ausführen</label>
+    <ol><li>Im Terminal am Mac: <code id="f_ssh"></code></li><li>Diesen Befehl einfügen (fragt einmal nach dem Pi-Passwort):</li></ol>
+    <textarea id="f_cmd" readonly>${esc(piSchluessel?einrichtBefehl():"Schlüssel nicht verfügbar – Piwerk erreichbar?")}</textarea>
+    <div class="knoepfe" style="justify-content:space-between">
+      <span style="display:flex;gap:6px"><button class="knopf" id="f_kopie">Befehl kopieren</button>
+      ${p?`<button class="knopf rot" id="f_weg">Entfernen</button>`:""}</span>
+      <button class="knopf gruen" id="f_ok">Speichern</button></div>`);
+  const ssh=()=>{document.getElementById("f_ssh").textContent=`ssh ${document.getElementById("f_user").value||"pi"}@${document.getElementById("f_host").value||"IP"}`};
+  ssh(); ["f_user","f_host"].forEach(i=>document.getElementById(i).addEventListener("input",ssh));
+  document.getElementById("f_kopie").onclick=async e=>{
+    const ta=document.getElementById("f_cmd");
+    try{await navigator.clipboard.writeText(ta.value)}catch(x){ta.select(); document.execCommand("copy")}
+    e.target.textContent="Kopiert";
+  };
+  document.getElementById("f_ok").onclick=async()=>{
+    const d={id:p?.id,...Object.fromEntries(["name","host","user","url"].map(k=>[k,document.getElementById("f_"+k).value.trim()]))};
+    if(!d.name){document.getElementById("f_name").focus(); return;}
+    const r=await fetch(PIAPI+"/pis",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});
+    if(!r.ok){alert("Speichern hat nicht geklappt."); return;}
+    schliesse(); piLaden(); setTimeout(piLaden,8000);
+  };
+  if(p) document.getElementById("f_weg").onclick=async()=>{
+    if(!confirm(`${p.name} aus der Liste entfernen?`)) return;
+    await fetch(`${PIAPI}/pis/${encodeURIComponent(p.id)}`,{method:"DELETE"}); schliesse(); piLaden();
+  };
+}
+piBox.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-a]"); if(!b) return;
+  const a=b.dataset.a, id=b.closest(".pi")?.dataset.id, p=piDaten?.pis.find(x=>x.id===id);
+  if(a==="neu") return zeigeEinst(null);
+  if(a==="alle"){
+    const bereit=piDaten.pis.filter(x=>x.status.zustand==="online"&&x.status.sudo&&!x.job);
+    if(!bereit.length) return alert("Kein Pi ist gerade bereit für ein Update.");
+    if(!confirm(`${bereit.map(x=>x.name).join(", ")} jetzt updaten?`)) return;
+    await fetch(PIAPI+"/alle",{method:"POST"}); return piLaden();
+  }
+  if(!p) return;
+  if(a==="einst") return zeigeEinst(p);
+  if(a==="log") return zeigeLog(p.letzter_job,`${p.name} – Protokoll`);
+  if(a==="neustart"&&!confirm(`${p.name} jetzt neu starten?`)) return;
+  if(a==="container"&&!confirm(`Alle Docker-Container auf ${p.name} aktualisieren?`)) return;
+  const jid=await piAktion(id,a);
+  if(jid&&a!=="neustart") zeigeLog(jid,`${p.name} – ${{update:"Update",container:"Container",pruefen:"Prüfen"}[a]}`);
+});
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) piLaden(); });
+setInterval(()=>{ if(!document.hidden && schicht.hidden) piLaden(); },10000);
+
 zeichne();
+piLaden();
 </script>
 </body>
 </html>
