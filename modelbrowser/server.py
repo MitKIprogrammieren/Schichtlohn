@@ -1330,6 +1330,10 @@ def cults_zuordnen(eintraege):
         if basis != n and basis in namen_da:
             continue
         slug = karte.get(basis) or karte.get(re.sub(r"^slice ", "", basis)) or next((s2 for s2 in sorted(modelle, key=len, reverse=True) if basis.startswith(s2)), None)
+        if not slug:  # „Download all“-ZIP mit gekürztem Kurznamen: kurzname20240601-1-abc123.zip
+            k = re.match(r"(.{12,}?)\d{8}-\d+-\w+\.zip$", basis)
+            if k:
+                slug = next((s2 for s2 in modelle if s2.startswith(k.group(1))), None)
         pm = modelle.get(slug or "")
         if pm:
             paare.setdefault(pm, []).append(e)
