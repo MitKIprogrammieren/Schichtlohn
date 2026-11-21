@@ -18,7 +18,7 @@ TYPEN = {".html": "text/html; charset=utf-8", ".webp": "image/webp", ".jpg": "im
          ".json": "application/json", ".txt": "text/plain; charset=utf-8", ".stl": "model/stl",
          ".3mf": "model/3mf", ".step": "model/step", ".stp": "model/step"}
 PLATTFORMEN = {"makerworld": "MakerWorld", "printables": "Printables", "cults3d": "Cults 3D", "youmagine": "YouMagine",
-               "3dsets": "3D Sets", "thingiverse": "Thingiverse", "thangs": "Thangs", "myminifactory": "MyMiniFactory"}
+               "3dsets": "3D Sets", "stlflix": "STLFLIX", "thingiverse": "Thingiverse", "thangs": "Thangs", "myminifactory": "MyMiniFactory"}
 UA = "ModelBrowser/1.1 (privates Modellarchiv)"
 ERLAUBT = {"p", "br", "h1", "h2", "h3", "h4", "h5", "ul", "ol", "li", "b", "strong", "i", "em", "u", "a", "img",
            "blockquote", "code", "pre", "hr", "table", "thead", "tbody", "tr", "td", "th", "span", "div", "figure", "figcaption"}
@@ -404,6 +404,11 @@ def importieren(aid, url, p=None, m=None):
         text = roh.decode("utf-8", "replace")
         if re.search(r"Just a moment|cf-challenge|challenge-platform|Verify you are human", text[:200000], re.I) and len(roh) < 400000:
             raise RuntimeError("Die Seite hat den Bot-Schutz gezeigt. Bitte mit der SingleFile-Erweiterung speichern und hochladen.")
+        t = (titel_aus_html(text) or "").strip()
+        if plattform_aus_url(url) in ("STLFLIX", "3D Sets") and len(t) < 40 and \
+                re.search(r"\b(log ?in|sign ?in|sign up|anmelden|registrieren|entrar|cadastr\w*)\b", t, re.I):
+            raise RuntimeError("Die Seite zeigt nur die Anmeldung (Inhalt nur für Abonnenten). Bitte im eigenen Browser "
+                               "angemeldet mit der SingleFile-Erweiterung speichern und über ••• → „SingleFile hochladen“ einspielen.")
         a["schritt"] = "Bilder werden geladen …"
         p, m, n = seite_ablegen(roh, p, m, url=url)
         text = f"Gespeichert mit {n} Bildern"
