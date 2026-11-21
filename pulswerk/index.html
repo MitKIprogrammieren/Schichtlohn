@@ -63,7 +63,7 @@ canvas{width:100%;height:150px;display:block}
 .wer .n small{display:block;color:var(--txt3);font-weight:400;font-size:12px}
 .wer .stufe{display:flex;gap:3px;justify-content:flex-end}
 .wer .stufe i{width:14px;height:14px;border-radius:4px;background:var(--fl2)}
-.wer .stufe i.an{background:var(--gruen)}.wer .stufe i.an.m{background:var(--gelb)}.wer .stufe i.an.h{background:var(--rot)}
+.wer .stufe i.an{background:var(--gruen)}.wer .stufe i.an.m{background:var(--gelb)}.wer .stufe i.an.b{background:var(--blau)}.wer .stufe i.an.h{background:var(--rot)}
 .netzk{grid-column:1/-1}
 .pfeile{display:flex;gap:28px;margin-top:6px}
 .pfeile div{display:grid;grid-template-columns:auto auto;column-gap:8px;align-items:center}
@@ -170,17 +170,17 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 <section id="s-netz" hidden>
 <div class="karte zustand"><div class="ampel" id="nAmpel">✓</div><div><b id="nTitel">–</b><span id="nText"></span></div></div>
 <div class="fragen">
- <div class="karte frage"><div class="q">Gerade herunter</div><div class="a" id="nDown" style="--f:var(--blau)">–</div><div class="d">ins Heimnetz</div></div>
- <div class="karte frage"><div class="q">Gerade hoch</div><div class="a" id="nUp" style="--f:var(--gruen2)">–</div><div class="d">ins Internet</div></div>
- <div class="karte frage"><div class="q">Heute insgesamt</div><div class="a" id="nHeute">–</div><div class="d" id="nMonat"></div></div>
- <div class="karte frage"><div class="q">Geräte im Netz</div><div class="a" id="nOnline">–</div><div class="d">gerade aktiv</div></div>
+ <div class="karte frage"><div class="q">Wie viel los?</div><div class="a" id="nLos">–</div><div class="d" id="nLosD"></div><div class="skala"><i id="sNetz"></i></div></div>
+ <div class="karte frage"><div class="q">Heute verbraucht?</div><div class="a" id="nHeute">–</div><div class="d" id="nMonat"></div></div>
+ <div class="karte frage"><div class="q">Geräte im Netz?</div><div class="a" id="nOnline">–</div><div class="d">gerade aktiv</div></div>
+ <div class="karte frage"><div class="q">Etwas Auffälliges?</div><div class="a" id="nAuff">–</div><div class="d" id="nAuffD"></div></div>
 </div>
 <div class="karte">
  <h2>Datenverkehr · letzte 24 Stunden</h2>
  <div class="lg"><span style="--c:#6aa9ff">herunter</span><span style="--c:#19d36b">hoch</span></div>
  <canvas id="nKurve"></canvas>
 </div>
-<div class="karte"><h2>Wer braucht heute am meisten?</h2><div id="nTop"></div></div>
+<div class="karte"><h2>Wer braucht heute am meisten?</h2><div id="nTop"></div><div class="erkl">Ein Kästchen mehr heißt etwa doppelt so viel.</div></div>
 <div class="karte"><h2>Diesen Monat</h2><div id="nMon"></div><a class="link" href="api/netz/export.csv">Stundenwerte als Tabelle (CSV) laden</a></div>
 <div class="karte"><h2>Meldungen</h2><div id="nWarn"></div><div class="erkl" id="nGrenze"></div></div>
 </section>
@@ -360,7 +360,8 @@ function seite(s){SEITE=s;['nuc','netz','prot'].forEach(k=>$('s-'+k).hidden=k!==
  $('unterzeile').textContent=UNTER[s];scrollTo(0,0);if(s!=='nuc')netzHolen();else{zeichnen();netzZeichnen()}
  try{localStorage.setItem('pw_seite',s)}catch(e){}}
 document.querySelectorAll('nav.unten button').forEach(b=>b.onclick=()=>seite(b.dataset.s));
-function geraetZeile(r,wert,unter,anteil){return `<div class="zeile2"><div class="av" style="--c:${farbe(r.ip)}">${esc(anfang(r.name))}</div><div class="zn">${esc(kurzN(r.name))}</div><div class="zw">${wert}</div><div class="zu">${esc(r.ip)}</div><div class="zr">${unter||''}</div>${anteil!=null?`<div class="zb"><div style="width:${Math.max(2,anteil)}%"></div></div>`:''}</div>`}
+function kaestchen(b,max){const n=b<=0?0:Math.max(1,Math.min(5,5-Math.round(Math.log2(max/b))));return `<div class="stufe">${[1,2,3,4,5].map(i=>`<i class="${i<=n?'an b':''}"></i>`).join('')}</div>`}
+function geraetZeile(r,wert,unter,max){return `<div class="wer"><div class="n">${esc(kurzN(r.name))}<small>${wert}${unter?' · '+unter:''}</small></div>${kaestchen(r.rx+r.tx,max)}</div>`}
 function netzKurve(v){const c=$('nKurve'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;
  c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);x.font='11px sans-serif';x.fillStyle='#7c7c84';
  if(!v||!v.length){x.fillText('Daten sammeln sich …',10,h/2);return}
@@ -389,13 +390,20 @@ function netzZeigen(d){
  const f=ok?F.gut:st.zustand==='fehler'?F.hoch:F.mittel;$('nAmpel').style.setProperty('--f',f);$('nAmpel').textContent=ok?'✓':'!';
  $('nTitel').textContent=ok?'Netzwerk wird mitgezählt':st.zustand==='fehler'?'Mitzählen gestört':'Mitzählen startet';
  $('nText').textContent=ok?'Die FritzBox liefert ihre Daten – alles läuft.':(st.text||'');
- $('nDown').textContent=mbitS(d.live.down);$('nUp').textContent=mbitS(d.live.up);$('nHeute').textContent=gross(d.heute);
- $('nMonat').textContent='Monat: '+gross(d.monat_gesamt);$('nOnline').textContent=d.online;
+ const dn=d.live.down/1e6,up=d.live.up/1e6,sl=stufe(dn,30,80);
+ $('nLos').textContent={gut:dn<1?'Ruhig':'Etwas los',mittel:'Viel los',hoch:'Sehr viel los'}[sl];$('nLos').style.setProperty('--f',F[sl]);
+ $('nLosD').textContent=`↓ ${mbitS(d.live.down)} · ↑ ${mbitS(d.live.up)}`;zeiger('sNetz',pos(dn,30,80));
+ $('nHeute').textContent=gross(d.heute);$('nMonat').textContent='diesen Monat: '+gross(d.monat_gesamt);
+ $('nOnline').textContent=d.online+' Geräte';
+ const tag24=d.warnungen.filter(w=>w.ts>Date.now()/1000-86400),neuG=tag24.filter(w=>w.art==='neu').length,viel=tag24.length-neuG;
+ $('nAuff').textContent=tag24.length?(neuG?neuG+(neuG>1?' neue Geräte':' neues Gerät'):'Viel Verkehr'):'Nein';
+ $('nAuff').style.setProperty('--f',tag24.length?F.mittel:F.gut);
+ $('nAuffD').textContent=tag24.length?(viel&&neuG?'und viel Datenverkehr · ':'')+'letzte 24 Std':'alles ruhig, 24 Std';
  netzKurve(d.verlauf);
  const m=Math.max(1,...d.tag.map(r=>r.rx+r.tx));
- $('nTop').innerHTML=d.tag.length?d.tag.slice(0,6).map(r=>geraetZeile(r,gross(r.rx+r.tx),'↓ '+gross(r.rx)+' · ↑ '+gross(r.tx),(r.rx+r.tx)/m*100)).join(''):'<div class="leer">Noch keine Daten.</div>';
+ $('nTop').innerHTML=d.tag.length?d.tag.slice(0,8).map(r=>geraetZeile(r,gross(r.rx+r.tx)+' heute',(r.tx>r.rx?'schickt mehr, als es lädt':''),m)).join(''):'<div class="leer">Noch keine Daten.</div>';
  const mon=monAlle?d.monat:d.monat.slice(0,8);
- $('nMon').innerHTML=d.monat.length?mon.map(r=>geraetZeile(r,gross(r.rx+r.tx),'↓ '+gross(r.rx)+' · ↑ '+gross(r.tx))).join('')+(d.monat.length>8?`<button class="mehr" id="nMehr">${monAlle?'Weniger zeigen':'Alle '+d.monat.length+' Geräte zeigen'}</button>`:''):'<div class="leer">Noch keine Daten.</div>';
+ $('nMon').innerHTML=d.monat.length?mon.map(r=>geraetZeile(r,gross(r.rx+r.tx)+' im Monat','',Math.max(1,...d.monat.map(x=>x.rx+x.tx)))).join('')+(d.monat.length>8?`<button class="mehr" id="nMehr">${monAlle?'Weniger zeigen':'Alle '+d.monat.length+' Geräte zeigen'}</button>`:''):'<div class="leer">Noch keine Daten.</div>';
  if($('nMehr'))$('nMehr').onclick=()=>{monAlle=!monAlle;netzZeigen(NETZD)};
  $('nWarn').innerHTML=d.warnungen.length?d.warnungen.slice(0,8).map(w=>{const neu=w.art==='neu',dt=new Date(w.ts*1000);
   return `<div class="zeile2"><div class="av" style="--c:${neu?'#6aa9ff':'#f2b84b'}">${neu?'+':'!'}</div><div class="zn">${neu?'Neues Gerät':'Viel Datenverkehr'}</div><div class="zr">${dt.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div><div class="zu">${neu?esc(kurzN(w.name))+' · '+esc(w.ip):esc(String(w.text).replace(/(\d)\.(\d)/g,'$1,$2'))}</div><div class="zr">${dt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div></div>`}).join(''):'<div class="leer">Keine Meldungen – alles ruhig.</div>';
