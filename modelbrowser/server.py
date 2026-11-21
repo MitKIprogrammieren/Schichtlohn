@@ -1259,10 +1259,19 @@ def nas_scan(aid=None, mit_vorschau=True):
                     l2.sort(key=lambda e: e["name"].lower().endswith(".pdf"))
                     paare.append((sauber(re.sub(r"\.pdf$", "", nas_titel(l2[0]["name"]), flags=re.I)), l2))
             else:
+                pp = os.path.join(DATEN, p)
+                modelle = {}
+                if os.path.isdir(pp):
+                    for m in os.listdir(pp):
+                        i0 = info_lesen(os.path.join(pp, m))
+                        if i0.get("url") and i0.get("titel"):
+                            modelle[m] = i0["titel"]
+                zuordnung = nas_zuordnen_3dsets(eintraege, modelle) if modelle else {None: eintraege}
+                paare = [(k, l) for k, l in zuordnung.items() if k]
                 buendel = {}
-                for e in eintraege:
+                for e in zuordnung.get(None, []):
                     buendel.setdefault(sauber(nas_titel(e["name"])).lower(), []).append(e)
-                paare = [(sauber(nas_titel(l[0]["name"])), l) for l in buendel.values()]
+                paare += [(sauber(nas_titel(l[0]["name"])), l) for l in buendel.values()]
             geschrieben = set()
             for m, l in paare:
                 geschrieben.add(sauber(m))
@@ -1310,6 +1319,98 @@ def nas_scan(aid=None, mit_vorschau=True):
     return text
 
 
+def cults_abfrage(query, zugang=None):
+    """Cults-GraphQL (nur lesen) mit Benutzername + API-Schlüssel."""
+    import base64
+    z = zugang or (konten_lesen().get("cults") or {})
+    if not z.get("user") or not z.get("key"):
+        raise RuntimeError("Cults-Konto nicht verbunden")
+    req = urllib.request.Request("https://cults3d.com/graphql", data=json.dumps({"query": query}).encode(),
+                                 headers={"Content-Type": "application/json", "User-Agent": UA,
+                                          "Authorization": "Basic " + base64.b64encode(f'{z["user"]}:{z["key"]}'.encode()).decode()})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("Cults lehnt ab (Benutzername oder Schlüssel falsch?)" if e.code == 401 else f"Cults-Fehler {e.code}")
+    if d.get("errors"):
+        raise RuntimeError("Cults: " + "; ".join(x.get("message", "") for x in d["errors"])[:300])
+    return d["data"]
+
+
+def cults_text_html(t):
+    """Cults-Beschreibung (Text mit [link](url)) in sauberes HTML."""
+    import html as h
+    t = h.escape(t or "")
+    t = re.sub(r"\[creation [^\]]+\]", "", t)
+    t = re.sub(r"\[([^\]]{1,80})\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', t)
+    t = re.sub(r"(?<![\"=])(https?://[^\s<]+)", r'<a href="\1">\1</a>', t)
+    absaetze = [a.strip().replace("\r", "").replace("\n", "<br>") for a in re.split(r"(?:\r?\n){2,}", t) if a.strip()]
+    return "".join(f"<p>{a}</p>" for a in absaetze)
+
+
+CULTS_FELDER = """name(locale:DE) url(locale:DE) slug description(locale:DE) tags(locale:DE) updatedAt publishedAt
+    illustrations{imageUrl} creator{nick} license{name(locale:DE)} price(currency:EUR){cents}"""
+
+
+def katalog_cults(aid):
+    """Alle Cults-Käufe und -Downloads (Bestellungen) einlesen. Lädt keine Modelldateien (die API bietet keine)."""
+    a = AUFTRAEGE[aid]
+    try:
+        a["schritt"] = "Cults-Bestellungen werden geholt …"
+        modelle, off = [], 0
+        while True:
+            d = cults_abfrage("{myself{ordersBatch(limit:50,offset:%d){total results{createdAt price{cents} lines{creation{%s}}}}}}" % (off, CULTS_FELDER))
+            b = d["myself"]["ordersBatch"]
+            for o in b["results"]:
+                for l in o.get("lines") or []:
+                    if l.get("creation"):
+                        modelle.append(dict(l["creation"], gekauft=o["createdAt"][:10]))
+            off += 50
+            if off >= b["total"] or not b["results"]:
+                break
+        gruppen = {g.lower(): g for g in os.listdir(DATEN) if not g.startswith(".") and os.path.isdir(os.path.join(DATEN, g))}
+        vorhanden = {}
+        for g in gruppen.values():
+            for m in os.listdir(os.path.join(DATEN, g)):
+                u = info_lesen(os.path.join(DATEN, g, m)).get("url", "")
+                if "cults3d.com" in u:
+                    vorhanden[u.split("/")[-1]] = (g, m)
+        neu = 0
+        for k, c in enumerate(modelle, 1):
+            titel = (c.get("name") or "").strip()
+            a["schritt"] = f"{k}/{len(modelle)}: {titel} …"
+            nick = (c.get("creator") or {}).get("nick") or ""
+            p, m = vorhanden.get(c.get("slug") or "-") or (gruppen.get(nick.lower(), "Cults 3D"), sauber(titel))
+            o = pfad(p, m)
+            war_da = os.path.isdir(o)
+            os.makedirs(os.path.join(o, "Daten"), exist_ok=True)
+            bilder = [i["imageUrl"] for i in c.get("illustrations") or [] if i.get("imageUrl")]
+            if not any(d2["name"].startswith("galerie_") for d2 in dateien(os.path.join(o, "Bilder"))):
+                bilder_laden(bilder[:40], os.path.join(o, "Bilder"))
+            beschr = cults_text_html(c.get("description"))
+            guides = list(dict.fromkeys(re.findall(r"https://docs\.google\.com/presentation/d/([\w-]{20,})", c.get("description") or "")))
+            preis = ((c.get("price") or {}).get("cents") or 0) / 100
+            info_schreiben(o, url=c.get("url"), titel=titel, autor=nick, beschreibung=beschr,
+                           tags=(c.get("tags") or [])[:20] + ([("kostenlos" if not preis else f"{preis:.2f} €".replace(".", ","))]),
+                           gespeichert=time.strftime("%Y-%m-%d %H:%M"), stand=c.get("updatedAt"), quelle="Cults",
+                           gekauft=c.get("gekauft"), lizenz=(c.get("license") or {}).get("name"),
+                           anleitung=f"https://docs.google.com/presentation/d/{guides[0]}/edit" if guides else None)
+            for j, gid in enumerate(guides[:3]):
+                name = "Bauanleitung – " + titel + (f" ({j + 1})" if len(guides) > 1 else "")
+                if not os.path.exists(os.path.join(o, "Daten", sauber(name) + ".pdf")):
+                    a["schritt"] = f"{k}/{len(modelle)}: Bauanleitung für {titel} …"
+                    try:
+                        anleitung_laden(gid, os.path.join(o, "Daten"), name)
+                    except Exception as e:
+                        print("Cults-Anleitung nicht geladen:", titel, e, flush=True)
+            neu += not war_da
+            time.sleep(0.5)
+        a.update(status="fertig", schritt=f"Cults: {len(modelle)} Modelle eingelesen ({neu} neu)", plattform="Cults 3D", modell="")
+    except Exception as e:
+        a.update(status="fehler", schritt="Cults fehlgeschlagen: " + str(e))
+
+
 KONTEN = os.path.join(DATEN, ".konten.json")
 KONTO_SPERRE = threading.Lock()
 
@@ -1334,7 +1435,9 @@ def konten_status():
     k = konten_lesen()
     mw = k.get("makerworld") or {}
     return {"makerworld": {"verbunden": bool(mw.get("token")), "name": mw.get("name", ""), "geprueft": mw.get("geprueft", "")},
-            "printables": {"bald": True}, "cults": {"bald": True}}
+            "printables": {"bald": True},
+            "cults": {"verbunden": bool((k.get("cults") or {}).get("key")), "name": (k.get("cults") or {}).get("name", ""),
+                      "geprueft": (k.get("cults") or {}).get("geprueft", "")}}
 
 
 def mw_anfrage(url, token, timeout=30):
@@ -2019,11 +2122,12 @@ class H(BaseHTTPRequestHandler):
                 threading.Thread(target=update_auftrag, args=(aid, b.get("p"), b.get("m")), daemon=True).start()
                 return self.senden(200, AUFTRAEGE[aid])
             if u.path == "/api/katalog":
-                if b.get("plattform") != "3dsets":
-                    return self.senden(400, {"ok": False, "text": "Nur 3D Sets"})
+                ziel = {"3dsets": katalog_3dsets, "cults": katalog_cults}.get(b.get("plattform"))
+                if not ziel:
+                    return self.senden(400, {"ok": False, "text": "Unbekannte Plattform"})
                 aid = uuid.uuid4().hex[:10]
                 AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
-                threading.Thread(target=katalog_3dsets, args=(aid,), daemon=True).start()
+                threading.Thread(target=ziel, args=(aid,), daemon=True).start()
                 return self.senden(200, AUFTRAEGE[aid])
             if u.path == "/api/nas_scan":
                 aid = uuid.uuid4().hex[:10]
@@ -2058,6 +2162,13 @@ class H(BaseHTTPRequestHandler):
                     k.pop(b.get("plattform", ""), None)
                     konten_schreiben(k)
                     return self.senden(200, konten_status())
+                if b.get("plattform") == "cults":
+                    z = {"user": str(b.get("user") or "").strip(), "key": str(b.get("key") or "").strip()}
+                    nick = cults_abfrage("{myself{user{nick}}}", z)["myself"]["user"]["nick"]
+                    k = konten_lesen()
+                    k["cults"] = dict(z, name=nick, geprueft=time.strftime("%d.%m.%Y %H:%M"))
+                    konten_schreiben(k)
+                    return self.senden(200, dict(konten_status(), ok=True, name=nick))
                 if b.get("plattform") != "makerworld":
                     return self.senden(400, {"ok": False, "text": "Diese Plattform folgt noch."})
                 if b.get("email"):
