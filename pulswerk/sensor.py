@@ -201,6 +201,7 @@ def mess_schleife():
             # je echtem Kern: Mittel seiner Threads
             je_kern = [round(sum(je_thread[t] for t in grp if t < len(je_thread)) / len(grp), 1) for grp in gruppen] or \
                 [round(x, 1) for x in je_thread]
+            je_strang = [[round(je_thread[t], 1) for t in grp if t < len(je_thread)] for grp in gruppen]
             namen = {x["id"]: x["name"] for x in g}
             top = []
             for pid, (name, ticks, ct) in pr.items():
@@ -222,7 +223,7 @@ def mess_schleife():
                    (z.split(":", 1) for z in lesen("/proc/meminfo").splitlines())}
             temps, luefter = temperaturen()
             with SPERRE:
-                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern, prozesse=top, turbo=turbo_lesen(),
+                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern, kerne_straenge=je_strang, prozesse=top, turbo=turbo_lesen(),
                              last=[float(x) for x in lesen("/proc/loadavg").split()[:3]],
                              ram=mem["MemTotal"] - mem["MemAvailable"], ram_max=mem["MemTotal"],
                              netz_rx=round((rx - alt["rx"]) * 8 / dt), netz_tx=round((tx - alt["tx"]) * 8 / dt),

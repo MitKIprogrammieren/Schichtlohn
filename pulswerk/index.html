@@ -48,6 +48,7 @@ h2{font-size:16px;font-weight:700;margin:0 0 14px}
 .kern .kl{font-size:11px;color:var(--txt2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kern .kb{height:4px;border-radius:2px;background:var(--rand);margin-top:5px;overflow:hidden}
 .kern .kb div{height:100%;background:var(--f)}
+.kern .ks{display:flex;align-items:center;gap:5px;margin-top:4px}.kern .ks span{font-size:9px;color:var(--txt3);width:7px}.kern .ks .kb{flex:1;margin:0}
 canvas{width:100%;height:150px;display:block}
 #kurve{height:190px}
 .tabs{display:flex;gap:4px;background:var(--fl2);border-radius:12px;padding:3px;margin-bottom:10px}
@@ -243,8 +244,8 @@ function temps(t){
  const kerne=t.filter(x=>x.quelle==='coretemp'&&/core\s*\d/i.test(x.name)).sort((a,b)=>parseInt(a.name.match(/\d+/))-parseInt(b.name.match(/\d+/)));
  return {cpu,ssd,brett,kerne,alle:t};
 }
-function kernHtml(k,last){return '<div class="kerne">'+k.map((t,i)=>{const st=stufe(t.grad,65,80),l=last&&last[i]!=null?last[i]:null;
- return `<div class="kern" style="--f:${F[st]}"><div class="kn">Kern ${i+1}</div><div class="kt">${z(t.grad)} °C</div>${l!=null?`<div class="kl">${z(l)} % Arbeit</div><div class="kb"><div style="width:${Math.min(100,l)}%"></div></div>`:''}</div>`}).join('')+'</div>'}
+function kernHtml(k,last,str){return '<div class="kerne">'+k.map((t,i)=>{const st=stufe(t.grad,65,80),l=last&&last[i]!=null?last[i]:null,ss=str&&str[i]&&str[i].length>1?str[i]:null;
+ return `<div class="kern" style="--f:${F[st]}"><div class="kn">Kern ${i+1}</div><div class="kt">${z(t.grad)} °C</div>${l!=null?`<div class="kl">${ss?'Ø '+z(l)+' %':z(l)+' % Arbeit'}</div>`+(ss?ss.map((v,j)=>`<div class="ks"><span>${j?'B':'A'}</span><div class="kb"><div style="width:${Math.min(100,v)}%"></div></div></div>`).join(''):`<div class="kb"><div style="width:${Math.min(100,l)}%"></div></div>`):''}</div>`}).join('')+'</div>'+(str&&str[0]&&str[0].length>1?`<div class="erkl" style="grid-column:1/4;margin-top:4px">${k.length} Kerne mit je ${str[0].length} Strängen (A und B) – zusammen ${k.length*str[0].length}.</div>`:'')}
 function netzZeichnen(){
  const c=$('netzKurve'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;
  c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
@@ -315,7 +316,7 @@ async function holen(){
  $('zText').textContent={gut:'Nichts zu tun – der NUC hat genug Luft.',mittel:'Kein Problem, er ist nur gerade beschäftigt oder warm.',hoch:'Schau unten, wer gerade so viel arbeitet.'}[ges];
  // Temperaturen
  const zeilen=[['🧠','Prozessor','das Gehirn des NUC',T.cpu,65,80],['💾','SSD','die Festplatte',T.ssd,55,70],['🔌','Hauptplatine','die Platine darunter',T.brett,60,75]];
- $('temps').innerHTML=zeilen.filter(r=>r[3]).map(([ic,n,u,t,gg,rr])=>{const st=stufe(t.grad,gg,rr);return `<div class="temp" style="--f:${F[st]}"><div class="ic">${ic}</div><div class="n">${n}<small>${u}</small></div><div class="w">${z(t.grad)} °C<small>${{gut:'gut',mittel:'warm',hoch:'heiß'}[st]}</small></div><div class="skala"><i style="left:${pos(t.grad,gg,rr,15)}%"></i></div>${n==='Prozessor'&&T.kerne.length?kernHtml(T.kerne,d.kerne_last):''}</div>`}).join('')||'<div class="erkl">Noch keine Temperaturen.</div>';
+ $('temps').innerHTML=zeilen.filter(r=>r[3]).map(([ic,n,u,t,gg,rr])=>{const st=stufe(t.grad,gg,rr);return `<div class="temp" style="--f:${F[st]}"><div class="ic">${ic}</div><div class="n">${n}<small>${u}</small></div><div class="w">${z(t.grad)} °C<small>${{gut:'gut',mittel:'warm',hoch:'heiß'}[st]}</small></div><div class="skala"><i style="left:${pos(t.grad,gg,rr,15)}%"></i></div>${n==='Prozessor'&&T.kerne.length?kernHtml(T.kerne,d.kerne_last,d.kerne_straenge):''}</div>`}).join('')||'<div class="erkl">Noch keine Temperaturen.</div>';
  // Wer arbeitet
  const liste=[...(d.gaeste||[]),...(d.container||[]).filter(c=>!/pulswerk/.test(c.name))].map(x=>({...x,nn:nett(x.name)}));
  const ges2={};liste.forEach(x=>{const k=x.nn[0];if(!ges2[k]||(x.cpu||0)>(ges2[k].cpu||0))ges2[k]=x});
