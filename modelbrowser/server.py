@@ -313,7 +313,7 @@ def stlflix_daten(html, d):
         e = re.search(r"<h2[^>]*>\s*Filaments in this model|Filaments in this model|<h2", rest)
         stueck = rest[:e.start()] if e else rest[:60000]
         stueck = re.sub(r"^[^<]*>", "", stueck)
-        d["beschreibung"] = saeubern(stueck[:120000])
+        d["beschreibung"] = re.sub(r"^(\s*</[^>]+>)+", "", saeubern(stueck[:120000]))
     tags = []
     for muster in (r"Drop:\s*(?:<[^>]+>\s*)*([^<]{2,60})", r"STL\s*#\s*(\d+)"):
         m = re.search(muster, html)
