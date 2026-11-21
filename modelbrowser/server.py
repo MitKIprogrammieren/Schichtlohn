@@ -1202,6 +1202,123 @@ def nas_zuordnen_3dsets(eintraege, modelle):
     return erg
 
 
+# ---------- Vorschaubild aus 3D-Dateien ----------
+MAX_DREIECKE = 120000
+
+try:
+    from PIL import Image, ImageDraw
+except ImportError:  # ohne Pillow keine gezeichneten Vorschauen
+    Image = ImageDraw = None
+import io, math, struct
+
+
+
+def stl_lesen(b):
+    if b[:5].lower() == b"solid" and b"facet" in b[:2000]:
+        v = [tuple(map(float, m)) for m in re.findall(rb"vertex\s+(\S+)\s+(\S+)\s+(\S+)", b)]
+        return [v[i:i + 3] for i in range(0, len(v) - 2, 3)]
+    n = struct.unpack_from("<I", b, 80)[0]
+    n = min(n, (len(b) - 84) // 50)
+    schritt = max(1, n // MAX_DREIECKE)
+    erg = []
+    for i in range(0, n, schritt):
+        o = 84 + i * 50 + 12
+        x = struct.unpack_from("<9f", b, o)
+        erg.append((x[0:3], x[3:6], x[6:9]))
+    return erg
+
+
+def dreimf_lesen(b):
+    erg = []
+    with zipfile.ZipFile(io.BytesIO(b)) as z:
+        for n in z.namelist():
+            if not n.lower().endswith(".model"):
+                continue
+            # schnell per Regex statt kompletten XML-Baum
+            t = z.read(n)
+            for obj in re.findall(rb"<mesh>(.*?)</mesh>", t, re.S):
+                v = [tuple(map(float, m)) for m in re.findall(rb'<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"', obj)]
+                tri = re.findall(rb'<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"', obj)
+                schritt = max(1, len(tri) // MAX_DREIECKE)
+                for a, b2, c in tri[::schritt]:
+                    try:
+                        erg.append((v[int(a)], v[int(b2)], v[int(c)]))
+                    except IndexError:
+                        pass
+    return erg
+
+
+def dreimf_bild(b):
+    """Bambu/Orca/Prusa legen oft schon ein Vorschaubild in die 3MF."""
+    with zipfile.ZipFile(io.BytesIO(b)) as z:
+        namen = [n for n in z.namelist() if re.search(r"(plate_\d+|thumbnail)[^/]*\.png$", n, re.I) and "small" not in n.lower()]
+        namen.sort(key=lambda n: (0 if "plate_1.png" in n.lower() else 1, -z.getinfo(n).file_size))
+        return z.read(namen[0]) if namen else None
+
+
+def rendern3d(dreiecke, groesse=800):
+    if not dreiecke or Image is None:
+        return None
+    # Ansicht: um Z 35°, dann von oben 30° geneigt
+    a, e = math.radians(-35), math.radians(-60)
+    ca, sa, ce, se = math.cos(a), math.sin(a), math.cos(e), math.sin(e)
+
+    def dreh(p):
+        x, y, z = p
+        x, y = x * ca - y * sa, x * sa + y * ca
+        y, z = y * ce - z * se, y * se + z * ce
+        return x, y, z
+    d = [tuple(dreh(p) for p in t) for t in dreiecke]
+    xs = [p[0] for t in d for p in t]; ys = [p[1] for t in d for p in t]
+    mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    s = (groesse * 0.82) / max(max(xs) - min(xs), max(ys) - min(ys), 1e-6)
+    licht = (-0.35, 0.45, 0.82)
+    ln = math.sqrt(sum(c * c for c in licht)); licht = tuple(c / ln for c in licht)
+    liste = []
+    for p0, p1, p2 in d:
+        ux, uy, uz = p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]
+        vx, vy, vz = p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]
+        nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+        nl = math.sqrt(nx * nx + ny * ny + nz * nz) or 1
+        nx, ny, nz = nx / nl, ny / nl, nz / nl
+        if nz < 0:
+            nx, ny, nz = -nx, -ny, -nz
+        hell = 0.28 + 0.72 * max(0.0, nx * licht[0] + ny * licht[1] + nz * licht[2])
+        tiefe = (p0[2] + p1[2] + p2[2])
+        pts = [(groesse / 2 + (p[0] - mx) * s, groesse / 2 - (p[1] - my) * s) for p in (p0, p1, p2)]
+        liste.append((tiefe, hell, pts))
+    liste.sort(key=lambda x: x[0])
+    gross = groesse * 2
+    img = Image.new("RGB", (gross, gross), (31, 31, 34))
+    dr = ImageDraw.Draw(img)
+    for _, h, pts in liste:
+        c = (int(25 + 150 * h), int(60 + 180 * h), int(40 + 110 * h))
+        dr.polygon([(x * 2, y * 2) for x, y in pts], fill=c)
+    return img.resize((groesse, groesse), Image.LANCZOS)
+
+
+def vorschau3d(name, daten):
+    """PNG-Bytes für eine STL/3MF-Datei oder None."""
+    n = name.lower()
+    try:
+        if n.endswith(".3mf"):
+            b = dreimf_bild(daten)
+            if b:
+                return b
+            img = rendern3d(dreimf_lesen(daten))
+        elif n.endswith(".stl"):
+            img = rendern3d(stl_lesen(daten))
+        else:
+            return None
+    except Exception:
+        return None
+    if img is None:
+        return None
+    out = io.BytesIO()
+    img.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
 def nas_vorschau(nas, o, eintraege):
     """Bilder und PDF-Anleitungen aus den ZIPs/Ordnern holen (nur kopieren, nichts auf der NAS ändern)."""
     bild_ordner, daten = os.path.join(o, "Bilder"), os.path.join(o, "Daten")
@@ -1211,11 +1328,12 @@ def nas_vorschau(nas, o, eintraege):
         kandidaten = []  # (name, lesen)
         if e["ordner"]:
             try:
-                for f in nas.liste(e["pfad"]):
-                    if not f["ordner"]:
-                        kandidaten.append((f["name"], f["groesse"], ("datei", e["pfad"] + "/" + f["name"])))
+                for f in nas_inhalt(nas, e["pfad"]):
+                    kandidaten.append((os.path.basename(f["name"]), f["groesse"], ("datei", f["pfad"])))
             except Exception:
                 pass
+        elif e["name"].lower().endswith((".3mf", ".stl")):
+            kandidaten.append((e["name"], e["groesse"], ("datei", e["pfad"])))
         elif e["name"].lower().endswith(".zip") and e["groesse"] < 8 * 1024 ** 3:
             try:
                 with nas.oeffnen(e["pfad"]) as fh, zipfile.ZipFile(fh) as z:
@@ -1246,6 +1364,23 @@ def nas_vorschau(nas, o, eintraege):
                         f.write(lesen(q))
                 except Exception as ex:
                     print("Bild nicht kopiert:", name, ex, flush=True)
+        if not hat_bilder and not n_bild:
+            # keine Fotos: Vorschau aus 3MF (eingebautes Plattenbild) oder selbst gezeichnet aus STL/3MF
+            modelle3d = [k for k in kandidaten if k[0].lower().endswith((".3mf", ".stl")) and 1000 < k[1] < 80 * 1024 ** 2]
+            modelle3d.sort(key=lambda k: (0 if k[0].lower().endswith(".3mf") else 1, -k[1]))
+            for name, _, q in modelle3d[:3]:
+                try:
+                    png = vorschau3d(name, lesen(q))
+                except Exception as ex:
+                    print("Vorschau nicht gezeichnet:", name, ex, flush=True)
+                    png = None
+                if png:
+                    os.makedirs(bild_ordner, exist_ok=True)
+                    with open(os.path.join(bild_ordner, "nas_vorschau.png"), "wb") as f:
+                        f.write(png)
+                    n_bild += 1
+                    hat_bilder = True
+                    break
         for name, _, q in pdfs[:3]:
             ziel = os.path.join(daten, sauber(name))
             if os.path.exists(ziel):
@@ -1405,6 +1540,17 @@ def nas_scan(aid=None, mit_vorschau=True):
             if g["ordner"]:
                 gruppen[g["name"]] = [dict(x, pfad=f'{NAS_ORDNER}/{g["name"]}/{x["name"]}') for x in nas.liste(f'{NAS_ORDNER}/{g["name"]}')
                                       if x["ordner"] or x["name"].lower().endswith(MODELL_ENDUNGEN + (".pdf",))]
+        fest = json_lesen(os.path.join(DATEN, ".zuordnung.json")) or {}  # NAS-Pfad -> [Plattform, Modell]
+        fest_paare = {}
+        for g in list(gruppen):
+            rest = []
+            for e in gruppen[g]:
+                z = fest.get(e["pfad"])
+                if z and os.path.isdir(pfad(z[0], z[1])):
+                    fest_paare.setdefault((z[0], z[1]), []).append(e)
+                else:
+                    rest.append(e)
+            gruppen[g] = rest
         for g, eintraege in gruppen.items():
             p = gruppen_namen.get(g, g)
             if g == "Cults":
@@ -1501,6 +1647,19 @@ def nas_scan(aid=None, mit_vorschau=True):
                 print(f"DsCLoud: {weg} veraltete Einträge in {p} aufgeräumt", flush=True)
         if cults_paare:
             zugeordnet += cults_schreiben(nas, cults_paare)
+        for (p2, m2), l in fest_paare.items():
+            o = pfad(p2, m2)
+            pfade = {e["pfad"] for e in l}
+            alt = [x for x in (info_lesen(o).get("nas") or []) if x.get("pfad") not in pfade and "/Cults/" not in (x.get("pfad") or "")
+                   and not any(x.get("pfad") == q for q in fest)]
+            cults = [x for x in (info_lesen(o).get("nas") or []) if "/Cults/" in (x.get("pfad") or "")]
+            for e in l:
+                if e["ordner"] and "inhalt" not in e:
+                    e["inhalt"] = nas_inhalt(nas, e["pfad"])
+            info_setzen(o, nas=alt + cults + [{"name": e["name"], "pfad": e["pfad"], "groesse": e["groesse"], "zeit": e["zeit"],
+                                                "ordner": e["ordner"], "inhalt": e.get("inhalt") or [],
+                                                "version": "v" + ".".join(map(str, nas_version(e["name"]))) if nas_version(e["name"]) else ""} for e in l])
+            zugeordnet += 1
     text = f"DsCLoud eingelesen: {neu} Modelle neu, {zugeordnet} vorhandenen zugeordnet"
     if a:
         a.update(status="fertig", schritt=text, plattform="3D Sets", modell="")
