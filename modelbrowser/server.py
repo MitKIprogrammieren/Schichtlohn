@@ -1307,7 +1307,7 @@ def aufraeumen_nas(p, geschrieben):
     return n
 
 
-def cults_zuordnen(eintraege):
+def cults_zuordnen(eintraege, nas=None):
     """Bei Cults gekaufte Dateien (Ordner RC-Modelle/Cults) den Cults-Modellen zuordnen:
     „Download all“-ZIPs beginnen mit dem Kurznamen des Modells, Einzeldateien stehen in .cults_dateien.json."""
     modelle = {}
@@ -1324,6 +1324,20 @@ def cults_zuordnen(eintraege):
     for slug, namen in (json_lesen(os.path.join(DATEN, ".cults_dateien.json")) or {}).items():
         for n in namen:
             karte[re.sub(r"^slice ", "", n.lower())] = slug.lower()  # Cults zeigt manchmal „Slice “ vor dem Namen
+    # Unterordner (z. B. Cults/RaBros/…) auflösen, zwei Ebenen tief
+    flach = []
+    for e in eintraege:
+        if e["ordner"] and nas is not None:
+            for x in nas.liste(e["pfad"]):
+                x = dict(x, pfad=e["pfad"] + "/" + x["name"])
+                if x["ordner"]:
+                    flach += [dict(y, pfad=x["pfad"] + "/" + y["name"]) for y in nas.liste(x["pfad"])
+                              if not y["ordner"] and not y["name"].startswith(".")]
+                elif not x["name"].startswith("."):
+                    flach.append(x)
+        else:
+            flach.append(e)
+    eintraege = [e for e in flach if e["ordner"] or e["name"].lower().endswith(MODELL_ENDUNGEN + (".pdf",))]
     namen_da = {e["name"].lower() for e in eintraege}
     paare, ohne = {}, []
     for e in eintraege:
@@ -1383,7 +1397,7 @@ def nas_scan(aid=None, mit_vorschau=True):
         for g, eintraege in gruppen.items():
             p = gruppen_namen.get(g, g)
             if g == "Cults":
-                cults_paare = cults_zuordnen(eintraege)
+                cults_paare = cults_zuordnen(eintraege, nas)
                 continue
             elif g == "3DSets":
                 pp = os.path.join(DATEN, "3D Sets")
