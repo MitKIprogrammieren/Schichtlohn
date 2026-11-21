@@ -1,4 +1,4 @@
-// Etikettwerk – Etiketten für Phomemo M110 und M20 Pro (custom:etikettwerk-card).
+// Etikettwerk – Etiketten für Phomemo M110, M220 und M20 Pro (custom:etikettwerk-card).
 // Wird in Home Assistant über einen kleinen Lader von jsDelivr geholt, siehe homeassistant/etikettwerk-loader.js.
 function etikettwerkQuelle(){/*@@
 <title>Etikettwerk</title>
@@ -93,7 +93,7 @@ input[type=checkbox]{width:auto;accent-color:var(--accent)}
 </style>
 <div class="wrap">
   <header>
-    <div class="brand"><h1>Etikettwerk</h1><span>Etiketten für Phomemo M110 · M20 Pro</span></div>
+    <div class="brand"><h1>Etikettwerk</h1><span>Etiketten für Phomemo M110 · M220 · M20 Pro</span></div>
     <div class="status" id="status"><i></i><span id="statusTxt">Nicht verbunden</span></div>
   </header>
   <div class="grid">
@@ -214,9 +214,10 @@ input[type=checkbox]{width:auto;accent-color:var(--accent)}
 <script>
 const PRINTERS={
   m110:{name:"M110",dpi:203,head:384,maxW:50,sprache:"escpos",info:"203 dpi · 48 mm Kopf"},
+  m220:{name:"M220",dpi:203,head:576,maxW:75,sprache:"escpos",info:"203 dpi · 20–75 mm"},
   m20p:{name:"M20 Pro",dpi:300,head:576,maxW:50,sprache:"tspl",info:"300 dpi · 20–50 mm"}
 };
-const SIZES=[[40,30],[50,30],[30,20],[50,25],[40,20],[25,15],[50,50],[50,80]];
+const SIZES=[[40,30],[50,30],[30,20],[50,25],[40,20],[25,15],[50,50],[50,80],[60,40],[70,50],[75,50]];
 const S={printer:"m110",w:40,h:30,media:10,rot:false,els:[],sel:0};
 const $=id=>document.getElementById(id);
 let uid=1;
@@ -571,7 +572,9 @@ async function job(){
 let dev=null,chr=null;
 const SVC=[0xff00,0xffe0,0x18f0,0xae30,"49535343-fe7d-4ae5-8fa9-9fafd205e455","e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 const HA={ok:false,liste:[],wahl:"",basis:"",grund:""};
-const haModell=m=>m==="m20pro"?"m20p":"m110";
+// Modell eines Druckers aus der Druckbrücke (id oder Modellname) → Eintrag in PRINTERS
+const haModell=id=>{const d=HA.liste.find(x=>x.id===id)||{},m=String(d.modell||id||"").toLowerCase();
+  return /^m20/.test(m)?"m20p":/^m22/.test(m)?"m220":"m110";};
 function haBasis(){try{if(window.parent!==window&&parent.location.origin&&parent.location.origin!=="null")return parent.location.origin;}catch(e){}
   return /^https?:$/.test(location.protocol)?location.origin:"";}
 async function haLaden(){
@@ -625,7 +628,7 @@ function noteBt(){
 async function connect(){
   if(!bleOk()){say("Dieser Browser kann kein Web-Bluetooth. Öffne die Seite in Chrome am Mac.","err");return;}
   try{
-    dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:"M110"},{namePrefix:"M20"},{namePrefix:"Q"},{namePrefix:"Mr.in"},{namePrefix:"Phomemo"}],optionalServices:SVC});
+    dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:"M110"},{namePrefix:"M220"},{namePrefix:"M221"},{namePrefix:"M20"},{namePrefix:"Q"},{namePrefix:"Mr.in"},{namePrefix:"Phomemo"}],optionalServices:SVC});
     dev.addEventListener("gattserverdisconnected",()=>{chr=null;setStatus(false);});
     const srv=await dev.gatt.connect();chr=null;
     for(const s of await srv.getPrimaryServices()){
@@ -633,7 +636,7 @@ async function connect(){
       if(chr)break;
     }
     if(!chr)throw new Error("Keine beschreibbare Schnittstelle gefunden");
-    const n=dev.name||"";if(/M20/i.test(n)){S.printer="m20p";renderPrinters();render();}else if(/M110/i.test(n)){S.printer="m110";renderPrinters();render();}
+    const n=dev.name||"";if(/M20/i.test(n)){S.printer="m20p";renderPrinters();render();}else if(/M22\d/i.test(n)){S.printer="m220";renderPrinters();render();}else if(/M110/i.test(n)){S.printer="m110";renderPrinters();render();}
     setStatus(true,n);say("Verbunden","ok");
   }catch(e){
     if(e.name==="NotFoundError")say("Keinen Drucker gewählt","warn");
@@ -813,4 +816,4 @@ class EtikettwerkCard extends HTMLElement{
 }
 if(!customElements.get("etikettwerk-card"))customElements.define("etikettwerk-card",EtikettwerkCard);
 window.customCards=window.customCards||[];
-if(!window.customCards.some(c=>c.type==="etikettwerk-card"))window.customCards.push({type:"etikettwerk-card",name:"Etikettwerk",description:"Etiketten für Phomemo M110 und M20 Pro, mit SchichtLohn-Spulenetiketten"});
+if(!window.customCards.some(c=>c.type==="etikettwerk-card"))window.customCards.push({type:"etikettwerk-card",name:"Etikettwerk",description:"Etiketten für Phomemo M110, M220 und M20 Pro, mit SchichtLohn-Spulenetiketten"});
