@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Werke">
+<meta name="theme-color" content="#1b1b1d">
+<title>Werke</title>
+<link rel="icon" id="favicon">
+<style>
+  :root{--bg:#232326;--panel:#2c2c30;--panel2:#38383d;--line:#3c3c42;--text:#e8e8ea;--mute:#a7a7ae;--mute2:#7c7c84;--acc:#00ae42;--warn:#f2b84b;--off:#ff6b5e}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;
+    font:15px/1.4 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .kopf{position:sticky;top:0;z-index:5;background:#1b1b1d;border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+  .kopf .in{max-width:1100px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .kopf svg{width:42px;height:42px;flex:none}
+  h1{margin:0;font:700 27px/1.1 "Chakra Petch","Segoe UI",-apple-system,sans-serif}
+  .sub{display:block;font:500 11px/1 "IBM Plex Sans",-apple-system,sans-serif;color:var(--mute2);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+  .grow{flex:1}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px}
+  .seg button{background:none;border:0;color:var(--mute);padding:7px 13px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer}
+  .seg button.on{background:var(--acc);color:#fff;font-weight:600}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px 18px 40px}
+  .search{width:100%;margin:0 0 6px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--panel);color:var(--text);font:inherit;outline:none}
+  .search:focus{border-color:var(--acc)}
+  h2{font-size:17px;font-weight:700;margin:22px 2px 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  a.card{position:relative;display:flex;gap:14px;align-items:center;padding:14px 32px 14px 14px;border-radius:18px;
+    background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none;transition:transform .12s,border-color .12s,background .12s}
+  a.card:hover{border-color:#4c4c53;background:var(--panel2);transform:translateY(-1px)}
+  .ic{flex:none;width:52px;height:52px}
+  .ic svg{width:52px;height:52px;display:block}
+  .t{font-weight:600}
+  .d{color:var(--mute);font-size:12.5px}
+  .dot{position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%;background:#4c4c53}
+  .dot.on{background:#19d36b;box-shadow:0 0 0 3px #00ae4230}
+  .dot.off{background:var(--off)}
+  .star{position:absolute;bottom:8px;right:10px;background:none;border:0;color:#4c4c53;font-size:16px;cursor:pointer;padding:2px}
+  .star.on{color:var(--warn)}
+  footer{margin-top:28px;color:var(--mute2);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="kopf"><div class="in">
+  <span id="logo"></span>
+  <div><h1>Werke</h1><span class="sub" id="zaehler">Alle Werkzeuge an einem Ort</span></div>
+  <div class="grow"></div>
+  <div class="seg" id="netz"><button data-n="lan" class="on">Zuhause</button><button data-n="ts">Unterwegs</button></div>
+</div></div>
+<div class="wrap">
+  <input class="search" id="suche" placeholder="Werk suchen …" autocomplete="off">
+  <div id="inhalt"></div>
+  <footer>Grüner Punkt = erreichbar · Stern = oben anheften</footer>
+</div>
+
+<script>
+// Logos im SchichtLohn-Stil: Form wird mit grünen Druckschichten gefüllt
+const FORMEN = {"SchichtLohn": ["RAW", "<defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#19d36b\"/><stop offset=\"1\" stop-color=\"#00a845\"/></linearGradient><clipPath id=\"t\"><path d=\"M8 20 20 8h18a3 3 0 0 1 3 3v18L29 41a3 3 0 0 1-4.2 0L8 24.2A3 3 0 0 1 8 20Z\"/></clipPath><mask id=\"h\"><rect width=\"48\" height=\"48\" fill=\"#fff\"/><circle cx=\"33.5\" cy=\"15.5\" r=\"4.4\" fill=\"#000\"/></mask></defs>\n<rect width=\"48\" height=\"48\" rx=\"10.5\" fill=\"#1d1f23\"/><g transform=\"translate(24 24) scale(.82) translate(-24 -24.5)\"><g clip-path=\"url(#t)\" mask=\"url(#h)\" fill=\"url(#g)\"><rect x=\"0\" y=\"8.0\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"11.4\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"14.8\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"18.2\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"21.6\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"25.0\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"28.4\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"31.8\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"35.2\" width=\"48\" height=\"2.4\"/><rect x=\"0\" y=\"38.6\" width=\"48\" height=\"2.4\"/></g><circle cx=\"33.5\" cy=\"15.5\" r=\"2.6\" fill=\"none\" stroke=\"#19d36b\" stroke-width=\"1.5\"/><path d=\"M33.5 12.9V3\" stroke=\"#19d36b\" stroke-width=\"1.5\" stroke-linecap=\"round\" fill=\"none\"/></g>"], "SchichtRadar": ["<path stroke-width=\"0\" d=\"M24 24 L24 8 A16 16 0 0 1 39.2 19z\"/><g fill=\"none\" stroke-width=\"3.2\"><circle cx=\"24\" cy=\"24\" r=\"16\"/><circle cx=\"24\" cy=\"24\" r=\"9\"/></g>", "<circle cx=\"24\" cy=\"24\" r=\"2.6\" fill=\"#19d36b\"/><circle cx=\"31\" cy=\"15\" r=\"2\" fill=\"#19d36b\"/>"], "ModelBrowser": ["<path stroke-width=\"0\" d=\"M7 14a3 3 0 0 1 3-3h9l4 4h15a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3z\"/>", "<path d=\"M20 4h8v3l-4 3-4-3z\" fill=\"#19d36b\"/>"], "Etikettwerk": ["<rect stroke-width=\"0\" x=\"7\" y=\"12\" width=\"34\" height=\"25\" rx=\"4\"/><g fill=\"#000\" stroke=\"none\"><circle cx=\"7\" cy=\"24.5\" r=\"3.2\"/><circle cx=\"41\" cy=\"24.5\" r=\"3.2\"/></g>", ""], "Gridwerk": ["<g stroke-width=\"0\"><rect x=\"8\" y=\"8\" width=\"14\" height=\"14\" rx=\"3\"/><rect x=\"26\" y=\"8\" width=\"14\" height=\"14\" rx=\"3\"/><rect x=\"8\" y=\"26\" width=\"14\" height=\"14\" rx=\"3\"/><rect x=\"26\" y=\"26\" width=\"14\" height=\"14\" rx=\"3\"/></g>", ""], "Formwerk": ["<path stroke-width=\"0\" d=\"M9 39V9l30 30z\"/><path fill=\"#000\" stroke-width=\"0\" d=\"M15 33V22l11 11z\"/>", ""], "Konturwerk": ["<g transform=\"rotate(45 24 24)\"><rect stroke-width=\"0\" x=\"20.5\" y=\"16\" width=\"7\" height=\"27\" rx=\"3.5\"/><circle stroke-width=\"0\" cx=\"24\" cy=\"12\" r=\"9\"/><rect fill=\"#000\" stroke-width=\"0\" x=\"20.5\" y=\"1\" width=\"7\" height=\"11\" rx=\"1\"/></g>", ""], "Schaltwerk": ["<g stroke-width=\"0\"><circle cx=\"24\" cy=\"24\" r=\"12\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(0 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(45 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(90 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(135 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(180 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(225 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(270 24 24)\"/><rect x=\"21\" y=\"5\" width=\"6\" height=\"8\" rx=\"1.5\" transform=\"rotate(315 24 24)\"/><circle fill=\"#000\" cx=\"24\" cy=\"24\" r=\"5\"/></g>", ""], "Pulswerk": ["<rect fill=\"none\" stroke-width=\"3\" x=\"11\" y=\"11\" width=\"26\" height=\"26\" rx=\"5\"/><g stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M17 5v5M24 5v5M31 5v5M17 38v5M24 38v5M31 38v5M5 17h5M5 24h5M5 31h5M38 17h5M38 24h5M38 31h5\"/></g>", "<path d=\"M8 25h9l3-7 4.5 13 3.5-9 2.5 3H40\" fill=\"none\" stroke=\"#19d36b\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"], "Netzwerk": ["<g fill=\"none\" stroke-width=\"4.5\" stroke-linecap=\"round\"><path d=\"M7 19a24 24 0 0 1 34 0\"/><path d=\"M13 26a15 15 0 0 1 22 0\"/></g><circle stroke-width=\"0\" cx=\"24\" cy=\"35\" r=\"4.5\"/>", ""], "Skizze": ["<g transform=\"rotate(45 24 24)\"><rect stroke-width=\"0\" x=\"19\" y=\"4\" width=\"10\" height=\"28\" rx=\"2\"/><path stroke-width=\"0\" d=\"M19 34h10l-5 10z\"/></g>", "<path d=\"M8 41c6-3 10 2 16-1\" fill=\"none\" stroke=\"#19d36b\" stroke-width=\"2\" stroke-linecap=\"round\"/>"], "ZeichneMichNach": ["<g fill=\"none\" stroke-width=\"4.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 34c5-14 10-14 13-5s7 9 10-1 6-12 9-8\"/></g><rect stroke-width=\"0\" x=\"7\" y=\"38\" width=\"34\" height=\"3\" rx=\"1.5\"/>", ""], "Filamentwaage": ["<circle stroke-width=\"0\" cx=\"24\" cy=\"18\" r=\"12\"/><circle fill=\"#000\" stroke-width=\"0\" cx=\"24\" cy=\"18\" r=\"4\"/><rect stroke-width=\"0\" x=\"8\" y=\"34\" width=\"32\" height=\"7\" rx=\"2\"/>", ""], "Home Assistant": ["<path stroke-width=\"0\" d=\"M24 6 42 22v17a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V22z\"/>", "<g stroke=\"#1d1f23\" stroke-width=\"2.4\" fill=\"#1d1f23\"><circle cx=\"24\" cy=\"27\" r=\"3\"/></g>"], "Proxmox": ["<g stroke-width=\"0\"><rect x=\"8\" y=\"8\" width=\"32\" height=\"9\" rx=\"2.5\"/><rect x=\"8\" y=\"20\" width=\"32\" height=\"9\" rx=\"2.5\"/><rect x=\"8\" y=\"32\" width=\"32\" height=\"9\" rx=\"2.5\"/></g>", "<g fill=\"#1d1f23\"><circle cx=\"34\" cy=\"12.5\" r=\"1.6\"/><circle cx=\"34\" cy=\"24.5\" r=\"1.6\"/><circle cx=\"34\" cy=\"36.5\" r=\"1.6\"/></g>"], "DsCLoud": ["<rect stroke-width=\"0\" x=\"10\" y=\"6\" width=\"28\" height=\"36\" rx=\"4\"/>", "<g fill=\"#1d1f23\"><rect x=\"15\" y=\"12\" width=\"18\" height=\"3\" rx=\"1.5\"/><rect x=\"15\" y=\"19\" width=\"18\" height=\"3\" rx=\"1.5\"/><circle cx=\"24\" cy=\"34\" r=\"2.4\"/></g>"], "AdGuard": ["<path stroke-width=\"0\" d=\"M24 5 39 10v12c0 10-7 17-15 21C16 39 9 32 9 22V10z\"/>", "<path d=\"M17 24l5 5 9-10\" fill=\"none\" stroke=\"#1d1f23\" stroke-width=\"3.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"], "FRITZ!Box": ["<rect stroke-width=\"0\" x=\"6\" y=\"24\" width=\"36\" height=\"14\" rx=\"4\"/><g stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M14 24 10 8M34 24l4-16\"/></g>", "<g fill=\"#1d1f23\"><circle cx=\"13\" cy=\"31\" r=\"1.8\"/><circle cx=\"19\" cy=\"31\" r=\"1.8\"/><circle cx=\"25\" cy=\"31\" r=\"1.8\"/></g>"], "_Werke": ["<path stroke-width=\"0\" d=\"M7 10h6.5l3.6 18 4.4-18h5l4.4 18 3.6-18H41l-7 29h-5.6L24 21.5 19.6 39H14z\"/>", "<path d=\"M20 4h8v3l-4 3-4-3z\" fill=\"#19d36b\"/>"]};
+const STREIFEN = Array.from({length:13},(_,i)=>`<rect x="0" y="${(4+i*3.4).toFixed(1)}" width="48" height="2.4"/>`).join("");
+let nr = 0;
+function logo(name){
+  const f = FORMEN[name]; if(!f) return "";
+  if(f[0]==="RAW"){const k=nr++;return `<svg viewBox="0 0 48 48">${f[1].replace(/id="(\w+)"/g,(m,a)=>`id="${a}${k}"`).replace(/url\(#(\w+)\)/g,(m,a)=>`url(#${a}${k})`)}</svg>`;}
+  const i = nr++;
+  return `<svg viewBox="0 0 48 48"><defs><linearGradient id="g${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19d36b"/><stop offset="1" stop-color="#00a845"/></linearGradient>`+
+    `<mask id="m${i}" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><g fill="#fff" stroke="#fff">${f[0]}</g></mask></defs>`+
+    `<rect width="48" height="48" rx="10.5" fill="#1d1f23"/><g mask="url(#m${i})" fill="url(#g${i})">${STREIFEN}</g>${f[1]||""}</svg>`;
+}
+document.getElementById("logo").innerHTML = logo("_Werke");
+document.getElementById("favicon").href = "data:image/svg+xml,"+encodeURIComponent(logo("_Werke").replace("<svg ",'<svg xmlns="http://www.w3.org/2000/svg" '));
+
+// lan = Heimnetz, ts = per Tailscale (null = unterwegs nicht erreichbar)
+const WERKE = [
+  {g:"Werke", n:"SchichtLohn", d:"Rechner, Lager & Drucker", lan:"http://192.168.1.66:8093/app/", ts:"https://schichtlohn.tail293912.ts.net/app/"},
+  {g:"Werke", n:"SchichtRadar", d:"Live-Druckerübersicht", lan:"http://192.168.1.66:8093/app/radar.html", ts:"https://schichtlohn.tail293912.ts.net/app/radar.html"},
+  {g:"Werke", n:"ModelBrowser", d:"Modellarchiv mit 3MF & STL", lan:"http://192.168.1.30:8091/", ts:"https://nuc-schichtlohn.tail293912.ts.net:8443/"},
+  {g:"Werke", n:"Etikettwerk", d:"Etiketten für M110 & M20 Pro", lan:"http://192.168.1.30:8096/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8096/"},
+  {g:"Werke", n:"Gridwerk", d:"Gridfinity-Generator", lan:"http://192.168.1.30:8099/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8099/"},
+  {g:"Werke", n:"Formwerk", d:"Großformat-Generator (LuBan)", lan:"http://192.168.1.30:8092/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8092/"},
+  {g:"Werke", n:"Konturwerk", d:"Werkzeugeinsätze aus Foto (Tooltrace)", lan:"http://192.168.1.30:8089/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8089/"},
+  {g:"Werke", n:"Schaltwerk", d:"Server, Container & Stacks", lan:"http://192.168.1.30:8080/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8080/"},
+  {g:"Werke", n:"Pulswerk", d:"So geht's dem NUC", lan:"http://192.168.1.30:8088/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8088/"},
+  {g:"Werke", n:"Netzwerk", d:"Datenverkehr pro Gerät", lan:"http://192.168.1.30:8098/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8098/"},
+  {g:"Werke", n:"Skizze → Zeichnung", l:"Skizze", d:"Skizzen umwandeln", lan:"http://192.168.1.30:8095/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8095/"},
+  {g:"Werke", n:"ZeichneMichNach", d:"Nachzeichnen", lan:"http://192.168.1.30:8094/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8094/"},
+  {g:"Werke", n:"Filamentwaage", d:"bambu-scale", lan:"http://192.168.1.96/", ts:null},
+
+  {g:"Server & Netz", n:"Home Assistant", d:"Smart Home", lan:"http://192.168.1.66:8123/", ts:null},
+  {g:"Server & Netz", n:"Proxmox", d:"NUC „pxx“", lan:"https://192.168.1.5:8006/", ts:null},
+  {g:"Server & Netz", n:"DsCLoud", d:"Synology DS718+", lan:"https://dscloud.tail293912.ts.net/", ts:"https://dscloud.tail293912.ts.net/"},
+  {g:"Server & Netz", n:"AdGuard", d:"Werbeblocker & Kindersperre", lan:"http://192.168.1.34/", ts:null},
+  {g:"Server & Netz", n:"FRITZ!Box", d:"Router", lan:"http://192.168.1.1/", ts:null},
+];
+
+let netz = lade("werke_netz","lan");
+let favs = new Set(JSON.parse(lade("werke_favs","[]")));
+function lade(k,s){try{return localStorage.getItem(k)??s}catch(e){return s}}
+function speichere(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+const inhalt = document.getElementById("inhalt");
+function zeichne(){
+  const q = document.getElementById("suche").value.trim().toLowerCase();
+  const liste = WERKE.filter(w => (w[netz]) && (!q || (w.n+" "+w.d).toLowerCase().includes(q)));
+  const gruppen = {};
+  const fav = liste.filter(w=>favs.has(w.n));
+  if (fav.length && !q) gruppen["Angeheftet"] = fav;
+  liste.forEach(w => { if (q || !favs.has(w.n)) (gruppen[w.g] ??= []).push(w); });
+  inhalt.innerHTML = Object.entries(gruppen).map(([g,ws]) =>
+    `<h2>${g}</h2><div class="grid">${ws.map(karte).join("")}</div>`).join("")
+    || `<p class="d">Nichts gefunden.</p>`;
+  document.getElementById("zaehler").textContent =
+    `${liste.length} Werke · ${netz==="lan"?"im Heimnetz":"über Tailscale"}`;
+  pruefe();
+}
+function karte(w){
+  return `<a class="card" href="${w[netz]}" target="_blank" rel="noopener" data-u="${w[netz]}">
+    <div class="ic">${logo(w.l||w.n)}</div>
+    <div><div class="t">${w.n}</div><div class="d">${w.d}</div></div>
+    <span class="dot"></span>
+    <button class="star ${favs.has(w.n)?"on":""}" data-f="${w.n}" title="Anheften">★</button>
+  </a>`;
+}
+// Erreichbarkeit: kurzer Abruf ohne CORS – Antwort egal, Hauptsache keine Netzfehler
+function pruefe(){
+  document.querySelectorAll("a.card").forEach(a=>{
+    const dot = a.querySelector(".dot"), ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 3500);
+    fetch(a.dataset.u,{mode:"no-cors",cache:"no-store",signal:ctl.signal})
+      .then(()=>dot.className="dot on").catch(()=>dot.className="dot off")
+      .finally(()=>clearTimeout(t));
+  });
+}
+inhalt.addEventListener("click",e=>{
+  const s = e.target.closest(".star"); if(!s) return;
+  e.preventDefault();
+  favs.has(s.dataset.f)?favs.delete(s.dataset.f):favs.add(s.dataset.f);
+  speichere("werke_favs",JSON.stringify([...favs])); zeichne();
+});
+document.getElementById("suche").addEventListener("input",zeichne);
+document.querySelectorAll("#netz button").forEach(b=>{
+  b.classList.toggle("on",b.dataset.n===netz);
+  b.onclick=()=>{netz=b.dataset.n;speichere("werke_netz",netz);
+    document.querySelectorAll("#netz button").forEach(x=>x.classList.toggle("on",x===b));zeichne();};
+});
+zeichne();
+</script>
+</body>
+</html>
