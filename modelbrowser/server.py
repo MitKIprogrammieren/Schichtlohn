@@ -1315,13 +1315,13 @@ def cults_zuordnen(eintraege):
             continue
         for m in os.listdir(pp):
             u = info_lesen(os.path.join(pp, m)).get("url") or ""
-            k = re.search(r"cults3d\.com/[a-z]{2}/3d-model/[^/]+/([^/?#]+)", u)
+            k = re.search(r"cults3d\.com/[a-z]{2}/[^/]+/[^/]+/([^/?#]+)", u)
             if k:
                 modelle[k.group(1).lower()] = (p, m)
     karte = {}
     for slug, namen in (json_lesen(os.path.join(DATEN, ".cults_dateien.json")) or {}).items():
         for n in namen:
-            karte[n.lower()] = slug.lower()
+            karte[re.sub(r"^slice ", "", n.lower())] = slug.lower()  # Cults zeigt manchmal „Slice “ vor dem Namen
     namen_da = {e["name"].lower() for e in eintraege}
     paare, ohne = {}, []
     for e in eintraege:
@@ -1329,7 +1329,7 @@ def cults_zuordnen(eintraege):
         basis = re.sub(r" \(\d+\)(?=\.[^.]+$)", "", n)  # „datei (1).zip“ = doppelter Download
         if basis != n and basis in namen_da:
             continue
-        slug = karte.get(basis) or next((s2 for s2 in sorted(modelle, key=len, reverse=True) if basis.startswith(s2)), None)
+        slug = karte.get(basis) or karte.get(re.sub(r"^slice ", "", basis)) or next((s2 for s2 in sorted(modelle, key=len, reverse=True) if basis.startswith(s2)), None)
         pm = modelle.get(slug or "")
         if pm:
             paare.setdefault(pm, []).append(e)
