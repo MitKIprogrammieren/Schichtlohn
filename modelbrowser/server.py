@@ -99,12 +99,12 @@ def baum():
     os.makedirs(DATEN, exist_ok=True)
     for p in sorted(os.listdir(DATEN), key=str.lower):
         pp = os.path.join(DATEN, p)
-        if not os.path.isdir(pp) or p.startswith("."):
+        if not os.path.isdir(pp) or p.startswith((".", "@", "#")):
             continue
         modelle = []
         for m in sorted(os.listdir(pp), key=str.lower):
             mp = os.path.join(pp, m)
-            if not os.path.isdir(mp) or m.startswith("."):
+            if not os.path.isdir(mp) or m.startswith((".", "@", "#")):
                 continue
             bilder = dateien(os.path.join(mp, "Bilder"))
             i = info_lesen(mp)
