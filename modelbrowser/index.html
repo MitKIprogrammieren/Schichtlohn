@@ -98,7 +98,7 @@ iframe{flex:1;border:0;background:#fff;width:100%;min-height:70vh}
 .lupe img{max-width:96vw;max-height:90vh;border-radius:8px}
 .lupe .nav{position:absolute;top:50%;transform:translateY(-50%);font-size:28px;background:#0008;border:none;padding:10px 16px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fl2);border:1px solid var(--rand);padding:10px 16px;border-radius:10px;display:none;z-index:60}
-.zurueck{display:none}
+.zurueck{display:inline-flex;align-items:center;gap:4px;margin-right:10px;flex:none}
 .kopf h1{word-break:break-word}
 .menue{position:relative}
 .menue .liste2{position:absolute;right:0;top:110%;background:var(--fl2);border:1px solid var(--rand);border-radius:10px;padding:4px;display:none;z-index:5;min-width:170px}
@@ -186,7 +186,6 @@ iframe{flex:1;border:0;background:#fff;width:100%;min-height:70vh}
  nav{border:0}
  .app.detail nav{display:none}
  .app:not(.detail) main{display:none}
- .zurueck{display:inline-block}
  header .suche{max-width:none}
  .nurgross{display:none}
  .raster{grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
@@ -313,7 +312,7 @@ function start(){ANSICHT=null;AKT=null;DETAIL=null;$('app').classList.remove('de
 function zeichneStart(passt=()=>true,sortiere=l=>l){
  const pl=ANSICHT&&BAUM.find(p=>p.name===ANSICHT);
  if(pl){const mods=sortiere(pl.modelle.filter(passt)).map(m=>({...m,p:pl.name}));
-  $('haupt').innerHTML=`<div class="kopf"><button class="zurueck klein" onclick="start()">‹ Zurück</button><div><h1>${esc(pl.name)}</h1><div class="unter">${mods.length}${mods.length!==pl.modelle.length?' von '+pl.modelle.length:''} Modelle · <a href="#" onclick="event.preventDefault();ANSICHT=null;start()">alle Plattformen</a></div></div></div>`+
+  $('haupt').innerHTML=`<div class="kopf"><button class="zurueck klein" onclick="start()">‹ Übersicht</button><div><h1>${esc(pl.name)}</h1><div class="unter">${mods.length}${mods.length!==pl.modelle.length?' von '+pl.modelle.length:''} Modelle · <a href="#" onclick="event.preventDefault();ANSICHT=null;start()">alle Plattformen</a></div></div></div>`+
    (mods.length?`<div class="raster klein">${mods.map(m=>karteHtml(m,false)).join('')}</div>`:'<div class="leerseite">Nichts gefunden.</div>');return}
  ANSICHT=null;
  const alle=BAUM.flatMap(p=>p.modelle.map(m=>({...m,p:p.name}))).sort((a,b)=>b.zeit-a.zeit);
@@ -336,7 +335,7 @@ document.addEventListener('click',()=>{const m=document.getElementById('menue');
 function zeigeBild(i){BILD=i;const d=DETAIL,b=d.bilder[i];if(!b)return;$('grossBild').src=durl(d.plattform,d.name,'Bilder',b.name);document.querySelectorAll('.daumen img').forEach((x,j)=>x.classList.toggle('an',j===i))}
 function zeichneDetail(){
  const d=DETAIL,i=d.info||{},url=i.url;
- let h=`<div class="kopf"><button class="zurueck klein" onclick="zurueck()">‹ Zurück</button><div style="flex:1"></div>
+ let h=`<div class="kopf"><button class="zurueck klein" onclick="zurueck()">‹ ${ANSICHT?esc(ANSICHT):'Übersicht'}</button><div style="flex:1"></div>
  <div class="menue" id="menue"><button class="klein" onclick="menue(event)" aria-label="Mehr">•••</button><div class="liste2">
  ${url?'<button onclick="neuEinlesen()">Neu einlesen</button>':''}<button onclick="seiteFuer()">SingleFile-Seite hochladen</button><button onclick="umbenennen()">Umbenennen / verschieben</button><button class="gefahr" onclick="modellLoeschen()">Löschen</button></div></div>
  <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div>${(()=>{anl=(d.dateien||[]).find(f=>/^Bauanleitung.*\.pdf$/i.test(f.name))||(d.dateien||[]).find(f=>/\.pdf$/i.test(f.name)&&/anleitung|manual|guide|instruction/i.test(f.name));return ''})()}${(anl||i.version||i.anleitung||i.eigene_version)?`<div class="chips2">${i.version?`<span class="chip2 akt">Aktuell: ${esc(i.version)}${i.version_datum?' · '+esc(i.version_datum):''}</span>`:''}${i.eigene_version?`<span class="chip2 ${i.eigene_veraltet?'alt':'akt'}">Deine Dateien: ${esc(i.eigene_version)}${i.eigene_veraltet?'':' ✓'}</span>`:''}${anl||i.anleitung?`<a class="chip2" href="${anl?durl(d.plattform,d.name,'Daten',anl.name):esc(i.anleitung)}" target="_blank" rel="noopener">📘 Bauanleitung</a>`:''}</div>`:''}</div></div>
