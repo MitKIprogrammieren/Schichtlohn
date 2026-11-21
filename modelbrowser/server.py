@@ -807,9 +807,9 @@ def youmagine_daten(html, d):
     m = re.search(r'<div[^>]*class=["\']?prose max-w-none["\' >]', html)
     if m:
         d["beschreibung"] = saeubern(div_inhalt(html, m.start())) or d["beschreibung"]
-    t = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
-    if t:
-        d["titel"] = titel_sauber(re.sub(r"<[^>]+>", "", t.group(1)).strip()) or d["titel"]
+    og = meta(html, "og:title")
+    if og:
+        d["titel"] = titel_sauber(og) or d["titel"]
     a = re.search(r'href=["\']?/users/([\w.-]+)["\' >][^<]*(?:<[^>]+>\s*)*([^<]{2,40})', html)
     if a and not d.get("autor"):
         d["autor"] = a.group(1)
