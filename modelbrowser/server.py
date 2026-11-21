@@ -1065,6 +1065,8 @@ def nas_zuordnen_3dsets(eintraege, modelle):
             fs = stamm(fw)
             kand = []
             for ordner, ms in alle.items():
+                if nr and nr.group(1) not in re.findall(r"\d+", modelle[ordner]):
+                    continue  # Datei nennt eine Modellnummer, die im Shop-Titel nicht vorkommt
                 gem = fs & ms
                 punkte = sum(math.log(len(alle) / df[x]) for x in gem if df[x] <= 2)
                 if punkte >= 1.5:
