@@ -1150,7 +1150,8 @@ EINST = os.path.join(DATEN, ".einstellungen.json")
 SITZ = os.path.join(DATEN, ".sitzungen.json")
 VERSUCHE = {}
 OFFEN = {("GET", "/"), ("GET", "/index.html"), ("GET", "/gesund"), ("GET", "/api/status"),
-         ("POST", "/api/anmelden"), ("POST", "/api/import")}
+         ("POST", "/api/anmelden"), ("POST", "/api/import"),
+         ("GET", "/icon.svg"), ("GET", "/icon-180.png"), ("GET", "/icon-512.png")}
 
 
 def json_lesen(pfad):
@@ -1318,6 +1319,26 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             shutil.copyfileobj(tmp, self.wfile, 1024 * 1024)
 
+    def icon_senden(self, name):
+        """App-Symbol aus dem Code-Ordner; fehlt es, einmal vom selben Commit holen."""
+        ordner = os.path.dirname(HTML)
+        f = os.path.join(ordner, name)
+        if not os.path.exists(f):
+            try:
+                sha = open(os.path.join(ordner, "STAND")).read().strip()
+                repo = os.environ.get("REPO", "MitKIprogrammieren/Schichtlohn")
+                req = urllib.request.Request(f"https://cdn.jsdelivr.net/gh/{repo}@{sha}/modelbrowser/{name}", headers={"User-Agent": UA})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    daten = r.read()
+                with open(f + ".tmp", "wb") as x:
+                    x.write(daten)
+                os.replace(f + ".tmp", f)
+            except Exception:
+                return self.senden(404, {"ok": False})
+        with open(f, "rb") as x:
+            daten = x.read()
+        return self.senden(200, daten, "image/svg+xml" if name.endswith(".svg") else "image/png")
+
     def json_body(self):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n) or b"{}") if n < 1_000_000 else {}
@@ -1353,6 +1374,8 @@ class H(BaseHTTPRequestHandler):
             if u.path in ("/", "/index.html"):
                 with open(HTML, "rb") as f:
                     return self.senden(200, f.read(), "text/html; charset=utf-8")
+            if u.path in ("/icon.svg", "/icon-180.png", "/icon-512.png"):
+                return self.icon_senden(u.path[1:])
             if u.path == "/gesund":
                 return self.senden(200, {"ok": True})
             if u.path == "/api/baum":
