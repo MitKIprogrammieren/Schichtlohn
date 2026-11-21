@@ -1293,6 +1293,8 @@ def aufraeumen_nas(p, geschrieben):
         i = info_lesen(o)
         if m in geschrieben or not i.get("nas"):
             continue
+        if all("/Cults/" in (x.get("pfad") or "") for x in i["nas"]):
+            continue  # nur Cults-Dateien – die verwaltet cults_schreiben
         eigenes = i.get("url") or i.get("notiz") or i.get("status") or i.get("bewertung") or \
             any(not d["name"].lower().endswith(".pdf") for d in dateien(os.path.join(o, "Daten"))) or \
             any(d["name"].startswith("eigen_") for d in dateien(os.path.join(o, "Bilder")))
