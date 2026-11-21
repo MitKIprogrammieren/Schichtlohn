@@ -1126,6 +1126,29 @@ def nas_pfad_ok(p):
     return isinstance(p, str) and p.startswith(NAS_ORDNER + "/") and "/../" not in p + "/" and "\x00" not in p
 
 
+def aufraeumen_nas(p, geschrieben):
+    """Einträge, deren DsCLoud-Dateien inzwischen woanders zugeordnet sind (oder fehlen), bereinigen.
+    Reine DsCLoud-Einträge ohne eigene Notizen wandern in den Papierkorb, sonst wird nur die Verknüpfung entfernt."""
+    pp, n = os.path.join(DATEN, p), 0
+    if not os.path.isdir(pp):
+        return 0
+    for m in os.listdir(pp):
+        o = os.path.join(pp, m)
+        i = info_lesen(o)
+        if m in geschrieben or not i.get("nas"):
+            continue
+        eigenes = i.get("url") or i.get("notiz") or i.get("status") or i.get("bewertung") or \
+            any(not d["name"].lower().endswith(".pdf") for d in dateien(os.path.join(o, "Daten"))) or \
+            any(d["name"].startswith("eigen_") for d in dateien(os.path.join(o, "Bilder")))
+        if i.get("quelle") == "DsCLoud" and not eigenes:
+            os.makedirs(os.path.join(DATEN, ".papierkorb"), exist_ok=True)
+            shutil.move(o, os.path.join(DATEN, ".papierkorb", f"{p} – {m} – {int(time.time())}"))
+        else:
+            info_setzen(o, nas=None, eigene_version=None, eigene_veraltet=None)
+        n += 1
+    return n
+
+
 def nas_scan(aid=None, mit_vorschau=True):
     """RC-Modelle auf der DsCLoud einlesen: jeder Designer-Ordner eine Gruppe, jede ZIP/jeder Unterordner ein Modell.
     3DSets wird den Shop-Modellen zugeordnet. Auf der NAS wird nichts verändert."""
@@ -1173,7 +1196,9 @@ def nas_scan(aid=None, mit_vorschau=True):
                 for e in eintraege:
                     buendel.setdefault(sauber(nas_titel(e["name"])).lower(), []).append(e)
                 paare = [(sauber(nas_titel(l[0]["name"])), l) for l in buendel.values()]
+            geschrieben = set()
             for m, l in paare:
+                geschrieben.add(sauber(m))
                 for e in l:
                     if e["ordner"] and "inhalt" not in e:
                         e["inhalt"] = nas_inhalt(nas, e["pfad"])
@@ -1197,12 +1222,15 @@ def nas_scan(aid=None, mit_vorschau=True):
                 else:
                     zugeordnet += 1
                 info_setzen(o, **werte)
-                if mit_vorschau:
+                if mit_vorschau and not war_da or mit_vorschau and not dateien(os.path.join(o, "Bilder")):
                     a["schritt"] = f"{p}: {m} – Vorschaubilder …"
                     try:
                         nas_vorschau(nas, o, l)
                     except Exception as ex:
                         print("Vorschau fehlgeschlagen:", m, ex, flush=True)
+            weg = aufraeumen_nas(p, geschrieben)
+            if weg:
+                print(f"DsCLoud: {weg} veraltete Einträge in {p} aufgeräumt", flush=True)
     text = f"DsCLoud eingelesen: {neu} Modelle neu, {zugeordnet} vorhandenen zugeordnet"
     if a:
         a.update(status="fertig", schritt=text, plattform="3D Sets", modell="")
