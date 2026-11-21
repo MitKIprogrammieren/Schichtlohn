@@ -1363,6 +1363,17 @@ def cults_zuordnen(eintraege, nas=None):
 def cults_schreiben(nas, paare):
     """Cults-Dateien an die Modelle hängen; Verknüpfungen aus anderen DsCLoud-Ordnern bleiben erhalten."""
     n = 0
+    for p in os.listdir(DATEN):  # Cults-Verknüpfungen, deren Datei nicht mehr im Cults-Ordner liegt, entfernen
+        pp = os.path.join(DATEN, p)
+        if p.startswith((".", "@", "#")) or not os.path.isdir(pp):
+            continue
+        for m in os.listdir(pp):
+            if (p, m) in paare:
+                continue
+            i = info_lesen(os.path.join(pp, m))
+            if any("/Cults/" in (x.get("pfad") or "") for x in i.get("nas") or []):
+                rest = [x for x in i["nas"] if "/Cults/" not in (x.get("pfad") or "")]
+                info_setzen(os.path.join(pp, m), nas=rest or None)
     for (p, m), l in paare.items():
         o = pfad(p, m)
         if not os.path.isdir(o):
@@ -1432,7 +1443,17 @@ def nas_scan(aid=None, mit_vorschau=True):
                         i0 = info_lesen(os.path.join(pp, m))
                         if i0.get("url") and i0.get("titel"):
                             modelle[m] = i0["titel"]
-                zuordnung = nas_zuordnen_3dsets(eintraege, modelle) if modelle else {None: eintraege}
+                # Ordner/Datei, deren Name genau der Anfang eines Modelltitels ist (z. B. „RB90“ → „RB90 Serie …“)
+                vorab = {}
+                for e in list(eintraege):
+                    st = sauber(nas_titel(e["name"])).lower()
+                    treffer = [m for m, t in modelle.items() if len(st) >= 3 and (t.lower() + " ").startswith(st + " ")]
+                    if len(treffer) == 1:
+                        vorab.setdefault(treffer[0], []).append(e)
+                        eintraege = [x for x in eintraege if x is not e]
+                zuordnung = nas_zuordnen_3dsets(eintraege, modelle) if modelle and eintraege else {None: eintraege}
+                for m, l in vorab.items():
+                    zuordnung.setdefault(m, []).extend(l)
                 paare = [(k, l) for k, l in zuordnung.items() if k]
                 buendel = {}
                 for e in zuordnung.get(None, []):
