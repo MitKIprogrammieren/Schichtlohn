@@ -8,6 +8,7 @@ Werke erreicht den Dienst über /pi/ (nginx leitet weiter).
 """
 import json
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -43,7 +44,7 @@ echo "uptime=$(cut -d. -f1 /proc/uptime)"
 echo "modell=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)"
 . /etc/os-release 2>/dev/null; echo "os=$PRETTY_NAME"
 echo "name=$(hostname)"
-echo "updates=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep -c '^Inst')"
+LC_ALL=C apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ' | sed 's/^/paket=/' 
 [ -f /var/run/reboot-required ] && echo neustart=1 || echo neustart=0
 command -v docker >/dev/null 2>&1 && echo docker=1 || echo docker=0
 sudo -n -l /usr/bin/apt-get >/dev/null 2>&1 && echo sudo=1 || echo sudo=0
@@ -148,6 +149,18 @@ def zahl(s):
         return None
 
 
+PAKET_MUSTER = re.compile(r"^Inst (\S+) (?:\[([^\]]*)\] )?\((\S+) ([^ \[)]*)")
+
+
+def paket_lesen(zeile):
+    """Eine Zeile wie 'Inst curl [7.88.1-10+deb12u8] (7.88.1-10+deb12u12 Debian-Security:12/stable-security [arm64])'."""
+    m = PAKET_MUSTER.match(zeile)
+    if not m:
+        return None
+    return {"name": m.group(1), "alt": m.group(2) or "", "neu": m.group(3),
+            "sicherheit": "security" in m.group(4).lower()}
+
+
 def frage_ab(pi):
     """Status eines Pis abfragen und in STATUS ablegen."""
     alt = STATUS.get(pi["id"], {})
@@ -163,7 +176,9 @@ def frage_ab(pi):
         zustand = "kein_zugang" if port_offen(pi["host"]) else "offline"
         STATUS[pi["id"]] = {"zustand": zustand, "fehler": fehler, "zuletzt": alt.get("zuletzt")}
         return
-    w = dict(z.split("=", 1) for z in r.stdout.splitlines() if "=" in z)
+    zeilen = r.stdout.splitlines()
+    w = dict(z.split("=", 1) for z in zeilen if "=" in z and not z.startswith("paket="))
+    pakete = [p for p in (paket_lesen(z[6:]) for z in zeilen if z.startswith("paket=")) if p]
     ram = [zahl(x) for x in w.get("ram", "/").split("/")]
     disk = [zahl(x) for x in w.get("disk", "/").split("/")]
     temp = zahl(w.get("temp"))
@@ -178,7 +193,9 @@ def frage_ab(pi):
         "modell": w.get("modell", ""),
         "os": w.get("os", ""),
         "name": w.get("name", ""),
-        "updates": zahl(w.get("updates")),
+        "updates": len(pakete),
+        "pakete": pakete,
+        "sicherheit": sum(1 for p in pakete if p["sicherheit"]),
         "neustart": w.get("neustart") == "1",
         "docker": w.get("docker") == "1",
         "sudo": w.get("sudo") == "1",
