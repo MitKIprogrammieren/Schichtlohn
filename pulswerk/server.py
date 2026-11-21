@@ -121,6 +121,10 @@ def verlauf_schleife():
             with urllib.request.urlopen(SENSOR, timeout=3) as r:
                 d = json.loads(r.read())
             p = [round(time.time()), d.get("cpu"), prozessor_temp(d.get("temperaturen")), d.get("netz_rx"), d.get("netz_tx")]
+            # kurze Logzeile alle 10 s (zum Nachsehen per Container-Log)
+            if p[0] % 10 < 5:
+                top = ", ".join(f'{x["name"]}@{x["gast"]} {x["cpu"]}%' for x in (d.get("prozesse") or [])[:4])
+                print(f'{time.strftime("%H:%M:%S")} cpu {p[1]}% temp {p[2]} kerne {d.get("kerne_last")} | {top or "keine Programmliste (alter Messdienst)"}', flush=True)
             with SPERRE:
                 KURZ.append(p)
                 del KURZ[:-720]
