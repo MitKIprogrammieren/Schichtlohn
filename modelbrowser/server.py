@@ -1305,12 +1305,66 @@ def aufraeumen_nas(p, geschrieben):
     return n
 
 
+def cults_zuordnen(eintraege):
+    """Bei Cults gekaufte Dateien (Ordner RC-Modelle/Cults) den Cults-Modellen zuordnen:
+    „Download all“-ZIPs beginnen mit dem Kurznamen des Modells, Einzeldateien stehen in .cults_dateien.json."""
+    modelle = {}
+    for p in os.listdir(DATEN):
+        pp = os.path.join(DATEN, p)
+        if p.startswith((".", "@", "#")) or not os.path.isdir(pp):
+            continue
+        for m in os.listdir(pp):
+            u = info_lesen(os.path.join(pp, m)).get("url") or ""
+            k = re.search(r"cults3d\.com/[a-z]{2}/3d-model/[^/]+/([^/?#]+)", u)
+            if k:
+                modelle[k.group(1).lower()] = (p, m)
+    karte = {}
+    for slug, namen in (json_lesen(os.path.join(DATEN, ".cults_dateien.json")) or {}).items():
+        for n in namen:
+            karte[n.lower()] = slug.lower()
+    namen_da = {e["name"].lower() for e in eintraege}
+    paare, ohne = {}, []
+    for e in eintraege:
+        n = e["name"].lower()
+        basis = re.sub(r" \(\d+\)(?=\.[^.]+$)", "", n)  # „datei (1).zip“ = doppelter Download
+        if basis != n and basis in namen_da:
+            continue
+        slug = karte.get(basis) or next((s2 for s2 in sorted(modelle, key=len, reverse=True) if basis.startswith(s2)), None)
+        pm = modelle.get(slug or "")
+        if pm:
+            paare.setdefault(pm, []).append(e)
+        else:
+            ohne.append(e["name"])
+    if ohne:
+        print("Cults: ohne Zuordnung:", ", ".join(ohne[:30]), flush=True)
+    return paare
+
+
+def cults_schreiben(nas, paare):
+    """Cults-Dateien an die Modelle hängen; Verknüpfungen aus anderen DsCLoud-Ordnern bleiben erhalten."""
+    n = 0
+    for (p, m), l in paare.items():
+        o = pfad(p, m)
+        if not os.path.isdir(o):
+            continue
+        for e in l:
+            if e["ordner"] and "inhalt" not in e:
+                e["inhalt"] = nas_inhalt(nas, e["pfad"])
+        alt = [x for x in (info_lesen(o).get("nas") or []) if "/Cults/" not in (x.get("pfad") or "")]
+        neu = [{"name": e["name"], "pfad": e["pfad"], "groesse": e["groesse"], "zeit": e["zeit"], "ordner": e["ordner"],
+                "inhalt": e.get("inhalt") or [], "version": ""} for e in sorted(l, key=lambda e: e["name"].lower())]
+        info_setzen(o, nas=alt + neu)
+        n += 1
+    return n
+
+
 def nas_scan(aid=None, mit_vorschau=True):
     """RC-Modelle auf der DsCLoud einlesen: jeder Designer-Ordner eine Gruppe, jede ZIP/jeder Unterordner ein Modell.
     3DSets wird den Shop-Modellen zugeordnet. Auf der NAS wird nichts verändert."""
     a = AUFTRAEGE.get(aid) or {}
     gruppen_namen = {"3DSets": "3D Sets", "RC-Modelle": "RC-Modelle"}
     neu = zugeordnet = 0
+    cults_paare = {}
     with Nas() as nas:
         a["schritt"] = "DsCLoud wird gelesen …"
         oben = nas.liste(NAS_ORDNER)
@@ -1322,7 +1376,10 @@ def nas_scan(aid=None, mit_vorschau=True):
                                       if x["ordner"] or x["name"].lower().endswith(MODELL_ENDUNGEN + (".pdf",))]
         for g, eintraege in gruppen.items():
             p = gruppen_namen.get(g, g)
-            if g == "3DSets":
+            if g == "Cults":
+                cults_paare = cults_zuordnen(eintraege)
+                continue
+            elif g == "3DSets":
                 pp = os.path.join(DATEN, "3D Sets")
                 modelle = {}
                 if os.path.isdir(pp):
@@ -1401,6 +1458,8 @@ def nas_scan(aid=None, mit_vorschau=True):
             weg = aufraeumen_nas(p, geschrieben)
             if weg:
                 print(f"DsCLoud: {weg} veraltete Einträge in {p} aufgeräumt", flush=True)
+        if cults_paare:
+            zugeordnet += cults_schreiben(nas, cults_paare)
     text = f"DsCLoud eingelesen: {neu} Modelle neu, {zugeordnet} vorhandenen zugeordnet"
     if a:
         a.update(status="fertig", schritt=text, plattform="3D Sets", modell="")
