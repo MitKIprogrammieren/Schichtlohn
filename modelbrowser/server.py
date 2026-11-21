@@ -689,8 +689,20 @@ def text_holen(url, timeout=40):
 
 
 def version_tupel(text):
-    m = re.search(r"v(?:ersion)?\s*(\d+(?:\.\d+)*)", text or "", re.I) or re.search(r"(?<![\d.])(\d+\.\d+(?:\.\d+)*)\s*$", text or "")
-    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+    """Versionsnummer aus einem Text. „V8“ (Zylinder) ist keine Version – Nummern mit Punkt gehen vor."""
+    t = text or ""
+    mit_punkt = re.findall(r"v(?:ersion)?\s*(\d+(?:\.\d+)+)", t, re.I) or re.findall(r"(?<![\d.])(\d+\.\d+(?:\.\d+)*)\s*$", t)
+    if mit_punkt:
+        return tuple(int(x) for x in mit_punkt[-1].split("."))
+    ohne = re.findall(r"(?:^|[\s_-])v(?:ersion)?\s*(\d+)\s*$", t, re.I)
+    return (int(ohne[-1]),) if ohne else ()
+
+
+def version_kleiner(a, b):
+    """a < b, wobei v1 == v1.0 == v1.0.0 gilt."""
+    a, b = list(a), list(b)
+    n = max(len(a), len(b))
+    return a + [0] * (n - len(a)) < b + [0] * (n - len(b))
 
 
 def anleitung_link(html):
@@ -1214,7 +1226,7 @@ def nas_scan(aid=None, mit_vorschau=True):
                                   "ordner": e["ordner"], "inhalt": e.get("inhalt") or [], "version": "v" + ".".join(map(str, nas_version(e["name"]))) if nas_version(e["name"]) else ""}
                                  for e in l],
                          "eigene_version": eigene or None,
-                         "eigene_veraltet": bool(versionen and aktuell and max(versionen) < aktuell) or None}
+                         "eigene_veraltet": bool(versionen and aktuell and version_kleiner(max(versionen), aktuell)) or None}
                 if not war_da:
                     werte.update(titel=nas_titel(l[0]["name"]), autor="3D Sets" if p == "3D Sets" else g,
                                  gespeichert=time.strftime("%Y-%m-%d %H:%M"), quelle="DsCLoud")
