@@ -3,147 +3,182 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#121417">
+<meta name="theme-color" content="#1b1b1d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pulswerk</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316351f'/%3E%3Cpath d='M4 17h6l3-7 5 13 3-6h7' fill='none' stroke='%2322c55e' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-:root{--bg:#121417;--fl:#1b1e23;--fl2:#23272e;--rand:#2e333b;--txt:#e8eaed;--txt2:#9aa1ab;--gruen:#22c55e;--gelb:#eab308;--rot:#ef4444;--blau:#60a5fa;--r:12px}
+:root{--bg:#232326;--fl:#2c2c30;--fl2:#38383d;--rand:#3c3c42;--txt:#e8e8ea;--txt2:#a7a7ae;--txt3:#7c7c84;--gruen:#00ae42;--gruen2:#19d36b;--gelb:#f2b84b;--rot:#ff6b5e;--blau:#6aa9ff}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;gap:10px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--rand);background:var(--fl)}
-header svg{width:28px;height:28px}
-header h1{font-size:17px;margin:0;font-weight:700}
-header h1 b{color:var(--gruen)}
-#status{margin-left:auto;font-size:12px;color:var(--txt2);display:flex;align-items:center;gap:6px}
-#status i{width:8px;height:8px;border-radius:50%;background:var(--gruen);display:inline-block}
-main{max-width:980px;margin:0 auto;padding:14px;display:grid;gap:12px}
-.kacheln{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-@media(max-width:700px){.kacheln{grid-template-columns:repeat(2,1fr)}}
-.karte{background:var(--fl);border:1px solid var(--rand);border-radius:var(--r);padding:14px}
-.k .t{color:var(--txt2);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.k .w{font-size:30px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums}
-.k .w small{font-size:15px;color:var(--txt2);font-weight:600;margin-left:2px}
-.k .u{color:var(--txt2);font-size:12px;min-height:17px}
-.balken{height:6px;border-radius:3px;background:var(--fl2);margin-top:10px;overflow:hidden}
-.balken div{height:100%;width:0;background:var(--gruen);transition:width .6s,background .6s}
-.na{color:var(--txt2)!important;font-size:15px!important;font-weight:600!important;padding:8px 0 5px}
-h2{font-size:13px;margin:0 0 10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;display:flex;gap:14px;align-items:center}
-h2 .lg{font-size:12px;text-transform:none;letter-spacing:0;font-weight:500;display:flex;gap:12px;margin-left:auto}
-h2 .lg span::before{content:"";display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle;background:var(--c)}
-canvas{width:100%;height:170px;display:block}
-.netz{display:flex;gap:24px;flex-wrap:wrap}
-.netz div{font-variant-numeric:tabular-nums}
-.netz b{font-size:20px}
-.netz span{color:var(--txt2);font-size:12px;display:block}
-.zeile{display:grid;grid-template-columns:minmax(0,1fr) 120px 64px 72px;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--rand);font-variant-numeric:tabular-nums}
-.zeile:first-of-type{border-top:none}
-.zeile .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zeile .n small{color:var(--txt2);margin-left:6px}
-.zeile .p{text-align:right;font-weight:600}
-.zeile .m{text-align:right;color:var(--txt2);font-size:12px}
-.zeile .balken{margin:0}
-@media(max-width:520px){.zeile{grid-template-columns:minmax(0,1fr) 60px 54px 62px}}
-.tag{font-size:11px;padding:1px 6px;border-radius:5px;background:var(--fl2);color:var(--txt2);margin-left:6px}
-.hinweis{border-color:#5b4a12;background:#241f0e;color:#f3e3a3;font-size:13px}
+html,body{margin:0;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;font:15px/1.45 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:#1b1b1d;border-bottom:1px solid var(--rand);position:sticky;top:0;z-index:5}
+header svg{width:40px;height:40px;flex:none}
+header h1{font:700 26px/1.1 "Chakra Petch","Segoe UI",-apple-system,sans-serif;margin:0}
+header h1 small{display:block;font:500 11px/1 "IBM Plex Sans",-apple-system,sans-serif;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+#live{margin-left:auto;font-size:12px;color:var(--txt2);display:flex;align-items:center;gap:6px;background:var(--fl);border:1px solid var(--rand);border-radius:999px;padding:5px 10px;white-space:nowrap}
+#live i{width:8px;height:8px;border-radius:50%;background:var(--gruen2)}
+main{max-width:760px;margin:0 auto;padding:16px;display:grid;gap:14px}
+.karte{background:var(--fl);border:1px solid var(--rand);border-radius:18px;padding:18px}
+h2{font-size:16px;font-weight:700;margin:0 0 14px}
+/* Gesamtzustand */
+.zustand{display:flex;gap:16px;align-items:center}
+.ampel{width:64px;height:64px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:30px;background:color-mix(in srgb,var(--f) 18%,transparent);border:3px solid var(--f)}
+.zustand b{font-size:21px;display:block;line-height:1.2}
+.zustand span{color:var(--txt2);font-size:14px}
+/* Fragen-Kacheln */
+.fragen{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.frage .q{color:var(--txt2);font-size:13px}
+.frage .a{font-size:22px;font-weight:700;margin:6px 0 2px;color:var(--f,var(--txt))}
+.frage .d{color:var(--txt3);font-size:13px}
+.skala{height:8px;border-radius:4px;margin-top:12px;background:linear-gradient(90deg,var(--gruen) 0 55%,var(--gelb) 55% 80%,var(--rot) 80%);position:relative;opacity:.9}
+.skala i{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:#fff;box-shadow:0 0 0 2px #1b1b1d;transform:translateX(-2px);transition:left .6s}
+/* Temperaturen */
+.temp{display:grid;grid-template-columns:28px 1fr auto;gap:4px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--rand)}
+.temp:first-of-type{border-top:0;padding-top:0}
+.temp .ic{font-size:20px;text-align:center}
+.temp .n{font-weight:600}
+.temp .n small{display:block;color:var(--txt3);font-weight:400;font-size:12px}
+.temp .w{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.temp .w small{display:block;font-size:12px;font-weight:600;color:var(--f)}
+.temp .skala{grid-column:2/4;margin-top:4px;height:6px}
+.kerne{grid-column:2/4;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.kern{background:var(--fl2);border-radius:12px;padding:8px 10px;border-top:3px solid var(--f)}
+.kern .kn{font-size:11px;color:var(--txt3)}
+.kern .kt{font-weight:700;font-variant-numeric:tabular-nums}
+.kern .kl{font-size:11px;color:var(--txt2);margin-top:2px;white-space:nowrap}
+.kern .kb{height:4px;border-radius:2px;background:var(--rand);margin-top:5px;overflow:hidden}
+.kern .kb div{height:100%;background:var(--f)}
+canvas{width:100%;height:150px;display:block}
+.erkl{color:var(--txt3);font-size:13px;margin-top:10px}
+/* Wer arbeitet */
+.wer{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--rand)}
+.wer:first-of-type{border-top:0}
+.wer .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wer .n small{display:block;color:var(--txt3);font-weight:400;font-size:12px}
+.wer .stufe{display:flex;gap:3px;justify-content:flex-end}
+.wer .stufe i{width:14px;height:14px;border-radius:4px;background:var(--fl2)}
+.wer .stufe i.an{background:var(--gruen)}.wer .stufe i.an.m{background:var(--gelb)}.wer .stufe i.an.h{background:var(--rot)}
+.hinweis{background:#3a3222;border-color:#5b4a1f;color:#f6dca6;font-size:14px}
 .hinweis code{background:#00000040;padding:1px 5px;border-radius:4px}
-.temps{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12px;color:var(--txt2);margin-top:10px}
-.temps b{color:var(--txt);font-variant-numeric:tabular-nums}
+details summary{cursor:pointer;color:var(--txt2);font-size:13px}
+details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 14px}
 </style>
 </head>
 <body>
 <header>
-<svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#16351f"/><path d="M4 17h6l3-7 5 13 3-6h7" fill="none" stroke="#22c55e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-<h1>Puls<b>werk</b></h1>
-<div id="status"><i></i><span>verbinde …</span></div>
+<svg viewBox="0 0 48 48"><rect x="11" y="11" width="26" height="26" rx="5" fill="none" stroke="#4c4c53" stroke-width="2.2"/><g stroke="#4c4c53" stroke-width="2.2" stroke-linecap="round"><path d="M17 5v6M24 5v6M31 5v6M17 37v6M24 37v6M31 37v6M5 17h6M5 24h6M5 31h6M37 17h6M37 24h6M37 31h6"/></g><path d="M7 25h10l3-7 4.5 13 3.5-9 2.5 3H41" fill="none" stroke="#00ae42" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<h1>Pulswerk<small>So geht's dem NUC</small></h1>
+<div id="live"><i></i><span>verbinde …</span></div>
 </header>
 <main>
 <div id="hinweis" class="karte hinweis" hidden></div>
-<div class="kacheln">
- <div class="karte k"><div class="t">CPU</div><div class="w" id="cpu">–</div><div class="u" id="cpuU"></div><div class="balken"><div id="cpuB"></div></div></div>
- <div class="karte k"><div class="t">Temperatur</div><div class="w" id="temp">–</div><div class="u" id="tempU"></div><div class="balken"><div id="tempB"></div></div></div>
- <div class="karte k"><div class="t">RAM</div><div class="w" id="ram">–</div><div class="u" id="ramU"></div><div class="balken"><div id="ramB"></div></div></div>
- <div class="karte k"><div class="t">Grafik · Quick Sync</div><div class="w" id="gpu">–</div><div class="u" id="gpuU"></div><div class="balken"><div id="gpuB"></div></div></div>
+
+<div class="karte zustand"><div class="ampel" id="ampel">✓</div><div><b id="zTitel">–</b><span id="zText"></span></div></div>
+
+<div class="fragen">
+ <div class="karte frage"><div class="q">Wie beschäftigt?</div><div class="a" id="aCpu">–</div><div class="d" id="dCpu"></div><div class="skala"><i id="sCpu"></i></div></div>
+ <div class="karte frage"><div class="q">Wie warm?</div><div class="a" id="aTemp">–</div><div class="d" id="dTemp"></div><div class="skala"><i id="sTemp"></i></div></div>
+ <div class="karte frage"><div class="q">Speicher voll?</div><div class="a" id="aRam">–</div><div class="d" id="dRam"></div><div class="skala"><i id="sRam"></i></div></div>
+ <div class="karte frage"><div class="q">Plex wandelt um?</div><div class="a" id="aPlex">–</div><div class="d" id="dPlex"></div></div>
 </div>
+
 <div class="karte">
- <h2>Letzte 5 Minuten<span class="lg"><span style="--c:var(--gruen)">CPU %</span><span style="--c:var(--gelb)">Temperatur °C</span><span style="--c:var(--blau)">Grafik %</span></span></h2>
+ <h2>Temperaturen</h2>
+ <div id="temps"></div>
+</div>
+
+<div class="karte">
+ <h2>Prozessor-Temperatur · letzte 5 Minuten</h2>
  <canvas id="kurve"></canvas>
+ <div class="erkl">Kurze Spitzen sind normal: Der Prozessor gibt kurz Gas und wird dabei warm. Darauf reagiert der Lüfter.</div>
 </div>
+
 <div class="karte">
- <h2>Netz</h2>
- <div class="netz">
-  <div><span>Empfangen</span><b id="rx">–</b></div>
-  <div><span>Gesendet</span><b id="tx">–</b></div>
-  <div><span>Last (1 / 5 / 15 min)</span><b id="last">–</b></div>
-  <div id="lfW" hidden><span>Lüfter</span><b id="lf">–</b></div>
- </div>
- <div class="temps" id="temps"></div>
-</div>
-<div class="karte">
- <h2>Wer zieht gerade?</h2>
+ <h2>Wer arbeitet gerade?</h2>
  <div id="wer"></div>
+</div>
+
+<div class="karte">
+ <h2>Datenverkehr</h2>
+ <div class="frage"><div class="a" id="aNetz" style="font-size:19px">–</div><div class="d" id="dNetz"></div></div>
+ <details style="margin-top:12px"><summary>Alle Messwerte für Technikfreunde</summary><div class="roh" id="roh"></div></details>
 </div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 const VERLAUF=[];const MAX=150;
-const farbe=(w,g,r)=>w>=r?'var(--rot)':w>=g?'var(--gelb)':'var(--gruen)';
-function balken(id,proz,g=60,r=85){const b=$(id);b.style.width=Math.max(0,Math.min(100,proz||0))+'%';b.style.background=farbe(proz||0,g,r)}
-const gb=b=>(b/1073741824).toFixed(1).replace('.',',');
-const mb=b=>b>=1073741824?gb(b)+' GB':Math.round(b/1048576)+' MB';
-function bit(b){if(b>=1e9)return (b/1e9).toFixed(2).replace('.',',')+' Gbit/s';if(b>=1e6)return (b/1e6).toFixed(1).replace('.',',')+' Mbit/s';return Math.round(b/1e3)+' kbit/s'}
-const z=(n,s=1)=>n==null?'–':Number(n).toFixed(s).replace('.',',');
-function cpuTemp(t){
- if(!t||!t.length)return null;
- const pk=t.find(x=>/package/i.test(x.name))||t.find(x=>x.quelle==='coretemp')||t.find(x=>/k10temp|zenpower/.test(x.quelle));
- return pk||t.reduce((a,b)=>b.grad>a.grad?b:a);
+const F={gut:'#19d36b',mittel:'#f2b84b',hoch:'#ff6b5e'};
+const z=(n,s=0)=>n==null?'–':Number(n).toFixed(s).replace('.',',');
+const gb=b=>z(b/1073741824,1);
+function stufe(w,g,r){return w>=r?'hoch':w>=g?'mittel':'gut'}
+function pos(v,g,r,u=0){const p=v<g?(v-u)/(g-u)*55:v<r?55+(v-g)/(r-g)*25:80+Math.min(20,(v-r)/((r-u)*.25)*20);return Math.max(1,Math.min(99,p))}
+function zeiger(id,p){$(id).style.left=p+'%'}
+const NAMEN={plex:['Plex','Filme & Serien'],schichtlohn:['SchichtLohn','Lager & Preise'],jdownloader:['JDownloader','Downloads'],
+ 'netzwerk-ntopng-1':['Netzwerk','Datenverkehr messen'],ntopng:['Netzwerk','Datenverkehr messen'],pulswerk:['Pulswerk','diese Seite'],
+ modelbrowser:['ModelBrowser','Modellarchiv'],etikettwerk:['Etikettwerk','Etiketten'],werke:['Werke','Startseite'],
+ headscale:['Headscale','Fernzugriff'],tailscale:['Tailscale','Fernzugriff'],schaltwerk:['Schaltwerk','Server-Steuerung'],gridwerk:['Gridwerk','Gridfinity'],
+ formwerk:['Formwerk','Großformat'],konturwerk:['Konturwerk','Werkzeugeinsätze']};
+function nett(n){const k=n.toLowerCase();for(const [s,v] of Object.entries(NAMEN))if(k===s||k.startsWith(s+'-')||k.startsWith(s+'_')||k.includes(s))return v;return [n.replace(/-\d+$/,''),'']}
+function temps(t){
+ t=(t||[]).filter(x=>x.grad>-20&&x.grad<130);
+ const cpu=t.find(x=>/package/i.test(x.name))||t.filter(x=>x.quelle==='coretemp').sort((a,b)=>b.grad-a.grad)[0];
+ const ssd=t.filter(x=>x.quelle==='nvme').sort((a,b)=>b.grad-a.grad)[0];
+ const brett=t.find(x=>/^pch/.test(x.quelle))||t.find(x=>x.quelle==='acpitz');
+ const kerne=t.filter(x=>x.quelle==='coretemp'&&/core\s*\d/i.test(x.name)).sort((a,b)=>parseInt(a.name.match(/\d+/))-parseInt(b.name.match(/\d+/)));
+ return {cpu,ssd,brett,kerne,alle:t};
 }
+function kernHtml(k,last){return '<div class="kerne">'+k.map((t,i)=>{const st=stufe(t.grad,65,80),l=last&&last[i]!=null?last[i]:null;
+ return `<div class="kern" style="--f:${F[st]}"><div class="kn">Kern ${i+1}</div><div class="kt">${z(t.grad)} °C</div>${l!=null?`<div class="kl">${z(l)} % in Arbeit</div><div class="kb"><div style="width:${Math.min(100,l)}%"></div></div>`:''}</div>`}).join('')+'</div>'}
 function zeichnen(){
  const c=$('kurve'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
  c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
- x.strokeStyle='#2e333b';x.lineWidth=1;x.fillStyle='#9aa1ab';x.font='11px sans-serif';
- for(const v of [0,25,50,75,100]){const y=h-6-(h-16)*v/100;x.beginPath();x.moveTo(28,y);x.lineTo(w,y);x.stroke();x.fillText(v,2,y+4)}
- const linie=(feld,col)=>{x.strokeStyle=col;x.lineWidth=2;x.beginPath();let an=false;
-  VERLAUF.forEach((p,i)=>{const v=p[feld];if(v==null){an=false;return}
-   const px=28+(w-28)*(i+MAX-VERLAUF.length)/(MAX-1),py=h-6-(h-16)*Math.min(100,v)/100;
-   an?x.lineTo(px,py):x.moveTo(px,py);an=true});x.stroke()};
- linie('gpu','#60a5fa');linie('temp','#eab308');linie('cpu','#22c55e');
-}
-function wer(d){
- const zeilen=[];
- (d.gaeste||[]).forEach(g=>zeilen.push({n:g.name,s:(g.id>=100?'CT/VM ':'')+g.id,cpu:g.cpu,ram:g.ram,art:'Gast'}));
- (d.container||[]).forEach(c=>zeilen.push({n:c.name,s:'',cpu:c.cpu,ram:c.ram,art:'Docker'}));
- zeilen.sort((a,b)=>(b.cpu||0)-(a.cpu||0));
- $('wer').innerHTML=zeilen.length?zeilen.slice(0,14).map(r=>`<div class="zeile"><div class="n">${r.n.replace(/</g,'&lt;')}<span class="tag">${r.art}${r.s?' '+r.s.replace('CT/VM ',''):''}</span></div><div class="balken"><div style="width:${Math.min(100,(r.cpu||0)*2)}%;background:${farbe(r.cpu||0,15,35)}"></div></div><div class="p">${r.cpu==null?'…':z(r.cpu)+' %'}</div><div class="m">${mb(r.ram)}</div></div>`).join(''):'<div style="color:var(--txt2)">Noch keine Daten.</div>';
+ const y=v=>h-8-(h-16)*(v-30)/60; // 30–90 °C
+ // Zonen
+ [[30,65,'#00ae4214'],[65,80,'#f2b84b14'],[80,90,'#ff6b5e14']].forEach(([a,b,f])=>{x.fillStyle=f;x.fillRect(30,y(b),w-30,y(a)-y(b))});
+ x.fillStyle='#7c7c84';x.font='11px sans-serif';[40,60,80].forEach(v=>x.fillText(v+'°',2,y(v)+4));
+ x.strokeStyle='#f2b84b';x.lineWidth=2.2;x.lineJoin='round';x.beginPath();let an=false;
+ VERLAUF.forEach((p,i)=>{if(p==null){an=false;return}const w3=VERLAUF.slice(Math.max(0,i-2),i+1).filter(q=>q!=null);const v=w3.reduce((a,b)=>a+b,0)/w3.length;
+  const px=30+(w-30)*(i+MAX-VERLAUF.length)/(MAX-1);an?x.lineTo(px,y(Math.max(30,Math.min(90,v)))):x.moveTo(px,y(Math.max(30,Math.min(90,v))));an=true});x.stroke();
 }
 async function holen(){
  let d;
  try{d=await (await fetch('api/werte',{cache:'no-store'})).json()}
- catch(e){$('status').innerHTML='<i style="background:var(--rot)"></i><span>Pulswerk nicht erreichbar</span>';return}
+ catch(e){$('live').innerHTML='<i style="background:var(--rot)"></i><span>nicht erreichbar</span>';return}
  const s=d.sensor;
- $('status').innerHTML=`<i style="background:${s?'var(--gruen)':'var(--gelb)'}"></i><span>${s?'live · '+new Date().toLocaleTimeString('de-DE'):'ohne Messdienst'}</span>`;
+ $('live').innerHTML=`<i style="background:${s?'var(--gruen2)':'var(--gelb)'}"></i><span>${s?'live':'eingeschränkt'}</span>`;
  const h=$('hinweis');
- if(!s){h.hidden=false;h.innerHTML='Der Messdienst auf dem Proxmox-Host antwortet nicht. Ohne ihn siehst du nur die Docker-Container. Einrichten: den Befehl aus der Anleitung einmal in der Proxmox-Shell ausführen (Port <code>9105</code>).'}
- else if(d.gpu&&d.gpu.fehlt){h.hidden=false;h.innerHTML='Grafikauslastung fehlt: '+d.gpu.fehlt+'. In der Proxmox-Shell <code>apt install -y intel-gpu-tools</code> ausführen und <code>systemctl restart pulswerk-sensor</code>.'}
- else h.hidden=true;
- const pkt={cpu:null,temp:null,gpu:null};
- if(s){
-  $('cpu').innerHTML=z(d.cpu)+'<small>%</small>';$('cpuU').textContent=d.kerne+' Kerne';balken('cpuB',d.cpu);pkt.cpu=d.cpu;
-  const t=cpuTemp(d.temperaturen);
-  if(t){$('temp').innerHTML=z(t.grad)+'<small>°C</small>';$('temp').className='w';$('tempU').textContent=t.name;balken('tempB',t.grad,70,85);pkt.temp=t.grad}
-  else{$('temp').textContent='nicht verfügbar';$('temp').className='w na'}
-  $('ram').innerHTML=gb(d.ram)+'<small>/ '+gb(d.ram_max)+' GB</small>';$('ramU').textContent=Math.round(d.ram/d.ram_max*100)+' % belegt';balken('ramB',d.ram/d.ram_max*100,75,90);
-  const g=d.gpu||{};
-  if(g.video!=null&&!g.fehlt){const m=Math.max(g.video,g.render);$('gpu').innerHTML=z(m,0)+'<small>%</small>';$('gpu').className='w';
-   $('gpuU').textContent=`Video ${z(g.video,0)} % · 3D ${z(g.render,0)} % · ${g.takt} MHz`+(g.video>5?' – Plex wandelt um':'');balken('gpuB',m);pkt.gpu=m}
-  else{$('gpu').textContent='nicht verfügbar';$('gpu').className='w na';$('gpuU').textContent=''}
-  $('rx').textContent=bit(d.netz_rx);$('tx').textContent=bit(d.netz_tx);$('last').textContent=d.last.map(v=>z(v,2)).join(' / ');
-  if(d.luefter&&d.luefter.length){$('lfW').hidden=false;$('lf').textContent=d.luefter.map(f=>f.upm+' U/min').join(' · ')}
-  $('temps').innerHTML=(d.temperaturen||[]).slice(0,12).map(t=>`<span>${t.quelle} ${t.name!==t.quelle?t.name:''}: <b>${z(t.grad)} °C</b></span>`).join('');
- }else{
-  for(const id of ['cpu','temp','ram','gpu']){$(id).textContent='nicht verfügbar';$(id).className='w na'}
- }
- VERLAUF.push(pkt);if(VERLAUF.length>MAX)VERLAUF.shift();zeichnen();wer(d);
+ if(!s){h.hidden=false;h.innerHTML='Der Messdienst auf dem Proxmox-Host läuft noch nicht. Darum fehlen Temperatur und Grafik.'}else h.hidden=true;
+ const T=temps(d.temperaturen),cpuT=T.cpu?T.cpu.grad:null;
+ // Fragen
+ const kerne=d.kerne||4,cpu=d.cpu||0;
+ const sc=stufe(cpu,40,75);$('aCpu').textContent={gut:'Ruhig',mittel:'Gut zu tun',hoch:'Viel los'}[sc];$('aCpu').style.setProperty('--f',F[sc]);
+ $('dCpu').textContent=`${z(cpu)} % der Leistung`;zeiger('sCpu',pos(cpu,40,75));
+ if(cpuT!=null){const st=stufe(cpuT,65,80);$('aTemp').textContent={gut:'Alles kühl',mittel:'Warm',hoch:'Heiß'}[st];$('aTemp').style.setProperty('--f',F[st]);$('dTemp').textContent=`Prozessor ${z(cpuT)} °C`;zeiger('sTemp',pos(cpuT,65,80,20))}
+ else{$('aTemp').textContent='–';$('dTemp').textContent='kein Messwert'}
+ if(d.ram_max){const p=d.ram/d.ram_max*100,sr=stufe(p,75,90);$('aRam').textContent={gut:'Genug frei',mittel:'Wird knapp',hoch:'Fast voll'}[sr];$('aRam').style.setProperty('--f',F[sr]);$('dRam').textContent=`${gb(d.ram)} von ${gb(d.ram_max)} GB belegt`;zeiger('sRam',pos(p,75,90))}
+ const g=d.gpu||{};
+ if(g.video!=null&&!g.fehlt){const um=g.video>3;$('aPlex').textContent=um?'Ja':'Nein';$('aPlex').style.setProperty('--f',um?F.mittel:F.gut);$('dPlex').textContent=um?'Grafikchip rechnet Video um':'Filme laufen direkt (Direct Play)'}
+ else{$('aPlex').textContent='–';$('dPlex').textContent='Messung fehlt noch'}
+ // Gesamt
+ const schlimm=[sc,cpuT!=null?stufe(cpuT,65,80):'gut',d.ram_max?stufe(d.ram/d.ram_max*100,75,90):'gut'];
+ const ges=schlimm.includes('hoch')?'hoch':schlimm.includes('mittel')?'mittel':'gut';
+ $('ampel').style.setProperty('--f',F[ges]);$('ampel').textContent={gut:'✓',mittel:'!',hoch:'!!'}[ges];
+ $('zTitel').textContent={gut:'Alles im grünen Bereich',mittel:'Der NUC arbeitet gerade',hoch:'Der NUC ist am Limit'}[ges];
+ $('zText').textContent={gut:'Nichts zu tun – der NUC hat genug Luft.',mittel:'Kein Problem, er ist nur gerade beschäftigt oder warm.',hoch:'Schau unten, wer gerade so viel arbeitet.'}[ges];
+ // Temperaturen
+ const zeilen=[['🧠','Prozessor','das Gehirn des NUC',T.cpu,65,80],['💾','SSD','die Festplatte',T.ssd,55,70],['🔌','Hauptplatine','die Platine darunter',T.brett,60,75]];
+ $('temps').innerHTML=zeilen.filter(r=>r[3]).map(([ic,n,u,t,gg,rr])=>{const st=stufe(t.grad,gg,rr);return `<div class="temp" style="--f:${F[st]}"><div class="ic">${ic}</div><div class="n">${n}<small>${u}</small></div><div class="w">${z(t.grad)} °C<small>${{gut:'gut',mittel:'warm',hoch:'heiß'}[st]}</small></div><div class="skala"><i style="left:${pos(t.grad,gg,rr,15)}%"></i></div>${n==='Prozessor'&&T.kerne.length?kernHtml(T.kerne,d.kerne_last):''}</div>`}).join('')||'<div class="erkl">Noch keine Temperaturen.</div>';
+ // Wer arbeitet
+ const liste=[...(d.gaeste||[]),...(d.container||[]).filter(c=>!/pulswerk/.test(c.name))].map(x=>({...x,nn:nett(x.name)}));
+ const ges2={};liste.forEach(x=>{const k=x.nn[0];if(!ges2[k]||(x.cpu||0)>(ges2[k].cpu||0))ges2[k]=x});
+ const sort=Object.values(ges2).sort((a,b)=>(b.cpu||0)-(a.cpu||0)).slice(0,8);
+ $('wer').innerHTML=sort.map(x=>{const c=x.cpu||0,n=c>=20?5:c>=10?4:c>=4?3:c>=1?2:c>0.2?1:0,k=n>=5?'h':n>=4?'m':'';
+  return `<div class="wer"><div class="n">${x.nn[0]}<small>${x.nn[1]||' '}</small></div><div class="stufe" title="${z(c,1)} %">${[1,2,3,4,5].map(i=>`<i class="${i<=n?'an '+k:''}"></i>`).join('')}</div></div>`}).join('')||'<div class="erkl">Noch keine Daten.</div>';
+ // Netz
+ const mb=(d.netz_rx||0)/1e6;
+ $('aNetz').textContent=mb>8?'Es wird gerade etwas gestreamt oder geladen':mb>1?'Etwas Datenverkehr':'Ruhig';
+ $('dNetz').textContent=`${z(mb,1)} Mbit/s kommen rein · ${z((d.netz_tx||0)/1e6,1)} Mbit/s gehen raus`;
+ $('roh').innerHTML=T.alle.map(t=>`<span>${t.quelle} ${t.name!==t.quelle?t.name.trim():''}: ${z(t.grad,1)} °C</span>`).join('')+(d.last?`<span>Last: ${d.last.map(v=>z(v,2)).join(' / ')}</span>`:'')+`<span>CPU: ${z(cpu,1)} % (${kerne} Kerne)</span>`+(g.takt?`<span>Grafik: ${g.takt} MHz</span>`:'');
+ VERLAUF.push(cpuT);if(VERLAUF.length>MAX)VERLAUF.shift();zeichnen();
 }
 addEventListener('resize',zeichnen);
 holen();setInterval(holen,2000);

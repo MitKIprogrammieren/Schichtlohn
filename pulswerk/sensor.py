@@ -66,8 +66,14 @@ def gpu_schleife():
 
 
 def cpu_zeiten():
-    t = [int(x) for x in lesen("/proc/stat").splitlines()[0].split()[1:]]
-    return sum(t), t[3] + t[4]
+    """Gesamt und je Kern: (summe, leerlauf)."""
+    erg = []
+    for z in lesen("/proc/stat").splitlines():
+        if not z.startswith("cpu"):
+            break
+        t = [int(x) for x in z.split()[1:]]
+        erg.append((sum(t), t[3] + t[4]))
+    return erg
 
 
 def netz():
@@ -118,13 +124,17 @@ def mess_schleife():
     alt = None
     while True:
         jetzt = time.time()
-        ges, leer = cpu_zeiten()
+        zeiten = cpu_zeiten()
+        ges, leer = zeiten[0]
         rx, tx = netz()
         g = gaeste()
         if alt:
             dt = jetzt - alt["zeit"]
             d_ges = ges - alt["ges"]
             cpu = 100 * (1 - (leer - alt["leer"]) / d_ges) if d_ges else 0
+            je_kern = []
+            for (g1, l1), (g0, l0) in zip(zeiten[1:], alt["zeiten"][1:]):
+                je_kern.append(round(100 * (1 - (l1 - l0) / (g1 - g0)), 1) if g1 > g0 else 0)
             vorher = {x["id"]: x["usec"] for x in alt["gaeste"]}
             gl = [{"id": x["id"], "name": x["name"], "ram": x["ram"],
                    "cpu": round(max(0, x["usec"] - vorher.get(x["id"], x["usec"])) / (dt * 1e6 * kerne) * 100, 1)}
@@ -133,13 +143,13 @@ def mess_schleife():
                    (z.split(":", 1) for z in lesen("/proc/meminfo").splitlines())}
             temps, luefter = temperaturen()
             with SPERRE:
-                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1),
+                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern,
                              last=[float(x) for x in lesen("/proc/loadavg").split()[:3]],
                              ram=mem["MemTotal"] - mem["MemAvailable"], ram_max=mem["MemTotal"],
                              netz_rx=round((rx - alt["rx"]) * 8 / dt), netz_tx=round((tx - alt["tx"]) * 8 / dt),
                              temperaturen=temps, luefter=luefter, gpu=dict(GPU),
                              gaeste=sorted(gl, key=lambda x: -x["cpu"]))
-        alt = {"zeit": jetzt, "ges": ges, "leer": leer, "rx": rx, "tx": tx, "gaeste": g}
+        alt = {"zeit": jetzt, "ges": ges, "leer": leer, "zeiten": zeiten, "rx": rx, "tx": tx, "gaeste": g}
         time.sleep(1)
 
 
