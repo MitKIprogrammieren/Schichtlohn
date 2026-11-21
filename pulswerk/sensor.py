@@ -14,6 +14,36 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("PORT", "9105"))
+# Turbo schalten dürfen nur Pulswerk (CT 100) und der Host selbst
+ERLAUBT = set(os.environ.get("ERLAUBT", "192.168.1.30,127.0.0.1").split(","))
+TURBO_DATEI = "/etc/pulswerk-turbo"
+NO_TURBO = "/sys/devices/system/cpu/intel_pstate/no_turbo"
+BOOST = "/sys/devices/system/cpu/cpufreq/boost"
+
+
+def turbo_lesen():
+    if os.path.exists(NO_TURBO):
+        return lesen(NO_TURBO) == "0"
+    if os.path.exists(BOOST):
+        return lesen(BOOST) == "1"
+    return None
+
+
+def turbo_setzen(an):
+    if os.path.exists(NO_TURBO):
+        pfad, wert = NO_TURBO, "0" if an else "1"
+    elif os.path.exists(BOOST):
+        pfad, wert = BOOST, "1" if an else "0"
+    else:
+        return False
+    with open(pfad, "w") as f:
+        f.write(wert)
+    try:
+        with open(TURBO_DATEI, "w") as f:
+            f.write("an" if an else "aus")
+    except OSError:
+        pass
+    return True
 WERTE = {}
 GPU = {"video": None, "render": None, "takt": None, "fehlt": None}
 SPERRE = threading.Lock()
@@ -192,7 +222,7 @@ def mess_schleife():
                    (z.split(":", 1) for z in lesen("/proc/meminfo").splitlines())}
             temps, luefter = temperaturen()
             with SPERRE:
-                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern, prozesse=top,
+                WERTE.update(zeit=round(jetzt, 1), kerne=kerne, cpu=round(cpu, 1), kerne_last=je_kern, prozesse=top, turbo=turbo_lesen(),
                              last=[float(x) for x in lesen("/proc/loadavg").split()[:3]],
                              ram=mem["MemTotal"] - mem["MemAvailable"], ram_max=mem["MemTotal"],
                              netz_rx=round((rx - alt["rx"]) * 8 / dt), netz_tx=round((tx - alt["tx"]) * 8 / dt),
@@ -205,6 +235,24 @@ def mess_schleife():
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
+
+    def do_POST(self):
+        if self.path.split("?")[0] != "/turbo" or self.client_address[0] not in ERLAUBT:
+            self.send_response(403)
+            self.end_headers()
+            return
+        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            an = bool(json.loads(self.rfile.read(min(n, 100)) or b"{}").get("an"))
+            ok = turbo_setzen(an)
+        except (ValueError, OSError):
+            ok = False
+        body = json.dumps({"ok": ok, "turbo": turbo_lesen()}).encode()
+        self.send_response(200 if ok else 500)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_GET(self):
         if self.path.split("?")[0] != "/werte":
@@ -222,6 +270,12 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # gespeicherte Turbo-Wahl nach Neustart wieder anwenden
+    if lesen(TURBO_DATEI) in ("an", "aus"):
+        try:
+            turbo_setzen(lesen(TURBO_DATEI) == "an")
+        except OSError:
+            pass
     threading.Thread(target=gpu_schleife, daemon=True).start()
     threading.Thread(target=mess_schleife, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

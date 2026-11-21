@@ -10,6 +10,7 @@ import re
 import socket
 import threading
 import time
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -188,6 +189,17 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_POST(self):
+        if self.path.split("?")[0] == "/api/turbo":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                an = bool(json.loads(self.rfile.read(min(n, 100)) or b"{}").get("an"))
+            except ValueError:
+                return self.senden(400, b'{"ok":false}', "application/json")
+            code, body = turbo(an)
+            return self.senden(code, body, "application/json")
+        self.senden(404, b"nicht gefunden", "text/plain")
+
     def do_GET(self):
         pfad = self.path.split("?")[0]
         if pfad == "/api/verlauf":
@@ -199,6 +211,18 @@ class H(BaseHTTPRequestHandler):
             self.senden(200, lesen(HTML).encode(), "text/html; charset=utf-8")
         else:
             self.senden(404, b"nicht gefunden", "text/plain")
+
+
+def turbo(an):
+    req = urllib.request.Request(SENSOR.rsplit("/", 1)[0] + "/turbo", data=json.dumps({"an": an}).encode(),
+                                 method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return 200, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, json.dumps({"ok": False, "text": "Messdienst lehnt ab – bitte Messdienst aktualisieren"}).encode()
+    except Exception as e:
+        return 502, json.dumps({"ok": False, "text": "Messdienst nicht erreichbar"}).encode()
 
 
 class StillerServer(ThreadingHTTPServer):
