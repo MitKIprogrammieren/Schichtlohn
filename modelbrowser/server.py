@@ -689,7 +689,7 @@ def text_holen(url, timeout=40):
 
 
 def version_tupel(text):
-    m = re.search(r"v(?:ersion)?\s*(\d+(?:\.\d+)*)", text or "", re.I)
+    m = re.search(r"v(?:ersion)?\s*(\d+(?:\.\d+)*)", text or "", re.I) or re.search(r"(?<![\d.])(\d+\.\d+(?:\.\d+)*)\s*$", text or "")
     return tuple(int(x) for x in m.group(1).split(".")) if m else ()
 
 
