@@ -6,8 +6,14 @@ sammelt alle paar Sekunden CPU, Temperatur, RAM, Speicher und anstehende Updates
 und führt auf Knopfdruck apt-Updates, Container-Updates und Neustarts aus.
 Werke erreicht den Dienst über /pi/ (nginx leitet weiter).
 """
+import base64
+import fcntl
+import hashlib
 import json
 import os
+import pty
+import struct
+import termios
 import re
 import socket
 import subprocess
@@ -127,11 +133,121 @@ def oeffentlicher_schluessel():
         return ""
 
 
-def ssh_befehl(pi):
+def ssh_basis(pi):
     return ["ssh", "-i", SCHLUESSEL, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=accept-new", "-o", f"UserKnownHostsFile={BEKANNT}",
-            "-o", "ServerAliveInterval=15", "-o", "LogLevel=ERROR",
-            f"{pi['user']}@{pi['host']}", "bash", "-s"]
+            "-o", "ServerAliveInterval=15", "-o", "LogLevel=ERROR"]
+
+
+def ssh_befehl(pi):
+    return ssh_basis(pi) + [f"{pi['user']}@{pi['host']}", "bash", "-s"]
+
+
+# ---------- Terminal im Browser (wie Raspberry Pi Connect Lite) ----------
+WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+def ws_lesen(rf):
+    """Einen WebSocket-Rahmen lesen → (opcode, daten) oder (None, None) bei Verbindungsende."""
+    kopf = rf.read(2)
+    if len(kopf) < 2:
+        return None, None
+    op, maskiert, n = kopf[0] & 0x0F, kopf[1] & 0x80, kopf[1] & 0x7F
+    if n == 126:
+        n = struct.unpack(">H", rf.read(2))[0]
+    elif n == 127:
+        n = struct.unpack(">Q", rf.read(8))[0]
+    maske = rf.read(4) if maskiert else None
+    daten = rf.read(n)
+    if maske:
+        daten = bytes(b ^ maske[i & 3] for i, b in enumerate(daten))
+    return op, daten
+
+
+def ws_senden(wf, op, daten=b""):
+    n = len(daten)
+    if n < 126:
+        kopf = struct.pack(">BB", 0x80 | op, n)
+    elif n < 65536:
+        kopf = struct.pack(">BBH", 0x80 | op, 126, n)
+    else:
+        kopf = struct.pack(">BBQ", 0x80 | op, 127, n)
+    wf.write(kopf + daten)
+    wf.flush()
+
+
+def fenstergroesse(fd, zeilen, spalten):
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", max(5, zeilen), max(20, spalten), 0, 0))
+
+
+def terminal_sitzung(handler, pi):
+    """Verbindet einen WebSocket mit einer SSH-Sitzung (mit echtem Terminal) auf dem Pi."""
+    master, slave = pty.openpty()
+    fenstergroesse(slave, 30, 100)
+
+    def vorher():
+        os.setsid()
+        fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+    p = subprocess.Popen(ssh_basis(pi) + ["-tt", f"{pi['user']}@{pi['host']}"],
+                         stdin=slave, stdout=slave, stderr=slave, preexec_fn=vorher, close_fds=True,
+                         env={**os.environ, "TERM": "xterm-256color", "LANG": "C.UTF-8"})
+    os.close(slave)
+    sperre_senden = threading.Lock()
+
+    def senden(op, daten=b""):
+        with sperre_senden:
+            ws_senden(handler.wfile, op, daten)
+
+    def ausgabe():
+        try:
+            while True:
+                try:
+                    d = os.read(master, 65536)
+                except OSError:
+                    break
+                if not d:
+                    break
+                senden(2, d)
+        except (OSError, ConnectionError):
+            pass
+        finally:
+            try:
+                senden(8)
+            except Exception:  # noqa: BLE001
+                pass
+
+    threading.Thread(target=ausgabe, daemon=True).start()
+    try:
+        while True:
+            op, d = ws_lesen(handler.rfile)
+            if op is None or op == 8:
+                break
+            if op == 9:
+                senden(10, d)
+            elif op in (1, 2) and d:
+                if d[:1] == b"1":
+                    try:
+                        j = json.loads(d[1:])
+                        fenstergroesse(master, int(j["r"]), int(j["c"]))
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    rest = d[1:]
+                    while rest:
+                        rest = rest[os.write(master, rest):]
+    except (OSError, ConnectionError, struct.error):
+        pass
+    finally:
+        p.terminate()
+        try:
+            p.wait(3)
+        except subprocess.TimeoutExpired:
+            p.kill()
+        try:
+            os.close(master)
+        except OSError:
+            pass
 
 
 def port_offen(host, port=22):
@@ -305,6 +421,7 @@ def neue_id(name):
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"   # nötig für WebSocket (101)
     def log_message(self, *a):
         pass
 
@@ -334,6 +451,21 @@ class Handler(BaseHTTPRequestHandler):
             pfad = pfad[3:]
         return [t for t in pfad.split("/") if t], parse_qs(u.query)
 
+    def terminal(self, pid):
+        pi = finde_pi(pid)
+        schluessel = self.headers.get("Sec-WebSocket-Key")
+        if not pi or not pi.get("host") or not schluessel:
+            return self.antwort({"fehler": "Pi unbekannt oder keine WebSocket-Anfrage"}, 400)
+        antwort = base64.b64encode(hashlib.sha1((schluessel + WS_GUID).encode()).digest()).decode()
+        self.close_connection = True
+        self.send_response(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", antwort)
+        self.end_headers()
+        self.wfile.flush()
+        terminal_sitzung(self, pi)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -343,6 +475,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         t, q = self.teile()
+        if len(t) == 3 and t[:2] == ["api", "terminal"]:
+            return self.terminal(t[2])
         if t == ["api", "pis"]:
             return self.antwort(liste())
         if t == ["api", "schluessel"]:

@@ -61,6 +61,9 @@
   .pz:last-child{border-bottom:0}
   .pz .v{color:var(--mute);font:12px ui-monospace,Menlo,monospace;text-align:right;word-break:break-all}
   .sich{font-size:11px;padding:1px 6px;border-radius:6px;background:#ff6b5e22;color:var(--off);margin-left:6px;white-space:nowrap}
+  .fenster.gross{width:min(1000px,100%)}
+  .tbox{height:62vh;background:#16161a;border:1px solid var(--line);border-radius:12px;padding:6px;overflow:hidden}
+  .tasten .knopf{padding:6px 10px;font-size:12.5px}.tasten .knopf.an{background:var(--acc);border-color:var(--acc);color:#fff}
   .leer{color:var(--mute2);font-size:13px;margin:14px 0;text-align:center}
   .knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .schicht{position:fixed;inset:0;z-index:20;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -185,7 +188,7 @@ document.querySelectorAll("#netz button").forEach(b=>{
 const PIAPI = "/pi/api";
 const piBox = document.getElementById("pibereich");
 const schicht = document.getElementById("schicht"), fensterEl = document.getElementById("fenster");
-let piDaten, piSchluessel = "", logTimer = null;
+let piDaten, piSchluessel = "", logTimer = null, tSitzung = null;
 const ZUST = {online:["online","on"], kein_zugang:["kein Zugang","warn"], offline:["offline","off"],
   ohne_ip:["keine IP",""], unbekannt:["prüfe …",""]};
 const LAUF = {update:"Update läuft …", container:"Container werden aktualisiert …", neustart:"Startet neu …", pruefen:"Sucht nach Updates …"};
@@ -233,6 +236,7 @@ function piKarte(p){
       kn.push(`<button class="knopf" data-a="pruefen" title="Nach Updates suchen">Prüfen</button>`);
     }
     if(!s.sudo) kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
+    kn.push(`<button class="knopf" data-a="terminal" title="Kommandozeile im Browser">Terminal</button>`);
   } else if(s.zustand==="kein_zugang"){
     mitte=`<p class="leer">Pi ist erreichbar, aber der Schlüssel fehlt noch.</p>`;
     kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
@@ -252,9 +256,13 @@ function piKarte(p){
 }
 
 function oeffne(html){fensterEl.innerHTML=html; schicht.hidden=false;}
-function schliesse(){schicht.hidden=true; fensterEl.innerHTML=""; if(logTimer){clearInterval(logTimer); logTimer=null;}}
+function schliesse(){
+  schicht.hidden=true; fensterEl.innerHTML=""; fensterEl.classList.remove("gross");
+  if(logTimer){clearInterval(logTimer); logTimer=null;}
+  if(tSitzung){tSitzung.ende(); tSitzung=null;}
+}
 schicht.addEventListener("click",e=>{ if(e.target===schicht||e.target.closest("[data-zu]")) schliesse(); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!schicht.hidden) schliesse(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!schicht.hidden&&!tSitzung) schliesse(); });
 
 async function piAktion(id,art){
   const r=await fetch(`${PIAPI}/pis/${encodeURIComponent(id)}/${art}`,{method:"POST"});
@@ -294,6 +302,55 @@ function zeigeListe(p){
   });
   const up=document.getElementById("l_up");
   if(up) up.onclick=async()=>{const jid=await piAktion(p.id,"update"); if(jid) zeigeLog(jid,`${p.name} – Update`);};
+}
+// Terminal im Browser (xterm.js) – wie Raspberry Pi Connect Lite, nur über das eigene Netz
+const XTERM="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0", XFIT="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0";
+function ladeSkript(src){return new Promise((ok,nein)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=nein;document.head.appendChild(s)})}
+async function xtermLaden(){
+  if(window.Terminal&&window.FitAddon) return;
+  const l=document.createElement("link"); l.rel="stylesheet"; l.href=XTERM+"/css/xterm.css"; document.head.appendChild(l);
+  await ladeSkript(XTERM+"/lib/xterm.js"); await ladeSkript(XFIT+"/lib/addon-fit.js");
+}
+const TASTEN={"Esc":"\x1b","Tab":"\t","↑":"\x1b[A","↓":"\x1b[B","←":"\x1b[D","→":"\x1b[C","|":"|","~":"~","/":"/"};
+async function zeigeTerminal(p){
+  oeffne(`<div class="fkopf"><b>${esc(p.name)} – Terminal</b><span class="marke" id="t_st">verbinde …</span><span class="grow"></span>
+    <button class="knopf" id="t_neu">Neu verbinden</button><button class="knopf" data-zu>✕</button></div>
+    <div class="tbox" id="t_box"></div>
+    <div class="knoepfe tasten"><button class="knopf" data-k="Strg">Strg</button>${Object.keys(TASTEN).map(k=>`<button class="knopf" data-k="${k}">${k}</button>`).join("")}</div>`);
+  fensterEl.classList.add("gross");
+  const st=document.getElementById("t_st");
+  try{await xtermLaden()}catch(e){st.textContent="xterm.js nicht ladbar"; st.className="marke off"; return;}
+  if(schicht.hidden) return;
+  const term=new Terminal({fontSize:13,fontFamily:"ui-monospace,Menlo,Consolas,monospace",cursorBlink:true,scrollback:5000,
+    theme:{background:"#16161a",foreground:"#e8e8ea",cursor:"#19d36b",selectionBackground:"#00ae4255",green:"#19d36b",brightGreen:"#3ee88a"}});
+  const fit=new FitAddon.FitAddon(); term.loadAddon(fit); term.open(document.getElementById("t_box"));
+  let ws=null, strg=false;
+  const strgKnopf=fensterEl.querySelector('[data-k="Strg"]');
+  const senden=d=>{ if(ws&&ws.readyState===1) ws.send("0"+d) };
+  const groesse=()=>{ try{fit.fit()}catch(e){} if(ws&&ws.readyState===1) ws.send("1"+JSON.stringify({c:term.cols,r:term.rows})) };
+  term.onData(d=>{
+    if(strg&&d.length===1){const c=d.toUpperCase().charCodeAt(0); if(c>=64&&c<=95) d=String.fromCharCode(c-64); strg=false; strgKnopf.classList.remove("an");}
+    senden(d);
+  });
+  function verbinde(){
+    if(ws){ws.onclose=null; ws.close();}
+    st.textContent="verbinde …"; st.className="marke";
+    ws=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}${PIAPI}/terminal/${encodeURIComponent(p.id)}`);
+    ws.binaryType="arraybuffer";
+    ws.onopen=()=>{st.textContent="verbunden"; st.className="marke on"; groesse(); term.focus();};
+    ws.onmessage=e=>term.write(typeof e.data==="string"?e.data:new Uint8Array(e.data));
+    ws.onclose=()=>{st.textContent="getrennt"; st.className="marke off";
+      term.write("\r\n\x1b[90m[Verbindung beendet – „Neu verbinden“ drücken]\x1b[0m\r\n");};
+  }
+  const beobachter=new ResizeObserver(()=>groesse()); beobachter.observe(document.getElementById("t_box"));
+  document.getElementById("t_neu").onclick=()=>{term.reset(); verbinde();};
+  fensterEl.querySelector(".tasten").addEventListener("click",e=>{
+    const k=e.target.closest("[data-k]")?.dataset.k; if(!k) return;
+    if(k==="Strg"){strg=!strg; strgKnopf.classList.toggle("an",strg);} else senden(TASTEN[k]);
+    term.focus();
+  });
+  tSitzung={ende(){ beobachter.disconnect(); if(ws){ws.onclose=null; ws.close();} term.dispose(); }};
+  setTimeout(()=>{groesse(); verbinde();},50);
 }
 function einrichtBefehl(){
   const k=piSchluessel;
@@ -346,6 +403,7 @@ piBox.addEventListener("click",async e=>{
   if(!p) return;
   if(a==="einst") return zeigeEinst(p);
   if(a==="liste") return zeigeListe(p);
+  if(a==="terminal") return zeigeTerminal(p);
   if(a==="log") return zeigeLog(p.letzter_job,`${p.name} – Protokoll`);
   if(a==="neustart"&&!confirm(`${p.name} jetzt neu starten?`)) return;
   if(a==="container"&&!confirm(`Alle Docker-Container auf ${p.name} aktualisieren?`)) return;
