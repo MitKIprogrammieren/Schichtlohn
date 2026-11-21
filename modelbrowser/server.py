@@ -658,6 +658,114 @@ def update_auftrag(aid, p, m):
         a.update(status="fehler", schritt="Update fehlgeschlagen: " + str(e), plattform=p, modell=m)
 
 
+def json_holen(url, timeout=40):
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def text_holen(url, timeout=40):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def anleitung_link(html):
+    """Link zur Bauanleitung (Google-Präsentation) – bevorzugt der Knopf „Build Guide“."""
+    kandidaten = []
+    for m in re.finditer(r'<a\b[^>]*href=["\']?(https://docs\.google\.com/presentation/d/([\w-]{20,})[^"\' >]*)[^>]*>(.*?)</a>', html, re.S | re.I):
+        text = re.sub(r"<[^>]+>|\s+", " ", m.group(3)).strip()
+        kandidaten.append((0 if re.search(r"build\s*guide", text, re.I) else 1, m.group(2), text))
+    if not kandidaten:
+        ids = re.findall(r"https://docs\.google\.com/presentation/d/([\w-]{20,})", html)
+        return (ids[0], "") if ids else (None, "")
+    kandidaten.sort(key=lambda k: k[0])
+    return kandidaten[0][1], kandidaten[0][2]
+
+
+def anleitung_laden(gid, ziel_ordner, name):
+    """Öffentliche Google-Präsentation als PDF speichern (keine Modelldatei)."""
+    os.makedirs(ziel_ordner, exist_ok=True)
+    datei = os.path.join(ziel_ordner, sauber(name) + ".pdf")
+    req = urllib.request.Request(f"https://docs.google.com/presentation/d/{gid}/export/pdf", headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=600) as r, open(datei + ".laden", "wb") as f:
+        if "pdf" not in (r.headers.get("Content-Type") or ""):
+            raise RuntimeError("keine PDF (Anleitung nicht öffentlich?)")
+        shutil.copyfileobj(r, f, 1024 * 1024)
+    os.replace(datei + ".laden", datei)
+    return os.path.basename(datei)
+
+
+def katalog_3dsets(aid, kategorie="models", mit_anleitung=True):
+    """Alle Modelle aus dem 3D-Sets-Shop anlegen: Bilder, Beschreibung, Bauanleitung.
+    Lädt NIE Modelldateien – die kommen bei 3D Sets nur bewusst vom Nutzer."""
+    import html as h
+    a = AUFTRAEGE[aid]
+    try:
+        a["schritt"] = "Modellliste wird geholt …"
+        produkte, seite = [], 1
+        while True:
+            teil = json_holen(f"https://3dsets.com/wp-json/wc/store/v1/products?per_page=100&page={seite}")
+            produkte += teil
+            if len(teil) < 100:
+                break
+            seite += 1
+        produkte = [p for p in produkte if any(c.get("slug") == kategorie for c in p.get("categories") or [])]
+        vorhanden = {}
+        pp = os.path.join(DATEN, "3D Sets")
+        if os.path.isdir(pp):
+            for m in os.listdir(pp):
+                u = info_lesen(os.path.join(pp, m)).get("url", "").rstrip("/")
+                if u:
+                    vorhanden[u] = m
+        neu = akt = 0
+        fehler = []
+        for k, p in enumerate(produkte, 1):
+            titel = h.unescape(p.get("name") or "").replace("×", "x").strip()
+            a["schritt"] = f"{k}/{len(produkte)}: {titel} …"
+            url = (p.get("permalink") or "").rstrip("/")
+            m = vorhanden.get(url) or sauber(titel)
+            o = pfad("3D Sets", m)
+            war_da = os.path.isdir(o)
+            os.makedirs(os.path.join(o, "Daten"), exist_ok=True)
+            bilder = [b.get("src") for b in p.get("images") or [] if b.get("src")]
+            if not any(d["name"].startswith("galerie_") for d in dateien(os.path.join(o, "Bilder"))):
+                if bilder_laden(bilder[:40], os.path.join(o, "Bilder")):
+                    for d in dateien(os.path.join(o, "Bilder")):
+                        if d["name"].startswith("bild_"):
+                            os.remove(os.path.join(o, "Bilder", d["name"]))
+            beschr = saeubern(p.get("description") or p.get("short_description") or "")
+            tags = [h.unescape(c.get("name") or "") for c in p.get("categories") or []
+                    if c.get("slug") not in ("models", "models-favorite-products", "new-products")]
+            anleitung, text = None, ""
+            try:
+                gid, text = anleitung_link(text_holen(url + "/"))
+                if gid:
+                    anleitung = f"https://docs.google.com/presentation/d/{gid}/edit"
+            except Exception as e:
+                print("3D-Sets-Seite nicht lesbar:", url, e, flush=True)
+            if anleitung:
+                beschr = (f'<p><a href="{anleitung}">📘 Bauanleitung (Build Guide) online öffnen</a></p>' + beschr)
+            info_schreiben(o, url=url + "/", titel=titel, autor="3D Sets", beschreibung=beschr, tags=tags,
+                           anleitung=anleitung, gespeichert=time.strftime("%Y-%m-%d %H:%M"))
+            if anleitung and mit_anleitung:
+                pdfname = "Bauanleitung – " + titel
+                if not os.path.exists(os.path.join(o, "Daten", sauber(pdfname) + ".pdf")):
+                    a["schritt"] = f"{k}/{len(produkte)}: Bauanleitung für {titel} …"
+                    try:
+                        anleitung_laden(anleitung.split("/d/")[1].split("/")[0], os.path.join(o, "Daten"), pdfname)
+                    except Exception as e:
+                        fehler.append(titel)
+                        print("Bauanleitung nicht geladen:", titel, e, flush=True)
+            akt += war_da
+            neu += not war_da
+            time.sleep(1)
+        text = f"3D Sets: {neu} Modelle neu, {akt} aktualisiert" + (f" · Anleitung fehlt bei {len(fehler)}: " + ", ".join(fehler) if fehler else "")
+        a.update(status="fertig", schritt=text, plattform="3D Sets", modell=sauber(h.unescape(produkte[0]["name"]).replace("×", "x")) if produkte else "")
+    except Exception as e:
+        a.update(status="fehler", schritt="3D-Sets-Katalog fehlgeschlagen: " + str(e))
+
+
 KONTEN = os.path.join(DATEN, ".konten.json")
 KONTO_SPERRE = threading.Lock()
 
@@ -1281,6 +1389,13 @@ class H(BaseHTTPRequestHandler):
                 aid = uuid.uuid4().hex[:10]
                 AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
                 threading.Thread(target=update_auftrag, args=(aid, b.get("p"), b.get("m")), daemon=True).start()
+                return self.senden(200, AUFTRAEGE[aid])
+            if u.path == "/api/katalog":
+                if b.get("plattform") != "3dsets":
+                    return self.senden(400, {"ok": False, "text": "Nur 3D Sets"})
+                aid = uuid.uuid4().hex[:10]
+                AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
+                threading.Thread(target=katalog_3dsets, args=(aid,), daemon=True).start()
                 return self.senden(200, AUFTRAEGE[aid])
             if u.path == "/api/aenderungen_weg":
                 o = pfad(b.get("p"), b.get("m"))
