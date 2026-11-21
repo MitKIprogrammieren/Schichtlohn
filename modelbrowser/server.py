@@ -935,7 +935,65 @@ def libnfs():
     return lib
 
 
-class Nas:
+NAS_LOKAL = os.environ.get("NAS_LOKAL", "/nas")  # RC-Modelle schreibgeschützt eingebunden (bevorzugt)
+
+
+class LokalNas:
+    """RC-Modelle als schreibgeschützt eingebundener Ordner – gleiche Schnittstelle wie Nas."""
+
+    def _p(self, pfad):
+        rest = pfad[len(NAS_ORDNER):] if pfad.startswith(NAS_ORDNER) else pfad
+        return NAS_LOKAL + rest
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+    def schliessen(self):
+        pass
+
+    def liste(self, pfad):
+        erg = []
+        with os.scandir(self._p(pfad)) as it:
+            for e in it:
+                n = e.name
+                if n in NAS_UNSICHTBAR or n.startswith("."):
+                    continue
+                st = e.stat()
+                erg.append({"name": n, "ordner": e.is_dir(), "groesse": 0 if e.is_dir() else st.st_size, "zeit": int(st.st_mtime)})
+        return sorted(erg, key=lambda x: x["name"].lower())
+
+    def groesse(self, pfad):
+        return os.path.getsize(self._p(pfad))
+
+    def oeffnen(self, pfad):
+        return _LokalDatei(open(self._p(pfad), "rb"))
+
+
+class _LokalDatei:
+    def __init__(self, f):
+        self.f = f
+        self.groesse = os.fstat(f.fileno()).st_size
+
+    def __getattr__(self, n):
+        return getattr(self.f, n)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.f.close()
+
+
+def Nas():
+    if os.path.isdir(NAS_LOKAL):
+        return LokalNas()
+    return NfsNas()
+
+
+class NfsNas:
     """Eine NFS-Verbindung zur DsCLoud. Nur lesen – es gibt hier keine Schreibfunktion."""
 
     def __init__(self):
