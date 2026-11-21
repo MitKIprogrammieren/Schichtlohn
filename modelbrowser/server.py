@@ -110,10 +110,10 @@ def baum():
             i = info_lesen(mp)
             eigene = [b for b in bilder if b["name"].startswith("eigen_")]
             titelbild = (eigene[0] if i.get("status") == "gedruckt" and eigene else (bilder[0] if bilder else {})).get("name", "")
-            modelle.append({"name": m, "bilder": len(bilder), "dateien": len(dateien(os.path.join(mp, "Daten"))),
+            modelle.append({"name": m, "bilder": len(bilder), "dateien": len(dateien(os.path.join(mp, "Daten"))) + len(i.get("nas") or []),
                             "titelbild": titelbild, "seite": os.path.exists(os.path.join(mp, "seite.html")),
                             "zeit": int(os.path.getmtime(mp)), "url": i.get("url", ""), "status": i.get("status", ""),
-                            "bewertung": i.get("bewertung", 0), "update": bool(i.get("update")), "such": suchtext(i)})
+                            "bewertung": i.get("bewertung", 0), "update": bool(i.get("update") or i.get("eigene_veraltet")), "such": suchtext(i)})
         erg.append({"name": p, "modelle": modelle})
     return erg
 
@@ -830,6 +830,377 @@ def katalog_3dsets(aid, kategorie="models"):
         a.update(status="fehler", schritt="3D-Sets-Katalog fehlgeschlagen: " + str(e))
 
 
+# ---------------------------------------------------------------------------
+# DsCLoud (NFS, nur lesend) – über libnfs im Benutzerraum, ohne Mount im Container
+# ---------------------------------------------------------------------------
+import ctypes
+
+NAS_SERVER = os.environ.get("NAS_SERVER", "192.168.1.4")
+NAS_EXPORT = os.environ.get("NAS_EXPORT", "/volume2/RC")
+NAS_ORDNER = os.environ.get("NAS_ORDNER", "/RC-Modelle")
+NAS_UNSICHTBAR = {".DS_Store", "@eaDir", "#recycle", "Thumbs.db", "desktop.ini"}
+_LIBNFS = None
+
+
+class _Dirent(ctypes.Structure):
+    pass
+
+
+_Dirent._fields_ = [("next", ctypes.POINTER(_Dirent)), ("name", ctypes.c_char_p), ("inode", ctypes.c_uint64),
+                    ("type", ctypes.c_uint32), ("mode", ctypes.c_uint32), ("size", ctypes.c_uint64),
+                    ("atime_s", ctypes.c_long), ("atime_us", ctypes.c_long),
+                    ("mtime_s", ctypes.c_long), ("mtime_us", ctypes.c_long)]
+
+
+class _Stat(ctypes.Structure):
+    _fields_ = [(n, ctypes.c_uint64) for n in ("dev", "ino", "mode", "nlink", "uid", "gid", "rdev", "size", "blksize",
+                                              "blocks", "atime", "mtime", "ctime", "atime_nsec", "mtime_nsec",
+                                              "ctime_nsec", "used")]
+
+
+def libnfs():
+    global _LIBNFS
+    if _LIBNFS:
+        return _LIBNFS
+    import ctypes.util
+    name = ctypes.util.find_library("nfs") or "libnfs.so.14"
+    try:
+        lib = ctypes.CDLL(name)
+    except OSError:
+        subprocess.run(["apk", "add", "--no-cache", "libnfs"], capture_output=True, timeout=180)
+        lib = ctypes.CDLL(ctypes.util.find_library("nfs") or "libnfs.so.14")
+    v = ctypes.c_void_p
+    lib.nfs_init_context.restype = v
+    lib.nfs_destroy_context.argtypes = [v]
+    lib.nfs_mount.argtypes = [v, ctypes.c_char_p, ctypes.c_char_p]
+    lib.nfs_get_error.argtypes = [v]
+    lib.nfs_get_error.restype = ctypes.c_char_p
+    lib.nfs_opendir.argtypes = [v, ctypes.c_char_p, ctypes.POINTER(v)]
+    lib.nfs_readdir.argtypes = [v, v]
+    lib.nfs_readdir.restype = ctypes.POINTER(_Dirent)
+    lib.nfs_closedir.argtypes = [v, v]
+    lib.nfs_open.argtypes = [v, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(v)]
+    lib.nfs_close.argtypes = [v, v]
+    lib.nfs_stat64.argtypes = [v, ctypes.c_char_p, ctypes.POINTER(_Stat)]
+    # libnfs 5.x: nfs_pread(nfs, fh, offset, count, buf)
+    lib.nfs_pread.argtypes = [v, v, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_void_p]
+    _LIBNFS = lib
+    return lib
+
+
+class Nas:
+    """Eine NFS-Verbindung zur DsCLoud. Nur lesen – es gibt hier keine Schreibfunktion."""
+
+    def __init__(self):
+        self.lib = libnfs()
+        self.ctx = self.lib.nfs_init_context()
+        if not self.ctx or self.lib.nfs_mount(self.ctx, NAS_SERVER.encode(), NAS_EXPORT.encode()) != 0:
+            fehler = self.lib.nfs_get_error(self.ctx).decode("utf-8", "replace") if self.ctx else "kein Kontext"
+            self.schliessen()
+            raise RuntimeError("DsCLoud nicht erreichbar: " + fehler)
+
+    def schliessen(self):
+        if self.ctx:
+            self.lib.nfs_destroy_context(self.ctx)
+            self.ctx = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.schliessen()
+
+    def liste(self, pfad):
+        d = ctypes.c_void_p()
+        if self.lib.nfs_opendir(self.ctx, pfad.encode(), ctypes.byref(d)) != 0:
+            raise RuntimeError("Ordner nicht lesbar: " + pfad)
+        erg = []
+        try:
+            while True:
+                e = self.lib.nfs_readdir(self.ctx, d)
+                if not e:
+                    break
+                e = e.contents
+                n = e.name.decode("utf-8", "replace")
+                if n in (".", "..") or n in NAS_UNSICHTBAR or n.startswith("."):
+                    continue
+                erg.append({"name": n, "ordner": e.type == 2, "groesse": int(e.size), "zeit": int(e.mtime_s)})
+        finally:
+            self.lib.nfs_closedir(self.ctx, d)
+        return sorted(erg, key=lambda x: x["name"].lower())
+
+    def groesse(self, pfad):
+        st = _Stat()
+        if self.lib.nfs_stat64(self.ctx, pfad.encode(), ctypes.byref(st)) != 0:
+            raise FileNotFoundError(pfad)
+        return int(st.size)
+
+    def oeffnen(self, pfad):
+        return NasDatei(self, pfad)
+
+
+class NasDatei:
+    """Lesbare Datei auf der NAS (für zipfile und zum Ausliefern)."""
+
+    def __init__(self, nas, pfad):
+        self.nas, self.pos = nas, 0
+        self.groesse = nas.groesse(pfad)
+        fh = ctypes.c_void_p()
+        if nas.lib.nfs_open(nas.ctx, pfad.encode(), os.O_RDONLY, ctypes.byref(fh)) != 0:
+            raise RuntimeError("Datei nicht lesbar: " + pfad)
+        self.fh = fh
+
+    def read(self, n=-1):
+        if n is None or n < 0:
+            n = self.groesse - self.pos
+        n = max(0, min(n, self.groesse - self.pos))
+        teile, rest = [], n
+        while rest > 0:
+            stueck = min(rest, 1024 * 1024)
+            buf = ctypes.create_string_buffer(stueck)
+            r = self.nas.lib.nfs_pread(self.nas.ctx, self.fh, self.pos, stueck, buf)
+            if r <= 0:
+                break
+            teile.append(buf.raw[:r])
+            self.pos += r
+            rest -= r
+        return b"".join(teile)
+
+    def seek(self, off, wo=0):
+        self.pos = off if wo == 0 else self.pos + off if wo == 1 else self.groesse + off
+        return self.pos
+
+    def tell(self):
+        return self.pos
+
+    def seekable(self):
+        return True
+
+    def readable(self):
+        return True
+
+    def close(self):
+        if self.fh:
+            self.nas.lib.nfs_close(self.nas.ctx, self.fh)
+            self.fh = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+
+
+MODELL_ENDUNGEN = (".zip", ".rar", ".7z", ".stl", ".3mf", ".step", ".stp", ".obj")
+BILD_ENDUNGEN = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def nas_version(name):
+    m = re.search(r"[_\s-]v(?:ersion)?\s*(\d+(?:\.\d+)*)", name, re.I) or re.search(r"v(\d+\.\d+(?:\.\d+)*)", name, re.I)
+    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+
+
+def nas_titel(name):
+    """Dateiname → lesbarer Titel (ohne Endung, Version, Zeitstempel)."""
+    t = re.sub(r"\.(zip|rar|7z|stl|3mf|step|stp|obj)$", "", name, flags=re.I)
+    t = re.sub(r"-\d{8}T\d{6}Z-\d+-\d+$", "", t)
+    t = re.sub(r"\.[a-z0-9]{6,10}$", "", t)  # Kürzel wie .sdfds5d5
+    t = re.sub(r"[_\s-]*v(?:ersion)?\s*\d+(?:\.\d+)*(_alt)?$", "", t, flags=re.I)
+    t = t.replace("_", " ")
+    return re.sub(r"\s+", " ", t).strip(" -") or name
+
+
+def woerter(t):
+    t = re.sub(r"(\d)x(\d)", r"\1x\2", t.lower().replace("×", "x"))
+    w = set(re.findall(r"[a-z0-9]+", t)) - {"3d", "sets", "for", "the", "and", "model", "v1", "zip", "pack"}
+    return {x for x in w if not re.fullmatch(r"v?\d+(\.\d+)+", x)}
+
+
+def nas_zuordnen_3dsets(eintraege, modelle):
+    """3D-Sets-Dateien den Shop-Modellen zuordnen. modelle: {ordnername: titel}. Ergebnis {ordnername|None: [eintrag]}"""
+    erg = {}
+    for e in eintraege:
+        titel = nas_titel(e["name"])
+        fw = woerter(titel)
+        nr = re.search(r"model[\s_]*(\d+)", e["name"], re.I)
+        best, bestwert = None, 0.0
+        for ordner, mt in modelle.items():
+            mw = woerter(mt)
+            mnr = re.search(r"model\s*(\d+)", mt, re.I)
+            if nr and (not mnr or mnr.group(1) != nr.group(1)):
+                continue
+            if not fw or not mw:
+                continue
+            gemeinsam = len(fw & mw)
+            wert = gemeinsam / len(fw | mw)
+            if mw <= fw:
+                wert += 0.3  # alle Wörter des Modellnamens stehen im Dateinamen
+            if wert > bestwert or (wert == bestwert and best and len(mt) < len(modelle[best])):
+                best, bestwert = ordner, wert
+        erg.setdefault(best if bestwert >= 0.55 else None, []).append(e)
+    return erg
+
+
+def nas_vorschau(nas, o, eintraege):
+    """Bilder und PDF-Anleitungen aus den ZIPs/Ordnern holen (nur kopieren, nichts auf der NAS ändern)."""
+    bild_ordner, daten = os.path.join(o, "Bilder"), os.path.join(o, "Daten")
+    hat_bilder = any(not d["name"].startswith("eigen_") for d in dateien(bild_ordner))
+    n_bild, n_pdf = 0, 0
+    for e in eintraege:
+        kandidaten = []  # (name, lesen)
+        if e["ordner"]:
+            try:
+                for f in nas.liste(e["pfad"]):
+                    if not f["ordner"]:
+                        kandidaten.append((f["name"], f["groesse"], ("datei", e["pfad"] + "/" + f["name"])))
+            except Exception:
+                pass
+        elif e["name"].lower().endswith(".zip") and e["groesse"] < 8 * 1024 ** 3:
+            try:
+                with nas.oeffnen(e["pfad"]) as fh, zipfile.ZipFile(fh) as z:
+                    for info in z.infolist():
+                        if not info.is_dir() and "__MACOSX" not in info.filename:
+                            kandidaten.append((os.path.basename(info.filename), info.file_size, ("zip", e["pfad"], info.filename)))
+            except Exception as ex:
+                print("ZIP nicht lesbar:", e["name"], ex, flush=True)
+        elif e["name"].lower().endswith(".pdf"):
+            kandidaten.append((e["name"], e["groesse"], ("datei", e["pfad"])))
+        bilder = [k for k in kandidaten if k[0].lower().endswith(BILD_ENDUNGEN) and 20000 < k[1] < 15 * 1024 ** 2]
+        bilder.sort(key=lambda k: (0 if re.search(r"cover|render|main|titel|preview|front", k[0], re.I) else 1, -k[1]))
+        pdfs = [k for k in kandidaten if k[0].lower().endswith(".pdf") and k[1] < 120 * 1024 ** 2]
+
+        def lesen(q):
+            if q[0] == "datei":
+                with nas.oeffnen(q[1]) as fh:
+                    return fh.read()
+            with nas.oeffnen(q[1]) as fh, zipfile.ZipFile(fh) as z:
+                return z.read(q[2])
+
+        if not hat_bilder:
+            os.makedirs(bild_ordner, exist_ok=True)
+            for name, _, q in bilder[:8]:
+                try:
+                    n_bild += 1
+                    with open(os.path.join(bild_ordner, f"nas_{n_bild:02d}{os.path.splitext(name)[1].lower()}"), "wb") as f:
+                        f.write(lesen(q))
+                except Exception as ex:
+                    print("Bild nicht kopiert:", name, ex, flush=True)
+        for name, _, q in pdfs[:3]:
+            ziel = os.path.join(daten, sauber(name))
+            if os.path.exists(ziel):
+                continue
+            try:
+                os.makedirs(daten, exist_ok=True)
+                with open(ziel + ".laden", "wb") as f:
+                    f.write(lesen(q))
+                os.replace(ziel + ".laden", ziel)
+                n_pdf += 1
+            except Exception as ex:
+                print("PDF nicht kopiert:", name, ex, flush=True)
+    return n_bild, n_pdf
+
+
+def nas_inhalt(nas, pfad, tiefe=3, rel=""):
+    """Dateien eines Ordners auf der NAS (mit Unterordnern), höchstens 400."""
+    erg = []
+    try:
+        for f in nas.liste(pfad):
+            if f["ordner"]:
+                if tiefe > 1:
+                    erg += nas_inhalt(nas, pfad + "/" + f["name"], tiefe - 1, rel + f["name"] + "/")
+            else:
+                erg.append({"name": rel + f["name"], "pfad": pfad + "/" + f["name"], "groesse": f["groesse"]})
+            if len(erg) >= 400:
+                break
+    except Exception as ex:
+        print("NAS-Ordner nicht lesbar:", pfad, ex, flush=True)
+    return erg[:400]
+
+
+def nas_pfad_ok(p):
+    return isinstance(p, str) and p.startswith(NAS_ORDNER + "/") and "/../" not in p + "/" and "\x00" not in p
+
+
+def nas_scan(aid=None, mit_vorschau=True):
+    """RC-Modelle auf der DsCLoud einlesen: jeder Designer-Ordner eine Gruppe, jede ZIP/jeder Unterordner ein Modell.
+    3DSets wird den Shop-Modellen zugeordnet. Auf der NAS wird nichts verändert."""
+    a = AUFTRAEGE.get(aid) or {}
+    gruppen_namen = {"3DSets": "3D Sets", "RC-Modelle": "RC-Modelle"}
+    neu = zugeordnet = 0
+    with Nas() as nas:
+        a["schritt"] = "DsCLoud wird gelesen …"
+        oben = nas.liste(NAS_ORDNER)
+        gruppen = {"RC-Modelle": [dict(x, pfad=NAS_ORDNER + "/" + x["name"]) for x in oben
+                                  if not x["ordner"] and x["name"].lower().endswith(MODELL_ENDUNGEN)]}
+        for g in oben:
+            if g["ordner"]:
+                gruppen[g["name"]] = [dict(x, pfad=f'{NAS_ORDNER}/{g["name"]}/{x["name"]}') for x in nas.liste(f'{NAS_ORDNER}/{g["name"]}')
+                                      if x["ordner"] or x["name"].lower().endswith(MODELL_ENDUNGEN + (".pdf",))]
+        for g, eintraege in gruppen.items():
+            p = gruppen_namen.get(g, g)
+            if g == "3DSets":
+                pp = os.path.join(DATEN, "3D Sets")
+                modelle = {}
+                if os.path.isdir(pp):
+                    for m in os.listdir(pp):
+                        t = info_lesen(os.path.join(pp, m)).get("titel")
+                        if t and info_lesen(os.path.join(pp, m)).get("url"):
+                            modelle[m] = t
+                zuordnung = nas_zuordnen_3dsets([e for e in eintraege if not e["name"].lower().endswith(".pdf")], modelle)
+                # PDFs mit gleichem Namen wie eine ZIP gehören zu dieser
+                for e in eintraege:
+                    if e["name"].lower().endswith(".pdf"):
+                        stamm = e["name"][:-4].lower()
+                        for k, l in zuordnung.items():
+                            if any(x["name"].lower().startswith(stamm) for x in l):
+                                l.append(e)
+                                break
+                einzeln = zuordnung.pop(None, [])
+                paare = list(zuordnung.items())
+                for e in einzeln:  # Zubehör & Co.: eigenes Modell aus dem Dateinamen
+                    paare.append((sauber(nas_titel(e["name"])), [e]))
+            else:
+                buendel = {}
+                for e in eintraege:
+                    buendel.setdefault(sauber(nas_titel(e["name"])).lower(), []).append(e)
+                paare = [(sauber(nas_titel(l[0]["name"])), l) for l in buendel.values()]
+            for m, l in paare:
+                for e in l:
+                    if e["ordner"] and "inhalt" not in e:
+                        e["inhalt"] = nas_inhalt(nas, e["pfad"])
+                o = pfad(p, m)
+                war_da = os.path.isdir(o)
+                os.makedirs(os.path.join(o, "Daten"), exist_ok=True)
+                i = info_lesen(o)
+                l = sorted(l, key=lambda e: (nas_version(e["name"]), e["zeit"]), reverse=True)
+                versionen = [v for v in (nas_version(e["name"]) for e in l) if v]
+                eigene = "v" + ".".join(map(str, max(versionen))) if versionen else ""
+                aktuell = version_tupel(i.get("version") or "")
+                werte = {"nas": [{"name": e["name"], "pfad": e["pfad"], "groesse": e["groesse"], "zeit": e["zeit"],
+                                  "ordner": e["ordner"], "inhalt": e.get("inhalt") or [], "version": "v" + ".".join(map(str, nas_version(e["name"]))) if nas_version(e["name"]) else ""}
+                                 for e in l],
+                         "eigene_version": eigene or None,
+                         "eigene_veraltet": bool(versionen and aktuell and max(versionen) < aktuell) or None}
+                if not war_da:
+                    werte.update(titel=nas_titel(l[0]["name"]), autor="3D Sets" if p == "3D Sets" else g,
+                                 gespeichert=time.strftime("%Y-%m-%d %H:%M"), quelle="DsCLoud")
+                    neu += 1
+                else:
+                    zugeordnet += 1
+                info_setzen(o, **werte)
+                if mit_vorschau:
+                    a["schritt"] = f"{p}: {m} – Vorschaubilder …"
+                    try:
+                        nas_vorschau(nas, o, l)
+                    except Exception as ex:
+                        print("Vorschau fehlgeschlagen:", m, ex, flush=True)
+    text = f"DsCLoud eingelesen: {neu} Modelle neu, {zugeordnet} vorhandenen zugeordnet"
+    if a:
+        a.update(status="fertig", schritt=text, plattform="3D Sets", modell="")
+    print(text, flush=True)
+    return text
+
+
 KONTEN = os.path.join(DATEN, ".konten.json")
 KONTO_SPERRE = threading.Lock()
 
@@ -1242,6 +1613,10 @@ def update_schleife():
         try:
             n = updates_pruefen()
             print(f"Update-Prüfung fertig, {n} neue Updates", flush=True)
+            try:
+                nas_scan()
+            except Exception as e:
+                print("DsCLoud-Abgleich:", e, flush=True)
         except Exception as e:
             print("Update-Prüfung:", e, flush=True)
         time.sleep(24 * 3600)
@@ -1319,6 +1694,32 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             shutil.copyfileobj(tmp, self.wfile, 1024 * 1024)
 
+    def nas_senden(self, p):
+        """Datei von der DsCLoud durchreichen (nur lesen)."""
+        try:
+            nas = Nas()
+        except Exception as e:
+            return self.senden(502, {"ok": False, "text": str(e)})
+        try:
+            with nas.oeffnen(p) as fh:
+                name = p.rsplit("/", 1)[-1]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Length", str(fh.groesse))
+                self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+                self.end_headers()
+                while True:
+                    b = fh.read(4 * 1024 * 1024)
+                    if not b:
+                        break
+                    self.wfile.write(b)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except FileNotFoundError:
+            return self.senden(404, {"ok": False})
+        finally:
+            nas.schliessen()
+
     def icon_senden(self, name):
         """App-Symbol aus dem Code-Ordner; fehlt es, einmal vom selben Commit holen."""
         ordner = os.path.dirname(HTML)
@@ -1374,6 +1775,11 @@ class H(BaseHTTPRequestHandler):
             if u.path in ("/", "/index.html"):
                 with open(HTML, "rb") as f:
                     return self.senden(200, f.read(), "text/html; charset=utf-8")
+            if u.path == "/nas":
+                p = q.get("pfad", "")
+                if not nas_pfad_ok(p):
+                    return self.senden(404, {"ok": False})
+                return self.nas_senden(p)
             if u.path in ("/icon.svg", "/icon-180.png", "/icon-512.png"):
                 return self.icon_senden(u.path[1:])
             if u.path == "/gesund":
@@ -1499,6 +1905,17 @@ class H(BaseHTTPRequestHandler):
                 aid = uuid.uuid4().hex[:10]
                 AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
                 threading.Thread(target=katalog_3dsets, args=(aid,), daemon=True).start()
+                return self.senden(200, AUFTRAEGE[aid])
+            if u.path == "/api/nas_scan":
+                aid = uuid.uuid4().hex[:10]
+                AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
+
+                def lauf(aid=aid):
+                    try:
+                        nas_scan(aid)
+                    except Exception as e:
+                        AUFTRAEGE[aid].update(status="fehler", schritt=str(e))
+                threading.Thread(target=lauf, daemon=True).start()
                 return self.senden(200, AUFTRAEGE[aid])
             if u.path == "/api/aenderungen_weg":
                 o = pfad(b.get("p"), b.get("m"))

@@ -145,6 +145,7 @@ iframe{flex:1;border:0;background:#fff;width:100%;min-height:70vh}
 .mk.bilder{background:#3b82f6;color:#eff6ff}.mk.info{background:#4b5563;color:#f3f4f6}
 .chips2{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip2{border-radius:999px;padding:2px 10px;font-size:12px;border:1px solid var(--rand);background:var(--fl2);color:var(--txt);text-decoration:none}
+.chip2.alt{background:#3a2f12;color:#fde68a;border-color:#b45309;font-weight:600}
 .chip2.akt{background:var(--gruen-bg);color:#86efac;border-color:var(--gruen);font-weight:600}
 .cl{border-left:3px solid #3a3f48;padding:2px 0 2px 10px;margin:0 0 10px}
 .cl.erst{border-left-color:var(--gruen)}
@@ -321,8 +322,8 @@ function zeichneDetail(){
  let h=`<div class="kopf"><button class="zurueck klein" onclick="start()">‹ Zurück</button><div style="flex:1"></div>
  <div class="menue" id="menue"><button class="klein" onclick="menue(event)" aria-label="Mehr">•••</button><div class="liste2">
  ${url?'<button onclick="neuEinlesen()">Neu einlesen</button>':''}<button onclick="seiteFuer()">SingleFile-Seite hochladen</button><button onclick="umbenennen()">Umbenennen / verschieben</button><button class="gefahr" onclick="modellLoeschen()">Löschen</button></div></div>
- <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div>${(i.version||i.anleitung)?`<div class="chips2">${i.version?`<span class="chip2 akt">Aktuell: ${esc(i.version)}${i.version_datum?' · '+esc(i.version_datum):''}</span>`:''}${i.anleitung?`<a class="chip2" href="${esc(i.anleitung)}" target="_blank" rel="noopener">📘 Bauanleitung</a>`:''}</div>`:''}</div></div>
- ${i.update?`<div class="hinweisbox">Neue Version auf ${esc(d.plattform)}<button class="klein haupt" onclick="updateLaden()">Update laden</button><span class="klein2">Deine jetzigen Dateien bleiben erhalten und werden als Version gesichert.</span></div>`:''}`;
+ <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div>${(i.version||i.anleitung||i.eigene_version)?`<div class="chips2">${i.version?`<span class="chip2 akt">Aktuell: ${esc(i.version)}${i.version_datum?' · '+esc(i.version_datum):''}</span>`:''}${i.eigene_version?`<span class="chip2 ${i.eigene_veraltet?'alt':'akt'}">Deine Dateien: ${esc(i.eigene_version)}${i.eigene_veraltet?'':' ✓'}</span>`:''}${i.anleitung?`<a class="chip2" href="${esc(i.anleitung)}" target="_blank" rel="noopener">📘 Bauanleitung</a>`:''}</div>`:''}</div></div>
+ ${i.eigene_veraltet&&!i.update?`<div class="hinweisbox">Neuere Version ${esc(i.version||'')} bei ${esc(d.plattform)} verfügbar – deine Dateien sind ${esc(i.eigene_version)}. Im Changelog steht, was sich geändert hat.</div>`:''}${i.update?`<div class="hinweisbox">Neue Version auf ${esc(d.plattform)}<button class="klein haupt" onclick="updateLaden()">Update laden</button><span class="klein2">Deine jetzigen Dateien bleiben erhalten und werden als Version gesichert.</span></div>`:''}`;
  if(d.bilder.length&&REITER==='uebersicht'){
   h+=`<div class="held"><div><div class="gross" onclick="lupeAuf(BILD)"><img id="grossBild" src="${durl(d.plattform,d.name,'Bilder',d.bilder[Math.min(BILD,d.bilder.length-1)].name)}" alt=""></div>
   ${d.bilder.length>1?`<div class="daumen">${d.bilder.map((b,j)=>`<img loading="lazy" class="${j===BILD?'an':''}" src="${durl(d.plattform,d.name,'Bilder',b.name)}" onclick="zeigeBild(${j})" alt="">`).join('')}</div>`:''}</div><div class="nurgross">${profilKarte(i)}${tagKarte(i)}</div></div>`;
@@ -341,7 +342,7 @@ function zeichneDetail(){
    :`<div class="inhalt"><div class="leerseite">Keine gespeicherte Webseite.<br><br><button onclick="seiteFuer()">SingleFile-Seite hochladen</button>${url?` <button class="haupt" onclick="neuEinlesen()">Neu einlesen</button>`:''}</div></div>`;
  }else if(REITER==='dateien'){
   h+=`<div class="inhalt">${d.dateien.length>1?`<div class="aktionen"><a href="/zip/${enc(d.plattform)}/${enc(d.name)}"><button>Alles als ZIP (${d.dateien.length})</button></a></div>`:''}${d.dateien.length?`<div class="liste">${d.dateien.map(f=>{const e=(f.name.split('.').pop()||'').slice(0,4).toUpperCase();return `<div class="zeile"><div class="ico">${esc(e)}</div><div class="n">${esc(f.name)}<div class="g">${groesse(f.groesse)}</div></div>${/\.(stl|3mf)$/i.test(f.name)?`<button class="klein" data-n="${esc(f.name)}" onclick="betrachterAuf(this.dataset.n)">3D</button>`:''}${/\.3mf$/i.test(f.name)?`<button class="klein" data-n="${esc(f.name)}" onclick="stlMachen(this.dataset.n,this)">STL</button>`:''}<a href="${durl(d.plattform,d.name,'Daten',f.name)}?dl=1"><button class="klein">Laden</button></a><button class="klein gefahr" data-n="${esc(f.name)}" onclick="dateiLoeschen(this.dataset.n,'daten')">✕</button></div>`}).join('')}</div>`:'<div class="hinweis">Noch keine Dateien im Ordner „Daten“.</div>'}
-  ${versionsListe(d)}
+  ${nasListe(i)}${versionsListe(d)}
   <div class="ablage" id="ablage">3MF, STL, STEP oder PDF hierher ziehen<br><br><button onclick="$('fDaten').click()">Dateien auswählen</button><input type="file" id="fDaten" multiple hidden onchange="hochladen(this.files,'daten')"><div class="balken"><div id="balken"></div></div></div></div>`;
  }else{
   h+=`<div class="inhalt"><div class="bilder">${d.bilder.map((b,j)=>`<figure onclick="lupeAuf(${j})"><img loading="lazy" src="${durl(d.plattform,d.name,'Bilder',b.name)}" alt=""><button class="klein gefahr" data-n="${esc(b.name)}" onclick="event.stopPropagation();dateiLoeschen(this.dataset.n,'bilder')">✕</button></figure>`).join('')}</div>
@@ -380,7 +381,7 @@ function zeichneKonten(){
  <div class="konto"><div class="k1">Cults 3D <span class="pille bald">folgt</span></div></div>
  <div class="hinweis">Tokens werden nur auf deinem NUC gespeichert und nie an die Oberfläche zurückgegeben. Sie laufen nach einiger Zeit ab – dann hier neu verbinden.</div>
  <div class="konto" style="margin-top:12px"><div class="k1">ModelBrowser</div><div class="hinweis">MakerWorld-Modelle werden täglich auf Updates geprüft.</div>
- <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="klein" onclick="updatesJetzt(this)">Jetzt auf Updates prüfen</button><button class="klein" onclick="pinAendern()">PIN ändern</button><button class="klein gefahr" onclick="abmelden()">Abmelden</button></div></div>`;
+ <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="klein" onclick="updatesJetzt(this)">Jetzt auf Updates prüfen</button><button class="klein" onclick="nasJetzt(this)">DsCLoud einlesen</button><button class="klein" onclick="pinAendern()">PIN ändern</button><button class="klein gefahr" onclick="abmelden()">Abmelden</button></div></div>`;
 }
 function kStatus(t,art){const s=$('kStatus');s.style.display=t?'block':'none';s.className='status '+(art||'');s.textContent=t||''}
 let K_MAIL='';
@@ -406,6 +407,9 @@ async function kontoVerbinden(){
 }
 async function kontoTrennen(p){if(!confirm('Konto trennen?'))return;KONTEN=await post('/api/konten',{plattform:p,trennen:true});zeichneKonten()}
 function tagKarte(i){const t=[...new Set((i.tags||[]).filter(Boolean).map(x=>x.toLowerCase()))];return t.length?`<div class="karte2">${t.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>`:''}
+function nasListe(i){const l=i.nas||[];if(!l.length)return '';const z=(n,g,p,extra)=>`<div class="zeile"><div class="ico">${esc((n.split('.').pop()||'').slice(0,4).toUpperCase())}</div><div class="n">${esc(n)}<div class="g">${groesse(g)}${extra||''}</div></div><a href="/nas?pfad=${enc(p)}"><button class="klein">Laden</button></a></div>`;
+ return `<h3 style="margin:18px 0 6px;font-size:15px">Auf der DsCLoud</h3><div class="liste">${l.map((e,j)=>{const ex=`${e.zeit?' · '+new Date(e.zeit*1000).toLocaleDateString('de-DE'):''}${j===0&&e.version?' · <span style="color:#fcd34d">deine neueste</span>':e.version&&j>0?' · ältere Version':''}`;
+  return e.ordner?`<details class="version" style="margin:0 0 6px"><summary><span>📁 ${esc(e.name)} (${(e.inhalt||[]).length} Dateien)</span></summary>${(e.inhalt||[]).map(f=>z(f.name,f.groesse,f.pfad)).join('')}</details>`:z(e.name,e.groesse,e.pfad,ex)}).join('')}</div>`}
 let CL_ALLE=false;
 function clKarte(i){const c=i.changelog||[];if(!c.length)return '';const z=CL_ALLE?c:c.slice(0,3);
  return `<div class="karte2"><h3>Changelog</h3>${z.map((e,j)=>`<div class="cl ${j===0?'erst':''}"><div class="k"><span>${esc(e.name||e.version)}${j===0?' <span class="mk neu">AKTUELL</span>':''}</span><span>${esc(e.datum||'')}</span></div>${(e.notizen||[]).length?`<ul>${e.notizen.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}</div>`).join('')}${c.length>3?`<button class="mehr" onclick="CL_ALLE=!CL_ALLE;zeichneDetail()">${CL_ALLE?'Weniger anzeigen':'+ '+(c.length-3)+' ältere Versionen anzeigen'}</button>`:''}</div>`}
@@ -506,6 +510,7 @@ async function pinAendern(){
  const alt=prompt('Alte PIN');if(alt===null)return;const neu=prompt('Neue PIN (4–8 Ziffern)');if(neu===null)return;
  try{await post('/api/pin_aendern',{alt,neu});toast('PIN geändert')}catch(e){toast(e.message)}
 }
+async function nasJetzt(knopf){knopf.disabled=true;knopf.textContent='Liest …';try{const a=await post('/api/nas_scan',{});while(true){await new Promise(r=>setTimeout(r,2500));const j=(await api('/api/auftraege')).find(x=>x.id===a.id);if(!j||j.status!=='läuft'){toast(j?j.schritt:'Fertig');break}knopf.textContent=j.schritt.slice(0,40)}await ladeBaum()}catch(e){toast(e.message)}knopf.disabled=false;knopf.textContent='DsCLoud einlesen'}
 async function updatesJetzt(knopf){knopf.disabled=true;knopf.textContent='Prüfe …';try{const d=await post('/api/updates',{});toast(d.neu?d.neu+' neue Updates':'Keine neuen Updates');await ladeBaum()}catch(e){toast(e.message)}knopf.disabled=false;knopf.textContent='Jetzt auf Updates prüfen'}
 function sendeDatei(url,datei,fort){return new Promise((ok,nein)=>{const x=new XMLHttpRequest();x.open('PUT',url);x.upload.onprogress=e=>e.lengthComputable&&fort&&fort(e.loaded/e.total);x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch(e){}if(x.status===401)zeigeLogin();x.status<300?ok(d):nein(new Error(d.text||'Upload fehlgeschlagen'))};x.onerror=()=>nein(new Error('Verbindung abgebrochen'));x.send(datei)})}
 async function hochladen(liste,art){
