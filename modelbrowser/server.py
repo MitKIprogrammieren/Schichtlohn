@@ -290,7 +290,46 @@ def daten_aus_html(html):
             gesehen.add(u)
             gal.append(u)
     d["galerie"] = gal[:40]
+    if "STLFLIX - The Ultimate" in d["titel"] or "stlflix" in (meta(html, "og:site_name") or "").lower():
+        stlflix_daten(html, d)
     return d
+
+
+def stlflix_daten(html, d):
+    """STLFLIX liefert nur allgemeine Meta-Tags – Titel, Bilder und Beschreibung aus der fertigen Seite holen."""
+    import html as h
+    t = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    if t:
+        d["titel"] = titel_sauber(re.sub(r"<[^>]+>", "", h.unescape(t.group(1)))).strip() or d["titel"]
+    gal = []
+    for u in re.findall(r"https://s3\.[a-z0-9-]+\.amazonaws\.com/static\.stlflix\.com/[^\"' )>]+?\.(?:jpe?g|png|webp)", html, re.I):
+        if u not in gal and not re.search(r"(^|/)(thumbnail|small|medium)_", u):
+            gal.append(u)
+    d["galerie"] = gal[:40]
+    d["beschreibung"] = ""
+    i = html.find("MODEL DESCRIPTION")
+    if i > 0:
+        rest = html[i + len("MODEL DESCRIPTION"):]
+        e = re.search(r"<h2[^>]*>\s*Filaments in this model|Filaments in this model|<h2", rest)
+        stueck = rest[:e.start()] if e else rest[:60000]
+        stueck = re.sub(r"^[^<]*>", "", stueck)
+        d["beschreibung"] = saeubern(stueck[:120000])
+    tags = []
+    for muster in (r"Drop:\s*(?:<[^>]+>\s*)*([^<]{2,60})", r"STL\s*#\s*(\d+)"):
+        m = re.search(muster, html)
+        if m:
+            tags.append(("STL #" if muster.startswith("STL") else "") + m.group(1).strip())
+    d["tags"] = tags
+    d["autor"] = "STLFLIX"
+
+
+def stlflix_produkte(html):
+    """Alle Modell-Links einer STLFLIX-Drop-Seite."""
+    links = []
+    for s in re.findall(r"https://platform\.stlflix\.com/product/[a-z0-9-]+", html):
+        if s not in links:
+            links.append(s)
+    return links
 
 
 def bilder_laden(urls, ziel):
@@ -409,6 +448,34 @@ def importieren(aid, url, p=None, m=None):
                 re.search(r"\b(log ?in|sign ?in|sign up|anmelden|registrieren|entrar|cadastr\w*)\b", t, re.I):
             raise RuntimeError("Die Seite zeigt nur die Anmeldung (Inhalt nur für Abonnenten). Bitte im eigenen Browser "
                                "angemeldet mit der SingleFile-Erweiterung speichern und über ••• → „SingleFile hochladen“ einspielen.")
+        if re.search(r"platform\.stlflix\.com/drops?/", url) and not m:
+            produkte = stlflix_produkte(text)
+            if not produkte:
+                raise RuntimeError("Auf der Drop-Seite wurden keine Modelle gefunden.")
+            drop = (titel_aus_html(text) or "").strip()
+            t = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.S)
+            drop = re.sub(r"<[^>]+>", "", t.group(1)).strip() if t else drop
+            fertig, fehler = [], []
+            for k, purl in enumerate(produkte, 1):
+                unter = aid + "-" + str(k)
+                AUFTRAEGE[unter] = {"id": unter, "url": purl, "status": "läuft", "schritt": "", "zeit": int(time.time())}
+                a["schritt"] = f"Drop „{drop}“: Modell {k} von {len(produkte)} …"
+                importieren(unter, purl)
+                u = AUFTRAEGE.pop(unter, {})
+                if u.get("status") == "fertig":
+                    fertig.append((u.get("plattform"), u.get("modell")))
+                    if drop:
+                        o2 = pfad(u.get("plattform"), u.get("modell"))
+                        i2 = info_lesen(o2)
+                        tg = [x for x in (i2.get("tags") or []) if x != "Drop: " + drop] + ["Drop: " + drop]
+                        info_setzen(o2, tags=tg)
+                else:
+                    fehler.append(purl.rsplit("/", 1)[-1])
+            if not fertig:
+                raise RuntimeError("Kein Modell aus dem Drop gespeichert: " + ", ".join(fehler))
+            text = f"Drop „{drop}“: {len(fertig)} Modelle gespeichert" + (f", {len(fehler)} fehlgeschlagen" if fehler else "")
+            a.update(status="fertig", schritt=text, plattform=fertig[0][0], modell=fertig[0][1])
+            return
         a["schritt"] = "Bilder werden geladen …"
         p, m, n = seite_ablegen(roh, p, m, url=url)
         text = f"Gespeichert mit {n} Bildern"
