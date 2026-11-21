@@ -467,7 +467,7 @@ def seite_ablegen(html_bytes, p=None, m=None, url=""):
                    profile=d["profile"], tags=d["tags"], gespeichert=time.strftime("%Y-%m-%d %H:%M"), stand=d["stand"],
                    anleitung=d.get("anleitung"), changelog=d.get("changelog"), version=d.get("version"),
                    version_datum=d.get("version_datum"), version_schluessel=d.get("version_schluessel"))
-    info_setzen(o, update=None)
+    info_setzen(o, update=None, stand_fp=None)
     return sauber(p), sauber(m), anzahl
 
 
@@ -687,7 +687,7 @@ def update_auftrag(aid, p, m):
         punkte, neue_ids = aenderungen_finden(alt, neu, alt_daten, hashes(daten), alt_bilder, hashes(os.path.join(o, "Bilder")))
         if hinweis:
             punkte.append({"art": "info", "text": hinweis})
-        info_setzen(o, update=None, aenderungen={"datum": time.strftime("%d.%m.%Y"), "version": vname,
+        info_setzen(o, update=None, stand_fp=None, aenderungen={"datum": time.strftime("%d.%m.%Y"), "version": vname,
                                                  "punkte": punkte, "neue_profile": neue_ids})
         a.update(status="fertig", schritt=f"Update geladen · alte Version als „{vname}“ gesichert", plattform=p, modell=m)
     except Exception as e:
@@ -1859,6 +1859,15 @@ def sitzung_ok(t):
     return json_lesen(SITZ).get(hashlib.sha256(t.encode()).hexdigest(), 0) > time.time()
 
 
+def mw_fingerabdruck(d):
+    """Was sich bei einem echten Update ändert: Titel, Beschreibung und die Druckprofile des Erstellers."""
+    ersteller = str(((d.get("designCreator") or {}).get("uid")) or "")
+    profile = sorted((x.get("id"), x.get("profileId"), x.get("title")) for x in (d.get("instances") or [])
+                     if not ersteller or str(((x.get("instanceCreator") or {}).get("uid")) or "") in ("", ersteller))
+    roh = json.dumps([d.get("title"), d.get("summary"), profile], ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(roh.encode()).hexdigest()[:16] if (d.get("title") or profile) else ""
+
+
 def updates_pruefen():
     """MakerWorld-Modelle mit dem öffentlichen Stand vergleichen."""
     neu = 0
@@ -1896,13 +1905,16 @@ def updates_pruefen():
             except Exception as e:
                 print("Update-Prüfung fehlgeschlagen:", m, e, flush=True)
                 continue
-            stand = str(d.get("updateTime") or "")
-            if not stand:
+            # „updateTime“ ändert sich schon bei jedem Druck/Like – taugt nicht als Update-Zeichen.
+            # Echte Änderung = der Ersteller ändert Beschreibung oder lädt Druckprofile (3MF) neu hoch/hinzu.
+            fp = mw_fingerabdruck(d)
+            if not fp:
                 continue
-            if not i.get("stand"):
-                info_setzen(o, stand=stand)
-            elif stand != i.get("stand") and not i.get("update"):
-                info_setzen(o, update=True)
+            if not i.get("stand_fp"):
+                # erster Abgleich nach der Umstellung: heutigen Stand merken, alte Fehlalarme zurücknehmen
+                info_setzen(o, stand_fp=fp, update=None, stand=str(d.get("updateTime") or ""))
+            elif fp != i.get("stand_fp") and not i.get("update"):
+                info_setzen(o, update=True, stand=str(d.get("updateTime") or ""))
                 neu += 1
             time.sleep(2)
     return neu
