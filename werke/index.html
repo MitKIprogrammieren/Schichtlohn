@@ -66,6 +66,10 @@
   .tbox .xterm{height:100%;padding:8px 4px 8px 10px}
   .tbox .xterm-viewport{background:#16161a!important}
   .tasten .knopf{padding:6px 10px;font-size:12.5px}.tasten .knopf.an{background:var(--acc);border-color:var(--acc);color:#fff}
+  .bz{display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line);font-size:13px}
+  .bz:last-child{border-bottom:0}.bz>div{flex:1;min-width:0}.bz .v{color:var(--mute);font-size:12px;overflow-wrap:anywhere}
+  .bz code{font:12px ui-monospace,Menlo,monospace}
+  .bkopf{font-size:12.5px;color:var(--mute);margin:14px 2px 6px}
   .leer{color:var(--mute2);font-size:13px;margin:14px 0;text-align:center}
   .knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .schicht{position:fixed;inset:0;z-index:20;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -226,7 +230,7 @@ function piKarte(p){
       <span>RAM</span><b>${r?gb(r[0])+" / "+gb(r[1])+" GB":"–"}</b>
       <span>Speicher</span><b>${d?Math.round(100*d[0]/d[1])+" % belegt":"–"}</b>
       <span>Läuft seit</span><b>${dauer(s.uptime)}</b></div>`;
-    if(p.job) hinweis=`<div class="hin lauf">${LAUF[s.job]||"Läuft …"}</div>`;
+    if(p.job) hinweis=`<button class="hin lauf" data-a="log">${LAUF[s.job]||esc(s.job_titel||"Läuft")+" …"} ›</button>`;
     else if(!s.sudo) hinweis=`<div class="hin warn">Updates noch nicht freigegeben</div>`;
     else if(s.neustart) hinweis=`<div class="hin off">Neustart nötig</div>`;
     else if(s.updates) hinweis=`<button class="hin warn klick" data-a="liste" title="Liste anzeigen">${s.updates} Update${s.updates==1?"":"s"} verfügbar${s.sicherheit?` · ${s.sicherheit} Sicherheit`:""} ›</button>`;
@@ -239,6 +243,7 @@ function piKarte(p){
     }
     if(!s.sudo) kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
     kn.push(`<button class="knopf" data-a="terminal" title="Kommandozeile im Browser">Terminal</button>`);
+    if(!p.job) kn.push(`<button class="knopf" data-a="befehle" title="Fertige und eigene Befehle">Befehle</button>`);
   } else if(s.zustand==="kein_zugang"){
     mitte=`<p class="leer">Pi ist erreichbar, aber der Schlüssel fehlt noch.</p>`;
     kn.push(`<button class="knopf gruen" data-a="einst">Einrichten</button>`);
@@ -259,7 +264,7 @@ function piKarte(p){
 
 function oeffne(html){fensterEl.innerHTML=html; schicht.hidden=false;}
 function schliesse(){
-  schicht.hidden=true; fensterEl.innerHTML=""; fensterEl.classList.remove("gross");
+  schicht.hidden=true; fensterEl.innerHTML=""; fensterEl.onclick=null; fensterEl.classList.remove("gross");
   if(logTimer){clearInterval(logTimer); logTimer=null;}
   if(tSitzung){tSitzung.ende(); tSitzung=null;}
 }
@@ -305,6 +310,45 @@ function zeigeListe(p){
   const up=document.getElementById("l_up");
   if(up) up.onclick=async()=>{const jid=await piAktion(p.id,"update"); if(jid) zeigeLog(jid,`${p.name} – Update`);};
 }
+// Befehle: fertige (je nach erkannter App) und eigene
+function zeigeBefehle(p){
+  const apps=p.status.apps||[], eigene=[...(p.befehle||[])];
+  const fertig=(piDaten.befehle||[]).filter(b=>!b.app||apps.includes(b.app));
+  const zeile=(id,name,text,code,weg)=>`<div class="bz"><div><div style="font-weight:500">${esc(name)}</div>
+    <div class="v">${code?`<code>${esc(text)}</code>`:esc(text)}</div></div>
+    <button class="knopf" data-b="${esc(id)}">Ausführen</button>${weg!=null?`<button class="knopf" data-weg="${weg}" title="Entfernen">✕</button>`:""}</div>`;
+  const zeichne=()=>{
+    oeffne(`<div class="fkopf"><b>${esc(p.name)} – Befehle</b><button class="knopf" data-zu>✕</button></div>
+      <div class="bkopf" style="margin-top:0">Erkannt auf diesem Pi</div>
+      <div class="pliste">${fertig.map(b=>zeile(b.id,b.name,b.text,false,null)).join("")}</div>
+      <div class="bkopf">Eigene Befehle</div>
+      ${eigene.length?`<div class="pliste">${eigene.map((b,i)=>zeile("eigen-"+i,b.name||b.cmd,b.cmd,true,i)).join("")}</div>`:`<p class="d" style="margin:0 2px">Noch keine – unten anlegen. Läuft als Benutzer ${esc(p.user)}, mit <code>sudo</code> davor als root.</p>`}
+      <div class="knoepfe" style="flex-wrap:nowrap"><input id="b_name" placeholder="Name" style="width:34%"><input id="b_cmd" placeholder="Befehl, z. B. sudo ncc files:scan --all" style="flex:1"><button class="knopf gruen" id="b_neu">＋</button></div>`);
+    document.getElementById("b_neu").onclick=async()=>{
+      const name=document.getElementById("b_name").value.trim(), cmd=document.getElementById("b_cmd").value.trim();
+      if(!cmd){document.getElementById("b_cmd").focus(); return;}
+      eigene.push({name,cmd}); await speichereBefehle(); zeichne();
+    };
+  };
+  const speichereBefehle=async()=>{
+    p.befehle=eigene;
+    await fetch(PIAPI+"/pis",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id:p.id,name:p.name,host:p.host,user:p.user,url:p.url,befehle:eigene})});
+  };
+  fensterEl.onclick=async e=>{
+    const w=e.target.closest("[data-weg]");
+    if(w){ if(!confirm("Befehl entfernen?")) return; eigene.splice(+w.dataset.weg,1); await speichereBefehle(); return zeichne(); }
+    const b=e.target.closest("[data-b]"); if(!b) return;
+    const id=b.dataset.b, f=fertig.find(x=>x.id===id), name=f?f.name:(eigene[+id.slice(6)]?.name||eigene[+id.slice(6)]?.cmd);
+    if((f?f.frage:true)&&!confirm(`„${name}“ auf ${p.name} ausführen?`)) return;
+    const r=await fetch(`${PIAPI}/pis/${encodeURIComponent(p.id)}/befehl/${encodeURIComponent(id)}`,{method:"POST"});
+    const j=await r.json().catch(()=>({}));
+    if(!j.job) return alert(j.fehler||"Das hat nicht geklappt.");
+    fensterEl.onclick=null; zeigeLog(j.job,`${p.name} – ${name}`); piLaden();
+  };
+  zeichne();
+}
+
 // Terminal im Browser (xterm.js) – wie Raspberry Pi Connect Lite, nur über das eigene Netz
 const XTERM="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0", XFIT="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0";
 function ladeSkript(src){return new Promise((ok,nein)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=nein;document.head.appendChild(s)})}
@@ -406,6 +450,7 @@ piBox.addEventListener("click",async e=>{
   if(a==="einst") return zeigeEinst(p);
   if(a==="liste") return zeigeListe(p);
   if(a==="terminal") return zeigeTerminal(p);
+  if(a==="befehle") return zeigeBefehle(p);
   if(a==="log") return zeigeLog(p.letzter_job,`${p.name} – Protokoll`);
   if(a==="neustart"&&!confirm(`${p.name} jetzt neu starten?`)) return;
   if(a==="container"&&!confirm(`Alle Docker-Container auf ${p.name} aktualisieren?`)) return;

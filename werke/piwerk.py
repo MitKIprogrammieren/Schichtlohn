@@ -54,11 +54,44 @@ LC_ALL=C apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst
 [ -f /var/run/reboot-required ] && echo neustart=1 || echo neustart=0
 command -v docker >/dev/null 2>&1 && echo docker=1 || echo docker=0
 sudo -n -l /usr/bin/apt-get >/dev/null 2>&1 && echo sudo=1 || echo sudo=0
+echo "apps=$(for c in ncp-update ncc pihole vcgencmd; do command -v $c >/dev/null 2>&1 && printf '%s,' $c; done)"
 """
+
+# Wartet, solange apt/dpkg auf dem Pi beschäftigt ist (höchstens 10 Minuten)
+APT_WARTEN = r"""warte_apt() {
+  n=0
+  while pgrep -x 'apt|apt-get|dpkg|unattended-upgr' >/dev/null 2>&1; do
+    [ $n -eq 0 ] && echo ">> apt läuft gerade – warte …"
+    n=$((n+1)); [ $n -gt 120 ] && { echo ">> apt ist nach 10 Minuten noch beschäftigt, abgebrochen"; exit 1; }
+    sleep 5
+  done
+}
+warte_apt
+"""
+
+# Befehle im Knopf „Befehle“: id → (Name, Beschreibung, Skript, nötige App oder None, Rückfrage)
+BEFEHLE = {
+    "ncp-update": ("NextcloudPi updaten", "sudo ncp-update", "exec 2>&1\n" + APT_WARTEN + "sudo -n ncp-update\n", "ncp-update", True),
+    "ncp-scan": ("Nextcloud-Dateien neu einlesen", "sudo ncc files:scan --all", "exec 2>&1\nsudo -n ncc files:scan --all\n", "ncc", False),
+    "pihole-up": ("Pi-hole updaten", "sudo pihole -up", "exec 2>&1\n" + APT_WARTEN + "sudo -n pihole -up\n", "pihole", True),
+    "pihole-g": ("Blocklisten aktualisieren", "sudo pihole -g", "exec 2>&1\nsudo -n pihole -g\n", "pihole", False),
+    "pihole-status": ("Pi-hole-Status", "pihole status", "exec 2>&1\npihole status\n", "pihole", False),
+    "drossel": ("Drosselung und Temperatur", "vcgencmd get_throttled",
+                "exec 2>&1\nvcgencmd measure_temp\nvcgencmd get_throttled\nvcgencmd measure_volts core\n"
+                "t=$(vcgencmd get_throttled | cut -d= -f2)\n"
+                "[ \"$t\" = 0x0 ] && echo '>> Alles gut – keine Unterspannung, keine Drosselung' || "
+                "echo '>> Achtung: Unterspannung oder Drosselung erkannt (Netzteil prüfen)'\n", "vcgencmd", False),
+    "aufraeumen": ("Speicher aufräumen", "apt clean, alte Logs, alte Pakete",
+                   "exec 2>&1\n" + APT_WARTEN + "df -h / | tail -1\nsudo -n apt-get clean\nsudo -n apt-get -y autoremove\n"
+                   "sudo -n journalctl --vacuum-size=100M\necho '>> Danach:'\ndf -h / | tail -1\n", None, True),
+    "dienste": ("Fehlerhafte Dienste", "systemctl --failed", "exec 2>&1\nsystemctl --failed --no-pager\n", None, False),
+    "speicher": ("Größte Ordner", "du im Home-Ordner und /var",
+                 "exec 2>&1\nsudo -n du -xh -d1 /var 2>/dev/null | sort -h | tail -8\ndu -xh -d1 ~ 2>/dev/null | sort -h | tail -8\n", None, False),
+}
 
 SKRIPTE = {
     "update": r"""exec 2>&1
-set -e
+""" + APT_WARTEN + r"""set -e
 A="sudo -n DEBIAN_FRONTEND=noninteractive apt-get"
 echo ">> Paketlisten holen"
 $A update
@@ -69,7 +102,7 @@ $A -y autoremove
 if [ -f /var/run/reboot-required ]; then echo ">> Fertig – Neustart nötig"; else echo ">> Fertig – kein Neustart nötig"; fi
 """,
     "pruefen": r"""exec 2>&1
-sudo -n apt-get update
+""" + APT_WARTEN + r"""sudo -n apt-get update
 echo ">> $(apt-get -s dist-upgrade 2>/dev/null | grep -c '^Inst') Updates verfügbar"
 """,
     "neustart": r"""exec 2>&1
@@ -99,6 +132,7 @@ STATUS = {}
 JOBS = {}
 LAUFEND = {}
 APT_ZULETZT = {}
+START = time.time()   # erst 6 h nach dem Start selbst Paketlisten holen, nicht bei jedem Neustart
 
 
 def lade_konfig():
@@ -315,9 +349,10 @@ def frage_ab(pi):
         "neustart": w.get("neustart") == "1",
         "docker": w.get("docker") == "1",
         "sudo": w.get("sudo") == "1",
+        "apps": [a for a in w.get("apps", "").split(",") if a],
     }
     # Paketlisten ab und zu im Hintergrund auffrischen, damit die Update-Zahl stimmt
-    if STATUS[pi["id"]]["sudo"] and time.time() - APT_ZULETZT.get(pi["id"], 0) > APT_INTERVALL \
+    if STATUS[pi["id"]]["sudo"] and time.time() - APT_ZULETZT.get(pi["id"], START) > APT_INTERVALL \
             and not job_laeuft(pi["id"]):
         APT_ZULETZT[pi["id"]] = time.time()
         threading.Thread(target=apt_auffrischen, args=(pi,), daemon=True).start()
@@ -356,22 +391,23 @@ def finde_pi(pid):
     return None
 
 
-def starte_job(pi, art):
+def starte_job(pi, art, skript=None, titel=None):
     if job_laeuft(pi["id"]):
         return LAUFEND[pi["id"]]
     jid = uuid.uuid4().hex[:10]
-    job = {"id": jid, "pi": pi["id"], "name": pi["name"], "art": art, "zeilen": [],
+    job = {"id": jid, "pi": pi["id"], "name": pi["name"], "art": art, "titel": titel or art, "zeilen": [],
            "fertig": False, "ok": None, "start": time.time()}
     JOBS[jid] = job
     LAUFEND[pi["id"]] = jid
     if pi["id"] in STATUS:
         STATUS[pi["id"]]["job"] = art
+        STATUS[pi["id"]]["job_titel"] = titel or art
 
     def lauf():
         try:
             p = subprocess.Popen(ssh_befehl(pi), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace")
-            p.stdin.write(SKRIPTE[art])
+            p.stdin.write(skript or SKRIPTE[art])
             p.stdin.close()
             for z in p.stdout:
                 z = z.rstrip("\n")
@@ -407,7 +443,8 @@ def liste():
         p["status"] = STATUS.get(p["id"], {"zustand": "unbekannt"})
         p["job"] = LAUFEND.get(p["id"]) if job_laeuft(p["id"]) else None
         p["letzter_job"] = LAUFEND.get(p["id"])
-    return {"pis": pis, "zeit": time.time()}
+    befehle = [{"id": k, "name": v[0], "text": v[1], "app": v[3], "frage": v[4]} for k, v in BEFEHLE.items()]
+    return {"pis": pis, "befehle": befehle, "zeit": time.time()}
 
 
 def neue_id(name):
@@ -508,11 +545,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.antwort({"fehler": "Name fehlt"}, 400)
             eintrag = {k: str(d.get(k, "")).strip()[:200] for k in ("name", "host", "user", "url")}
             eintrag["user"] = eintrag["user"] or "pi"
+            if isinstance(d.get("befehle"), list):
+                eintrag["befehle"] = [{"name": str(b.get("name", ""))[:60], "cmd": str(b.get("cmd", ""))[:1000]}
+                                      for b in d["befehle"][:30] if isinstance(b, dict) and b.get("cmd")]
             with sperre:
                 pid = d.get("id")
                 vorhanden = next((p for p in PIS if p["id"] == pid), None)
                 if vorhanden:
-                    vorhanden.update(eintrag)
+                    vorhanden.update({k: v for k, v in eintrag.items() if v or k in ("url", "host")})
                 else:
                     eintrag["id"] = neue_id(name)
                     PIS.append(eintrag)
@@ -521,6 +561,20 @@ class Handler(BaseHTTPRequestHandler):
             STATUS.pop(pid, None)
             threading.Thread(target=frage_ab, args=(finde_pi(pid),), daemon=True).start()
             return self.antwort({"ok": True, "id": pid})
+        if len(t) == 5 and t[:2] == ["api", "pis"] and t[3] == "befehl":
+            pi = finde_pi(t[2])
+            if not pi or not pi.get("host"):
+                return self.antwort({"fehler": "Pi unbekannt oder ohne IP"}, 404)
+            bid = t[4]
+            if bid in BEFEHLE:
+                name, _, skript, _, _ = BEFEHLE[bid]
+            elif bid.startswith("eigen-") and (zahl(bid[6:]) or 0) < len(pi.get("befehle", [])) \
+                    and (zahl(bid[6:]) or 0) >= 0:
+                b = pi["befehle"][zahl(bid[6:])]
+                name, skript = b["name"] or b["cmd"][:40], "exec 2>&1\n" + b["cmd"] + "\n"
+            else:
+                return self.antwort({"fehler": "Unbekannter Befehl"}, 404)
+            return self.antwort({"job": starte_job(pi, "befehl", skript, name)})
         if len(t) == 4 and t[:2] == ["api", "pis"] and t[3] in SKRIPTE:
             pi = finde_pi(t[2])
             if not pi or not pi.get("host"):
