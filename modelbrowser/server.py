@@ -124,7 +124,17 @@ def modell(p, m):
         return None
     return {"plattform": sauber(p), "name": sauber(m), "info": info_lesen(o),
             "seite": os.path.exists(os.path.join(o, "seite.html")),
-            "bilder": dateien(os.path.join(o, "Bilder")), "dateien": dateien(os.path.join(o, "Daten"))}
+            "bilder": dateien(os.path.join(o, "Bilder")), "dateien": dateien(os.path.join(o, "Daten")),
+            "versionen": versionen(o)}
+
+
+def versionen(o):
+    v = os.path.join(o, "Versionen")
+    try:
+        namen = sorted((n for n in os.listdir(v) if os.path.isdir(os.path.join(v, n)) and not n.startswith(".")), reverse=True)
+    except OSError:
+        return []
+    return [{"name": n, "dateien": dateien(os.path.join(v, n, "Daten"))} for n in namen]
 
 
 def titel_sauber(t):
@@ -496,6 +506,158 @@ def importieren(aid, url, p=None, m=None):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def datei_hash(f):
+    h = hashlib.sha1()
+    with open(f, "rb") as x:
+        for b in iter(lambda: x.read(1024 * 1024), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def hashes(ordner):
+    return {d["name"]: datei_hash(os.path.join(ordner, d["name"])) for d in dateien(ordner)}
+
+
+def nur_text(html):
+    import html as h
+    return re.sub(r"\s+", " ", h.unescape(re.sub(r"<[^>]+>", " ", html or ""))).strip()
+
+
+def zahl(x):
+    return str(x).replace(".", ",")
+
+
+def aenderungen_finden(alt, neu, alt_daten, neu_daten, alt_bilder, neu_bilder):
+    punkte, neue_ids = [], []
+    ap = {str(p.get("id") or p.get("titel")): p for p in alt.get("profile") or []}
+    np_ = {str(p.get("id") or p.get("titel")): p for p in neu.get("profile") or []}
+    for k, p in np_.items():
+        if k not in ap:
+            neue_ids.append(k)
+            werte = [zahl(p["stunden"]) + " h" if p.get("stunden") else "", f'{p["platten"]} Platte{"n" if p["platten"] != 1 else ""}' if p.get("platten") else "",
+                     f'{p["gewicht"]} g' if p.get("gewicht") else ""]
+            punkte.append({"art": "neu", "text": f'Profil „{p.get("titel")}“' + (" · " + " · ".join(w for w in werte if w) if any(werte) else "")})
+        else:
+            a, teile = ap[k], []
+            if a.get("titel") != p.get("titel"):
+                teile.append(f'Name „{a.get("titel")}“ → „{p.get("titel")}“')
+            for feld, einheit in (("stunden", " h"), ("gewicht", " g"), ("platten", " Platten")):
+                if (a.get(feld) or 0) != (p.get(feld) or 0):
+                    teile.append(f"{zahl(a.get(feld) or 0)}{einheit} → {zahl(p.get(feld) or 0)}{einheit}")
+            if teile:
+                punkte.append({"art": "geaendert", "text": f'Profil „{p.get("titel")}“: ' + ", ".join(teile)})
+    for k, p in ap.items():
+        if k not in np_:
+            punkte.append({"art": "entfernt", "text": f'Profil „{p.get("titel")}“'})
+    for n, h in neu_daten.items():
+        if not n.lower().endswith(".3mf"):
+            continue
+        if n not in alt_daten:
+            punkte.append({"art": "neu", "text": f"Datei {n}"})
+        elif alt_daten[n] != h:
+            punkte.append({"art": "geaendert", "text": f"3MF {n} ist anders"})
+    gleich = [n for n, h in neu_daten.items() if n.lower().endswith(".3mf") and alt_daten.get(n) == h]
+    if gleich and not any(p["text"].startswith("3MF") for p in punkte):
+        punkte.append({"art": "info", "text": "3MF unverändert: " + ", ".join(gleich)})
+    neue_bilder = len(set(neu_bilder.values()) - set(alt_bilder.values()))
+    weg_bilder = len(set(alt_bilder.values()) - set(neu_bilder.values()))
+    if neue_bilder or weg_bilder:
+        punkte.append({"art": "bilder", "text": ", ".join(x for x in (f"{neue_bilder} neue Bilder" if neue_bilder else "",
+                                                                     f"{weg_bilder} Bilder entfernt" if weg_bilder else "") if x)})
+    if (alt.get("titel") or "") != (neu.get("titel") or ""):
+        punkte.append({"art": "geaendert", "text": f'Titel „{alt.get("titel")}“ → „{neu.get("titel")}“'})
+    if nur_text(alt.get("beschreibung")) != nur_text(neu.get("beschreibung")):
+        punkte.append({"art": "geaendert", "text": "Beschreibung wurde überarbeitet"})
+    if not punkte:
+        punkte.append({"art": "info", "text": "Keine Unterschiede bei Profilen, Dateien, Bildern oder Beschreibung gefunden"})
+    return punkte, neue_ids
+
+
+def update_auftrag(aid, p, m):
+    """Neue Version laden, alte unter Versionen/<Datum> sichern und Unterschiede festhalten."""
+    a = AUFTRAEGE[aid]
+    o = pfad(p, m)
+    alt = info_lesen(o)
+    daten = os.path.join(o, "Daten")
+    vname = (alt.get("gespeichert") or time.strftime("%Y-%m-%d"))[:10]
+    vdir = os.path.join(o, "Versionen")
+    n = 2
+    while os.path.exists(os.path.join(vdir, vname)):
+        vname = (alt.get("gespeichert") or time.strftime("%Y-%m-%d"))[:10] + f" ({n})"
+        n += 1
+    ziel = os.path.join(vdir, vname)
+    try:
+        a["schritt"] = "Alte Version wird gesichert …"
+        alt_daten, alt_bilder = hashes(daten), hashes(os.path.join(o, "Bilder"))
+        os.makedirs(ziel)
+        for f in ("info.json", "seite.html"):
+            if os.path.exists(os.path.join(o, f)):
+                shutil.copy2(os.path.join(o, f), os.path.join(ziel, f))
+        if os.path.isdir(os.path.join(o, "Bilder")):
+            shutil.copytree(os.path.join(o, "Bilder"), os.path.join(ziel, "Bilder"))
+        if os.path.isdir(daten):
+            shutil.move(daten, os.path.join(ziel, "Daten"))
+        os.makedirs(daten, exist_ok=True)
+        info_setzen(o, geladen=None)
+    except Exception as e:
+        a.update(status="fehler", schritt="Sichern fehlgeschlagen: " + str(e))
+        return
+    alt_daten_ordner = os.path.join(ziel, "Daten")
+    try:
+        unter = aid + "-seite"
+        AUFTRAEGE[unter] = {"id": unter, "status": "läuft", "schritt": "", "zeit": int(time.time())}
+        a["schritt"] = "Neue Version wird eingelesen …"
+        importieren(unter, alt.get("url"), p, m)
+        u = AUFTRAEGE.pop(unter, {})
+        if u.get("status") != "fertig":
+            raise RuntimeError(u.get("schritt") or "Einlesen fehlgeschlagen")
+        p, m = u.get("plattform") or p, u.get("modell") or m
+        o = pfad(p, m)
+        daten = os.path.join(o, "Daten")
+        alt_daten_ordner = os.path.join(o, "Versionen", vname, "Daten")
+        neu = info_lesen(o)
+        ids = {str(p2.get("id")) for p2 in neu.get("profile") or [] if p2.get("id")}
+        schon = set((neu.get("geladen") or {}).keys())
+        for pid in (alt.get("geladen") or {}):
+            if pid in ids and pid not in schon:
+                a["schritt"] = "3MF wird neu geladen …"
+                try:
+                    mw_profil_laden(o, pid)
+                except Exception as e:
+                    print("Profil beim Update nicht geladen:", pid, e, flush=True)
+        hinweis = ""
+        modelle = [d for d in dateien(daten) if re.search(r"\.(3mf|stl)$", d["name"], re.I)]
+        for d in dateien(alt_daten_ordner):
+            if not os.path.exists(os.path.join(daten, d["name"])) and (not modelle or not re.search(r"\.(3mf|stl)$", d["name"], re.I)):
+                shutil.copy2(os.path.join(alt_daten_ordner, d["name"]), os.path.join(daten, d["name"]))
+        if not modelle and any(re.search(r"\.(3mf|stl)$", d["name"], re.I) for d in dateien(alt_daten_ordner)):
+            hinweis = "Dateien nicht neu geladen – die bisherigen bleiben im Ordner „Daten“"
+        neu = info_lesen(o)
+        punkte, neue_ids = aenderungen_finden(alt, neu, alt_daten, hashes(daten), alt_bilder, hashes(os.path.join(o, "Bilder")))
+        if hinweis:
+            punkte.append({"art": "info", "text": hinweis})
+        info_setzen(o, update=None, aenderungen={"datum": time.strftime("%d.%m.%Y"), "version": vname,
+                                                 "punkte": punkte, "neue_profile": neue_ids})
+        a.update(status="fertig", schritt=f"Update geladen · alte Version als „{vname}“ gesichert", plattform=p, modell=m)
+    except Exception as e:
+        # alles zurück wie vorher
+        try:
+            o = pfad(p, m)
+            if os.path.isdir(alt_daten_ordner):
+                shutil.rmtree(os.path.join(o, "Daten"), ignore_errors=True)
+                shutil.move(alt_daten_ordner, os.path.join(o, "Daten"))
+            vb = os.path.join(o, "Versionen", vname, "Bilder")
+            if os.path.isdir(vb):
+                shutil.rmtree(os.path.join(o, "Bilder"), ignore_errors=True)
+                shutil.move(vb, os.path.join(o, "Bilder"))
+            with open(os.path.join(o, "info.json"), "w", encoding="utf-8") as f:
+                json.dump(alt, f, ensure_ascii=False, indent=1)
+            shutil.rmtree(os.path.join(o, "Versionen", vname), ignore_errors=True)
+        except Exception as e2:
+            print("Zurücksetzen fehlgeschlagen:", e2, flush=True)
+        a.update(status="fehler", schritt="Update fehlgeschlagen: " + str(e), plattform=p, modell=m)
+
+
 KONTEN = os.path.join(DATEN, ".konten.json")
 KONTO_SPERRE = threading.Lock()
 
@@ -642,6 +804,9 @@ def mw_profil_laden(o, profil_id):
     with urllib.request.urlopen(req, timeout=300) as r, open(datei + ".laden", "wb") as f:
         shutil.copyfileobj(r, f, 1024 * 1024)
     os.replace(datei + ".laden", datei)
+    geladen = dict(info_lesen(o).get("geladen") or {})
+    geladen[str(int(profil_id))] = name
+    info_setzen(o, geladen=geladen)
     try:
         stl_aus_3mf(datei, ziel)
     except Exception as e:
@@ -985,6 +1150,11 @@ class H(BaseHTTPRequestHandler):
                 o = pfad(teile[0], teile[1])
                 if u.path.startswith("/zip/"):
                     os.makedirs(os.path.join(DATEN, ".tmp"), exist_ok=True)
+                    v = q.get("v", "")
+                    if v:
+                        if v in (".", "..") or "/" in v or not os.path.isdir(os.path.join(o, "Versionen", v)):
+                            return self.senden(404, {"ok": False})
+                        return self.zip_senden(os.path.join(o, "Versionen", v), sauber(teile[1]) + " – Version " + v)
                     return self.zip_senden(o, sauber(teile[1]))
                 f = os.path.join(o, "Daten", sauber(teile[2]) if len(teile) > 2 else "")
                 if not os.path.isfile(f):
@@ -1103,6 +1273,19 @@ class H(BaseHTTPRequestHandler):
                 status = b.get("status") if b.get("status") in ("", "will", "gedruckt") else ""
                 info_setzen(o, status=status, bewertung=max(0, min(5, int(b.get("bewertung") or 0))),
                             notiz=str(b.get("notiz", ""))[:5000], filament=str(b.get("filament", ""))[:200])
+                return self.senden(200, {"ok": True})
+            if u.path == "/api/update_laden":
+                o = pfad(b.get("p"), b.get("m"))
+                if not os.path.isdir(o) or not info_lesen(o).get("url"):
+                    return self.senden(404, {"ok": False, "text": "Modell ohne Link"})
+                aid = uuid.uuid4().hex[:10]
+                AUFTRAEGE[aid] = {"id": aid, "status": "läuft", "schritt": "Startet …", "zeit": int(time.time())}
+                threading.Thread(target=update_auftrag, args=(aid, b.get("p"), b.get("m")), daemon=True).start()
+                return self.senden(200, AUFTRAEGE[aid])
+            if u.path == "/api/aenderungen_weg":
+                o = pfad(b.get("p"), b.get("m"))
+                if os.path.isdir(o):
+                    info_setzen(o, aenderungen=None)
                 return self.senden(200, {"ok": True})
             if u.path == "/api/updates":
                 return self.senden(200, {"ok": True, "neu": updates_pruefen()})
