@@ -69,6 +69,7 @@ def info_lesen(ordner):
 
 
 def info_schreiben(ordner, **werte):
+    BAUM_ZWISCHEN["veraltet"] = True
     i = info_lesen(ordner)
     i.update({k: v for k, v in werte.items() if v})
     with open(os.path.join(ordner, "info.json"), "w", encoding="utf-8") as f:
@@ -77,6 +78,7 @@ def info_schreiben(ordner, **werte):
 
 def info_setzen(ordner, **werte):
     """Wie info_schreiben, aber leere Werte zählen auch (None entfernt den Schlüssel)."""
+    BAUM_ZWISCHEN["veraltet"] = True
     i = info_lesen(ordner)
     for k, v in werte.items():
         if v is None:
@@ -94,7 +96,36 @@ def suchtext(i):
     return re.sub(r"\s+", " ", " ".join(teile)).lower()
 
 
+# Die Übersicht liest jeden Modellordner von der DsCLoud – das dauert über das Netz einige Sekunden.
+# Darum wird sie zwischengespeichert, im Hintergrund frisch gehalten und nach jeder Änderung neu gebaut.
+BAUM_ZWISCHEN = {"daten": None, "zeit": 0, "veraltet": True}
+BAUM_SPERRE = threading.Lock()
+
+
 def baum():
+    z = BAUM_ZWISCHEN
+    if z["daten"] is not None and not z["veraltet"] and time.time() - z["zeit"] < 600:
+        return z["daten"]
+    with BAUM_SPERRE:
+        if z["daten"] is not None and not z["veraltet"] and time.time() - z["zeit"] < 600:
+            return z["daten"]
+        z["veraltet"] = False
+        z["daten"] = baum_lesen()
+        z["zeit"] = time.time()
+        return z["daten"]
+
+
+def baum_frisch_halten():
+    while True:
+        try:
+            BAUM_ZWISCHEN["veraltet"] = True
+            baum()
+        except Exception as e:
+            print("Übersicht:", e, flush=True)
+        time.sleep(45)
+
+
+def baum_lesen():
     erg = []
     os.makedirs(DATEN, exist_ok=True)
     for p in sorted(os.listdir(DATEN), key=str.lower):
@@ -2086,6 +2117,7 @@ class H(BaseHTTPRequestHandler):
         self.senden(404, {"ok": False})
 
     def do_PUT(self):
+        BAUM_ZWISCHEN["veraltet"] = True
         u = urllib.parse.urlparse(self.path)
         q = dict(urllib.parse.parse_qsl(u.query))
         if not self.erlaubt("PUT", u.path):
@@ -2126,6 +2158,7 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if not self.erlaubt("POST", u.path):
             return
+        BAUM_ZWISCHEN["veraltet"] = True
         try:
             b = self.json_body()
             if u.path == "/api/anmelden":
@@ -2293,5 +2326,6 @@ if __name__ == "__main__":
     shutil.rmtree(os.path.join(DATEN, ".tmp"), ignore_errors=True)
     os.makedirs(os.path.join(DATEN, ".tmp"), exist_ok=True)
     threading.Thread(target=update_schleife, daemon=True).start()
+    threading.Thread(target=baum_frisch_halten, daemon=True).start()
     print(f"ModelBrowser läuft auf Port {PORT}, Ablage {DATEN}", flush=True)
     StillerServer(("0.0.0.0", PORT), H).serve_forever()
