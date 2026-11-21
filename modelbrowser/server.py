@@ -1002,7 +1002,7 @@ def nas_version(name):
 
 def nas_titel(name):
     """Dateiname → lesbarer Titel (ohne Endung, Version, Zeitstempel)."""
-    t = re.sub(r"\.(zip|rar|7z|stl|3mf|step|stp|obj)$", "", name, flags=re.I)
+    t = re.sub(r"\.(zip|rar|7z|stl|3mf|step|stp|obj|pdf)$", "", name, flags=re.I)
     t = re.sub(r"-\d{8}T\d{6}Z-\d+-\d+$", "", t)
     t = re.sub(r"\.[a-z0-9]{6,10}$", "", t)  # Kürzel wie .sdfds5d5
     t = re.sub(r"[_\s-]*v(?:ersion)?\s*\d+(?:\.\d+)*(_alt)?$", "", t, flags=re.I)
@@ -1157,8 +1157,12 @@ def nas_scan(aid=None, mit_vorschau=True):
                                 break
                 einzeln = zuordnung.pop(None, [])
                 paare = list(zuordnung.items())
-                for e in einzeln:  # Zubehör & Co.: eigenes Modell aus dem Dateinamen
-                    paare.append((sauber(nas_titel(e["name"])), [e]))
+                buendel = {}
+                for e in einzeln:  # Zubehör & Co.: eigenes Modell aus dem Dateinamen (ZIP + gleichnamige PDF zusammen)
+                    buendel.setdefault(sauber(re.sub(r"\.pdf$", "", nas_titel(e["name"]), flags=re.I)).lower(), []).append(e)
+                for l2 in buendel.values():
+                    l2.sort(key=lambda e: e["name"].lower().endswith(".pdf"))
+                    paare.append((sauber(re.sub(r"\.pdf$", "", nas_titel(l2[0]["name"]), flags=re.I)), l2))
             else:
                 buendel = {}
                 for e in eintraege:
