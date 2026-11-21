@@ -1340,6 +1340,19 @@ def nas_vorschau(nas, o, eintraege):
                     for info in z.infolist():
                         if not info.is_dir() and "__MACOSX" not in info.filename:
                             kandidaten.append((os.path.basename(info.filename), info.file_size, ("zip", e["pfad"], info.filename)))
+                    # ZIP in der ZIP (z. B. Casadio): nur wenn sonst weder Bild noch 3D-Datei drin ist
+                    if not any(k[0].lower().endswith(BILD_ENDUNGEN + (".3mf", ".stl")) for k in kandidaten):
+                        for info in z.infolist():
+                            if info.filename.lower().endswith(".zip") and info.file_size < 2 * 1024 ** 3:
+                                try:
+                                    with z.open(info) as innen_fh, zipfile.ZipFile(innen_fh) as z2:
+                                        for i2 in z2.infolist():
+                                            if not i2.is_dir() and "__MACOSX" not in i2.filename and \
+                                                    i2.filename.lower().endswith(BILD_ENDUNGEN + (".3mf", ".stl")):
+                                                kandidaten.append((os.path.basename(i2.filename), i2.file_size,
+                                                                   ("zip2", e["pfad"], info.filename, i2.filename)))
+                                except Exception as ex:
+                                    print("Innere ZIP nicht lesbar:", info.filename, ex, flush=True)
             except Exception as ex:
                 print("ZIP nicht lesbar:", e["name"], ex, flush=True)
         elif e["name"].lower().endswith(".pdf"):
@@ -1353,6 +1366,9 @@ def nas_vorschau(nas, o, eintraege):
                 with nas.oeffnen(q[1]) as fh:
                     return fh.read()
             with nas.oeffnen(q[1]) as fh, zipfile.ZipFile(fh) as z:
+                if q[0] == "zip2":
+                    with z.open(q[2]) as innen_fh, zipfile.ZipFile(innen_fh) as z2:
+                        return z2.read(q[3])
                 return z.read(q[2])
 
         if not hat_bilder:
