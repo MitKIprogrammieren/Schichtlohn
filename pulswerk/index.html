@@ -41,11 +41,11 @@ h2{font-size:16px;font-weight:700;margin:0 0 14px}
 .temp .w{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .temp .w small{display:block;font-size:12px;font-weight:600;color:var(--f)}
 .temp .skala{grid-column:2/4;margin-top:4px;height:6px}
-.kerne{grid-column:2/4;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-.kern{background:var(--fl2);border-radius:12px;padding:8px 10px;border-top:3px solid var(--f)}
+.kerne{grid-column:1/4;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:12px}
+.kern{background:var(--fl2);border-radius:12px;padding:8px 9px;border-top:3px solid var(--f);min-width:0}
 .kern .kn{font-size:11px;color:var(--txt3)}
-.kern .kt{font-weight:700;font-variant-numeric:tabular-nums}
-.kern .kl{font-size:11px;color:var(--txt2);margin-top:2px;white-space:nowrap}
+.kern .kt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:15px}
+.kern .kl{font-size:11px;color:var(--txt2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kern .kb{height:4px;border-radius:2px;background:var(--rand);margin-top:5px;overflow:hidden}
 .kern .kb div{height:100%;background:var(--f)}
 canvas{width:100%;height:150px;display:block}
@@ -128,7 +128,7 @@ function temps(t){
  return {cpu,ssd,brett,kerne,alle:t};
 }
 function kernHtml(k,last){return '<div class="kerne">'+k.map((t,i)=>{const st=stufe(t.grad,65,80),l=last&&last[i]!=null?last[i]:null;
- return `<div class="kern" style="--f:${F[st]}"><div class="kn">Kern ${i+1}</div><div class="kt">${z(t.grad)} °C</div>${l!=null?`<div class="kl">${z(l)} % in Arbeit</div><div class="kb"><div style="width:${Math.min(100,l)}%"></div></div>`:''}</div>`}).join('')+'</div>'}
+ return `<div class="kern" style="--f:${F[st]}"><div class="kn">Kern ${i+1}</div><div class="kt">${z(t.grad)} °C</div>${l!=null?`<div class="kl">${z(l)} % Arbeit</div><div class="kb"><div style="width:${Math.min(100,l)}%"></div></div>`:''}</div>`}).join('')+'</div>'}
 function zeichnen(){
  const c=$('kurve'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
  c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
