@@ -6987,7 +6987,9 @@ async function etikettModal(uid){let e=entries().find(x=>x.uid===uid);if(!e)retu
   if(!slId(e)){e.raw=Object.assign({},e.raw,{sl_id:slNeu()});try{await write(e,{})}catch(err){toast("Etikett-Nummer konnte nicht gespeichert werden")}}
   const o=etOpt();G.et={uid,id:slId(e),e};
   const waage=!!(await slEin()).waage_url;G.et.waage=waage;
-  if(waage&&!G.drListe)try{const d=await SRV.req("GET","/api/waage/drucker");G.drListe=(d&&d.drucker)||[]}catch(err){G.drListe=[]}
+  /* Druckerliste bei jedem Öffnen frisch holen: ein einmal leer gemerkter Abruf (Waage kurz weg) versteckte sonst die Auswahl,
+     und neue Drucker (z. B. M220) tauchten erst nach Neuladen der App auf */
+  if(waage)try{const d=await SRV.req("GET","/api/waage/drucker");if(d&&Array.isArray(d.drucker))G.drListe=d.drucker}catch(err){if(!G.drListe)G.drListe=[]}
   const drl=G.drListe||[],drw=etDrucker();
   if(!o.format&&waage&&!G.waageFormat)try{const w=await SRV.req("GET","/api/waage/etikett");if(w&&w.format)G.waageFormat=w.format}catch(err){}
   const fmt=o.format||G.waageFormat||"classic";
@@ -7045,7 +7047,10 @@ async function etTeilen(){const cv=document.getElementById("etCv");if(!cv||!G.et
   try{const file=new File([blob],name,{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(err){if(err&&err.name==="AbortError")return}
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast("Etikett als Bild gespeichert")}
 /* Etikettendrucker in Home Assistant (über die Waage): gewählter oder Standarddrucker */
-function etDrucker(){const l=G.drListe||[];if(!l.length)return "";const w=etOpt().drucker;return l.some(d=>d.id===w)?w:(l.find(d=>d.standard)||l[0]).id}
+function etDrucker(){const l=G.drListe||[];if(!l.length)return "";const w=etOpt().drucker;if(l.some(d=>d.id===w))return w;
+  /* sonst der Standard-Drucker aus Mehr → Etikettendrucker */
+  let s="";try{s=(JSON.parse(localStorage.getItem("sl_etikett")||"{}")||{}).drucker||""}catch(x){}
+  return l.some(d=>d.id===s)?s:(l.find(d=>d.standard)||l[0]).id}
 function etDruckText(){const l=G.drListe||[];if(l.length<2)return "Auf der Waage drucken";const d=l.find(x=>x.id===etDrucker());return `Auf dem ${d?d.name:"Drucker"} drucken`}
 async function etWaage(b){if(!G.et)return;const cv=document.createElement("canvas");const drD=((G.drListe||[]).find(d=>d.id===etDrucker())||{}).dpi===300?300:203;await Etikett.zeichnen(cv,etSorte(G.et.e),Object.assign(etZeichenOpt(),{dpi:drD}));const r=Etikett.raster(cv);const o=etOpt();
   if(b)b.disabled=true;try{const dr=etDrucker();const d=await SRV.req("POST","/api/waage/drucken",Object.assign(r,{kopien:Math.max(1,Math.min(10,o.kopien||1)),titel:summary(G.et.e).slice(0,80)},dr?{drucker:dr}:{}));toast(d&&d.ok===false?(d.text||"Waage meldet einen Fehler"):"Etikett geht an die Waage")}

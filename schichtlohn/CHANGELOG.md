@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.17.14 – 21.11.2026
+- Etikett drucken: Im Etikett-Fenster lässt sich der Etikettendrucker wieder auswählen, auch neue wie der Phomemo M220. Ohne Auswahl druckt SchichtLohn auf dem Standard-Drucker aus Mehr → Etikettendrucker statt immer auf dem M20 Pro.
+
 ## 3.17.13 – 19.11.2026
 - Neuer Design-Stil „Slicer“ (nach Vorbild von PancakeSlicer): ruhige Grafitflächen mit grünem Akzent, Seitenleiste links mit Logo, Bereichen und Lagerstand. Auswahlknöpfe (z. B. „Einfach/Ausführlich“, „Freundschaft/Normal/Gut verdienen“) erscheinen als Karten, die gewählte ist grün umrandet. Einstellen unter Einstellungen → Design → Stil, hell und dunkel möglich. Dein bisheriger Stil bleibt unverändert.
 
