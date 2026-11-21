@@ -409,6 +409,8 @@ def seite_ablegen(html_bytes, p=None, m=None, url=""):
     html = html_bytes.decode("utf-8", "replace")
     url = url or url_aus_html(html)
     d = daten_aus_html(html)
+    if "3dsets.com" in (url or ""):
+        dreidsets_daten(html, d, url)
     p = p or plattform_aus_url(url)
     m = m or d["titel"] or "Neues Modell"
     o = pfad(p, m)
@@ -429,7 +431,9 @@ def seite_ablegen(html_bytes, p=None, m=None, url=""):
     if anzahl == 0:
         anzahl = bilder_ziehen(html, bild_ordner)
     info_schreiben(o, url=url, titel=d["titel"] or m, autor=d["autor"], beschreibung=d["beschreibung"],
-                   profile=d["profile"], tags=d["tags"], gespeichert=time.strftime("%Y-%m-%d %H:%M"), stand=d["stand"])
+                   profile=d["profile"], tags=d["tags"], gespeichert=time.strftime("%Y-%m-%d %H:%M"), stand=d["stand"],
+                   anleitung=d.get("anleitung"), changelog=d.get("changelog"), version=d.get("version"),
+                   version_datum=d.get("version_datum"), version_schluessel=d.get("version_schluessel"))
     info_setzen(o, update=None)
     return sauber(p), sauber(m), anzahl
 
@@ -489,6 +493,13 @@ def importieren(aid, url, p=None, m=None):
         a["schritt"] = "Bilder werden geladen …"
         p, m, n = seite_ablegen(roh, p, m, url=url)
         text = f"Gespeichert mit {n} Bildern"
+        if p == "3D Sets":
+            a["schritt"] = "Bauanleitung wird gespeichert …"
+            try:
+                t2 = anleitung_sichern(pfad(p, m), info_lesen(pfad(p, m)).get("titel") or m)
+                text += (" + " + t2) if t2 else ""
+            except Exception as e:
+                text += " – Bauanleitung nicht geladen: " + str(e)
         profile = info_lesen(pfad(p, m)).get("profile") or []
         o = pfad(p, m)
         if p == "MakerWorld" and profile and profile[0].get("id") and (konten_lesen().get("makerworld") or {}).get("token") \
@@ -568,6 +579,12 @@ def aenderungen_finden(alt, neu, alt_daten, neu_daten, alt_bilder, neu_bilder):
         punkte.append({"art": "geaendert", "text": f'Titel „{alt.get("titel")}“ → „{neu.get("titel")}“'})
     if nur_text(alt.get("beschreibung")) != nur_text(neu.get("beschreibung")):
         punkte.append({"art": "geaendert", "text": "Beschreibung wurde überarbeitet"})
+    if alt.get("version_schluessel") and alt.get("version_schluessel") != neu.get("version_schluessel"):
+        punkte.insert(0, {"art": "geaendert", "text": f'Version {alt.get("version") or "?"} → {neu.get("version") or "?"}'})
+        bekannt = {(e.get("name"), e.get("datum")) for e in alt.get("changelog") or []}
+        for e in neu.get("changelog") or []:
+            if (e.get("name"), e.get("datum")) not in bekannt:
+                punkte.insert(1, {"art": "neu", "text": f'{e.get("name")}: ' + "; ".join(e.get("notizen") or [])})
     if not punkte:
         punkte.append({"art": "info", "text": "Keine Unterschiede bei Profilen, Dateien, Bildern oder Beschreibung gefunden"})
     return punkte, neue_ids
@@ -631,7 +648,8 @@ def update_auftrag(aid, p, m):
             if not os.path.exists(os.path.join(daten, d["name"])) and (not modelle or not re.search(r"\.(3mf|stl)$", d["name"], re.I)):
                 shutil.copy2(os.path.join(alt_daten_ordner, d["name"]), os.path.join(daten, d["name"]))
         if not modelle and any(re.search(r"\.(3mf|stl)$", d["name"], re.I) for d in dateien(alt_daten_ordner)):
-            hinweis = "Dateien nicht neu geladen – die bisherigen bleiben im Ordner „Daten“"
+            hinweis = ("Deine Modelldateien sind noch die alte Version – die neue bei 3D Sets selbst herunterladen" if p == "3D Sets"
+                       else "Dateien nicht neu geladen – die bisherigen bleiben im Ordner „Daten“")
         neu = info_lesen(o)
         punkte, neue_ids = aenderungen_finden(alt, neu, alt_daten, hashes(daten), alt_bilder, hashes(os.path.join(o, "Bilder")))
         if hinweis:
@@ -670,17 +688,22 @@ def text_holen(url, timeout=40):
         return r.read().decode("utf-8", "replace")
 
 
+def version_tupel(text):
+    m = re.search(r"v(?:ersion)?\s*(\d+(?:\.\d+)*)", text or "", re.I)
+    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+
+
 def anleitung_link(html):
-    """Link zur Bauanleitung (Google-Präsentation) – bevorzugt der Knopf „Build Guide“."""
+    """Link zur neuesten Bauanleitung (Google-Präsentation): „Build Guide“ mit der höchsten Version."""
     kandidaten = []
     for m in re.finditer(r'<a\b[^>]*href=["\']?(https://docs\.google\.com/presentation/d/([\w-]{20,})[^"\' >]*)[^>]*>(.*?)</a>', html, re.S | re.I):
         text = re.sub(r"<[^>]+>|\s+", " ", m.group(3)).strip()
-        kandidaten.append((0 if re.search(r"build\s*guide", text, re.I) else 1, m.group(2), text))
+        kandidaten.append((1 if re.search(r"build\s*guide", text, re.I) else 0, version_tupel(text), m.group(2), text))
     if not kandidaten:
         ids = re.findall(r"https://docs\.google\.com/presentation/d/([\w-]{20,})", html)
         return (ids[0], "") if ids else (None, "")
-    kandidaten.sort(key=lambda k: k[0])
-    return kandidaten[0][1], kandidaten[0][2]
+    kandidaten.sort(key=lambda k: (k[0], k[1]), reverse=True)
+    return kandidaten[0][2], kandidaten[0][3]
 
 
 def anleitung_laden(gid, ziel_ordner, name):
@@ -696,8 +719,75 @@ def anleitung_laden(gid, ziel_ordner, name):
     return os.path.basename(datei)
 
 
-def katalog_3dsets(aid, kategorie="models", mit_anleitung=True):
-    """Alle Modelle aus dem 3D-Sets-Shop anlegen: Bilder, Beschreibung, Bauanleitung.
+def changelog_3dsets(html):
+    """Changelog einer 3D-Sets-Produktseite: [{datum, name, version, notizen}], neueste zuerst."""
+    i = html.find("product-changelog")
+    teil = html[i:] if i >= 0 else ""
+    txt = lambda x: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", __import__("html").unescape(x or ""))).strip()
+    liste = []
+    for blk in re.split(r"changelog-item", teil)[1:61]:
+        blk = blk[:30000]
+        dm = re.search(r"<h6[^>]*>(.*?)</h6>", blk, re.S)
+        pm = re.search(r"<p[^>]*>(.*?)</p>", blk, re.S)
+        if not pm:
+            continue
+        d = re.search(r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})", txt(dm.group(1)) if dm else "")
+        ul = re.search(r"<ul[^>]*>(.*?)</ul>", blk, re.S)
+        name = txt(pm.group(1))
+        v = version_tupel(name)
+        liste.append({"datum": f"{int(d.group(1)):02d}.{int(d.group(2)):02d}.{d.group(3)}" if d else "",
+                      "name": name, "version": "v" + ".".join(map(str, v)) if v else "",
+                      "notizen": [txt(li) for li in re.findall(r"<li[^>]*>(.*?)</li>", ul.group(1), re.S)][:30] if ul else []})
+    return liste
+
+
+def dreidsets_daten(html, d, url):
+    """3D Sets: Titel, Bilder und Beschreibung aus dem Shop, dazu Changelog, Version und Bauanleitung."""
+    import html as h
+    slug = re.search(r"3dsets\.com/product/([^/?#\s]+)", url or "")
+    if slug:
+        try:
+            p = (json_holen("https://3dsets.com/wp-json/wc/store/v1/products?slug=" + urllib.parse.quote(slug.group(1))) or [None])[0]
+        except Exception as e:
+            p = None
+            print("3D-Sets-Shopdaten nicht lesbar:", e, flush=True)
+        if p:
+            d["titel"] = h.unescape(p.get("name") or "").replace("×", "x").strip() or d["titel"]
+            d["galerie"] = [b.get("src") for b in p.get("images") or [] if b.get("src")][:40] or d["galerie"]
+            d["beschreibung"] = saeubern(p.get("description") or p.get("short_description") or "") or d["beschreibung"]
+            d["tags"] = [h.unescape(c.get("name") or "") for c in p.get("categories") or []
+                         if c.get("slug") not in ("models", "models-favorite-products", "new-products")]
+    d["autor"] = "3D Sets"
+    gid, text = anleitung_link(html)
+    if gid:
+        d["anleitung"] = f"https://docs.google.com/presentation/d/{gid}/edit"
+        d["anleitung_text"] = text
+    cl = changelog_3dsets(html)
+    if cl:
+        d["changelog"] = cl
+        d["version"] = cl[0]["version"] or cl[0]["name"]
+        d["version_datum"] = cl[0]["datum"]
+        d["version_schluessel"] = cl[0]["name"] + "|" + cl[0]["datum"]
+
+
+def anleitung_sichern(o, titel):
+    """Bauanleitung als PDF in „Daten“ legen, wenn sie fehlt oder es eine neuere gibt."""
+    i = info_lesen(o)
+    link = i.get("anleitung") or ""
+    if "/d/" not in link:
+        return ""
+    gid = link.split("/d/")[1].split("/")[0]
+    name = "Bauanleitung – " + titel
+    datei = os.path.join(o, "Daten", sauber(name) + ".pdf")
+    if os.path.exists(datei) and i.get("anleitung_pdf") == gid:
+        return ""
+    anleitung_laden(gid, os.path.join(o, "Daten"), name)
+    info_setzen(o, anleitung_pdf=gid)
+    return "Bauanleitung gespeichert"
+
+
+def katalog_3dsets(aid, kategorie="models"):
+    """Alle Modelle aus dem 3D-Sets-Shop: Originalseite, Bilder, Beschreibung, Changelog, Bauanleitung.
     Lädt NIE Modelldateien – die kommen bei 3D Sets nur bewusst vom Nutzer."""
     import html as h
     a = AUFTRAEGE[aid]
@@ -718,53 +808,24 @@ def katalog_3dsets(aid, kategorie="models", mit_anleitung=True):
                 u = info_lesen(os.path.join(pp, m)).get("url", "").rstrip("/")
                 if u:
                     vorhanden[u] = m
-        neu = akt = 0
-        fehler = []
+        ok, fehler = 0, []
         for k, p in enumerate(produkte, 1):
             titel = h.unescape(p.get("name") or "").replace("×", "x").strip()
+            url = (p.get("permalink") or "").rstrip("/") + "/"
+            unter = f"{aid}-{k}"
+            AUFTRAEGE[unter] = {"id": unter, "status": "läuft", "schritt": "", "zeit": int(time.time())}
             a["schritt"] = f"{k}/{len(produkte)}: {titel} …"
-            url = (p.get("permalink") or "").rstrip("/")
-            m = vorhanden.get(url) or sauber(titel)
-            o = pfad("3D Sets", m)
-            war_da = os.path.isdir(o)
-            os.makedirs(os.path.join(o, "Daten"), exist_ok=True)
-            bilder = [b.get("src") for b in p.get("images") or [] if b.get("src")]
-            if len([d for d in dateien(os.path.join(o, "Bilder")) if d["name"].startswith("galerie_")]) < min(len(bilder), 40):
-                for d in dateien(os.path.join(o, "Bilder")):
-                    if d["name"].startswith("galerie_"):
-                        os.remove(os.path.join(o, "Bilder", d["name"]))
-                if bilder_laden(bilder[:40], os.path.join(o, "Bilder")):
-                    for d in dateien(os.path.join(o, "Bilder")):
-                        if d["name"].startswith("bild_"):
-                            os.remove(os.path.join(o, "Bilder", d["name"]))
-            beschr = saeubern(p.get("description") or p.get("short_description") or "")
-            tags = [h.unescape(c.get("name") or "") for c in p.get("categories") or []
-                    if c.get("slug") not in ("models", "models-favorite-products", "new-products")]
-            anleitung, text = None, ""
-            try:
-                gid, text = anleitung_link(text_holen(url + "/"))
-                if gid:
-                    anleitung = f"https://docs.google.com/presentation/d/{gid}/edit"
-            except Exception as e:
-                print("3D-Sets-Seite nicht lesbar:", url, e, flush=True)
-            if anleitung:
-                beschr = (f'<p><a href="{anleitung}">📘 Bauanleitung (Build Guide) online öffnen</a></p>' + beschr)
-            info_schreiben(o, url=url + "/", titel=titel, autor="3D Sets", beschreibung=beschr, tags=tags,
-                           anleitung=anleitung, gespeichert=time.strftime("%Y-%m-%d %H:%M"))
-            if anleitung and mit_anleitung:
-                pdfname = "Bauanleitung – " + titel
-                if not os.path.exists(os.path.join(o, "Daten", sauber(pdfname) + ".pdf")):
-                    a["schritt"] = f"{k}/{len(produkte)}: Bauanleitung für {titel} …"
-                    try:
-                        anleitung_laden(anleitung.split("/d/")[1].split("/")[0], os.path.join(o, "Daten"), pdfname)
-                    except Exception as e:
-                        fehler.append(titel)
-                        print("Bauanleitung nicht geladen:", titel, e, flush=True)
-            akt += war_da
-            neu += not war_da
-            time.sleep(1)
-        text = f"3D Sets: {neu} Modelle neu, {akt} aktualisiert" + (f" · Anleitung fehlt bei {len(fehler)}: " + ", ".join(fehler) if fehler else "")
-        a.update(status="fertig", schritt=text, plattform="3D Sets", modell=sauber(h.unescape(produkte[0]["name"]).replace("×", "x")) if produkte else "")
+            importieren(unter, url, "3D Sets", vorhanden.get(url.rstrip("/")) or sauber(titel))
+            u = AUFTRAEGE.pop(unter, {})
+            if u.get("status") == "fertig":
+                ok += 1
+            else:
+                fehler.append(titel)
+                print("3D Sets nicht eingelesen:", titel, u.get("schritt"), flush=True)
+            time.sleep(2)
+        text = f"3D Sets: {ok} Modelle eingelesen" + (f" · Fehler bei {len(fehler)}: " + ", ".join(fehler) if fehler else "")
+        a.update(status="fertig", schritt=text, plattform="3D Sets",
+                 modell=sauber(h.unescape(produkte[0]["name"]).replace("×", "x")) if produkte else "")
     except Exception as e:
         a.update(status="fehler", schritt="3D-Sets-Katalog fehlgeschlagen: " + str(e))
 
@@ -1135,6 +1196,22 @@ def updates_pruefen():
         for m in os.listdir(pp):
             o = os.path.join(pp, m)
             i = info_lesen(o)
+            if re.search(r"3dsets\.com/product/", i.get("url", "")) and os.path.isdir(o):
+                try:
+                    cl = changelog_3dsets(text_holen(i["url"]))
+                except Exception as e:
+                    print("Update-Prüfung fehlgeschlagen:", m, e, flush=True)
+                    continue
+                if cl:
+                    schluessel = cl[0]["name"] + "|" + cl[0]["datum"]
+                    if not i.get("version_schluessel"):
+                        info_setzen(o, version_schluessel=schluessel, changelog=cl, version=cl[0]["version"] or cl[0]["name"],
+                                    version_datum=cl[0]["datum"])
+                    elif schluessel != i.get("version_schluessel") and not i.get("update"):
+                        info_setzen(o, update=True)
+                        neu += 1
+                time.sleep(2)
+                continue
             t = re.search(r"makerworld\.com/(?:[a-z-]+/)?models/(\d+)", i.get("url", ""))
             if not t or not os.path.isdir(o):
                 continue

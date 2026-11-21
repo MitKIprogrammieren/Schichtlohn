@@ -140,6 +140,17 @@ iframe{flex:1;border:0;background:#fff;width:100%;min-height:70vh}
 .mk{display:inline-block;border-radius:4px;padding:0 6px;font-size:11px;font-weight:600;margin-right:6px;vertical-align:1px}
 .mk.neu{background:#22c55e;color:#052e16}.mk.geaendert{background:#f59e0b;color:#451a03}.mk.entfernt{background:#ef4444;color:#450a0a}
 .mk.bilder{background:#3b82f6;color:#eff6ff}.mk.info{background:#4b5563;color:#f3f4f6}
+.chips2{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip2{border-radius:999px;padding:2px 10px;font-size:12px;border:1px solid var(--rand);background:var(--fl2);color:var(--txt);text-decoration:none}
+.chip2.akt{background:var(--gruen-bg);color:#86efac;border-color:var(--gruen);font-weight:600}
+.cl{border-left:3px solid #3a3f48;padding:2px 0 2px 10px;margin:0 0 10px}
+.cl.erst{border-left-color:var(--gruen)}
+.cl .k{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.cl.erst .k span:first-child{color:#86efac;font-weight:600}
+.cl .k span:last-child{color:var(--txt2);font-size:12px;white-space:nowrap}
+.cl ul{margin:3px 0 0;padding-left:16px;color:var(--txt2);font-size:12px}
+.cl.erst ul{color:#d1d5db}
+.mehr{background:none;border:0;color:var(--gruen);padding:0;font-size:12px;cursor:pointer}
 .version{border:1px solid var(--rand);border-radius:10px;margin-top:8px;background:var(--fl)}
 .version summary{padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px}
 .version summary span{flex:1}
@@ -307,7 +318,7 @@ function zeichneDetail(){
  let h=`<div class="kopf"><button class="zurueck klein" onclick="start()">‹ Zurück</button><div style="flex:1"></div>
  <div class="menue" id="menue"><button class="klein" onclick="menue(event)" aria-label="Mehr">•••</button><div class="liste2">
  ${url?'<button onclick="neuEinlesen()">Neu einlesen</button>':''}<button onclick="seiteFuer()">SingleFile-Seite hochladen</button><button onclick="umbenennen()">Umbenennen / verschieben</button><button class="gefahr" onclick="modellLoeschen()">Löschen</button></div></div>
- <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div></div></div>
+ <div style="flex-basis:100%"><h1>${esc(i.titel||d.name)}</h1><div class="unter">${esc(d.plattform)}${i.autor?' · von '+esc(i.autor):''}${url?` · <a href="${esc(url)}" target="_blank" rel="noopener">Original öffnen ↗</a>`:''}</div>${(i.version||i.anleitung)?`<div class="chips2">${i.version?`<span class="chip2 akt">Aktuell: ${esc(i.version)}${i.version_datum?' · '+esc(i.version_datum):''}</span>`:''}${i.anleitung?`<a class="chip2" href="${esc(i.anleitung)}" target="_blank" rel="noopener">📘 Bauanleitung</a>`:''}</div>`:''}</div></div>
  ${i.update?`<div class="hinweisbox">Neue Version auf ${esc(d.plattform)}<button class="klein haupt" onclick="updateLaden()">Update laden</button><span class="klein2">Deine jetzigen Dateien bleiben erhalten und werden als Version gesichert.</span></div>`:''}`;
  if(d.bilder.length&&REITER==='uebersicht'){
   h+=`<div class="held"><div><div class="gross" onclick="lupeAuf(BILD)"><img id="grossBild" src="${durl(d.plattform,d.name,'Bilder',d.bilder[Math.min(BILD,d.bilder.length-1)].name)}" alt=""></div>
@@ -319,7 +330,7 @@ function zeichneDetail(){
   const modelle3d=d.dateien.filter(f=>/\.(stl|3mf)$/i.test(f.name));
   const erstes=modelle3d.find(f=>/\.3mf$/i.test(f.name))||modelle3d[0];
   h+=`<div class="inhalt"><div class="aktionen">${erstes?`<button class="haupt" data-n="${esc(erstes.name)}" onclick="betrachterAuf(this.dataset.n)">3D ansehen</button>`:''}${d.dateien.length?`<a href="/zip/${enc(d.plattform)}/${enc(d.name)}"><button>Alles als ZIP</button></a>`:''}</div>
-  ${aendKarte(i)}${notizKarte(i)}${klein?profilKarte(i)+tagKarte(i):''}
+  ${aendKarte(i)}${notizKarte(i)}${klein?profilKarte(i)+tagKarte(i):''}${clKarte(i)}
   <div class="karte2"><h3>Beschreibung</h3>${i.beschreibung?`<div class="beschr">${i.beschreibung}</div>`:'<div class="hinweis">Keine Beschreibung gespeichert.'+(url?' Über ••• → „Neu einlesen“ holen.':'')+'</div>'}
   ${i.gespeichert?`<div class="nebeninfo">Gespeichert am ${esc(i.gespeichert)}</div>`:''}</div></div>`;
  }else if(REITER==='seite'){
@@ -392,6 +403,9 @@ async function kontoVerbinden(){
 }
 async function kontoTrennen(p){if(!confirm('Konto trennen?'))return;KONTEN=await post('/api/konten',{plattform:p,trennen:true});zeichneKonten()}
 function tagKarte(i){const t=[...new Set((i.tags||[]).filter(Boolean).map(x=>x.toLowerCase()))];return t.length?`<div class="karte2">${t.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>`:''}
+let CL_ALLE=false;
+function clKarte(i){const c=i.changelog||[];if(!c.length)return '';const z=CL_ALLE?c:c.slice(0,3);
+ return `<div class="karte2"><h3>Changelog</h3>${z.map((e,j)=>`<div class="cl ${j===0?'erst':''}"><div class="k"><span>${esc(e.name||e.version)}${j===0?' <span class="mk neu">AKTUELL</span>':''}</span><span>${esc(e.datum||'')}</span></div>${(e.notizen||[]).length?`<ul>${e.notizen.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}</div>`).join('')}${c.length>3?`<button class="mehr" onclick="CL_ALLE=!CL_ALLE;zeichneDetail()">${CL_ALLE?'Weniger anzeigen':'+ '+(c.length-3)+' ältere Versionen anzeigen'}</button>`:''}</div>`}
 const MK={neu:'NEU',geaendert:'GEÄNDERT',entfernt:'ENTFERNT',bilder:'BILDER',info:'INFO'};
 function aendKarte(i){const a=i.aenderungen;if(!a||!(a.punkte||[]).length)return '';
  return `<div class="aend"><h3>Neu im Update vom ${esc(a.datum||'')}<button class="klein" onclick="aendWeg()" aria-label="Ausblenden">✕</button></h3>${a.punkte.map(p=>`<div class="p"><span class="mk ${esc(p.art)}">${MK[p.art]||'INFO'}</span>${esc(p.text)}</div>`).join('')}${a.version?`<div class="nebeninfo">Alte Version: Reiter „Dateien“ → ${esc(vName(a.version))}</div>`:''}</div>`}
