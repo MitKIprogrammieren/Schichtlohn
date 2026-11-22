@@ -252,7 +252,7 @@ async function alexaAnsagen(e) {
   await alexaLaden();
   if (!ALEXA.mediaplayer) return;
   const text = e.text.replace(/\*([^*\n]+)\*/g, '$1').replace(/\n+/g, '. ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, '').trim();
-  try { await haApi('/api/services/notify/alexa_media', { message: text, target: ziele, data: { type: 'announce' } }); e.alexa = true; }
+  try { await haApi('/api/services/notify/alexa_media', { message: text, target: ziele, data: { type: 'tts' } }); e.alexa = true; }
   catch (err) { console.warn('Alexa-Ansage:', err.message); }
 }
 
@@ -337,7 +337,7 @@ http.createServer(async (req, res) => {
       const ziele = Object.entries((EIN.alexa || {}).geraete || {}).filter(([, an]) => an).map(([id]) => id);
       if (!ALEXA.mediaplayer) return senden(res, 400, { ok: false, text: 'Alexa Media Player ist in Home Assistant noch nicht eingerichtet' });
       if (!ziele.length) return senden(res, 400, { ok: false, text: 'Erst mindestens einen Echo einschalten' });
-      await haApi('/api/services/notify/alexa_media', { message: 'Hallo, hier ist das Meldewerk. Ansagen funktionieren.', target: ziele, data: { type: 'announce' } });
+      await haApi('/api/services/notify/alexa_media', { message: 'Hallo, hier ist das Meldewerk. Ansagen funktionieren.', target: ziele, data: { type: 'tts' } });
       return senden(res, 200, { ok: true });
     }
     if (p === '/api/gruppen') {
