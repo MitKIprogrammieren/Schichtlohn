@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.19 – 22.11.2026
+- Preise: Ohne Produktfoto zeigt jede Karte jetzt die Spule der Marke wie im Lager – Bambu Lab klar, Sunlu mit Lochplatte, Tinmorry geschlitzt, Polymaker aus Pappe, Refills als Rolle. Die Spulen-Einstellungen je Marke gelten auch hier.
+- Sunlu, Tinmorry, Polymaker, Filaxix und FD3D bekommen ihre Spule jetzt auch ohne eigene Einstellung.
+
 ## 3.17.18 – 22.11.2026
 - Preise: Die Suche bei eBay und AliExpress zeigt jetzt nur noch Filament. Klingen, Düsen, Schlauchverbinder und anderes Zubehör fallen raus.
 - Zubehör lässt sich gezielt suchen: unter „Art“ auf „Zubehör“ tippen. Dann gibt es den Preis statt €/kg.

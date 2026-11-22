@@ -5591,7 +5591,8 @@ function spLoecher(art,d){const pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Ma
   if(art==="pappe")return [...Array(8)].map((_,i)=>krs(16*d,(i*45+22.5)*D,.55*d)).join("")+krs(7.9*d,95*D,.6*d)+sek(12.6*d,10.9*d,205*D,6*D);
   return [0,1,2,3].map(i=>sek(15.1*d,7.6*d,(45+i*90)*D,31*D)).join("")}
 function spMarkeArt(h){const cfg=S.cfg||{},m=String(h||"").trim().toLowerCase(),z=cfg.spuleMarken||{};
-  if(m&&z[m]&&SP_TYPEN.some(t=>t[0]===z[m]))return z[m];return /bambu/.test(m)?(cfg.spuleBambu||"klar"):(cfg.spuleFremd||"dunkel")}
+  if(m&&z[m]&&SP_TYPEN.some(t=>t[0]===z[m]))return z[m];if(/bambu/.test(m))return cfg.spuleBambu||"klar";
+  const std=[[/sunlu/,"lochplatte"],[/tinmorry/,"schlitz"],[/polymaker|panchroma/,"pappe"],[/filaxix/,"zweifarbig"],[/fd3d|fd 3d/,"rippen"]].find(x=>x[0].test(m));return std?std[1]:(cfg.spuleFremd||"dunkel")}
 window.SP_TYPEN=SP_TYPEN;window.spMarkeArt=spMarkeArt;
 function spMasse(g){g=Math.min(g>0?g:1000,20000);return {d:g<=1000?.45+.55*Math.sqrt(g/1000):1+.15*Math.log10(g/1000),w:g<1000?.75+.25*Math.sqrt(g/1000):1+Math.pow(g/1000-1,.6)*.35}}
 let SPV_N=0;
@@ -7810,7 +7811,8 @@ function oZeile(o,best,mehr){const v=o.markt&&(typeof pvVersandText==="function"
   <span class="pvo-s"><b>${esc(o.shop)}</b><small>${o.stueck>1?o.stueck+" × ":""}${kgT(o.gew)}${o.gew>3000?" · Großpackung":""}${v?" · "+esc(v):""}</small></span>
   <span class="pvo-p">${o.normal>o.preis?`<s>${eur(o.normal)}</s>`:""}<b>${eur(o.preis)}</b></span><span class="pvo-k">${eur(o.pk)}<small>/kg</small></span></a>`}
 /* Karte im Stil eines Preisvergleichs: großes Produktbild, Marke + Packung, €/kg groß, Preis · Shop, auf Tipp alle Shops */
-const spoolVon=g=>window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k])):"";
+/* Spule der Marke (Bambu klar, Sunlu Lochplatte, Polymaker Pappe …) – wie im Lager, mit den Marken-Einstellungen */
+const spoolVon=g=>window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(k=>KWL[k]),{hersteller:g.marke,gewicht:1000,spulen:1,refills:g.refill?1:0,raw:{ausfuehrung:g.refill?"refill":"spule"}}):"";
 const packT=o=>(o.stueck>1?o.stueck+" × ":"")+kgT(o.gew);
 function bildBox(src,sp,tags){return `<div class="pvi">${sp?`<span class="pvi-sp">${sp}</span>`:""}${src?`<img src="${esc(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
   ${tags.length?`<span class="pvi-tg">${tags.map(t=>`<i class="${t[1]}">${esc(t[0])}</i>`).join("")}</span>`:""}</div>`}
