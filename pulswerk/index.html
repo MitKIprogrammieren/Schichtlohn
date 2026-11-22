@@ -115,6 +115,38 @@ a.link{display:inline-block;margin-top:12px;color:var(--gruen2);font-size:14px;f
 .hinweis code{background:#00000040;padding:1px 5px;border-radius:4px}
 details summary{cursor:pointer;color:var(--txt2);font-size:13px}
 details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 14px}
+/* Plan */
+.oben{display:flex;flex-direction:column;align-items:center}
+.pille{font-size:12px;font-weight:600;color:var(--txt2);background:var(--fl2);border:1px dashed var(--rand);border-radius:999px;padding:5px 14px}
+.senk{width:2px;height:16px;background:var(--rand)}
+.knoten{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:0 12px;align-items:center;background:var(--fl2);border:1px solid var(--rand);border-radius:14px;padding:10px 12px;width:100%}
+.knoten.haupt{border-color:var(--gruen)}
+.knoten .ip{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt2);text-align:right;white-space:nowrap}
+.knoten .zu{white-space:normal}
+.baum{position:relative;margin:0 0 0 17px;padding-left:22px}
+.baum::before{content:"";position:absolute;left:0;top:0;bottom:30px;width:2px;background:var(--rand);border-radius:1px}
+.ast{position:relative;margin-top:10px}
+.ast::before{content:"";position:absolute;left:-22px;top:28px;width:22px;height:2px;background:var(--rand)}
+.ast.an::before,.baum .ast.an>.knoten{border-color:color-mix(in srgb,var(--gruen) 55%,var(--rand))}
+.lampe{position:absolute;right:-3px;top:-3px;width:11px;height:11px;border-radius:50%;background:var(--c2,var(--txt3));box-shadow:0 0 0 2px var(--fl2)}
+.innen{margin:8px 0 2px 17px;padding-left:22px;position:relative}
+.innen::before{content:"";position:absolute;left:0;top:-8px;bottom:22px;width:2px;background:var(--rand)}
+.ct2{position:relative;background:#26262a;border:1px solid var(--rand);border-radius:12px;padding:9px 11px;margin-top:8px}
+.ct2::before{content:"";position:absolute;left:-23px;top:20px;width:22px;height:2px;background:var(--rand)}
+.ct2 .k{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:14px}
+.ct2 .k small{font:600 12px ui-monospace,Menlo,monospace;color:var(--txt2)}
+.ct2 .u{font-size:12px;color:var(--txt3)}
+.werke{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
+.werk{display:flex;align-items:center;gap:7px;background:var(--fl2);border-radius:9px;padding:6px 9px;font-size:13px;min-width:0}
+.werk i{width:8px;height:8px;border-radius:50%;flex:none;background:var(--c)}
+.werk span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.werk small{font:600 11px ui-monospace,Menlo,monospace;color:var(--txt3)}
+.auf{background:none;border:0;color:var(--gruen2);font:600 13px inherit;padding:8px 0 0;cursor:pointer}
+.fluss{display:grid;gap:0;justify-items:center}
+.fluss .knoten{max-width:420px}
+.pfeil{color:var(--txt3);font-size:12px;padding:4px 0;display:flex;align-items:center;gap:8px}
+.pfeil::before{content:"↓";font-size:18px;color:var(--gruen2)}
+.mono{font:600 12px ui-monospace,Menlo,monospace}
 </style>
 </head>
 <body>
@@ -186,6 +218,33 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 <div class="karte"><h2>Meldungen</h2><div id="nWarn"></div><div class="erkl" id="nGrenze"></div></div>
 </section>
 
+<section id="s-plan" hidden>
+<div class="karte zustand"><div class="ampel" id="plAmpel">✓</div><div><b id="plTitel">Plan wird geladen …</b><span id="plText"></span></div></div>
+<div class="fragen">
+ <div class="karte frage"><div class="q">Geräte erreichbar?</div><div class="a" id="plGer">–</div><div class="d" id="plGerD"></div></div>
+ <div class="karte frage"><div class="q">Werke laufen?</div><div class="a" id="plWerk">–</div><div class="d" id="plWerkD"></div></div>
+</div>
+<div class="karte">
+ <h2>So hängt alles zusammen</h2>
+ <div class="oben"><span class="pille">🌍 Internet</span><div class="senk"></div></div>
+ <div id="plBaum"></div>
+ <div class="erkl">Grüner Punkt: Gerät antwortet gerade. Wird alle 15 Sekunden geprüft.</div>
+</div>
+<div class="karte">
+ <h2>Wie kommen Filme zu Plex?</h2>
+ <div class="fluss" id="plFluss"></div>
+</div>
+<div class="karte">
+ <h2>Wie läuft eine Internet-Anfrage?</h2>
+ <div class="fluss" id="plDns"></div>
+</div>
+<div class="karte">
+ <h2>Von unterwegs erreichbar</h2>
+ <div id="plWeg"></div>
+ <div class="erkl">Über Tailscale – ohne offene Ports an der FritzBox.</div>
+</div>
+</section>
+
 <section id="s-prot" hidden>
 <div class="karte">
  <h2>Welche Seiten wurden aufgerufen?</h2>
@@ -209,6 +268,7 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 <nav class="unten">
  <button data-s="nuc" class="an"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>NUC</button>
  <button data-s="netz"><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1.2"/></svg>Netzwerk</button>
+ <button data-s="plan"><svg viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="6" height="5" rx="1.2"/><rect x="15.5" y="16.5" width="6" height="5" rx="1.2"/><path d="M12 7.5v4.5M5.5 16.5V12h13v4.5"/></svg>Plan</button>
  <button data-s="prot"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Protokoll</button>
 </nav>
 <script>
@@ -348,7 +408,7 @@ verlaufHolen();setInterval(()=>{if(BEREICH==='1h'||Date.now()%60000<10000)verlau
 
 // ================= Netzwerk & Protokoll =================
 let SEITE='nuc',NETZD=null,pFilter='',pAnsicht='',monAlle=false;
-const UNTER={nuc:"So geht's dem NUC",netz:'Heimnetz & Internet',prot:'Aufgerufene Seiten'};
+const UNTER={nuc:"So geht's dem NUC",netz:'Heimnetz & Internet',plan:'Plan vom Heimnetz',prot:'Aufgerufene Seiten'};
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const FARB=['#6aa9ff','#19d36b','#c58bff','#f2b84b','#ff8a6b'];
 const farbe=t=>{let h=0;for(const c of String(t))h=(h*31+c.charCodeAt(0))|0;return FARB[Math.abs(h)%FARB.length]};
@@ -356,9 +416,9 @@ const gross=b=>b>=1e9?z(b/1e9,1)+' GB':b>=1e6?z(b/1e6,0)+' MB':z(b/1e3,0)+' kB';
 const mbitS=b=>{const v=b/1e6;return v>=100?z(v,0)+' Mbit/s':v>=1?z(v,1)+' Mbit/s':z(b/1e3,0)+' kbit/s'};
 function kurzN(n){n=String(n||'');if(/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(n))return 'Gerät '+n.slice(0,4);if(/^100\.\d+\.\d+\.\d+$/.test(n))return 'Unterwegs ·'+n.split('.').pop();return n}
 const anfang=n=>(kurzN(n).replace(/^[^A-Za-zÄÖÜäöü0-9]+/,'')[0]||'?').toUpperCase();
-function seite(s){SEITE=s;['nuc','netz','prot'].forEach(k=>$('s-'+k).hidden=k!==s);
+function seite(s){SEITE=s;['nuc','netz','plan','prot'].forEach(k=>$('s-'+k).hidden=k!==s);
  document.querySelectorAll('nav.unten button').forEach(b=>b.classList.toggle('an',b.dataset.s===s));
- $('unterzeile').textContent=UNTER[s];scrollTo(0,0);if(s!=='nuc')netzHolen();else{zeichnen();netzZeichnen()}
+ $('unterzeile').textContent=UNTER[s];scrollTo(0,0);if(s==='plan')planHolen();else if(s!=='nuc')netzHolen();else{zeichnen();netzZeichnen()}
  try{localStorage.setItem('pw_seite',s)}catch(e){}}
 document.querySelectorAll('nav.unten button').forEach(b=>b.onclick=()=>seite(b.dataset.s));
 function kaestchen(b,max){const n=b<=0?0:Math.max(1,Math.min(5,5-Math.round(Math.log2(max/b))));return `<div class="stufe">${[1,2,3,4,5].map(i=>`<i class="${i<=n?'an b':''}"></i>`).join('')}</div>`}
@@ -414,7 +474,7 @@ function netzZeigen(d){
  const fs=$('pFilter');if(fs.options.length-1!==d.geraete.length){fs.innerHTML='<option value="">Alle Geräte</option>'+opts;fs.value=pFilter}
  const ns=$('pIp');if(ns.options.length!==d.geraete.length){const alt=ns.value;ns.innerHTML=opts;if(alt)ns.value=alt}
 }
-async function netzHolen(){if(SEITE==='nuc')return;
+async function netzHolen(){if(SEITE!=='netz'&&SEITE!=='prot')return;
  try{NETZD=await (await fetch('api/netz/stand?ip='+encodeURIComponent(pFilter),{cache:'no-store'})).json();netzZeigen(NETZD)}
  catch(e){$('nTitel').textContent='Netzwerk-App nicht erreichbar';$('nAmpel').style.setProperty('--f',F.hoch)}}
 document.querySelectorAll('#pTabs button').forEach(b=>b.onclick=()=>{pAnsicht=b.dataset.a;document.querySelectorAll('#pTabs button').forEach(x=>x.classList.toggle('an',x===b));if(NETZD)$('pLog').innerHTML=protokoll(NETZD)});
@@ -424,7 +484,71 @@ $('pAgOk').onclick=async()=>{$('pAgMsg').textContent='Prüfe …';const r=await 
 setInterval(netzHolen,10000);
 addEventListener('resize',()=>{if(NETZD)netzKurve(NETZD.verlauf)});
 try{const s0=localStorage.getItem('pw_seite');if(s0&&s0!=='nuc')seite(s0)}catch(e){}
-if(location.hash==='#netz'||location.hash==='#prot')seite(location.hash.slice(1));
+if(['#netz','#plan','#prot'].includes(location.hash))seite(location.hash.slice(1));
+
+// ================= Plan =================
+const PL_ICON={router:'📡',nas:'🗄️',server:'🖥️',ha:'🏠',usv:'🔋',pi:'🍓',handy:'📱'};
+const PL_PORT={etikettwerk:8096,formwerk:8092,gridwerk:8099,headscale:8097,konturwerk:8089,meldewerk:8077,modelbrowser:8091,netzwerk:8098,
+ ordnerwerk:8086,schichtlohn:8093,'skizze-zeichnung':8095,stoppseite:80,tracefinity:8087,werke:8090,zeichnemichnach:8094,schaltwerk:8080,pulswerk:8088};
+const PL_NAME={'skizze-zeichnung':['Skizze-Zeichnung',''],zeichnemichnach:['Zeichnemichnach',''],tracefinity:['Tracefinity','Werkzeugumrisse'],
+ ordnerwerk:['Ordnerwerk','Dateimanager'],meldewerk:['Meldewerk','WhatsApp-Meldungen'],stoppseite:['Stoppseite','Kindersicherung'],piwerk:['Piwerk','Raspberry Pis'],netzwerk:['Netzwerk','Datenverkehr'],pulswerk:['Pulswerk','diese Seite']};
+let PLAN=null,plOffen=false;
+function plLampe(on){return on===true?'#19d36b':on===false?'#ff6b5e':'#7c7c84'}
+function plKnoten(ic,name,unter,ip,on,haupt,farbe){return `<div class="knoten${haupt?' haupt':''}"><div class="av" style="--c:${farbe||'#6aa9ff'}">${ic}<span class="lampe" style="--c2:${plLampe(on)}"></span></div><div><div class="zn">${esc(name)}</div><div class="zu">${unter}</div></div><div class="ip">${esc(ip||'')}</div></div>`}
+function plWerke(d){
+ const alle=(d.container||[]).map(c=>{const k=(c.projekt||c.name).toLowerCase();const nn=PL_NAME[k]||nett(k);return {...c,k,nn,port:(c.ports&&c.ports[0])||PL_PORT[k]||''}});
+ const laufen={},aus=[];
+ for(const c of alle){if(c.zustand==='running'){const v=laufen[c.nn[0]];if(!v||(!v.port&&c.port))laufen[c.nn[0]]=c}else if(c.zustand==='exited'&&/Exited \(0\)/.test(c.status||''))aus.push(c);else laufen['!'+c.nn[0]]=c}
+ return {laufen:Object.values(laufen).sort((a,b)=>a.nn[0].localeCompare(b.nn[0])),aus};
+}
+function planZeigen(d){
+ const ger=d.geraete||[],gepr=ger.filter(g=>g.online!=null&&!g.aus),an=gepr.filter(g=>g.online),weg=gepr.filter(g=>!g.online);
+ const W=plWerke(d),gest=W.laufen.filter(c=>c.zustand!=='running');
+ const st=weg.length||gest.length?(weg.some(g=>['fritz','pve','dscloud'].includes(g.id))?'hoch':'mittel'):'gut';
+ $('plAmpel').style.setProperty('--f',F[st]);$('plAmpel').textContent=st==='gut'?'✓':'!';
+ $('plTitel').textContent=st==='gut'?'Alles erreichbar':weg.length?(weg.length===1?weg[0].name+' antwortet nicht':weg.length+' Geräte antworten nicht'):'Ein Werk hat ein Problem';
+ $('plText').textContent=st==='gut'?'Jedes Gerät und jedes Werk meldet sich.':(weg.map(g=>g.name).concat(gest.map(c=>c.nn[0])).join(', ')+' – kurz nachsehen.');
+ $('plGer').textContent=`${an.length} von ${gepr.length}`;$('plGer').style.setProperty('--f',weg.length?F.mittel:F.gut);
+ $('plGerD').textContent=weg.length?'nicht da: '+weg.map(g=>g.name).join(', '):'alle antworten';
+ const werkAn=W.laufen.filter(c=>c.zustand==='running').length;
+ $('plWerk').textContent=`${werkAn} laufen`;$('plWerk').style.setProperty('--f',gest.length?F.mittel:F.gut);
+ $('plWerkD').textContent=(gest.length?gest.length+' mit Problem · ':'')+(W.aus.length?W.aus.length+' fertige Hilfsjobs':'keine Hilfsjobs');
+ // Baum
+ const fritz=ger.find(g=>g.id==='fritz')||{name:'FritzBox',ip:'192.168.1.1'};
+ let h=`<div class="oben" style="align-items:stretch">${plKnoten(PL_ICON.router,fritz.name,esc(fritz.rolle||''),fritz.ip,fritz.online,true,'#19d36b')}</div><div class="baum">`;
+ for(const g of ger){if(g.id==='fritz')continue;
+  const unter=esc(g.rolle||'')+(g.online&&g.port?` · Port ${g.port}`:'');
+  h+=`<div class="ast${g.online?' an':''}">${plKnoten(PL_ICON[g.art]||'•',g.name,unter,g.ip,g.aus?null:g.online,false,g.art==='server'?'#f2b84b':g.art==='nas'?'#6aa9ff':'#c58bff')}`;
+  if(g.id==='pve'){
+   h+='<div class="innen">'+(d.gaeste||[]).map(x=>{const ram=x.ram?gb(x.ram)+' GB':'';
+    let s=`<div class="ct2"><div class="k"><span>CT ${x.id} · ${esc(x.name)}</span><small>${esc(x.ip||'')}</small></div><div class="u">${esc(x.rolle||'')}${ram?' · '+ram+' RAM':''}${x.cpu!=null?' · '+z(x.cpu,1)+' %':''}</div>`;
+    if(x.id===100){const L=plOffen?W.laufen:W.laufen.slice(0,8);
+     s+=`<div class="werke">${L.map(c=>`<div class="werk" style="--c:${c.zustand==='running'?'#19d36b':'#ff6b5e'}" title="${esc(c.nn[1]||c.status||'')}"><i></i><span>${esc(c.nn[0])}</span><small>${c.port?':'+c.port:''}</small></div>`).join('')}</div>`;
+     if(W.laufen.length>8)s+=`<button class="auf" id="plAuf">${plOffen?'Weniger zeigen':'Alle '+W.laufen.length+' Werke zeigen'}</button>`}
+    return s+'</div>'}).join('')+(d.sensor?'':'<div class="erkl">Messdienst auf dem Proxmox-Host antwortet nicht – Container fehlen.</div>')+'</div>'}
+  h+='</div>'}
+ $('plBaum').innerHTML=h+'</div>';
+ if($('plAuf'))$('plAuf').onclick=()=>{plOffen=!plOffen;planZeigen(PLAN)};
+ // Medienweg
+ const g=id=>ger.find(x=>x.id===id)||{},ct=id=>(d.gaeste||[]).find(x=>x.id===id)||{};
+ $('plFluss').innerHTML=plKnoten('⬇️','JDownloader','lädt herunter · CT 102',ct(102).ip,!!ct(102).name,false,'#c58bff')
+  +'<div class="pfeil">speichert per Netzlaufwerk</div>'
+  +plKnoten('🗄️','DsCLoud & DS1819+','Downloads, Musik, Filme, Serien','.4 · .2',g('dscloud').online&&g('ds2').online,false,'#6aa9ff')
+  +'<div class="pfeil">Plex liest mit (nur lesend)</div>'
+  +plKnoten('🎬','Plex','spielt direkt ab · CT 103',ct(103).ip,!!ct(103).name,true,'#f2b84b')
+  +'<div class="pfeil">auf iPhone, Mac und Fernseher</div>';
+ $('plDns').innerHTML=plKnoten('📱','Ein Gerät fragt','„Wo ist google.de?“','',null,false,'#c58bff')
+  +'<div class="pfeil">FritzBox schickt alle zu AdGuard</div>'
+  +plKnoten('🛡️','AdGuard','filtert Werbung · CT 101',ct(101).ip,!!ct(101).name,false,'#19d36b')
+  +'<div class="pfeil">verschlüsselt weiter</div>'
+  +plKnoten('🌍','Quad9','Antwort aus dem Internet','DoH',null,false,'#6aa9ff')
+  +'<div class="erkl" style="text-align:center">Ist ein Gerät gesperrt, zeigt AdGuard stattdessen die Stoppseite.</div>';
+ $('plWeg').innerHTML=(d.unterwegs||[]).map(u=>`<div class="zeile2"><div class="av" style="--c:#c58bff">${esc(u.name[0].toUpperCase())}</div><div class="zn">${esc(u.name)}</div><div class="zr mono">${esc(u.ip)}</div><div class="zu">${esc(u.wozu)}</div><div></div></div>`).join('');
+}
+async function planHolen(){if(SEITE!=='plan')return;
+ try{PLAN=await (await fetch('api/plan',{cache:'no-store'})).json();planZeigen(PLAN)}
+ catch(e){$('plTitel').textContent='Plan nicht erreichbar';$('plAmpel').style.setProperty('--f',F.hoch)}}
+setInterval(planHolen,15000);
 </script>
 </body>
 </html>

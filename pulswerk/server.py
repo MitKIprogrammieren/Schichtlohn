@@ -167,6 +167,102 @@ def verlauf(bereich):
     return {"punkte": erg, "schritt": 60 * n}
 
 
+# ---------- Plan: Heimnetz-Übersicht mit Live-Erreichbarkeit ----------
+# Feste Beschreibung des Heimnetzes. Überschreibbar mit /daten/plan.json (gleiches Format).
+PLAN = {
+    "geraete": [
+        {"id": "fritz", "name": "FritzBox", "rolle": "Router · verteilt Adressen", "ip": "192.168.1.1", "ports": [80, 443], "art": "router"},
+        {"id": "dscloud", "name": "DsCLoud", "rolle": "Synology DS718+ · Dateien & Backups", "ip": "192.168.1.4", "ports": [4001, 5000, 5001, 443], "art": "nas"},
+        {"id": "ds2", "name": "DS1819+", "rolle": "Synology · Filme & Serien", "ip": "192.168.1.2", "ports": [5000, 5001, 4001, 443], "art": "nas"},
+        {"id": "pve", "name": "NUC · Proxmox", "rolle": "Server für alle Werke", "ip": "192.168.1.5", "ports": [8006], "art": "server"},
+        {"id": "ha", "name": "Home Assistant", "rolle": "Smart Home", "ip": "192.168.1.66", "ports": [8123], "art": "ha"},
+        {"id": "usv", "name": "USV Zinto 1000", "rolle": "Notstrom", "ip": "192.168.1.3", "ports": [80, 443, 3493], "art": "usv"},
+        {"id": "pihole", "name": "Pi-hole", "rolle": "Raspberry Pi · abgeschaltet", "ip": "192.168.1.250", "ports": [80, 53], "art": "pi", "aus": True},
+        {"id": "kind", "name": "Kinder-Gerät", "rolle": "sperrbar über Home Assistant", "ip": "192.168.1.31", "ports": [], "art": "handy"},
+    ],
+    "gaeste": {
+        "100": {"rolle": "Docker · alle Werke", "ip": "192.168.1.30"},
+        "101": {"rolle": "AdGuard · Werbeblocker & DNS", "ip": "192.168.1.34"},
+        "102": {"rolle": "JDownloader · Downloads", "ip": "192.168.1.37"},
+        "103": {"rolle": "Plex · Filme & Serien", "ip": "192.168.1.21"},
+    },
+    "unterwegs": [
+        {"name": "DsCLoud", "ip": "100.105.178.64", "wozu": "DSM von unterwegs"},
+        {"name": "nuc-schichtlohn", "ip": "100.82.144.96", "wozu": "SchichtLohn & Werke"},
+        {"name": "adguard", "ip": "100.124.111.62", "wozu": "Werbeblocker unterwegs"},
+    ],
+}
+PLAN_CACHE = {"zeit": 0, "daten": None}
+
+
+def plan_laden():
+    try:
+        with open(os.path.join(DATEN, "plan.json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return PLAN
+
+
+def erreichbar(ip, ports):
+    for p in ports:
+        try:
+            with socket.create_connection((ip, p), timeout=0.8):
+                return True, p
+        except OSError:
+            continue
+    return False, None
+
+
+def docker_alle():
+    try:
+        c = UnixVerbindung()
+        c.request("GET", "/containers/json?all=1")
+        liste = json.loads(c.getresponse().read())
+    except Exception:
+        return []
+    erg = []
+    for x in liste:
+        ports = sorted({p.get("PublicPort") or p.get("PrivatePort") for p in x.get("Ports") or [] if p.get("PublicPort") or p.get("PrivatePort")})
+        erg.append({"name": x["Names"][0].lstrip("/"), "zustand": x.get("State"), "status": x.get("Status"),
+                    "projekt": (x.get("Labels") or {}).get("com.docker.compose.project", ""), "ports": ports})
+    return erg
+
+
+def plan():
+    if PLAN_CACHE["daten"] and time.time() - PLAN_CACHE["zeit"] < 15:
+        return PLAN_CACHE["daten"]
+    p = plan_laden()
+    geraete = [dict(g) for g in p.get("geraete", [])]
+    ergebnisse = {}
+
+    def pruefen(g):
+        if g.get("ports"):
+            ergebnisse[g["id"]] = erreichbar(g["ip"], g["ports"])
+
+    faeden = [threading.Thread(target=pruefen, args=(g,)) for g in geraete]
+    for t in faeden:
+        t.start()
+    for t in faeden:
+        t.join(4)
+    for g in geraete:
+        ok, port = ergebnisse.get(g["id"], (None, None))
+        g["online"] = ok
+        g["port"] = port
+    try:
+        with urllib.request.urlopen(SENSOR, timeout=2) as r:
+            s = json.loads(r.read())
+    except Exception:
+        s = {}
+    gaeste = []
+    for x in s.get("gaeste") or []:
+        info = p.get("gaeste", {}).get(str(x["id"]), {})
+        gaeste.append({"id": x["id"], "name": x["name"], "ram": x.get("ram"), "cpu": x.get("cpu"), **info})
+    daten = {"zeit": round(time.time()), "geraete": geraete, "gaeste": sorted(gaeste, key=lambda x: x["id"]),
+             "container": docker_alle(), "unterwegs": p.get("unterwegs", []), "sensor": bool(s)}
+    PLAN_CACHE.update(zeit=time.time(), daten=daten)
+    return daten
+
+
 def werte():
     try:
         with urllib.request.urlopen(SENSOR, timeout=2) as r:
@@ -211,6 +307,8 @@ class H(BaseHTTPRequestHandler):
         if pfad == "/api/verlauf":
             b = (self.path.split("bereich=")[1].split("&")[0] if "bereich=" in self.path else "1h")
             self.senden(200, json.dumps(verlauf(b)).encode(), "application/json")
+        elif pfad == "/api/plan":
+            self.senden(200, json.dumps(plan()).encode(), "application/json")
         elif pfad == "/api/werte":
             self.senden(200, json.dumps(werte()).encode(), "application/json")
         elif pfad in ("/", "/index.html"):
