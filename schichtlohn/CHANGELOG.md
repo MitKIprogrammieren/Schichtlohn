@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.18.0 – 22.11.2026
+- Einstellungen neu: eine ruhige Liste wie in der Bambu-App, rechts in jeder Zeile gleich der wichtigste Wert – Drucker online, Strompreis, Stundensatz, Aufschlag, Server und Zugänge.
+- Gibt es eine neue Version, steht ganz oben „Update verfügbar“ mit Knopf „Aktualisieren“. Der Server holt sich die neue Version dann selbst und startet neu (dafür braucht er Zugriff auf Docker; sonst zeigt der Knopf, wie es in Schaltwerk geht).
+- Leiste unten: Der Reiter „Mehr“ hat jetzt ein Symbol im selben Streifen-Stil wie die anderen, und die Beschriftung springt beim Antippen nicht mehr nach unten. Auch im Mehr-Fenster haben alle Kacheln die Streifen-Symbole.
+
 ## 3.17.20 – 22.11.2026
 - Preise: Neue Zeile „Bild“ unter den Filtern – wahlweise das Produktfoto aus dem Shop oder die Spule der Marke wie im Lager. Die Wahl gilt auf allen Geräten.
 

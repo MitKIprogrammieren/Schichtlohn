@@ -26,6 +26,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
+  GET  /api/update                    Selbst-Update: Version, ob möglich, Stand · POST startet es (braucht Docker-Socket)
   GET  /api/preise/suche?q=…[&art=zubehoer]  freie Suche bei eBay und AliExpress (Preisvergleichsseite; ohne art nur Filament)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
   GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
@@ -60,6 +61,7 @@ import preise as preise_mod
 import mcp as mcp_mod
 import bambu_fm
 import produktbilder
+import aktualisieren as aktualisieren_mod
 import web
 import radar
 import kamera as kamera_mod
@@ -77,7 +79,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.20"
+VERSION = "3.18.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3093,6 +3095,21 @@ mcp_mod.W = type("McpWirt", (), {})()
 for _n, _v in {"liste_lesen": liste_lesen, "liste_aendern": liste_aendern, "abbuchen_rechnen": abbuchen_rechnen, "zustaende_liste": zustaende_liste,
                "daten_lesen": daten_lesen, "_desc": _desc, "_zahl": _zahl, "_gram": _gram, "ENT": ENT, "META": META, "DRUCKE_KEY": DRUCKE_KEY}.items():
     setattr(mcp_mod.W, _n, staticmethod(_v) if callable(_v) else _v)
+UPDATE_STAND = {"laeuft": False, "meldung": "", "fehler": ""}
+
+
+def update_starten(*_):
+    """Neues Server-Image holen und den Container damit neu anlegen (siehe aktualisieren.py)."""
+    UPDATE_STAND.update(laeuft=True, meldung="Neue Version wird geladen …", fehler="")
+    try:
+        r = aktualisieren_mod.starten()
+        UPDATE_STAND["meldung"] = "Neustart mit der neuen Version …" if r.get("neu") else "Schon die neueste Version"
+        if not r.get("neu"):
+            UPDATE_STAND["laeuft"] = False
+    except Exception as e:
+        UPDATE_STAND.update(laeuft=False, meldung="", fehler=str(e)[:300])
+
+
 BILDER = produktbilder.Bilder(os.path.join(os.path.dirname(os.path.abspath(DB_PFAD)), "produktbilder"),
                               lambda: (einstellungen().get("preise") or {}).get("ali") or {})
 
@@ -3855,6 +3872,16 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise"] and methode == "GET":
             w, _ = daten_lesen(PREISE_KEY)
             return self._json(200, dict(w if isinstance(w, dict) else {}, laeuft=PREISE_STAND["laeuft"]))
+        if teile == ["update"]:
+            if methode == "GET":
+                return self._json(200, dict(aktualisieren_mod.pruefen(), version=VERSION, **UPDATE_STAND))
+            if methode == "POST":
+                if UPDATE_STAND["laeuft"]:
+                    return self._json(200, dict(UPDATE_STAND, ok=True))
+                if not aktualisieren_mod.pruefen().get("moeglich"):
+                    return self._json(409, {"ok": False, "fehler": "Selbst-Update geht nur, wenn der Docker-Socket eingebunden ist"})
+                im_hintergrund(update_starten)
+                return self._json(200, {"ok": True, "laeuft": True})
         if teile == ["preise", "suche"] and methode == "GET":
             cfg = einstellungen().get("preise") or {}
             an = [k for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret"))) if all((cfg.get(k) or {}).get(x) for x in f)]

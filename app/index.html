@@ -1408,7 +1408,7 @@ ${KACHELN(R,z,14)}${R} nav.tabs{gap:6px}
 ${R} nav.tabs button{border:1px solid var(--line);background:var(--glass);border-radius:12px}
 ${R} nav.tabs button.on,${R} nav.tabs button[aria-current="page"],${R} nav.tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft)!important;color:var(--accent)!important}
 ${R} .bnav button.on::before{display:none}
-${R} .bnav button.on svg{background:var(--accent-soft);border-radius:999px;padding:3px 14px;box-sizing:content-box}
+${R} .bnav button.on svg{background:var(--accent-soft);border-radius:999px;padding:3px 14px;margin:-3px -14px;box-sizing:content-box}
 ${R} .lgbarx{height:6px;width:80px}
 ${R} .chip{border-radius:999px}
 ${R} .lgp>.row.pad .gt{color:var(--fg)}`})()};
@@ -1563,7 +1563,7 @@ ${R} table th{font-size:12px;color:var(--fg-3);background:none;border-bottom:1px
 ${R} .h-z div{border-radius:10px;background:var(--sunken);border:1px solid var(--line)}
 ${R} .toast{border-radius:10px;border:1px solid var(--line);background:var(--glass);color:var(--fg)}
 ${R} .bnav button.on::before{display:none}
-${R} .bnav button.on svg{background:var(--accent-soft);border-radius:8px;padding:3px 12px;box-sizing:content-box}
+${R} .bnav button.on svg{background:var(--accent-soft);border-radius:8px;padding:3px 12px;margin:-3px -12px;box-sizing:content-box}
 #wuRail,#wuSeite{display:none}
 @media (min-width:701px){
   html.sc body{padding-left:232px}
@@ -8052,6 +8052,44 @@ function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einD
 function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:on===l.length?"alle online":`${on} von ${l.length} online`,ok:on===l.length,teil:on>0&&on<l.length}}
   if(b.k==="zug"&&S.srv&&SLF.e){const z=zugZeilen().filter(x=>x.zaehlt);const ok=z.filter(x=>x.ok).length;return {t:ok===z.length?"alles eingerichtet":`${ok} von ${z.length}`,ok:ok===z.length,teil:ok>0&&ok<z.length}}
   if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
+/* Übersicht wie in der Bambu-Handy-App: eine ruhige Liste, rechts in jeder Zeile der wichtigste Wert */
+function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:2}).format(v||0);
+  const B_=k=>B.find(b=>b.k===k);const da=k=>{const b=B_(k);return b&&sichtbar(b)};
+  const dot=p=>p?`<i class="eb-d${p.ok?"":p.teil?" teil":" aus"}"></i>`:"";
+  const z=(t,v,k,p)=>`<button type="button" class="eb-r" data-act="ebOeffnen" data-k="${k}"><span class="eb-rt">${esc(t)}</span><span class="eb-rv">${dot(p)}${esc(v||"")}</span><span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`;
+  let sorten=0;try{sorten=(window.LGN&&LGN.sorten?LGN.sorten():[]).length}catch(e){}
+  const dc=(typeof designCfg==="function")?designCfg():{};const modus={hell:"Hell",dunkel:"Dunkel",auto:"Automatisch"}[dc.modus]||"Automatisch";
+  const dp=pille(B_("drucker")),zp=pille(B_("zug")),I=S.srvInfo||{};
+  const gr=(t,zeilen)=>{const h=zeilen.filter(Boolean).join("");return h?`<div class="eb-gr"><div class="eb-cap">${t}</div><div class="eb-liste">${h}</div></div>`:""};
+  return `<div class="eb-gruppen">`+
+    gr("Werkstatt",[da("drucker")&&z("Drucker",dp?dp.t:status(B_("drucker")),"drucker",dp),
+      da("lager")&&z("Lager & Filament",sorten?`${N0.format(sorten)} Sorten`:"","lager"),
+      da("kalk")&&z("Strompreis",`${n(c.kwh)} €/kWh`,"kalk"),
+      da("kalk")&&z("Stundensatz",`${n(c.rate)} €/h`,"kalk"),
+      da("kalk")&&z("Aufschlag",`${n(c.markup)} %`,"kalk")])+
+    gr("Allgemein",[da("meld")&&z("Meldungen",status(B_("meld")),"meld"),
+      da("aus")&&z("Aussehen",modus,"aus")])+
+    gr("App & Server",[da("sys")&&z("Server",S.srv?`Verbunden${I.version?" · "+I.version:""}`:status(B_("sys")),"sys",S.srv?{ok:true}:{ok:false}),
+      da("zug")&&z("Zugänge",zp?zp.t:"","zug",zp)])+`</div>`}
+/* Neue Server-Version? Vergleich mit schichtlohn/config.yaml auf GitHub (einmal pro Stunde) */
+const UPD={neu:"",geprueft:0,laeuft:false,meldung:"",moeglich:null};
+const vgl=(a,b)=>{const x=String(a).split(".").map(Number),y=String(b).split(".").map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)-(y[i]||0)}return 0};
+async function updPruefen(){if(!S.srv||Date.now()-UPD.geprueft<36e5)return;UPD.geprueft=Date.now();
+  try{const t=await fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/schichtlohn/config.yaml?t="+Math.floor(Date.now()/36e5)).then(r=>r.ok?r.text():"");
+    const m=/^version:\s*"?([\d.]+)/m.exec(t);const ist=(S.srvInfo||{}).version;UPD.neu=m&&ist&&vgl(m[1],ist)>0?m[1]:"";
+    if(UPD.neu&&window.SRV){try{const u=await SRV.req("GET","/api/update");UPD.moeglich=!!u.moeglich}catch(e){UPD.moeglich=false}}
+    if(S.tab==="einstellungen")ordnen()}catch(e){}}
+function updZeile(){updPruefen();if(!UPD.neu&&!UPD.laeuft)return "";const I=S.srvInfo||{};
+  return `<div class="eb-upd"><span class="eb-upd-ic">${svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>')}</span><span class="eb-upd-t"><b>${UPD.laeuft?"Wird aktualisiert …":"Update verfügbar"}</b><small>${UPD.laeuft?esc(UPD.meldung||"Bitte kurz warten"):`${esc(I.version||"")} → ${esc(UPD.neu)}`}</small></span>${UPD.laeuft?"":`<button type="button" class="eb-upd-b" data-act="slUpdate">Aktualisieren</button>`}</div>`}
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-act=slUpdate]");if(!b||!window.SRV)return;
+  if(UPD.moeglich===false){modal("Update",`<p>Der Server kann sich noch nicht selbst aktualisieren, weil er keinen Zugriff auf Docker hat.</p><p>Bis das eingerichtet ist: in <b>Schaltwerk</b> beim Stack <b>schichtlohn</b> auf <b>Aktualisieren</b> tippen.</p>`,`<a class="btn pri" href="http://${esc(location.hostname)}:8080" target="_blank" rel="noopener">Schaltwerk öffnen</a><button class="btn ghost" data-act="close">Schließen</button>`);return}
+  UPD.laeuft=true;UPD.meldung="Neue Version wird geladen …";ordnen();const alt=(S.srvInfo||{}).version;
+  try{await SRV.req("POST","/api/update")}catch(x){UPD.laeuft=false;toast("Update ging nicht: "+(x.message||x));ordnen();return}
+  const t0=Date.now();const iv=setInterval(async()=>{try{const u=await SRV.req("GET","/api/update");if(u.fehler){clearInterval(iv);UPD.laeuft=false;toast("Update ging nicht: "+u.fehler);ordnen();return}
+      if(u.version&&u.version!==alt){clearInterval(iv);toast("Aktualisiert auf "+u.version);setTimeout(()=>location.reload(),800);return}
+      if(!u.laeuft&&u.meldung){clearInterval(iv);UPD.laeuft=false;UPD.neu="";toast(u.meldung);ordnen();return}
+      UPD.meldung=u.meldung||UPD.meldung;ordnen()}catch(x){UPD.meldung="Neustart mit der neuen Version …";ordnen()}
+    if(Date.now()-t0>6e5){clearInterval(iv);UPD.laeuft=false;toast("Update dauert ungewöhnlich lange – bitte in Schaltwerk nachsehen");ordnen()}},3000)});
 /* Zugänge auf einen Blick: was ist eingetragen, was fehlt – Tippen springt zur Stelle, wo man es ändert */
 function zugZeilen(){const E=SLF.e||{},I=S.srvInfo||{},dr=E.drucker||[];const L=(k)=>{try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}};
   const mitLan=dr.filter(d=>d.ip&&d.code),ohne=dr.filter(d=>!(d.ip&&d.code)).map(d=>d.name);const tg=E.telegram||{},eb=(E.preise||{}).ebay||{},ali=(E.preise||{}).ali||{},cr=L("schichtlohn_creality");
@@ -8091,7 +8129,7 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
   let lu=kopf.querySelector(".eb-lupe");if(!lu){lu=document.createElement("div");lu.className="eb-lupe";
     lu.innerHTML=`<input type="search" id="eb_q" placeholder="Suchen …" autocomplete="off" aria-label="Einstellung suchen"><button type="button" class="eb-lu-b" data-act="ebLupe" aria-label="Suchen">${svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>')}</button>`;kopf.appendChild(lu)}
   lu.hidden=!!akt;lu.classList.toggle("auf",ordnen.auf||!!suche);const qi=lu.querySelector("input");if(qi.value!==suche)qi.value=suche;
-  let html;if(!akt){html=`${suche?"":`<div class="eb-gruppen">${[["Werkstatt",["drucker","lager","kalk"]],["App & Server",["meld","aus","zug","sys"]]].map(([gt,ks])=>{const bs=B.filter(b=>ks.includes(b.k)&&sichtbar(b));return bs.length?`<div class="eb-gr"><div class="eb-cap">${gt}</div><div class="eb-liste">${bs.map(b=>{const p=pille(b);return `<button type="button" class="eb-z" data-act="ebOeffnen" data-k="${b.k}"><span class="eb-ic">${svg(IC[b.ic])}</span><span class="eb-tx"><b>${b.t}</b><small>${esc(unter(b))}</small></span>${p?`<span class="eb-pi${p.ok?"":p.teil?" teil":" aus"}"><i></i>${esc(p.t)}</span>`:""}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`}).join("")}</div></div>`:""}).join("")}</div>`}`}
+  let html;if(!akt){html=suche?"":updZeile()+uebersicht(sichtbar)}
   else{const b=B.find(x=>x.k===akt);html=`<button type="button" class="eb-zur" data-act="ebZurueck">${svg('<path d="m15 18-6-6 6-6"/>')}Einstellungen</button><h2 class="eb-titel">${b?b.t:""}</h2>`}
   if(ov.dataset.h!==html){ov.dataset.h=html;ov.innerHTML=html}
   let zo=st.querySelector(":scope>.eb-zug");if(!zo){zo=document.createElement("section");zo.className="eb-zug";zo.dataset.eb="zug"}
@@ -8160,6 +8198,16 @@ document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[da
 .eb-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
 .eb-gruppen{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:6px 18px;align-items:start}
 .eb-cap{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3);font-weight:600;margin:6px 6px 7px}
+.eb-r{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:12px 14px;border:0;border-top:1px solid var(--line);background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
+.eb-r:first-child{border-top:0}.eb-r:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.eb-rt{flex:1;min-width:0;font-size:15.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eb-rv{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--fg-3);white-space:nowrap;max-width:55%;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.eb-d{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}.eb-d.teil{background:var(--warn,#f0a020)}.eb-d.aus{background:var(--line-2)}
+.eb-r .eb-pf{color:var(--fg-3);display:grid;place-items:center}.eb-r .eb-pf svg{width:16px;height:16px}
+.eb-upd{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.eb-upd-ic{width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--accent-ink,#fff);display:grid;place-items:center;flex:none}.eb-upd-ic svg{width:20px;height:20px}
+.eb-upd-t{flex:1;min-width:0;display:flex;flex-direction:column}.eb-upd-t b{font-size:15px}.eb-upd-t small{font-size:12.5px;color:var(--fg-2)}
+.eb-upd-b{border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink,#fff);font:inherit;font-weight:600;font-size:13.5px;padding:8px 14px;cursor:pointer;white-space:nowrap}
 .eb-liste{border:1px solid var(--line);border-radius:14px;background:var(--panel,var(--glass));overflow:hidden}
 .eb-z{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:11px 14px;border:0;border-top:1px solid var(--line);background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
 .eb-z:first-child{border-top:0}.eb-z:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
@@ -8945,6 +8993,7 @@ const SL_FORM={
   auftraege:"M8 1.8h8v2.6h4v17.8H4V4.4h4Zm-1 8.2v2.4h10V10Zm0 5v2.4h7V15Z",
   portfolio:"M8 2.5h8v4h6.2v14.8H1.8V6.5H8Zm2.4 2.4v1.6h3.2V4.9Z",
   geschaeft:"M2.5 12.5h5v9h-5Zm7-10h5v19h-5Zm7 6h5v13h-5Z",
+  mehr:"M2.5 2.5h8.5v8.5H2.5Zm10.5 0h8.5v8.5H13ZM2.5 13h8.5v8.5H2.5Zm10.5 0h8.5v8.5H13Z",
   einstellungen:"M8.99 3.73L9.76 3.49L10.42 1.32L13.58 1.32L14.24 3.49L15.01 3.73L15.75 4.04L17.66 2.80L20.08 4.83L19.19 6.92L19.62 7.60L19.99 8.31L22.25 8.59L22.80 11.70L20.77 12.73L20.67 13.53L20.49 14.31L22.04 15.98L20.46 18.71L18.25 18.20L17.66 18.74L17.02 19.23L17.14 21.50L14.17 22.58L12.80 20.76L12.00 20.80L11.20 20.76L9.83 22.58L6.86 21.50L6.98 19.23L6.34 18.74L5.75 18.20L3.54 18.71L1.96 15.98L3.51 14.31L3.33 13.53L3.23 12.73L1.20 11.70L1.75 8.59L4.01 8.31L4.38 7.60L4.81 6.92L3.92 4.83L6.34 2.80L8.25 4.04ZM12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z"};
 const slIc=(k,w)=>{const d=SL_FORM[k];if(!d)return "";const id="slI_"+k;let r="";for(let y=0.8;y<24;y+=2.6)r+=`<rect x="0" y="${y.toFixed(1)}" width="24" height="1.8"/>`;
   return `<svg viewBox="0 0 24 24" width="${w||26}" height="${w||26}" aria-hidden="true" class="sl-ic"><defs><clipPath id="${id}"><path fill-rule="evenodd" clip-rule="evenodd" d="${d}"/></clipPath></defs><g clip-path="url(#${id})" fill="currentColor">${r}</g></svg>`};
@@ -8963,7 +9012,7 @@ function sheet(titel,inhalt){zu();const d=document.createElement("div");d.classN
   const s=document.createElement("div");s.className="bs";s.id="bs";s.setAttribute("role","dialog");s.setAttribute("aria-label",titel);s.innerHTML=`<div class="bs-grip"></div><h3>${esc(titel)}</h3>${inhalt}`;
   document.body.appendChild(d);document.body.appendChild(s);requestAnimationFrame(()=>{d.classList.add("auf");s.classList.add("auf")})}
 function zu(){["bs","bsdim"].forEach(i=>{const e=document.getElementById(i);if(e)e.remove()})}
-const kachel=(k,t,attr,pri)=>`<button type="button" class="bs-k${pri?" pri":""}" ${attr}>${svg(k,26)}<span>${esc(t)}</span></button>`;
+const kachel=(k,t,attr,pri)=>`<button type="button" class="bs-k${pri?" pri":""}" ${attr}>${SL_FORM[k]?slIc(k,28):svg(k,26)}<span>${esc(t)}</span></button>`;
 function mehrSheet(){sheet("Mehr",`<div class="bs-g">${MEHR().map(k=>kachel(k,k==="einstellungen"?"Einstellungen":TABNAMES[k]||k,`data-bt="${k}"`,S.tab===k)).join("")}</div>`)}
 function plusSheet(){const hat=a=>!!document.querySelector(`.lgact2 [data-act="${a}"]`)||a==="lgNew";
   sheet("Filament hinzufügen",`<div class="bs-g">${kachel("scan","Scannen",'data-act="lgScan"',true)}${kachel("foto","Foto",'data-act="lgFoto"')}${kachel("hand","Von Hand",'data-act="lgNew"')}${kachel("serie","Serienscan",'data-act="lgSerie"')}${window.SYNC?kachel("handy","Mit Handy",'data-act="syHandy"'):""}</div>`)}
@@ -9202,7 +9251,7 @@ window.addEventListener("resize",()=>{try{wuRahmen()}catch(e){}});
 .bs.auf{transform:none}.bs-grip{width:40px;height:5px;border-radius:3px;background:var(--line-2);margin:0 auto 12px}.bs h3{margin:0 0 12px;font-size:15px;color:var(--fg-2)}
 .bs-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .bs-k{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 6px;border-radius:16px;border:1px solid var(--line);background:var(--glass);color:var(--fg);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
-.bs-k svg{color:var(--accent)}.bs-k.pri{background:var(--accent-soft);border-color:var(--accent)}
+.bs-k svg{color:var(--fg-2)}.bs-k.pri{background:var(--accent-soft);border-color:transparent;color:var(--accent)}.bs-k.pri svg{color:var(--accent)}
 .heute{display:flex;flex-direction:column;gap:14px}
 .h-k{display:flex;flex-direction:column;gap:2px}.h-k h1{margin:0}.h-k span{font-size:13px;color:var(--fg-3)}
 .h-z{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.h-z div{border:1px solid var(--line);border-radius:16px;background:var(--glass);padding:12px}.h-z b{display:block;font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}.h-z span{font-size:12px;color:var(--fg-3)}
