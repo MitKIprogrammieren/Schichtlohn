@@ -121,6 +121,11 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 .senk{width:2px;height:16px;background:var(--rand)}
 .knoten{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:0 12px;align-items:center;background:var(--fl2);border:1px solid var(--rand);border-radius:14px;padding:10px 12px;width:100%}
 .knoten.haupt{border-color:var(--gruen)}
+a.knoten,a.ct2,a.werk,a.zeile2{color:inherit;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+a.knoten:active,a.ct2:active,a.werk:active{filter:brightness(1.25)}
+a.knoten .zn::after,a.ct2 .k span::after{content:" ↗";color:var(--txt3);font-weight:400;font-size:12px}
+a.knoten.prot .zn::after{content:" ›"}
+a.zeile2 .zn::after{content:" ↗";color:var(--txt3);font-weight:400;font-size:12px}
 .knoten .ip{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt2);text-align:right;white-space:nowrap}
 .knoten .zu{white-space:normal}
 .baum{position:relative;margin:0 0 0 17px;padding-left:22px}
@@ -239,7 +244,7 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
  <div class="oben"><span class="pille">🌍 Internet</span><div class="senk"></div></div>
  <div id="plBaum"></div>
  <div class="lg2"><span style="--d:5px">2,5 Gbit/s</span><span style="--d:4px">1 Gbit/s</span><span style="--d:2px">100 Mbit/s</span><span class="f" style="--d:2px">WLAN</span></div>
- <div class="erkl">Dicke Linie = schnelle Verbindung. Grüner Punkt = Gerät ist gerade da. Daten von der FritzBox, alle 30 Sekunden neu.</div>
+ <div class="erkl">Antippen öffnet die Oberfläche des Geräts (↗) oder zeigt, welche Seiten es aufruft (›). Dicke Linie = schnelle Verbindung. Grüner Punkt = Gerät ist gerade da. Daten von der FritzBox, alle 30 Sekunden neu.</div>
 </div>
 <div class="karte">
  <h2>Wie kommen Filme zu Plex?</h2>
@@ -510,9 +515,10 @@ function plIcon(g){const n=(g.name+' '+g.fritzname+' '+g.modell).toLowerCase();
  return /iphone|handy|phone|pixel|galaxy/.test(n)?'📱':/ipad|tablet/.test(n)?'📲':/mac|imac|pc|laptop|windows|book/.test(n)?'💻':/tv|fernseher|apple-tv|appletv|lg/.test(n)?'📺':
  /x1c|h2s|p1s|a1|bambu|drucker|printer|phomemo/.test(n)?'🖨️':/alexa|echo|sonos|speaker/.test(n)?'🔊':/shelly|plug|steckdose|wled|licht|lamp|zigbee|proxy|esp|tasmota|waage/.test(n)?'💡':/pi|raspberry/.test(n)?'🍓':'•'}
 function plGer(g){const unter=[g.art==='wlan'?'WLAN':'Kabel'+(g.port?' · LAN '+esc(g.port):''),plTempo(g.tempo)].filter(Boolean).join(' · ');
- return `<div class="ast${g.aktiv?' an':''}${g.art==='wlan'?' funk':''}" style="--d:${plDicke(g.tempo,g.art==='wlan')}px;--lc:${g.aktiv?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(plIcon(g),g.name,unter,g.ip,g.aktiv,false,g.art==='wlan'?'#6aa9ff':'#c58bff')}</div>`}
+ const web=plIcon(g)==='💡'||plIcon(g)==='🍓'?'http://'+g.ip:null;
+ return `<div class="ast${g.aktiv?' an':''}${g.art==='wlan'?' funk':''}" style="--d:${plDicke(g.tempo,g.art==='wlan')}px;--lc:${g.aktiv?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(plIcon(g),g.name,unter,g.ip,g.aktiv,false,g.art==='wlan'?'#6aa9ff':'#c58bff',web,g.ip)}</div>`}
 function plLampe(on){return on===true?'#19d36b':on===false?'#ff6b5e':'#7c7c84'}
-function plKnoten(ic,name,unter,ip,on,haupt,farbe){return `<div class="knoten${haupt?' haupt':''}"><div class="av" style="--c:${farbe||'#6aa9ff'}">${ic}<span class="lampe" style="--c2:${plLampe(on)}"></span></div><div><div class="zn">${esc(name)}</div><div class="zu">${unter}</div></div><div class="ip">${esc(ip||'')}</div></div>`}
+function plKnoten(ic,name,unter,ip,on,haupt,farbe,url,pip){const tag=url?`a href="${esc(url)}" target="_blank" rel="noopener"`:pip?`a href="#prot" data-ip="${esc(pip)}"`:'div',zu=url||pip?'a':'div';return `<${tag} class="knoten${haupt?' haupt':''}${pip&&!url?' prot':''}"><div class="av" style="--c:${farbe||'#6aa9ff'}">${ic}<span class="lampe" style="--c2:${plLampe(on)}"></span></div><div><div class="zn">${esc(name)}</div><div class="zu">${unter}</div></div><div class="ip">${esc(ip||'')}</div></${zu}>`}
 function plWerke(d){
  const alle=(d.container||[]).map(c=>{const k=(c.projekt||c.name).toLowerCase();const nn=PL_NAME[k]||nett(k);return {...c,k,nn,port:(c.ports&&c.ports[0])||PL_PORT[k]||''}});
  const laufen={},aus=[];
@@ -533,19 +539,19 @@ function planZeigen(d){
  $('plWerkD').textContent=(gest.length?gest.length+' mit Problem · ':'')+(W.aus.length?W.aus.length+' fertige Hilfsjobs':'keine Hilfsjobs');
  // Baum
  const fritz=ger.find(g=>g.id==='fritz')||{name:'FritzBox',ip:'192.168.1.1'};
- let h=`<div class="oben" style="align-items:stretch">${plKnoten(PL_ICON.router,fritz.name,esc(fritz.rolle||''),fritz.ip,fritz.online,true,'#19d36b')}</div><div class="baum">`;
+ let h=`<div class="oben" style="align-items:stretch">${plKnoten(PL_ICON.router,fritz.name,esc(fritz.rolle||''),fritz.ip,fritz.online,true,'#19d36b',fritz.url)}</div><div class="baum">`;
  for(const g of ger){if(g.id==='fritz')continue;
   const fi=((d.fritz||{}).geraete||[]).find(x=>x.ip===g.ip),wl=fi&&fi.art==='wlan';
   if(g.online==null&&fi&&!g.aus)g.online=fi.aktiv;
   const unter=esc(g.rolle||'')+(fi?' · '+(wl?'WLAN':'Kabel'+(fi.port?' LAN '+esc(fi.port):''))+(fi.tempo?' · '+plTempo(fi.tempo):''):'');
-  h+=`<div class="ast${g.online?' an':''}${wl?' funk':''}" style="--d:${fi?plDicke(fi.tempo,wl):2}px;--lc:${g.online?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(PL_ICON[g.art]||'•',g.name,unter,g.ip,g.aus?null:g.online,false,g.art==='server'?'#f2b84b':g.art==='nas'?'#6aa9ff':'#c58bff')}`;
+  h+=`<div class="ast${g.online?' an':''}${wl?' funk':''}" style="--d:${fi?plDicke(fi.tempo,wl):2}px;--lc:${g.online?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(PL_ICON[g.art]||'•',g.name,unter,g.ip,g.aus?null:g.online,false,g.art==='server'?'#f2b84b':g.art==='nas'?'#6aa9ff':'#c58bff',g.url,g.ip)}`;
   if(g.id==='pve'){
    h+='<div class="innen">'+(d.gaeste||[]).map(x=>{const ram=x.ram?gb(x.ram)+' GB':'';
-    let s=`<div class="ct2"><div class="k"><span>CT ${x.id} · ${esc(x.name)}</span><small>${esc(x.ip||'')}</small></div><div class="u">${esc(x.rolle||'')}${ram?' · '+ram+' RAM':''}${x.cpu!=null?' · '+z(x.cpu,1)+' %':''}</div>`;
+    const lk=x.url&&x.id!==100;let s=`<${lk?`a href="${esc(x.url)}" target="_blank" rel="noopener"`:'div'} class="ct2"><div class="k">${x.id===100&&x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">CT ${x.id} · ${esc(x.name)} <small style="color:var(--gruen2)">Werke ↗</small></a>`:`<span>CT ${x.id} · ${esc(x.name)}</span>`}<small>${esc(x.ip||'')}</small></div><div class="u">${esc(x.rolle||'')}${ram?' · '+ram+' RAM':''}${x.cpu!=null?' · '+z(x.cpu,1)+' %':''}</div>`;
     if(x.id===100){const L=plOffen?W.laufen:W.laufen.slice(0,8);
-     s+=`<div class="werke">${L.map(c=>`<div class="werk" style="--c:${c.zustand==='running'?'#19d36b':'#ff6b5e'}" title="${esc(c.nn[1]||c.status||'')}"><i></i><span>${esc(c.nn[0])}</span><small>${c.port?':'+c.port:''}</small></div>`).join('')}</div>`;
+     s+=`<div class="werke">${L.map(c=>`<${c.port?`a href="http://${location.hostname}:${c.port}" target="_blank" rel="noopener"`:'div'} class="werk" style="--c:${c.zustand==='running'?'#19d36b':'#ff6b5e'}" title="${esc(c.nn[1]||c.status||'')}"><i></i><span>${esc(c.nn[0])}</span><small>${c.port?':'+c.port:''}</small></${c.port?'a':'div'}>`).join('')}</div>`;
      if(W.laufen.length>8)s+=`<button class="auf" id="plAuf">${plOffen?'Weniger zeigen':'Alle '+W.laufen.length+' Werke zeigen'}</button>`}
-    return s+'</div>'}).join('')+(d.sensor?'':'<div class="erkl">Messdienst auf dem Proxmox-Host antwortet nicht – Container fehlen.</div>')+'</div>'}
+    return s+(lk?'</a>':'</div>')}).join('')+(d.sensor?'':'<div class="erkl">Messdienst auf dem Proxmox-Host antwortet nicht – Container fehlen.</div>')+'</div>'}
   h+='</div>'}
  // weitere Geräte aus der FritzBox
  const fb=d.fritz||{},fest=new Set([...ger.map(g=>g.ip),...(d.gaeste||[]).map(x=>x.ip)]);
@@ -565,24 +571,26 @@ function planZeigen(d){
  if($('plAuf'))$('plAuf').onclick=()=>{plOffen=!plOffen;planZeigen(PLAN)};
  // Medienweg
  const g=id=>ger.find(x=>x.id===id)||{},ct=id=>(d.gaeste||[]).find(x=>x.id===id)||{};
- $('plFluss').innerHTML=plKnoten('⬇️','JDownloader','lädt herunter · CT 102',ct(102).ip,!!ct(102).name,false,'#c58bff')
+ $('plFluss').innerHTML=plKnoten('⬇️','JDownloader','lädt herunter · CT 102',ct(102).ip,!!ct(102).name,false,'#c58bff',ct(102).url)
   +'<div class="pfeil">speichert per Netzlaufwerk</div>'
-  +plKnoten('🗄️','DsCLoud & DS1819+','Downloads, Musik, Filme, Serien','.4 · .2',g('dscloud').online&&g('ds2').online,false,'#6aa9ff')
+  +plKnoten('🗄️','DsCLoud & DS1819+','Downloads, Musik, Filme, Serien','.4 · .2',g('dscloud').online&&g('ds2').online,false,'#6aa9ff',g('dscloud').url)
   +'<div class="pfeil">Plex liest mit (nur lesend)</div>'
-  +plKnoten('🎬','Plex','spielt direkt ab · CT 103',ct(103).ip,!!ct(103).name,true,'#f2b84b')
+  +plKnoten('🎬','Plex','spielt direkt ab · CT 103',ct(103).ip,!!ct(103).name,true,'#f2b84b',ct(103).url)
   +'<div class="pfeil">auf iPhone, Mac und Fernseher</div>';
- $('plDns').innerHTML=plKnoten('📱','Ein Gerät fragt','„Wo ist google.de?“','',null,false,'#c58bff')
+ $('plDns').innerHTML=plKnoten('📱','Ein Gerät fragt','„Wo ist google.de?“ · zum Protokoll','',null,false,'#c58bff',null,' ')
   +'<div class="pfeil">FritzBox schickt alle zu AdGuard</div>'
-  +plKnoten('🛡️','AdGuard','filtert Werbung · CT 101',ct(101).ip,!!ct(101).name,false,'#19d36b')
+  +plKnoten('🛡️','AdGuard','filtert Werbung · CT 101',ct(101).ip,!!ct(101).name,false,'#19d36b',ct(101).url)
   +'<div class="pfeil">verschlüsselt weiter</div>'
   +plKnoten('🌍','Quad9','Antwort aus dem Internet','DoH',null,false,'#6aa9ff')
   +'<div class="erkl" style="text-align:center">Ist ein Gerät gesperrt, zeigt AdGuard stattdessen die Stoppseite.</div>';
- $('plWeg').innerHTML=(d.unterwegs||[]).map(u=>`<div class="zeile2"><div class="av" style="--c:#c58bff">${esc(u.name[0].toUpperCase())}</div><div class="zn">${esc(u.name)}</div><div class="zr mono">${esc(u.ip)}</div><div class="zu">${esc(u.wozu)}</div><div></div></div>`).join('');
+ $('plWeg').innerHTML=(d.unterwegs||[]).map(u=>`<${u.url?`a href="${esc(u.url)}" target="_blank" rel="noopener"`:'div'} class="zeile2"><div class="av" style="--c:#c58bff">${esc(u.name[0].toUpperCase())}</div><div class="zn">${esc(u.name)}</div><div class="zr mono">${esc(u.ip)}</div><div class="zu">${esc(u.wozu)}</div><div></div></${u.url?'a':'div'}>`).join('');
 }
 async function planHolen(){if(SEITE!=='plan')return;
  try{PLAN=await (await fetch('api/plan',{cache:'no-store'})).json();planZeigen(PLAN)}
  catch(e){$('plTitel').textContent='Plan nicht erreichbar';$('plAmpel').style.setProperty('--f',F.hoch)}}
 setInterval(planHolen,15000);
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-ip]');if(!a||a.getAttribute('href')!=='#prot')return;e.preventDefault();
+ const ip=a.dataset.ip.trim();pFilter=ip;const f=$('pFilter');if(ip&&![...f.options].some(o=>o.value===ip))f.add(new Option(ip,ip));f.value=ip;seite('prot');netzHolen()});
 </script>
 </body>
 </html>
