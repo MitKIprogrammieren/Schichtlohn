@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.17.15 – 22.11.2026
+- Einstellungen aufgeräumt: „Lager & Filament“ ist jetzt in Anzeige im Lager, Warnungen, Leere Spulen und Spulen-Etiketten aufgeteilt. Die Lager-Werte speichern sich sofort, der Knopf „Übernehmen“ ist weg.
+- „Materialien“ steht jetzt unter Kalkulation, weil sie nur der Rechner braucht.
+- Aussehen: Oben nur noch Stil, Hell/Dunkel und Akzentfarbe, der Rest steckt unter „Feinheiten“. Reiter und Zusatzfunktionen stehen zusammen in einer Karte.
+
 ## 3.17.14 – 21.11.2026
 - Etikett drucken: Im Etikett-Fenster lässt sich der Etikettendrucker wieder auswählen, auch neue wie der Phomemo M220. Ohne Auswahl druckt SchichtLohn auf dem Standard-Drucker aus Mehr → Etikettendrucker statt immer auf dem M20 Pro.
 

@@ -1274,7 +1274,6 @@ function renderSettings(m){
         <button class="btn icon ghost danger" data-act="delRow" data-list="printers" data-i="${i}" aria-label="Drucker entfernen">${ICON.trash}</button></div>`).join("")}</div>
       <div class="hint" style="margin-top:8px">Maschinenkosten je Stunde = Kaufpreis ÷ Lebensdauer + Wartung. Leistung ist der Durchschnitt beim Drucken, nicht die Spitzenleistung.</div>
     </section>
-    ${window.etikettDruckerHTML?etikettDruckerHTML():""}
     ${window.verpasstHTML?verpasstHTML():""}
 
     <section class="panel pad"><div class="sec-title"><h2>Materialien</h2><span class="sp"></span>${S.backend==="ha"||S.srv?`<button class="btn sm" data-act="lager">${ICON.spool} Aus FilamentLager</button>`:""}<button class="btn sm" data-act="addRow" data-list="materials">${ICON.plus} Material</button></div>
@@ -1311,19 +1310,8 @@ function renderSettings(m){
       <label class="field"><span>Schlusssatz</span><input type="text" id="co_f" data-bind="c.company.footer" value="${esc(c.company.footer)}"></label>
     </section>
 
-    <section class="panel pad stack"><div class="sec-title"><h2>Lager</h2></div>
-      <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["feuchte","AMS-Feuchte"],["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
-      ${(()=>{if(!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;
-        if(!I.meta)return `<div class="hint">Die gemeinsamen Lager-Einstellungen liegen in der HA-Liste todo.filament_verbrauch. Sie fehlt in Home Assistant.</div>`;
-        if(!I.ok)return `<div class="hint">Lager-Einstellungen werden aus Home Assistant geladen …</div>`;
-        return `<div class="lgein"><div class="lgein-t">Gemeinsam mit der FilamentLager-Karte, gilt auf allen Geräten</div>
-          <div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
-          <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>
-          <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
-          <div class="field"><span>Leere Spule je Hersteller</span><small class="hint">Gilt für alle Sorten dieses Herstellers, auch neue – an der Waage, im Lager und bei „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.</small>
-            <div class="stack" id="lge_leerh" style="gap:6px;margin-top:6px">${I.leer||""}</div><div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div></div>
-          <div class="row"><button class="btn pri sm" data-act="lgEinSave">Übernehmen</button><span class="hint" id="lge_msg" style="color:var(--bad)"></span></div>
-</div>`})()}
+    <section class="panel pad stack"><div class="sec-title"><h2>Anzeige im Lager</h2></div>
+      <div class="hint">Wie das Lager aussieht und sortiert ist.</div>
       <label class="field" style="max-width:320px"><span>Lager anzeigen als</span><select id="lagerModus">${(()=>{let v="nativ";try{v=localStorage.getItem("schichtlohn_lagermodus")==="karte"?"karte":"nativ"}catch(e){}return [["nativ","SchichtLohn-Ansicht"],["karte","FilamentLager-Karte aus HA"]].map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")})()}</select></label>
       <label class="field" style="max-width:320px"><span>Farbe der Sorten anzeigen als</span><select id="lagerFarbe">${[["spule","Spule mit Füllstand"],["rolle","Filamentrolle (klassisch)"],["quadrat","Farbquadrat"]].map(([v,t])=>`<option value="${v}"${(S.cfg.lagerFarbe||"spule")===v?" selected":""}>${t}</option>`).join("")}</select></label>
       ${(S.cfg.lagerFarbe||"spule")==="spule"?`<label class="field" style="max-width:320px"><span>Ansicht der Spulen</span><select id="spuleAnsicht">${[["stehend","Stehend"],["frontal","Frontal"],["liegend","Flach liegend"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnsicht||"stehend")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spulen drehen sich</span><select id="spuleAnimation">${[["druck","Nur beim Drucken"],["immer","Immer langsam"],["aus","Nie"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleAnimation||"druck")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Effekte (Leuchten, Funkeln, Schimmern)</span><select id="spuleEffekte">${[["an","Ein"],["aus","Aus"]].map(([v,t])=>`<option value="${v}"${(S.cfg.spuleEffekte||"an")===v?" selected":""}>${t}</option>`).join("")}</select></label><label class="field" style="max-width:320px"><span>Spule für neue Marken</span><select id="spuleFremd">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(S.cfg.spuleFremd||"dunkel")===v?" selected":""}>${t}</option>`).join("")}</select></label>${(()=>{const M=window.LGN&&LGN.marken?LGN.marken():[];return M.length?`<div class="field" style="max-width:420px"><span>Spule je Marke</span><div style="display:grid;grid-template-columns:40px auto 1fr;gap:6px 10px;align-items:center">${M.map(m=>`${window.LGN&&LGN.spool?`<span data-spic="${esc(m)}">${LGN.spool("#4f8cff","spvor",[],{hersteller:m,hex:"#4f8cff",spulen:1,reste:[],gewicht:1000,refills:0,raw:{}})}</span>`:""}<span>${esc(m)}</span><select data-spmarke="${esc(m)}">${(window.SP_TYPEN||[]).map(([v,t])=>`<option value="${v}"${(window.spMarkeArt?window.spMarkeArt(m):"")===v?" selected":""}>${t}</option>`).join("")}</select>`).join("")}</div></div>`:""})()}`:""}
@@ -1332,16 +1320,31 @@ function renderSettings(m){
           return `<div class="lglg"><div class="lglgp">${u?`<img src="${u}" alt="${esc(b)}">`:`<span>${esc(b)}</span>`}</div><div class="lglgn">${esc(b)}</div><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">${u?"Ändern":"Logo wählen"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}"></label>${u?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}">Entfernen</button>`:""}</div>
             ${u?`<div class="row" style="gap:6px;align-items:center">${ud?`<span class="lglgp lglgd"><img src="${ud}" alt=""></span>`:""}<label class="btn ghost sm" style="cursor:pointer" title="Helle Version für das dunkle Design, z. B. mit weißer Schrift">${ud?"Dunkel ändern":"+ Version fürs dunkle Design"}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-logo="${esc(sl)}-dunkel"></label>${ud?`<button type="button" class="btn ghost sm" data-act="logoWeg" data-s="${esc(sl)}-dunkel">Entfernen</button>`:""}</div>`:""}</div>`}).join("")}</div>
           <small class="hint">Am schönsten ist ein PNG mit durchsichtigem Hintergrund. Einfarbige Logos werden im dunklen Design automatisch weiß, farbige bleiben farbig – für dunkle Schrift kannst du eine helle Version fürs dunkle Design hinzufügen. Die Logos liegen in den SchichtLohn-Daten und kommen mit ins Backup.${S.backend==="ha"?" Alternativ als Datei in Home Assistant unter /config/www/hersteller/ (helle Version: Name mit „-dunkel“, z. B. das-filament-dunkel.png).":""}</small></details>`})()}
+      ${(()=>{if(!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;if(!I.meta||!I.ok)return "";
+        return `<div class="cols2"><label class="field"><span>Standard-Sortierung</span><select id="lge_gruppe">${I.sorts.map(([k,t])=>`<option value="${k}"${e.gruppe===k?" selected":""}>Nach ${t}</option>`).join("")}</select></label>
+          <label class="field"><span>Aufgebrauchte Sorten</span><select id="lge_leer"><option value="0"${e.leer_zeigen?"":" selected"}>Ausblenden</option><option value="1"${e.leer_zeigen?" selected":""}>Anzeigen</option></select></label></div>`})()}
+      <div class="field"><span>Oben im Lager anzeigen</span><div class="tabtg">${[["feuchte","AMS-Feuchte"],["filamentwaage","Waage"],["druckbruecke","Druckbrücke"]].map(([k,t])=>{const on=!(S.cfg.lagerAus||[]).includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="lagerGeraet" data-k="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${t}</button>`}).join("")}</div></div>
     </section>
+    ${(()=>{if(!window.LGN||!LGN.einInfo)return "";const I=LGN.einInfo(),e=I.e;
+      const kopf=(t,u)=>`<section class="panel pad stack"><div class="sec-title"><h2>${t}</h2></div><div class="hint">${u}</div>`;
+      if(!I.meta)return kopf("Warnungen","Ab wann ein AMS rot wird oder eine Sorte als knapp gilt.")+`<div class="hint">Die gemeinsamen Lager-Einstellungen liegen in der HA-Liste todo.filament_verbrauch. Sie fehlt in Home Assistant.</div></section>`;
+      if(!I.ok)return kopf("Warnungen","Ab wann ein AMS rot wird oder eine Sorte als knapp gilt.")+`<div class="hint">Lager-Einstellungen werden geladen …</div></section>`;
+      return kopf("Warnungen","Ab wann ein AMS rot wird oder eine Sorte als knapp gilt. Gilt auf allen Geräten.")+`
+          <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
+          <span class="hint" id="lge_msg" style="color:var(--bad)"></span><button type="button" hidden data-act="lgEinSave"></button></section>
+        `+kopf("Leere Spulen","Gewicht der leeren Spule je Hersteller – für Waage, Lager und „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.")+`
+          <div class="stack" id="lge_leerh" style="gap:6px">${I.leer||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div></section>`})()}
+    ${window.etikettDruckerHTML?etikettDruckerHTML():""}
 
     ${designHTML()}
-    ${funktionenHTML()}
     ${preisHTML()}
 
-    <section class="panel pad stack"><div class="sec-title"><h2>Reiter</h2></div>
+    <section class="panel pad stack"><div class="sec-title"><h2>Reiter &amp; Zusatzfunktionen</h2></div>
+      <div class="hint">Was oben in der Leiste steht und welche Extras die App anbietet.</div>
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
       <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
       <label class="field" style="max-width:320px"><span>Beim Öffnen anzeigen</span><select id="startTab">${[...Object.entries(TABNAMES),["einstellungen","Einstellungen"],["last","Zuletzt geöffneter Reiter"]].map(([k,t])=>`<option value="${k}"${(S.cfg.startTab||"lager")===k?" selected":""}>${esc(t)}</option>`).join("")}</select></label>
+      ${funktionenHTML()}
     </section>
 
     <section class="panel pad stack"><div class="sec-title"><h2>Daten und Sicherung</h2></div>
@@ -1704,10 +1707,11 @@ function designHTML(){const d=designCfg();const ok=`<svg viewBox="0 0 24 24" fil
   const ecken=d.ecken==null?"":d.ecken;
   return `<section class="panel pad stack"><div class="sec-title"><h2>Design</h2></div>
     <div class="field"><span>Stil</span><div class="dsstile"><button type="button" class="dss${d.stil?"":" on"}" data-act="dsSet" data-k="stil" data-v=""><i class="dss-std"></i><span>Standard</span></button>${Object.entries(STILE).map(([k,[t,h,dk]])=>`<button type="button" class="dss${d.stil===k?" on":""}" data-act="dsSet" data-k="stil" data-v="${k}"><i><u style="background:${h.bg}"><b style="background:${h.k};border-color:${h.l}"><s style="background:${h.a}"></s><s style="background:${h.fg3}"></s></b></u><u style="background:${dk.bg}"><b style="background:${dk.k};border-color:${dk.l}"><s style="background:${dk.a}"></s><s style="background:${dk.fg3}"></s></b></u></i><span>${t}</span></button>`).join("")}</div><small class="hint">Jeder Stil hat eine helle und eine dunkle Fassung – welche gilt, stellst du unter „Hell oder dunkel“ ein.</small></div>
-    <div class="field"><span>Kacheln</span><div class="dsvl">${Object.entries(DESIGN_VORLAGEN).map(([k,[t,o]])=>{const x=Object.assign({},DESIGN_STD,o);const r=x.ecken==null?10:x.ecken;
-      return `<button type="button" class="dsv${d.vorlage===k?" on":""}" data-act="dsVorlage" data-v="${k}"><i style="border-radius:${r}px;${x.rahmen?"":"border-color:transparent;"}${SCHATTEN[x.schatten]?`box-shadow:${SCHATTEN[x.schatten]};`:""}${x.deckkraft<100?`background:color-mix(in srgb,var(--glass) ${x.deckkraft}%,transparent);`:""}"><b style="border-radius:${Math.round(r*.6)}px"></b><b style="border-radius:${Math.round(r*.6)}px;width:60%"></b></i><span>${t}</span></button>`}).join("")}</div></div>
     ${window.__PW_HA?"":`<div class="field"><span>Hell oder dunkel</span>${chips("modus",[["auto","Wie das Gerät"],["hell","Immer hell"],["dunkel","Immer dunkel"]],d.modus)}</div>`}
     <div class="field"><span>Akzentfarbe</span><div class="dsfarben"><button type="button" class="dsf${d.akzent?"":" on"}" data-act="dsSet" data-k="akzent" data-v="" title="Farbe des Stils"><span>Stil</span></button>${DESIGN_FARBEN.map(f=>`<button type="button" class="dsf${d.akzent.toLowerCase()===f?" on":""}" data-act="dsSet" data-k="akzent" data-v="${f}" style="background:${f}" aria-label="${f}"></button>`).join("")}<label class="dsf dsfe" title="Eigene Farbe"><input type="color" id="ds_akzent" value="${esc(d.akzent||"#00ae42")}">+</label></div></div>
+    <details class="dsfein"${window.__dsFeinAuf?" open":""}><summary>Feinheiten <small class="hint">Kacheln, Ecken, Rahmen, Schatten, Hintergrund, Abstände</small></summary><div class="stack">
+    <div class="field"><span>Kacheln</span><div class="dsvl">${Object.entries(DESIGN_VORLAGEN).map(([k,[t,o]])=>{const x=Object.assign({},DESIGN_STD,o);const r=x.ecken==null?10:x.ecken;
+      return `<button type="button" class="dsv${d.vorlage===k?" on":""}" data-act="dsVorlage" data-v="${k}"><i style="border-radius:${r}px;${x.rahmen?"":"border-color:transparent;"}${SCHATTEN[x.schatten]?`box-shadow:${SCHATTEN[x.schatten]};`:""}${x.deckkraft<100?`background:color-mix(in srgb,var(--glass) ${x.deckkraft}%,transparent);`:""}"><b style="border-radius:${Math.round(r*.6)}px"></b><b style="border-radius:${Math.round(r*.6)}px;width:60%"></b></i><span>${t}</span></button>`}).join("")}</div></div>
     <div class="field"><span>Ecken</span>${chips("ecken",[["","Standard"],[0,"Eckig"],[6,"Leicht rund"],[14,"Rund"],[24,"Sehr rund"]],ecken)}<input type="range" id="ds_ecken" min="0" max="28" step="1" value="${d.ecken==null?10:d.ecken}" aria-label="Rundung der Ecken"></div>
     <div class="cols2"><div class="field"><span>Rahmen um Kacheln</span>${chips("rahmen",[[true,"Mit Rahmen"],[false,"Ohne"]],d.rahmen)}</div>
       <div class="field"><span>Schatten</span>${chips("schatten",[["aus","Keiner"],["leicht","Leicht"],["weich","Weich"],["stark","Stark"]],d.schatten)}</div></div>
@@ -1715,6 +1719,7 @@ function designHTML(){const d=designCfg();const ok=`<svg viewBox="0 0 24 24" fil
     <div class="field"><span>Seitenhintergrund</span>${chips("hintergrund",[["standard","Standard"],["verlauf","Farbverlauf"],["farbe","Eigene Farbe"],["durchsichtig","Durchsichtig"]],d.hintergrund)}
       ${d.hintergrund==="farbe"?`<label class="dsfe2"><input type="color" id="ds_hg" value="${esc(d.hgfarbe)}"> Farbe wählen</label>`:""}${d.hintergrund==="durchsichtig"?`<small class="hint">Gedacht für die Karte in Home Assistant: dahinter scheint der Dashboard-Hintergrund durch.</small>`:""}</div>
     <div class="field"><span>Abstände</span>${chips("dichte",[["kompakt","Kompakt"],["normal","Normal"],["luftig","Luftig"]],d.dichte)}</div>
+    </div></details>
     <div class="row"><button type="button" class="btn ghost sm" data-act="dsReset">Alles zurücksetzen</button><span class="hint">Gilt sofort und auf allen Geräten mit denselben Daten.</span></div>
   </section>`}
 document.addEventListener("input",ev=>{const t=ev.target;if(!t||!t.id||!/^ds_/.test(t.id))return;
@@ -1722,6 +1727,7 @@ document.addEventListener("input",ev=>{const t=ev.target;if(!t||!t.id||!/^ds_/.t
   if(t.id==="ds_deck"){designSetzen({deckkraft:+t.value,vorlage:""});const l=t.closest(".field");if(l&&l.firstElementChild)l.firstElementChild.textContent="Kacheln: "+(+t.value>=100?"deckend":t.value+" % deckend (durchsichtig)")}
   if(t.id==="ds_akzent")designSetzen({akzent:t.value,vorlage:""});
   if(t.id==="ds_hg")designSetzen({hgfarbe:t.value,vorlage:""})});
+document.addEventListener("toggle",ev=>{if(ev.target&&ev.target.classList&&ev.target.classList.contains("dsfein"))window.__dsFeinAuf=ev.target.open},true);
 document.addEventListener("change",ev=>{const t=ev.target;if(t&&/^ds_(ecken|akzent)$/.test(t.id||"")&&S.tab==="einstellungen"){const y=scrollY;render();scrollTo(0,y)}});
 /* ---------- Funktionen: einzeln abschaltbar (z. B. ohne Drucker oder ohne Etikettendrucker) ---------- */
 const SLF=window.SLF={e:null,laden:false,fehler:false};
@@ -1736,15 +1742,14 @@ function funktionenHTML(){fnServerLaden();const E=SLF.e;
   const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
   const chip=(k,t,on)=>`<button type="button" class="chip${on?" on":""}" data-act="fnToggle" data-k="${k}" aria-pressed="${on}">${on?ok:""}${t}</button>`;
   const fertig=E?E.fertig_meldung!==false:true;
-  return `<section class="panel pad stack"><div class="sec-title"><h2>Funktionen</h2></div>
+  return `<div class="eb-cap fn-cap">Zusatzfunktionen</div>
     <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${chip("preisliste","Preisliste",fnAn("preisliste"))}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}</div>
     <div class="fnliste">
       <div><b>Reicht die Rolle?</b> Der Rechner zeigt unter dem Filament, ob die Rolle im Lager reicht, wie viel danach übrig bleibt und welche Rolle als Ersatz passt.</div>
       <div><b>Preisliste</b> Knopf „Preisliste“ im Lager: täglich aktuelle Preise der Herstellershops (Sunlu, Tinmorry, Nobufil, Polymaker, Princore, CR3D …) und von 3DJake für jede Sorte, die günstigste markiert.</div>
       <div><b>Jahresrückblick</b> Knopf „Rückblick“ im Lager: Kilo, Kosten, Drucke, Lieblingsfarben und Fehldrucke eines Jahres.</div>
       ${S.srv?`<div><b>Druck fertig</b> Nach jedem Druck eine Handymeldung mit Vorschaubild, Dauer und Verbrauch. Geht an die Handys, die unter „SchichtLohn-Server“ eingetragen sind.</div>`:""}
-    </div>
-  </section>`}
+    </div>`}
 /* ---------- Preisvergleich: Zugangsdaten für eBay und AliExpress (liegen nur auf dem SchichtLohn-Server) ---------- */
 const PV={d:null,laden:null};
 function pvLaden(){if(!S.srv)return Promise.resolve(null);if(PV.laden)return PV.laden;
@@ -7969,10 +7974,10 @@ const IC={dr:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx=
   zg:'<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M17 6l2.5 2.5M14.5 8.5 16.5 10.5"/>'};
 const B=[
   {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach"],karten:["Bambu-Drucker","Bambu Studio · Filament Manager","Druckprotokoll"]},
-  {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Lager","Materialien","Etikettendrucker"],karten:["Filament-Datenbank"]},
-  {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
+  {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Anzeige im Lager","Warnungen","Leere Spulen","Spulen-Etiketten"],karten:["Filament-Datenbank"]},
+  {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Materialien","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
   {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
-  {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter","Funktionen"],karten:[]},
+  {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter & Zusatzfunktionen"],karten:[]},
   /* Zugänge: alles, was der Server zum Arbeiten braucht (Konten, Schlüssel, Adressen) an einer Stelle */
   {k:"zug",t:"Zugänge",ic:"zg",abschnitte:["Bambu-Cloud","Creality-Cloud","Preisvergleich","Home Assistant verbinden"],karten:["Zugang","Claude","Waage"]},
   {k:"sys",t:"System",ic:"sy",abschnitte:["SchichtLohn-Server","Sync zwischen Geräten","Daten und Sicherung"],karten:[]}];
@@ -7986,10 +7991,10 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "lager":return "Waage, Datenbank, Preise";
     case "kalk":return `Strom ${n(c.kwh||0)} €/kWh · ${n(c.rate||0)} €/h`;
     case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":""].filter(Boolean).join(" · ")||"Handy · Telegram";
-    case "aus":return "Design, Reiter, Funktionen";
+    case "aus":return "Design, Reiter, Zusatzfunktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
 /* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
-function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einDR||[]).filter(d=>!d.online).map(d=>d.name).filter(Boolean);return off.length?"offline: "+off.join(", "):"Bambu, Creality, Etikettendrucker"}return status(b)}case "lager":return "Anzeige, Materialien, Etiketten";case "zug":return "Konten, Schlüssel, Adressen";case "sys":return S.srv?"Version, Sicherung":status(b);default:return status(b)}}
+function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einDR||[]).filter(d=>!d.online).map(d=>d.name).filter(Boolean);return off.length?"offline: "+off.join(", "):"Bambu, Creality, verpasste Drucke"}return status(b)}case "lager":return "Anzeige, Warnungen, Leerspulen, Etiketten";case "zug":return "Konten, Schlüssel, Adressen";case "sys":return S.srv?"Version, Sicherung":status(b);default:return status(b)}}
 function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:on===l.length?"alle online":`${on} von ${l.length} online`,ok:on===l.length,teil:on>0&&on<l.length}}
   if(b.k==="zug"&&S.srv&&SLF.e){const z=zugZeilen().filter(x=>x.zaehlt);const ok=z.filter(x=>x.ok).length;return {t:ok===z.length?"alles eingerichtet":`${ok} von ${z.length}`,ok:ok===z.length,teil:ok>0&&ok<z.length}}
   if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
@@ -8002,7 +8007,7 @@ function zugZeilen(){const E=SLF.e||{},I=S.srvInfo||{},dr=E.drucker||[];const L=
    {t:"Bambu-Cloud",w:(E.cloud||{}).token?((E.cloud||{}).konto||"angemeldet"):"nicht angemeldet",ok:!!(E.cloud||{}).token,zaehlt:true,ziel:"s:Bambu-Cloud"},
    {t:"Drucker im Heimnetz",w:dr.length?`${mitLan.length} von ${dr.length} mit IP und Zugangscode${ohne.length?" · ohne: "+ohne.join(", "):""}`:"keine Drucker eingetragen",ok:dr.length>0&&!ohne.length,teil:mitLan.length>0&&ohne.length>0,zaehlt:true,ziel:"b:drucker"},
    {t:"Creality-Cloud",w:cr&&(cr.token||cr.accessToken)?"angemeldet":"nicht angemeldet",ok:!!(cr&&(cr.token||cr.accessToken)),zaehlt:false,ziel:"s:Creality-Cloud"},
-   {t:"Filamentwaage",w:E.waage_url||"keine Adresse",ok:!!E.waage_url,zaehlt:true,ziel:"b:lager|Etikettendrucker"},
+   {t:"Filamentwaage",w:E.waage_url||"keine Adresse",ok:!!E.waage_url,zaehlt:true,ziel:"b:lager|Spulen-Etiketten"},
    {t:"Home Assistant",w:I.ha_app?"automatisch – Server läuft als HA-App":((E.ha||{}).url||"nicht verbunden"),ok:!!(I.ha_app||(E.ha||{}).url),zaehlt:true,ziel:I.ha_app?"b:meld":"s:Home Assistant verbinden"},
    {t:"Meldung aufs Handy",w:notify.length?`${notify.length} Gerät${notify.length>1?"e":""}`:"kein Gerät",ok:notify.length>0,zaehlt:false,ziel:"b:meld"},
    {t:"Telegram",w:tg.token&&tg.chat?("Bot an "+(tg.chat_name||tg.chat)):"nicht eingerichtet",ok:!!(tg.token&&tg.chat),zaehlt:false,ziel:"b:meld"},
@@ -8064,6 +8069,19 @@ document.addEventListener("click",e=>{const t=e.target.closest("[data-tab]");if(
 async function drStatus(){if(!(S.srv&&window.SRV))return;try{const d=await SRV.req("GET","/api/drucker");window.__einDR=d.drucker||[];if(S.tab==="einstellungen"&&!akt)ordnen()}catch(e){}}
 let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearTimeout(t);t=setTimeout(()=>{ordnen();if(S.tab==="einstellungen"&&!window.__einDRt){window.__einDRt=1;drStatus();setTimeout(()=>{window.__einDRt=0},30000)}},0)}).observe(m,{childList:true,subtree:true});
 window.__einOrdnen=ordnen;ordnen()})();</script>
+<script>/* Lager-Einstellungen (Warnungen, Leere Spulen, Sortierung) speichern sich selbst – kein „Übernehmen“ mehr */
+(()=>{let t=0;const los=()=>{clearTimeout(t);t=setTimeout(()=>{const b=document.querySelector("[data-act=lgEinSave]");if(b&&document.querySelector("[data-lge]"))b.click()},500)};
+document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g"))los()});
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-act=lgeLeerWeg]"))los()})})();</script>
+<style>
+.dsfein{border-top:1px solid var(--line);padding-top:12px}
+.dsfein>summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;font-weight:600;font-size:14px;color:var(--fg)}
+.dsfein>summary::-webkit-details-marker{display:none}
+.dsfein>summary::before{content:"›";display:inline-block;width:10px;transition:transform .2s;color:var(--fg-2)}
+.dsfein[open]>summary::before{transform:rotate(90deg)}
+.dsfein>.stack{margin-top:12px}
+.fn-cap{margin-top:14px}
+</style>
 <style>
 .eb-ov{display:flex;flex-direction:column;gap:12px}
 .eb-zug{display:flex;flex-direction:column}.eb-zug .eb-cap{margin-top:0}
@@ -8258,7 +8276,7 @@ function liste(){const E=window.SLF&&SLF.e,waage=!!(E&&E.waage_url);
     ${ED.l.length>1&&ED.l.length<=4?`<label class="field"><span>Standard-Drucker</span><select id="etdr_std">${ED.l.map(d=>`<option value="${esc(d.id)}"${d.id===std?" selected":""}>${esc(d.name||d.id)}</option>`).join("")}</select></label>`:""}</div>`}
 window.etikettDruckerHTML=function(){const E=window.SLF&&SLF.e;const an=typeof fnAn==="function"?fnAn("etikett"):true;
   const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
-  return `<section class="panel pad stack"><div class="sec-title"><h2>Etikettendrucker</h2></div>
+  return `<section class="panel pad stack"><div class="sec-title"><h2>Spulen-Etiketten</h2></div>
     <div class="tabtg"><button type="button" class="chip${an?" on":""}" data-act="fnToggle" data-k="etikett" aria-pressed="${an}">${an?ok:""}Spulen-Etiketten</button></div>
     <div class="hint">Knopf „Etikett“ beim Bearbeiten einer Sorte: dieselben Etiketten wie auf der Filamentwaage, mit QR-Code zur Rolle.</div>
     ${an?`${liste()}
