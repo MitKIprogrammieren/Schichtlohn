@@ -228,6 +228,86 @@ def docker_alle():
     return erg
 
 
+# ---------- FritzBox-Geräteliste (TR-064): LAN/WLAN, Port, Tempo ----------
+FBT = os.environ.get("FB_TR064", "http://192.168.1.1:49000").rstrip("/")
+FB_ENV = os.environ.get("FB_ENV", "/fritz.env")
+FRITZ = {"zeit": 0, "daten": None}
+
+
+def fb_zugang():
+    u, p = os.environ.get("FB_USER", ""), os.environ.get("FB_PASS", "")
+    if u:
+        return u, p
+    for z in lesen(FB_ENV).splitlines():
+        k, _, v = z.partition("=")
+        if k.strip() == "FB_USER":
+            u = v.strip()
+        elif k.strip() == "FB_PASS":
+            p = v.strip()
+    return u, p
+
+
+def soap(pfad, service, aktion, zugang):
+    body = ('<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+            's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:' + aktion +
+            ' xmlns:u="' + service + '"/></s:Body></s:Envelope>')
+    mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    mgr.add_password(None, FBT, zugang[0], zugang[1])
+    op = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(mgr))
+    req = urllib.request.Request(FBT + pfad, data=body.encode(), headers={
+        "Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": service + "#" + aktion})
+    return op.open(req, timeout=10).read().decode("utf-8", "replace")
+
+
+def fritz():
+    import xml.etree.ElementTree as ET
+    if FRITZ["daten"] and time.time() - FRITZ["zeit"] < 30:
+        return FRITZ["daten"]
+    zugang = fb_zugang()
+    if not zugang[0]:
+        return {"ok": False, "fehler": "Keine FritzBox-Zugangsdaten"}
+    try:
+        x = soap("/upnp/control/hosts", "urn:dslforum-org:service:Hosts:1", "X_AVM-DE_GetHostListPath", zugang)
+        pfad = re.search(r"<NewX_AVM-DE_HostListPath>(.*?)</", x).group(1)
+        with urllib.request.urlopen(FBT + pfad, timeout=10) as r:
+            root = ET.fromstring(r.read())
+    except Exception as e:
+        d = {"ok": False, "fehler": "FritzBox-Geräteliste: " + str(e)}
+        FRITZ.update(zeit=time.time() - 20, daten=d)
+        return d
+    namen = {}
+    try:
+        with urllib.request.urlopen(NETZ + "/api/stand", timeout=8) as r:
+            namen = {g["ip"]: g["name"] for g in json.loads(r.read()).get("geraete", []) if g.get("name")}
+    except Exception:
+        pass
+    geraete = []
+    for item in root.iter("Item"):
+        d = {k.tag: (k.text or "") for k in item}
+        ip, typ = d.get("IPAddress", ""), d.get("InterfaceType", "")
+        try:
+            tempo = int(d.get("X_AVM-DE_Speed") or 0)
+        except ValueError:
+            tempo = 0
+        geraete.append({"ip": ip, "mac": d.get("MACAddress", ""), "name": namen.get(ip) or d.get("HostName") or ip,
+                        "fritzname": d.get("HostName", ""), "aktiv": d.get("Active") == "1",
+                        "art": "wlan" if "802.11" in typ else "lan" if typ == "Ethernet" else "sonst",
+                        "port": d.get("X_AVM-DE_Port", ""), "tempo": tempo, "gast": d.get("X_AVM-DE_Guest") == "1",
+                        "modell": d.get("X_AVM-DE_Model", "")})
+    wlan = []
+    for i in range(1, 5):
+        try:
+            x = soap(f"/upnp/control/wlanconfig{i}", f"urn:dslforum-org:service:WLANConfiguration:{i}", "GetInfo", zugang)
+            g = lambda k: (re.search(f"<New{k}>(.*?)</", x) or [None, ""])[1]
+            wlan.append({"nr": i, "ssid": g("SSID"), "an": g("Enable") == "1", "kanal": g("Channel"),
+                         "standard": g("Standard"), "band": g("X_AVM-DE_FrequencyBand")})
+        except Exception:
+            pass
+    daten = {"ok": True, "zeit": int(time.time()), "geraete": geraete, "wlan": wlan}
+    FRITZ.update(zeit=time.time(), daten=daten)
+    return daten
+
+
 def plan():
     if PLAN_CACHE["daten"] and time.time() - PLAN_CACHE["zeit"] < 15:
         return PLAN_CACHE["daten"]
@@ -258,7 +338,7 @@ def plan():
         info = p.get("gaeste", {}).get(str(x["id"]), {})
         gaeste.append({"id": x["id"], "name": x["name"], "ram": x.get("ram"), "cpu": x.get("cpu"), **info})
     daten = {"zeit": round(time.time()), "geraete": geraete, "gaeste": sorted(gaeste, key=lambda x: x["id"]),
-             "container": docker_alle(), "unterwegs": p.get("unterwegs", []), "sensor": bool(s)}
+             "container": docker_alle(), "unterwegs": p.get("unterwegs", []), "sensor": bool(s), "fritz": fritz()}
     PLAN_CACHE.update(zeit=time.time(), daten=daten)
     return daten
 

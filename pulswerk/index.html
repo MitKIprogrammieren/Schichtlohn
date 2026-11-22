@@ -126,7 +126,17 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
 .baum{position:relative;margin:0 0 0 17px;padding-left:22px}
 .baum::before{content:"";position:absolute;left:0;top:0;bottom:30px;width:2px;background:var(--rand);border-radius:1px}
 .ast{position:relative;margin-top:10px}
-.ast::before{content:"";position:absolute;left:-22px;top:28px;width:22px;height:2px;background:var(--rand)}
+.ast::before{content:"";position:absolute;left:-22px;top:calc(28px - var(--d,2px)/2 + 1px);width:22px;height:var(--d,2px);background:var(--lc,var(--rand));border-radius:2px}
+.ast.funk::before{background:repeating-linear-gradient(90deg,var(--lc,var(--rand)) 0 4px,transparent 4px 7px)}
+.gruppe{display:flex;align-items:center;gap:10px;background:#26262a;border:1px dashed var(--rand);border-radius:14px;padding:9px 12px;font-weight:600}
+.gruppe small{color:var(--txt3);font-weight:400;font-size:12px;margin-left:auto;text-align:right}
+.klein .knoten{padding:7px 10px;grid-template-columns:30px minmax(0,1fr) auto}
+.klein .av{width:30px;height:30px;border-radius:9px;font-size:14px}
+.tempo{font:600 11px ui-monospace,Menlo,monospace;color:var(--txt3);display:block;text-align:right}
+.ssid{display:inline-block;font-size:11px;font-weight:600;color:var(--blau);background:#6aa9ff1a;border-radius:999px;padding:2px 8px;margin:2px 4px 0 0}
+.lg2{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--txt3);margin-top:10px}
+.lg2 span::before{content:"";display:inline-block;width:18px;height:var(--d);background:var(--txt2);vertical-align:middle;margin-right:6px;border-radius:2px}
+.lg2 span.f::before{background:repeating-linear-gradient(90deg,var(--txt2) 0 4px,transparent 4px 7px)}
 .ast.an::before,.baum .ast.an>.knoten{border-color:color-mix(in srgb,var(--gruen) 55%,var(--rand))}
 .lampe{position:absolute;right:-3px;top:-3px;width:11px;height:11px;border-radius:50%;background:var(--c2,var(--txt3));box-shadow:0 0 0 2px var(--fl2)}
 .innen{margin:8px 0 2px 17px;padding-left:22px;position:relative}
@@ -228,7 +238,8 @@ details .roh{font-size:12px;color:var(--txt3);margin-top:8px;display:flex;flex-w
  <h2>So hängt alles zusammen</h2>
  <div class="oben"><span class="pille">🌍 Internet</span><div class="senk"></div></div>
  <div id="plBaum"></div>
- <div class="erkl">Grüner Punkt: Gerät antwortet gerade. Wird alle 15 Sekunden geprüft.</div>
+ <div class="lg2"><span style="--d:5px">2,5 Gbit/s</span><span style="--d:4px">1 Gbit/s</span><span style="--d:2px">100 Mbit/s</span><span class="f" style="--d:2px">WLAN</span></div>
+ <div class="erkl">Dicke Linie = schnelle Verbindung. Grüner Punkt = Gerät ist gerade da. Daten von der FritzBox, alle 30 Sekunden neu.</div>
 </div>
 <div class="karte">
  <h2>Wie kommen Filme zu Plex?</h2>
@@ -492,7 +503,14 @@ const PL_PORT={etikettwerk:8096,formwerk:8092,gridwerk:8099,headscale:8097,kontu
  ordnerwerk:8086,schichtlohn:8093,'skizze-zeichnung':8095,stoppseite:80,tracefinity:8087,werke:8090,zeichnemichnach:8094,schaltwerk:8080,pulswerk:8088};
 const PL_NAME={'skizze-zeichnung':['Skizze-Zeichnung',''],zeichnemichnach:['Zeichnemichnach',''],tracefinity:['Tracefinity','Werkzeugumrisse'],
  ordnerwerk:['Ordnerwerk','Dateimanager'],meldewerk:['Meldewerk','WhatsApp-Meldungen'],stoppseite:['Stoppseite','Kindersicherung'],piwerk:['Piwerk','Raspberry Pis'],netzwerk:['Netzwerk','Datenverkehr'],pulswerk:['Pulswerk','diese Seite']};
-let PLAN=null,plOffen=false;
+let PLAN=null,plOffen=false,plWegOffen=false;
+const plTempo=m=>!m?'':m>=1000?z(m/1000,m%1000?1:0)+' Gbit/s':m+' Mbit/s';
+const plDicke=(m,w)=>w?2:m>=2500?5:m>=1000?4:m>=100?2:2;
+function plIcon(g){const n=(g.name+' '+g.fritzname+' '+g.modell).toLowerCase();
+ return /iphone|handy|phone|pixel|galaxy/.test(n)?'📱':/ipad|tablet/.test(n)?'📲':/mac|imac|pc|laptop|windows|book/.test(n)?'💻':/tv|fernseher|apple-tv|appletv|lg/.test(n)?'📺':
+ /x1c|h2s|p1s|a1|bambu|drucker|printer|phomemo/.test(n)?'🖨️':/alexa|echo|sonos|speaker/.test(n)?'🔊':/shelly|plug|steckdose|wled|licht|lamp|zigbee|proxy|esp|tasmota|waage/.test(n)?'💡':/pi|raspberry/.test(n)?'🍓':'•'}
+function plGer(g){const unter=[g.art==='wlan'?'WLAN':'Kabel'+(g.port?' · LAN '+esc(g.port):''),plTempo(g.tempo)].filter(Boolean).join(' · ');
+ return `<div class="ast${g.aktiv?' an':''}${g.art==='wlan'?' funk':''}" style="--d:${plDicke(g.tempo,g.art==='wlan')}px;--lc:${g.aktiv?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(plIcon(g),g.name,unter,g.ip,g.aktiv,false,g.art==='wlan'?'#6aa9ff':'#c58bff')}</div>`}
 function plLampe(on){return on===true?'#19d36b':on===false?'#ff6b5e':'#7c7c84'}
 function plKnoten(ic,name,unter,ip,on,haupt,farbe){return `<div class="knoten${haupt?' haupt':''}"><div class="av" style="--c:${farbe||'#6aa9ff'}">${ic}<span class="lampe" style="--c2:${plLampe(on)}"></span></div><div><div class="zn">${esc(name)}</div><div class="zu">${unter}</div></div><div class="ip">${esc(ip||'')}</div></div>`}
 function plWerke(d){
@@ -517,8 +535,10 @@ function planZeigen(d){
  const fritz=ger.find(g=>g.id==='fritz')||{name:'FritzBox',ip:'192.168.1.1'};
  let h=`<div class="oben" style="align-items:stretch">${plKnoten(PL_ICON.router,fritz.name,esc(fritz.rolle||''),fritz.ip,fritz.online,true,'#19d36b')}</div><div class="baum">`;
  for(const g of ger){if(g.id==='fritz')continue;
-  const unter=esc(g.rolle||'')+(g.online&&g.port?` · Port ${g.port}`:'');
-  h+=`<div class="ast${g.online?' an':''}">${plKnoten(PL_ICON[g.art]||'•',g.name,unter,g.ip,g.aus?null:g.online,false,g.art==='server'?'#f2b84b':g.art==='nas'?'#6aa9ff':'#c58bff')}`;
+  const fi=((d.fritz||{}).geraete||[]).find(x=>x.ip===g.ip),wl=fi&&fi.art==='wlan';
+  if(g.online==null&&fi&&!g.aus)g.online=fi.aktiv;
+  const unter=esc(g.rolle||'')+(fi?' · '+(wl?'WLAN':'Kabel'+(fi.port?' LAN '+esc(fi.port):''))+(fi.tempo?' · '+plTempo(fi.tempo):''):'');
+  h+=`<div class="ast${g.online?' an':''}${wl?' funk':''}" style="--d:${fi?plDicke(fi.tempo,wl):2}px;--lc:${g.online?'color-mix(in srgb,var(--gruen) 60%,var(--rand))':'var(--rand)'}">${plKnoten(PL_ICON[g.art]||'•',g.name,unter,g.ip,g.aus?null:g.online,false,g.art==='server'?'#f2b84b':g.art==='nas'?'#6aa9ff':'#c58bff')}`;
   if(g.id==='pve'){
    h+='<div class="innen">'+(d.gaeste||[]).map(x=>{const ram=x.ram?gb(x.ram)+' GB':'';
     let s=`<div class="ct2"><div class="k"><span>CT ${x.id} · ${esc(x.name)}</span><small>${esc(x.ip||'')}</small></div><div class="u">${esc(x.rolle||'')}${ram?' · '+ram+' RAM':''}${x.cpu!=null?' · '+z(x.cpu,1)+' %':''}</div>`;
@@ -527,7 +547,21 @@ function planZeigen(d){
      if(W.laufen.length>8)s+=`<button class="auf" id="plAuf">${plOffen?'Weniger zeigen':'Alle '+W.laufen.length+' Werke zeigen'}</button>`}
     return s+'</div>'}).join('')+(d.sensor?'':'<div class="erkl">Messdienst auf dem Proxmox-Host antwortet nicht – Container fehlen.</div>')+'</div>'}
   h+='</div>'}
+ // weitere Geräte aus der FritzBox
+ const fb=d.fritz||{},fest=new Set([...ger.map(g=>g.ip),...(d.gaeste||[]).map(x=>x.ip)]);
+ if(fb.ok){const rest=fb.geraete.filter(g=>g.ip&&!fest.has(g.ip)),da=rest.filter(g=>g.aktiv),weg2=rest.filter(g=>!g.aktiv);
+  const lan=da.filter(g=>g.art!=='wlan'&&!g.gast),wl=da.filter(g=>g.art==='wlan'&&!g.gast),gast=da.filter(g=>g.gast);
+  const sort=a=>a.sort((x,y)=>(x.port||'9').localeCompare(y.port||'9')||x.name.localeCompare(y.name));
+  if(lan.length){const ports={};lan.forEach(g=>(ports[g.port||'?']=ports[g.port||'?']||[]).push(g));
+   const alleP={};fb.geraete.filter(g=>g.aktiv&&g.art==='lan'&&g.port).forEach(g=>alleP[g.port]=(alleP[g.port]||0)+1);const sw=Object.entries(alleP).filter(([p,n])=>n>1).map(([p])=>'LAN '+p);
+   h+=`<div class="ast an" style="--d:4px"><div class="gruppe">🔌 Per Kabel<small>${lan.length} weitere Geräte</small></div>${sw.length?`<div class="erkl" style="margin:6px 0 0 4px">Mehrere Geräte an ${sw.join(', ').replace(/, (?=[^,]*$)/,' und ')} – dort hängt ein Switch.</div>`:''}<div class="innen baum klein" style="margin-left:17px;padding-left:22px">${sort(lan).map(plGer).join('')}</div></div>`}
+  if(wl.length||fb.wlan.length){const netze=fb.wlan.filter(w=>w.an&&w.ssid);const ss=[...new Set(netze.map(w=>w.ssid))];
+   h+=`<div class="ast an funk"><div class="gruppe">📶 WLAN<small>${wl.length} Geräte · ${netze.map(w=>esc(w.band||w.standard||'')).filter(Boolean).join(' · ')}</small></div>${ss.length?`<div style="margin:6px 0 0 4px">${ss.map(x=>`<span class="ssid">${esc(x)}</span>`).join('')}</div>`:''}<div class="innen baum klein" style="margin-left:17px;padding-left:22px">${wl.sort((x,y)=>(y.tempo||0)-(x.tempo||0)).map(plGer).join('')}</div></div>`}
+  if(gast.length)h+=`<div class="ast an funk"><div class="gruppe">👋 Gäste<small>${gast.length} Geräte</small></div><div class="innen baum klein" style="margin-left:17px;padding-left:22px">${gast.map(plGer).join('')}</div></div>`;
+  if(weg2.length)h+=`<div class="ast"><div class="gruppe">💤 Gerade nicht da<small>${weg2.length} ${weg2.length===1?'bekanntes Gerät':'bekannte Geräte'}</small></div>${plWegOffen?`<div class="innen baum klein" style="margin-left:17px;padding-left:22px">${weg2.sort((x,y)=>x.name.localeCompare(y.name)).map(plGer).join('')}</div>`:''}<button class="auf" id="plWegAuf">${plWegOffen?'Ausblenden':'Anzeigen'}</button></div>`;
+ }else if(fb.fehler)h+=`<div class="ast"><div class="gruppe">⚠️ FritzBox-Liste fehlt<small>${esc(fb.fehler)}</small></div></div>`;
  $('plBaum').innerHTML=h+'</div>';
+ if($('plWegAuf'))$('plWegAuf').onclick=()=>{plWegOffen=!plWegOffen;planZeigen(PLAN)};
  if($('plAuf'))$('plAuf').onclick=()=>{plOffen=!plOffen;planZeigen(PLAN)};
  // Medienweg
  const g=id=>ger.find(x=>x.id===id)||{},ct=id=>(d.gaeste||[]).find(x=>x.id===id)||{};
