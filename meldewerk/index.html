@@ -54,13 +54,6 @@ textarea.feld{min-height:84px;resize:vertical}
 .zr{font-size:12px;text-align:right;white-space:nowrap;align-self:start}
 .zbild{grid-column:2/4;margin-top:6px}
 .zbild img{max-width:100%;max-height:220px;border-radius:12px;display:block}
-.ziel{display:grid;grid-template-columns:36px minmax(0,1fr) 24px;gap:2px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--rand);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;color:var(--txt);font:inherit}
-.ziel:first-child{border-top:0;padding-top:0}
-#gruppenListe .ziel:first-child{border-top:1px solid var(--rand);padding-top:10px}
-.ziel .zn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rad{width:22px;height:22px;border-radius:50%;border:2px solid var(--rand);grid-row:span 2;display:grid;place-items:center}
-.ziel.an .rad{border-color:var(--gruen2)}.ziel.an .rad::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--gruen2)}
-.nrfeld{display:flex;gap:8px;margin:2px 0 6px 48px}.nrfeld .feld{margin:0}.nrfeld .knopf{width:auto;margin:0;padding:0 16px}
 .geraet{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--rand)}.geraet:first-child{border-top:0;padding-top:0}
 .geraet .tx{flex:1;min-width:0}.geraet b{display:block}.geraet .tx>span{color:var(--txt3);font-size:12px}.geraet .av{grid-row:auto}
 .tgr{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.tgc{border:1px solid var(--rand);background:none;color:var(--txt2);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}.tgc.on{background:var(--gruen);border-color:var(--gruen);color:#fff;font-weight:600}
@@ -126,14 +119,10 @@ nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right
 <section id="s-einst" hidden>
  <div class="karte">
   <h2>Empfänger</h2>
-  <div id="zielListe">
-   <button type="button" class="ziel" id="zielIch"><div class="av" style="--c:#19d36b">Ich</div><div class="zn">Meine Nummer</div><span class="rad"></span><div class="zu" id="zielIchNr">nur an dich</div></button>
-   <div class="nrfeld" id="nrFeld" hidden><input class="feld" id="empf" inputmode="tel" placeholder="+49 151 23456789"><button class="knopf" id="empfKnopf">Speichern</button></div>
-   <div id="gruppenListe"></div>
-  </div>
-  <button class="mehr" id="gruppenNeu">Gruppen neu laden</button>
+  <label class="k" for="empf">Deine WhatsApp-Nummer</label>
+  <input class="feld" id="empf" inputmode="tel" placeholder="+49 151 23456789">
+  <button class="knopf" id="empfKnopf">Speichern</button>
   <div class="meld" id="empfMeld"></div>
-  <div class="erkl">Gruppen erscheinen hier, sobald die Absender-Nummer Mitglied ist. SL und HA können pro Meldung auch ein anderes Ziel mitgeben (Feld <code>ziel</code> mit dem Gruppennamen).</div>
  </div>
  <div class="karte">
   <h2>Home Assistant</h2>
@@ -208,18 +197,16 @@ function zeigen() {
   live.className = S.verbunden ? 'an' : S.qr ? 'warn' : '';
   live.querySelector('span').textContent = S.verbunden ? 'verbunden' : S.qr ? 'wartet auf QR' : 'verbinde …';
   const amp = el('ampel');
-  if (S.verbunden && e.empfaenger) { amp.style.setProperty('--f', 'var(--gruen2)'); amp.textContent = '✓'; el('zTitel').textContent = 'Alles bereit'; el('zText').textContent = String(e.empfaenger).endsWith('@g.us') ? 'Meldungen gehen an „' + (e.empfaenger_name || 'Gruppe') + '“.' : 'Meldungen gehen an dein iPhone.'; }
+  if (S.verbunden && e.empfaenger) { amp.style.setProperty('--f', 'var(--gruen2)'); amp.textContent = '✓'; el('zTitel').textContent = 'Alles bereit'; el('zText').textContent = 'Meldungen gehen an dein iPhone.'; }
   else if (S.verbunden) { amp.style.setProperty('--f', 'var(--gelb)'); amp.textContent = '!'; el('zTitel').textContent = 'Empfänger fehlt'; el('zText').textContent = 'Trag unter Einstellungen deine Nummer ein.'; }
   else if (S.qr) { amp.style.setProperty('--f', 'var(--gelb)'); amp.textContent = '⌁'; el('zTitel').textContent = 'Noch nicht verknüpft'; el('zText').textContent = 'Scanne den QR-Code mit dem Absender-Handy.'; }
   else { amp.style.setProperty('--f', 'var(--rot)'); amp.textContent = '×'; el('zTitel').textContent = 'Keine Verbindung'; el('zText').textContent = S.fehler || 'Verbindung wird aufgebaut …'; }
   el('qrKarte').hidden = !S.qr; if (S.qr) el('qrBild').src = S.qr;
   el('aAbs').textContent = nr(S.nummer); el('dAbs').textContent = S.name || (S.verbunden ? '' : 'nicht verknüpft');
-  const gr = String(e.empfaenger || '').endsWith('@g.us');
-  el('aEmp').textContent = gr ? (e.empfaenger_name || 'Gruppe') : nr(e.empfaenger);
-  el('dEmp').textContent = gr ? 'WhatsApp-Gruppe' : 'dein iPhone';
-  zieleZeigen(); haZeigen();
+  el('aEmp').textContent = nr(e.empfaenger);
+  haZeigen();
   el('aWart').textContent = S.wartend; el('aWart').style.setProperty('--f', S.wartend ? 'var(--gelb)' : 'var(--txt)');
-  if (document.activeElement !== el('empf') && !gr) el('empf').value = e.empfaenger ? nr(e.empfaenger) : '';
+  if (document.activeElement !== el('empf')) el('empf').value = e.empfaenger ? nr(e.empfaenger) : '';
   el('swLoeschen').classList.toggle('an', !!e.absender_loeschen);
   el('swArchiv').classList.toggle('an', !!e.archivieren);
   el('aufb').value = String(e.aufbewahrung_tage);
@@ -259,50 +246,10 @@ el('testKnopf').onclick = async () => {
 el('empfKnopf').onclick = async () => {
   const n = el('empf').value.replace(/[^\d+]/g, '').replace(/^00/, '+').replace(/^0/, '+49');
   if (n.replace(/\D/g, '').length < 8) { el('empfMeld').textContent = 'Gib deine Nummer mit Vorwahl ein.'; el('empfMeld').style.color = 'var(--rot)'; return; }
-  S = await api('/api/einstellungen', { empfaenger: n, empfaenger_name: '' }); zeigen();
+  S = await api('/api/einstellungen', { empfaenger: n }); zeigen();
   el('empfMeld').textContent = 'Gespeichert'; el('empfMeld').style.color = 'var(--gruen2)';
 };
 el('empf').oninput = () => el('empfMeld').textContent = '';
-let GR = [], nrOffen = false;
-function haZeigen() {
-  const h = S.ha || {}, a = S.alexa || {};
-  el('haTitel').textContent = h.verbunden ? 'Verbunden' : h.an ? 'Verbindet …' : 'Nicht verbunden';
-  el('haText').textContent = h.verbunden ? (h.url || '') + ' · Skript „Meldewerk senden“ bereit' : (h.fehler || 'Für das Skript „Meldewerk senden“ und für Alexa');
-  el('haChip').textContent = h.verbunden ? 'an' : 'aus'; el('haChip').style.setProperty('--c', h.verbunden ? '#19d36b' : h.fehler ? '#ff6b5e' : '#7c7c84');
-  el('haForm').hidden = !!h.verbunden;
-  if (!h.verbunden && document.activeElement !== el('haUrl') && !el('haUrl').value) el('haUrl').value = h.url || '';
-  const box = el('alexaInhalt');
-  if (!h.verbunden) { box.innerHTML = '<div class="leer">Erst Home Assistant verbinden.</div>'; return; }
-  const ch = (attr, t, on) => '<button type="button" class="tgc' + (on ? ' on' : '') + '" ' + attr + '>' + t + '</button>';
-  const qu = a.quellen || {};
-  const html = (a.mediaplayer ? '' : '<div class="hinw">Für gesprochene Ansagen braucht Home Assistant die Integration <b>Alexa Media Player</b> (HACS). Bis dahin kann das Meldewerk deine Alexa-Routinen auslösen.</div>') +
-    (a.geraete || []).map(g => '<div class="geraet"><div class="av" style="--c:#5ec8f2">' + esc(g.name.slice(0, 2)) + '</div><div class="tx"><b>' + esc(g.name) + '</b><span>' + esc(g.art) + '</span></div><button class="schalter' + (g.an ? ' an' : '') + '" data-echo="' + esc(g.id) + '" aria-label="' + esc(g.name) + '"><i></i></button></div>').join('') +
-    '<label class="k" style="margin-top:12px">Ansagen für</label><div class="tgr">' + [['sl', 'SchichtLohn'], ['ha', 'Home Assistant'], ['amazon', 'Bestellungen']].map(([k, n]) => ch('data-aq="' + k + '"', n, qu[k] !== false)).join('') + '</div>' +
-    '<label class="k" style="margin-top:8px">Nachtruhe</label><div class="tgr">' + [['aus', ''], ['22 – 7 Uhr', '22-7'], ['21 – 8 Uhr', '21-8']].map(([n, v]) => ch('data-ar="' + v + '"', n, (a.ruhe || '') === v)).join('') + '</div>' +
-    (a.mediaplayer && !(a.geraete || []).length ? '<div class="leer">Keine Echo-Geräte gefunden.</div>' : '') +
-    '<button class="mehr" data-alexa="test">Testansage</button><button class="mehr" data-alexa="neu">Geräte neu laden</button>';
-  if (box.dataset.sig !== html) { box.dataset.sig = html; box.innerHTML = html; }
-}
-function zieleZeigen() {
-  if (!S) return;
-  const e = S.einstellungen, gr = String(e.empfaenger || '').endsWith('@g.us');
-  el('zielIch').classList.toggle('an', !gr && !!e.empfaenger);
-  el('zielIchNr').textContent = !gr && e.empfaenger ? nr(e.empfaenger) : 'nur an dich';
-  el('nrFeld').hidden = !(nrOffen || (!gr && !e.empfaenger));
-  el('gruppenListe').innerHTML = GR.map(g => '<button type="button" class="ziel' + (e.empfaenger === g.id ? ' an' : '') + '" data-g="' + esc(g.id) + '" data-n="' + esc(g.name) + '">' +
-    '<div class="av" style="--c:#6aa9ff">' + esc(g.name.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2) || 'G') + '</div><div class="zn">' + esc(g.name) + '</div><span class="rad"></span>' +
-    '<div class="zu">Gruppe · ' + g.teilnehmer + ' Mitglieder</div></button>').join('');
-  el('gruppenListe').querySelectorAll('[data-g]').forEach(b => b.onclick = async () => {
-    nrOffen = false; S = await api('/api/einstellungen', { empfaenger: b.dataset.g, empfaenger_name: b.dataset.n }); zeigen();
-    el('empfMeld').textContent = 'Meldungen gehen jetzt an „' + b.dataset.n + '“'; el('empfMeld').style.color = 'var(--gruen2)';
-  });
-}
-async function gruppenLaden(neu) {
-  try { const d = await api('/api/gruppen' + (neu ? '?neu=1' : '')); GR = d.liste || [];
-    if (neu) { el('empfMeld').textContent = d.ok ? (GR.length ? GR.length + ' Gruppen gefunden' : 'Die Absender-Nummer ist noch in keiner Gruppe') : 'Erst den Absender verknüpfen'; el('empfMeld').style.color = 'var(--txt2)'; }
-  } catch {}
-  zieleZeigen();
-}
 async function einst(d, text, wo) {
   try { S = await api('/api/einstellungen', d); zeigen(); if (text) { el(wo || 'haMeld').textContent = text; el(wo || 'haMeld').style.color = 'var(--gruen2)'; } }
   catch (x) { el(wo || 'haMeld').textContent = 'Speichern ging nicht'; el(wo || 'haMeld').style.color = 'var(--rot)'; }
@@ -324,15 +271,7 @@ el('alexaInhalt').addEventListener('click', async ev => {
     el('haMeld').textContent = r.ok ? 'Testansage ist unterwegs.' : r.text; el('haMeld').style.color = r.ok ? 'var(--gruen2)' : 'var(--rot)';
   }
 });
-el('zielIch').onclick = () => { nrOffen = true; zieleZeigen(); el('empf').focus(); };
-el('gruppenNeu').onclick = () => gruppenLaden(true);
-const schalter = (id, k) => el(id).onclick = async () => { S = await api('/api/einstellungen', { [k]: !S.einstellungen[k] }); zeigen(); };
-schalter('swLoeschen', 'absender_loeschen'); schalter('swArchiv', 'archivieren');
-el('aufb').onchange = async () => { S = await api('/api/einstellungen', { aufbewahrung_tage: Number(el('aufb').value) }); zeigen(); };
-el('neuSchl').onclick = async () => { if (!confirm('Neuen Schlüssel erzeugen? Der alte funktioniert dann nicht mehr.')) return; S = await api('/api/einstellungen', { neuer_schluessel: true }); zeigen(); };
-el('verlaufLeeren').onclick = async () => { if (!confirm('Den ganzen Verlauf löschen?')) return; await api('/api/verlauf_loeschen', {}); verlauf(); heute(); };
-el('abmelden').onclick = async () => { if (!confirm('Absender-Handy abmelden? Danach musst du neu verknüpfen.')) return; await api('/api/abmelden', {}); setTimeout(laden, 3000); };
-laden(); heute(); gruppenLaden(); setInterval(() => { laden(); }, 3000); setInterval(heute, 30000);
+laden(); heute(); setInterval(() => { laden(); }, 3000); setInterval(heute, 30000);
 </script>
 </body>
 </html>

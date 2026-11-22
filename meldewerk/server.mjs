@@ -33,6 +33,7 @@ function einstLaden() {
   let e = {};
   try { e = JSON.parse(fs.readFileSync(EINST, 'utf8')); } catch {}
   e = { ...STANDARD, ...e };
+  if (/@g\.us$/.test(e.empfaenger || '')) e.empfaenger = ''; // Gruppen gibt es nicht mehr
   if (!e.schluessel) { e.schluessel = crypto.randomBytes(16).toString('hex'); einstSpeichern(e); }
   return e;
 }
@@ -65,33 +66,9 @@ const log = pino({ level: process.env.LOG || 'warn' });
 
 function jid(nr) {
   const t = String(nr || '').trim();
-  if (/@(g\.us|s\.whatsapp\.net)$/.test(t)) return t; // Gruppe oder fertige WhatsApp-Kennung
+  if (/@s\.whatsapp\.net$/.test(t)) return t;
   const d = t.replace(/\D/g, '').replace(/^00/, '');
   return d ? d + '@s.whatsapp.net' : '';
-}
-
-// Gruppen, in denen die Absender-Nummer ist (kurz zwischengespeichert)
-const GRUPPEN = { liste: [], zeit: 0 };
-async function gruppen(neu) {
-  if (!W.verbunden) return GRUPPEN.liste;
-  if (neu || Date.now() - GRUPPEN.zeit > 10 * 60000) {
-    const g = await W.sock.groupFetchAllParticipating();
-    GRUPPEN.liste = Object.values(g || {}).map(x => ({ id: x.id, name: x.subject || x.id, teilnehmer: (x.participants || []).length }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-    GRUPPEN.zeit = Date.now();
-  }
-  return GRUPPEN.liste;
-}
-
-// Ziel einer Meldung: leer = Standard-Empfänger; sonst Gruppenname, „ich“, Nummer oder WhatsApp-Kennung
-async function zielFinden(ziel) {
-  const z = String(ziel || '').trim();
-  if (!z) return { jid: jid(EIN.empfaenger), name: EIN.empfaenger_name || '' };
-  if (/^(ich|mich|mir|standard)$/i.test(z)) return { jid: jid(EIN.empfaenger), name: EIN.empfaenger_name || '' };
-  if (/@/.test(z) || /^\+?[\d\s/-]{8,}$/.test(z)) return { jid: jid(z), name: z };
-  const g = (await gruppen()).find(x => x.name.toLowerCase() === z.toLowerCase()) || (await gruppen(true)).find(x => x.name.toLowerCase() === z.toLowerCase());
-  if (!g) throw new Error('Gruppe „' + z + '“ nicht gefunden – ist die Absender-Nummer drin?');
-  return { jid: g.id, name: g.name };
 }
 
 async function verbinden() {
@@ -143,10 +120,8 @@ async function bildHolen(quelle) {
 
 async function zustellen(eintrag) {
   if (!W.verbunden) throw new Error('nicht verbunden');
-  const zf = await zielFinden(eintrag.ziel);
-  const ziel = zf.jid;
+  const ziel = jid(EIN.empfaenger);
   if (!ziel) throw new Error('Kein Empfänger eingestellt');
-  eintrag.an = zf.name || (ziel.endsWith('@g.us') ? 'Gruppe' : '');
   let inhalt;
   if (eintrag.bild) {
     const buf = fs.readFileSync(path.join(BILDER, eintrag.bild));
@@ -184,13 +159,12 @@ async function warteschlange() {
 }
 setInterval(warteschlange, 60000);
 
-async function melden({ text, quelle, bild, titel, ziel }) {
+async function melden({ text, quelle, bild, titel }) {
   text = String(text || '').trim();
   titel = String(titel || '').trim();
   if (titel) text = '*' + titel + '*' + (text ? '\n' + text : '');
   if (!text && !bild) throw Object.assign(new Error('Text fehlt'), { code: 400 });
   const e = { id: crypto.randomUUID(), zeit: Date.now(), quelle: String(quelle || 'sonstige').slice(0, 24).toLowerCase(), text: text.slice(0, 4000), status: 'wartet', fehler: '' };
-  if (ziel) e.ziel = String(ziel).slice(0, 120);
   if (bild) {
     try { const b = await bildHolen(bild); if (b?.length) { e.bild = e.id + '.jpg'; fs.writeFileSync(path.join(BILDER, e.bild), b); } }
     catch (err) { e.fehler = 'Bild: ' + err.message; }
@@ -245,6 +219,12 @@ function nachtruhe() {
   const von = Number(m[1]), bis = Number(m[2]);
   return von > bis ? (h >= von || h < bis) : (h >= von && h < bis);
 }
+// Stimme für die Ansagen (Amazon-Stimmen: Hans, Marlene, Vicki – leer = normale Alexa)
+function stimme(text) {
+  const name = (EIN.alexa || {}).stimme ?? 'Vicki';
+  const t = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return /^(Hans|Marlene|Vicki)$/.test(name) ? '<speak><voice name="' + name + '">' + t + '</voice></speak>' : t;
+}
 async function alexaAnsagen(e) {
   const a = EIN.alexa || {};
   const ziele = Object.entries(a.geraete || {}).filter(([, an]) => an).map(([id]) => id);
@@ -252,7 +232,7 @@ async function alexaAnsagen(e) {
   await alexaLaden();
   if (!ALEXA.mediaplayer) return;
   const text = e.text.replace(/\*([^*\n]+)\*/g, '$1').replace(/\n+/g, '. ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, '').trim();
-  try { await haApi('/api/services/notify/alexa_media', { message: text, target: ziele, data: { type: 'tts' } }); e.alexa = true; }
+  try { await haApi('/api/services/notify/alexa_media', { message: stimme(text), target: ziele, data: { type: 'tts' } }); e.alexa = true; }
   catch (err) { console.warn('Alexa-Ansage:', err.message); }
 }
 
@@ -283,7 +263,7 @@ function haVerbinden() {
       const d = m.event.data || {};
       let bild = '';
       try { bild = await haBild(d); } catch (e) { console.warn(e.message); }
-      melden({ titel: d.titel ?? d.title, text: d.text ?? d.message, quelle: d.quelle || 'ha', ziel: d.ziel, bild })
+      melden({ titel: d.titel ?? d.title, text: d.text ?? d.message, quelle: d.quelle || 'ha', bild })
         .catch(e => console.warn('Meldung aus Home Assistant:', e.message));
     }
   };
@@ -337,12 +317,8 @@ http.createServer(async (req, res) => {
       const ziele = Object.entries((EIN.alexa || {}).geraete || {}).filter(([, an]) => an).map(([id]) => id);
       if (!ALEXA.mediaplayer) return senden(res, 400, { ok: false, text: 'Alexa Media Player ist in Home Assistant noch nicht eingerichtet' });
       if (!ziele.length) return senden(res, 400, { ok: false, text: 'Erst mindestens einen Echo einschalten' });
-      await haApi('/api/services/notify/alexa_media', { message: 'Hallo, hier ist das Meldewerk. Ansagen funktionieren.', target: ziele, data: { type: 'tts' } });
+      await haApi('/api/services/notify/alexa_media', { message: stimme('Hallo, hier ist das Meldewerk. Ansagen funktionieren.'), target: ziele, data: { type: 'tts' } });
       return senden(res, 200, { ok: true });
-    }
-    if (p === '/api/gruppen') {
-      if (!W.verbunden) return senden(res, 200, { ok: false, liste: [], text: 'Nicht verbunden' });
-      return senden(res, 200, { ok: true, liste: await gruppen(u.searchParams.get('neu') === '1') });
     }
     if (p === '/api/verlauf') {
       const q = (u.searchParams.get('q') || '').toLowerCase();
@@ -361,22 +337,18 @@ http.createServer(async (req, res) => {
     if (p === '/api/senden') {
       const d = req.method === 'POST' ? await lesen(req) : Object.fromEntries(u.searchParams);
       if (!schluesselOk(req, u, d)) return senden(res, 401, { ok: false, text: 'Schlüssel fehlt oder falsch' });
-      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, ziel: d.ziel ?? d.an, bild: d.bild || d.bild_url || d.image });
+      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, bild: d.bild || d.bild_url || d.image });
       return senden(res, e.status === 'fehler' ? 500 : 200, { ok: e.status !== 'fehler', status: e.status, id: e.id, fehler: e.fehler });
     }
     // Ab hier nur die eigene Oberfläche
     if (req.method === 'POST' && p === '/api/test') {
       const d = await lesen(req);
-      const e = await melden({ text: d.text || 'Testnachricht vom Meldewerk', quelle: 'test', ziel: d.ziel });
+      const e = await melden({ text: d.text || 'Testnachricht vom Meldewerk', quelle: 'test' });
       return senden(res, 200, { ok: e.status !== 'fehler', status: e.status, fehler: e.fehler });
     }
     if (req.method === 'POST' && p === '/api/einstellungen') {
       const d = await lesen(req);
-      if ('empfaenger' in d) {
-        const t = String(d.empfaenger || '').trim();
-        EIN.empfaenger = t.endsWith('@g.us') ? t : t.replace(/[^\d+]/g, '');
-        EIN.empfaenger_name = String(d.empfaenger_name || '').slice(0, 120);
-      }
+      if ('empfaenger' in d) EIN.empfaenger = String(d.empfaenger || '').replace(/[^\d+]/g, '');
       if ('aufbewahrung_tage' in d) EIN.aufbewahrung_tage = Math.max(0, Number(d.aufbewahrung_tage) || 0);
       if ('absender_loeschen' in d) EIN.absender_loeschen = !!d.absender_loeschen;
       if ('archivieren' in d) EIN.archivieren = !!d.archivieren;
