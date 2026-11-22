@@ -250,6 +250,25 @@ el('empfKnopf').onclick = async () => {
   el('empfMeld').textContent = 'Gespeichert'; el('empfMeld').style.color = 'var(--gruen2)';
 };
 el('empf').oninput = () => el('empfMeld').textContent = '';
+function haZeigen() {
+  const h = S.ha || {}, a = S.alexa || {};
+  el('haTitel').textContent = h.verbunden ? 'Verbunden' : h.an ? 'Verbindet …' : 'Nicht verbunden';
+  el('haText').textContent = h.verbunden ? (h.url || '') + ' · Skript „Meldewerk senden“ bereit' : (h.fehler || 'Für das Skript „Meldewerk senden“ und für Alexa');
+  el('haChip').textContent = h.verbunden ? 'an' : 'aus'; el('haChip').style.setProperty('--c', h.verbunden ? '#19d36b' : h.fehler ? '#ff6b5e' : '#7c7c84');
+  el('haForm').hidden = !!h.verbunden;
+  if (!h.verbunden && document.activeElement !== el('haUrl') && !el('haUrl').value) el('haUrl').value = h.url || '';
+  const box = el('alexaInhalt');
+  if (!h.verbunden) { box.dataset.sig = ''; box.innerHTML = '<div class="leer">Erst Home Assistant verbinden.</div>'; return; }
+  const ch = (attr, t, on) => '<button type="button" class="tgc' + (on ? ' on' : '') + '" ' + attr + '>' + t + '</button>';
+  const qu = a.quellen || {};
+  const html = (a.mediaplayer ? '' : '<div class="hinw">Für gesprochene Ansagen braucht Home Assistant die Integration <b>Alexa Media Player</b> (HACS). Bis dahin kann das Meldewerk deine Alexa-Routinen auslösen.</div>') +
+    (a.geraete || []).map(g => '<div class="geraet"><div class="av" style="--c:#5ec8f2">' + esc(g.name.slice(0, 2)) + '</div><div class="tx"><b>' + esc(g.name) + '</b><span>' + esc(g.art) + '</span></div><button class="schalter' + (g.an ? ' an' : '') + '" data-echo="' + esc(g.id) + '" aria-label="' + esc(g.name) + '"><i></i></button></div>').join('') +
+    '<label class="k" style="margin-top:12px">Ansagen für</label><div class="tgr">' + [['sl', 'SchichtLohn'], ['ha', 'Home Assistant'], ['amazon', 'Bestellungen']].map(([k, n]) => ch('data-aq="' + k + '"', n, qu[k] !== false)).join('') + '</div>' +
+    '<label class="k" style="margin-top:8px">Nachtruhe</label><div class="tgr">' + [['aus', ''], ['22 – 7 Uhr', '22-7'], ['21 – 8 Uhr', '21-8']].map(([n, v]) => ch('data-ar="' + v + '"', n, (a.ruhe || '') === v)).join('') + '</div>' +
+    (a.mediaplayer && !(a.geraete || []).length ? '<div class="leer">Keine Echo-Geräte gefunden.</div>' : '') +
+    '<button class="mehr" data-alexa="test">Testansage</button><button class="mehr" data-alexa="neu">Geräte neu laden</button>';
+  if (box.dataset.sig !== html) { box.dataset.sig = html; box.innerHTML = html; }
+}
 async function einst(d, text, wo) {
   try { S = await api('/api/einstellungen', d); zeigen(); if (text) { el(wo || 'haMeld').textContent = text; el(wo || 'haMeld').style.color = 'var(--gruen2)'; } }
   catch (x) { el(wo || 'haMeld').textContent = 'Speichern ging nicht'; el(wo || 'haMeld').style.color = 'var(--rot)'; }
