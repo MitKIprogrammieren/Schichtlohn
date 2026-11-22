@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.19.1 – 22.11.2026
+- WhatsApp hat jetzt eine eigene Auswahl wie Telegram: Fortschritt, „Gleich fertig“, welche Ereignisse gemeldet werden und ob ein Kamerabild mitkommt. So kann zum Beispiel Telegram jeden Fortschritt melden und WhatsApp nur, wenn ein Druck fertig ist.
+- Was du bei WhatsApp noch nicht eingestellt hast, übernimmt es von Telegram.
+
 ## 3.19.0 – 22.11.2026
 - Neu: Meldungen auch per WhatsApp. Unter Einstellungen → Meldungen gibt es die Karte „WhatsApp“ – Adresse und Schlüssel vom Meldewerk eintragen, „Verbinden“ tippen, fertig.
 - Per WhatsApp kommt dasselbe wie bei Telegram: Druck gestartet, Fortschritt, gleich fertig, pausiert, fertig, abgebrochen, Fehler und die Meldung nach der Abbuchung – auf Wunsch mit Kamerabild. Die Auswahl gilt für Telegram und WhatsApp gemeinsam.

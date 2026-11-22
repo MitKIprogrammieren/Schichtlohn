@@ -575,35 +575,39 @@ const SRV=window.SRV=(()=>{
   /* Telegram: Meldungen aufs Handy auch ohne Home Assistant */
   function telegramForm(){const box=document.getElementById("srv_tg");if(!box)return;const t=E.telegram||{};
     box.innerHTML=t.token&&t.chat?`<p>Meldungen gehen an <b>${esc(t.chat_name||t.chat)}</b> – zusätzlich zu Home Assistant.</p>
-      ${wahlHtml(t)}
+      ${wahlHtml(t,"telegram")}
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvTgTest">Test senden</button><button class="btn sm ghost" data-act="srvTgAus">Trennen</button></div>`
     :`<p>Auch ohne Home Assistant: In Telegram <b>@BotFather</b> öffnen, <code>/newbot</code> schreiben und den Token hier eintragen. Dann deinem neuen Bot einmal <code>/start</code> schreiben und auf „Verbinden“ tippen.</p>
       <div class="srvcopy"><input type="password" id="srv_tgtok" value="" placeholder="123456789:AA…" autocomplete="off"><button class="btn sm" data-act="srvTgVerb">Verbinden</button></div>`}
   /* Was beim Drucken gemeldet wird – gilt für Telegram und WhatsApp gemeinsam */
-  function wahlHtml(t){t=t||{};const st=Array.isArray(t.stufen)?t.stufen:[25,50,75];const ev=t.ereignisse||{};const an=k=>ev[k]!==false;const vor=Number(t.vor_ende)||0;
+  function wahlHtml(t,kanal){t=t||{};const st=Array.isArray(t.stufen)?t.stufen:[25,50,75];const ev=t.ereignisse||{};const an=k=>ev[k]!==false;const vor=Number(t.vor_ende)||0;
     const VOR=[["aus",[]],["50 %",[50]],["25 · 50 · 75 %",[25,50,75]],["alle 20 %",[20,40,60,80]],["alle 10 %",[10,20,30,40,50,60,70,80,90]]];
     const gleich=(a,b)=>a.length===b.length&&a.every((x,i)=>x===b[i]);const eigen=!VOR.some(([,v])=>gleich(v,st));
     const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
-    return `<div class="tgs"><div class="tgs-k">Fortschritt melden bei</div><div class="tgr">${VOR.map(([n,v])=>ch(`data-tgst="${v.join(",")}"`,n,gleich(v,st))).join("")}${eigen?ch('data-tgst="eigen"',"eigene: "+st.join(" · ")+" %",true):""}</div>
+    return `<div class="tgs" data-kanal="${kanal||"telegram"}"><div class="tgs-k">Fortschritt melden bei</div><div class="tgr">${VOR.map(([n,v])=>ch(`data-tgst="${v.join(",")}"`,n,gleich(v,st))).join("")}${eigen?ch('data-tgst="eigen"',"eigene: "+st.join(" · ")+" %",true):""}</div>
         <div class="tgr tgp">${[10,20,25,30,40,50,60,70,75,80,90].map(x=>ch(`data-tgx="${x}"`,x+" %",st.includes(x))).join("")}</div>
         <div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[["aus",0],["5 min",5],["10 min",10],["15 min",15],["30 min",30]].map(([n,v])=>ch(`data-tgvor="${v}"`,v?n+" vorher":n,vor===v)).join("")}</div>
         <div class="tgs-k">Melden, wenn ein Druck …</div><div class="tgr">${[["start","startet"],["pause","pausiert"],["fertig","fertig ist"],["abbruch","abgebrochen wird"],["fehler","einen Fehler hat"]].map(([k,n])=>ch(`data-tgev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
-        <label class="tgf"><input type="checkbox" id="srv_tgfoto"${t.foto===false?"":" checked"}> Kamerabild mitschicken</label></div>`}
+        <label class="tgf"><input type="checkbox" class="kfoto"${t.foto===false?"":" checked"}> Kamerabild mitschicken</label></div>`}
+  /* Auswahl eines Meldewegs: WhatsApp übernimmt, was es selbst nicht eingestellt hat, von Telegram */
+  const WAHL=["stufen","vor_ende","ereignisse","foto"];
+  function kanalCfg(k){const c=Object.assign({},E[k]||{});if(k==="whatsapp"){const t=E.telegram||{};WAHL.forEach(x=>{if(!(x in c)&&x in t)c[x]=t[x]})}return c}
   /* WhatsApp über das Meldewerk (eigenes Gateway auf dem NUC) */
   function whatsappForm(){const box=document.getElementById("srv_wa");if(!box)return;const w=E.whatsapp||{},t=E.telegram||{};const tgAn=!!(t.token&&t.chat);
-    box.innerHTML=w.url&&w.schluessel?`<p>Meldungen gehen per WhatsApp über das <b>Meldewerk</b> an dein Handy – zusätzlich zu Home Assistant${tgAn?" und Telegram":""}.</p>
-      ${tgAn?`<p class="hint" style="margin:0">Was beim Drucken gemeldet wird, stellst du oben bei Telegram ein. Die Auswahl gilt für beide.</p>`:wahlHtml(t)}
+    box.innerHTML=w.url&&w.schluessel?`<p>Meldungen gehen per WhatsApp über das <b>Meldewerk</b> an dein Handy${tgAn?" – mit eigener Auswahl, unabhängig von Telegram":" – zusätzlich zu Home Assistant"}.</p>
+      ${wahlHtml(kanalCfg("whatsapp"),"whatsapp")}
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvWaTest">Test senden</button><a class="btn sm ghost" href="${esc(/^https?:/.test(w.url)?w.url:"http://"+w.url)}" target="_blank" rel="noopener">Meldewerk öffnen</a><button class="btn sm ghost" data-act="srvWaAus">Trennen</button></div>`
     :`<p>Meldungen als WhatsApp, verschickt von deinem <b>Meldewerk</b>. Adresse und Schlüssel stehen dort unter Einstellungen → Schnittstelle.</p>
       <label class="field"><span>Adresse</span><input type="text" id="srv_waurl" value="${esc(w.url||"")}" placeholder="http://192.168.1.30:8077" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <div class="srvcopy"><input type="password" id="srv_waschl" value="" placeholder="Schlüssel aus dem Meldewerk" autocomplete="off"><button class="btn sm" data-act="srvWaVerb">Verbinden</button></div>`}
-  async function tgSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{telegram:neu});telegramForm();whatsappForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
-  document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("#srv_tg [data-tgst],#srv_tg [data-tgx],#srv_tg [data-tgvor],#srv_tg [data-tgev],#srv_wa [data-tgst],#srv_wa [data-tgx],#srv_wa [data-tgvor],#srv_wa [data-tgev]");if(!b)return;const t=E.telegram||{};
-    if(b.dataset.tgst!=null){if(b.dataset.tgst==="eigen")return;tgSpeichern({stufen:b.dataset.tgst?b.dataset.tgst.split(",").map(Number):[]},"Fortschritt-Meldungen gespeichert");return}
-    if(b.dataset.tgx){const x=Number(b.dataset.tgx);const st=new Set(Array.isArray(t.stufen)?t.stufen:[25,50,75]);st.has(x)?st.delete(x):st.add(x);tgSpeichern({stufen:[...st].sort((a,b)=>a-b)});return}
-    if(b.dataset.tgvor!=null){tgSpeichern({vor_ende:Number(b.dataset.tgvor)});return}
-    if(b.dataset.tgev){const e2=Object.assign({},t.ereignisse||{});e2[b.dataset.tgev]=e2[b.dataset.tgev]===false;tgSpeichern({ereignisse:e2});return}});
-  document.addEventListener("change",ev=>{if(ev.target&&ev.target.id==="srv_tgfoto")tgSpeichern({foto:ev.target.checked})});
+  async function tgSpeichern(neu,text,kanal){try{E=await req("PUT","/api/einstellungen",{[kanal||"telegram"]:neu});telegramForm();whatsappForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
+  document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest(".tgs[data-kanal] [data-tgst],.tgs[data-kanal] [data-tgx],.tgs[data-kanal] [data-tgvor],.tgs[data-kanal] [data-tgev]");if(!b)return;
+    const k=b.closest("[data-kanal]").dataset.kanal,t=kanalCfg(k),sp=(neu,text)=>tgSpeichern(neu,text,k);
+    if(b.dataset.tgst!=null){if(b.dataset.tgst==="eigen")return;sp({stufen:b.dataset.tgst?b.dataset.tgst.split(",").map(Number):[]},"Fortschritt-Meldungen gespeichert");return}
+    if(b.dataset.tgx){const x=Number(b.dataset.tgx);const st=new Set(Array.isArray(t.stufen)?t.stufen:[25,50,75]);st.has(x)?st.delete(x):st.add(x);sp({stufen:[...st].sort((a,b)=>a-b)});return}
+    if(b.dataset.tgvor!=null){sp({vor_ende:Number(b.dataset.tgvor)});return}
+    if(b.dataset.tgev){const e2=Object.assign({},t.ereignisse||{});e2[b.dataset.tgev]=e2[b.dataset.tgev]===false;sp({ereignisse:e2});return}});
+  document.addEventListener("change",ev=>{const c=ev.target;if(c&&c.classList&&c.classList.contains("kfoto")){const k=c.closest("[data-kanal]").dataset.kanal;tgSpeichern({foto:c.checked},"",k)}});
   /* alle Handys aus Home Assistant zum Ankreuzen */
   async function handysLaden(){const box=document.getElementById("srv_handys"),inp=document.getElementById("srv_hanot");if(!box||!inp)return;
     let d;try{d=await req("GET","/api/ha/notify")}catch(e){return}if(!d.dienste||!d.dienste.length)return;

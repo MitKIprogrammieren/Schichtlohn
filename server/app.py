@@ -80,7 +80,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.19.0"
+VERSION = "3.19.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2075,9 +2075,38 @@ STUFEN = (25, 50, 75)  # Vorgabe für die Prozent-Meldungen
 TG_EREIGNISSE = ("start", "stand", "vorende", "pause", "fertig", "abbruch", "fehler")
 
 
-def tg_stufen():
-    """Prozent-Stufen aus den Telegram-Einstellungen (leer = keine Prozent-Meldungen)."""
-    w = einstellungen()["telegram"].get("stufen")
+KANAL_WAHL = ("stufen", "vor_ende", "ereignisse", "foto", "druckverlauf")
+
+
+def kanal_cfg(k):
+    """Auswahl eines Meldewegs (telegram/whatsapp). WhatsApp übernimmt, was es selbst nicht eingestellt hat, von Telegram."""
+    e = einstellungen()
+    c = dict(e.get(k) or {})
+    if k == "whatsapp":
+        for x in KANAL_WAHL:
+            if x not in c and x in e["telegram"]:
+                c[x] = e["telegram"][x]
+    return c
+
+
+def kanal_bereit(k):
+    c = einstellungen().get(k) or {}
+    if c.get("aus"):
+        return False
+    return bool(c.get("token") and c.get("chat")) if k == "telegram" else bool(c.get("url") and c.get("schluessel"))
+
+
+def kanal_senden(k, titel, text, bild="", foto=None):
+    try:
+        return (telegram_senden if k == "telegram" else whatsapp_senden)(titel, text, bild, foto)
+    except Exception as ex:
+        print(("Telegram" if k == "telegram" else "WhatsApp") + ":", ex, flush=True)
+        return False
+
+
+def tg_stufen(k="telegram"):
+    """Prozent-Stufen eines Meldewegs (leer = keine Prozent-Meldungen)."""
+    w = kanal_cfg(k).get("stufen")
     if isinstance(w, list):
         return tuple(sorted({int(x) for x in w if isinstance(x, (int, float)) and 0 < int(x) < 100}))
     return STUFEN
@@ -2094,7 +2123,7 @@ def druck_beobachten(dr):
     alt = DRUCK_STAND.get(dr.serial)
     if alt is None:  # erster Blick nach dem Serverstart: nur merken, nichts nachmelden
         DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in range(101) if pct >= x}, "hms": hms,
-                                  "frei": st not in drucker_mod.LAUFEND, "vorende": True}
+                                  "frei": st not in drucker_mod.LAUFEND, "vorende": True, "vorende_wa": True}
         return
     meldungen = []
     codes = sorted(hms - alt["hms"])
@@ -2103,19 +2132,23 @@ def druck_beobachten(dr):
     elif job != alt["job"] and alt["st"] in ("FINISH", "FAILED", "IDLE"):
         alt["frei"] = True
     alt["job"] = job
+    wege = [k for k in ("telegram", "whatsapp") if kanal_bereit(k) and kanal_cfg(k).get("druckverlauf") is not False]
+    je = {k: [] for k in wege}  # Meldungen je Meldeweg – jeder hat seine eigene Auswahl
     if st == "RUNNING" and alt["frei"]:
-        alt.update(frei=False, stufen={x for x in range(101) if pct >= x}, vorende=False)
+        alt.update(frei=False, stufen={x for x in range(101) if pct >= x}, vorende=False, vorende_wa=False)
         meldungen.append("start")
     if st == "RUNNING":
-        neu = [x for x in tg_stufen() if pct >= x and x not in alt["stufen"]]
+        neu = {x for x in range(1, 100) if pct >= x and x not in alt["stufen"]}
         alt["stufen"].update(x for x in range(101) if pct >= x)
-        if neu and pct < 100:
-            meldungen.append("stand")
-        vor = drucker_mod._int(einstellungen()["telegram"].get("vor_ende"), 0)
         rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
-        if vor > 0 and not alt.get("vorende") and 0 < rest <= vor and pct >= 5:
-            alt["vorende"] = True
-            meldungen.append("vorende")
+        for k in wege:
+            if pct < 100 and neu & set(tg_stufen(k)):
+                je[k].append("stand")
+            vor = drucker_mod._int(kanal_cfg(k).get("vor_ende"), 0)
+            merk = "vorende" if k == "telegram" else "vorende_wa"
+            if vor > 0 and not alt.get(merk) and 0 < rest <= vor and pct >= 5:
+                alt[merk] = True
+                je[k].append("vorende")
     if st == "PAUSE" and alt["st"] == "RUNNING":
         meldungen.append("pause")
     if codes:
@@ -2124,21 +2157,20 @@ def druck_beobachten(dr):
     alt["hms"], alt["st"] = hms, st
     if getattr(dr, "ha", False) and alt_st in drucker_mod.LAUFEND and st in ("FINISH", "FAILED"):
         meldungen.append("fertig" if st == "FINISH" else "abbruch")
-    t = einstellungen()["telegram"]
-    tg_ok = bool(t.get("token") and t.get("chat")) and not t.get("aus")
-    if not meldungen or not (tg_ok or whatsapp_bereit()) or t.get("druckverlauf") is False:
-        return
-    ev = t.get("ereignisse") if isinstance(t.get("ereignisse"), dict) else {}
-    meldungen = [m for m in meldungen if ev.get(m, True) is not False]
-    if not meldungen:
+    for k in wege:
+        ev = kanal_cfg(k).get("ereignisse")
+        ev = ev if isinstance(ev, dict) else {}
+        je[k] = [m for m in meldungen + je[k] if ev.get(m, True) is not False]
+    if not any(je.values()):
         return
     name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
     pre = dr.d.get("praefix") or drucker_mod.praefix(dr.d)
     aufgabe = str(p.get("subtask_name") or "").strip() or "Druckauftrag"
     zeit = _zeittext(p)
     task = str(p.get("task_id") or "")
-    for m in meldungen:
-        im_hintergrund(druck_telegram, m, name, pre, aufgabe, pct, zeit, codes, dr.serial, task, dr)
+    for k, liste in je.items():
+        for m in liste:
+            im_hintergrund(druck_telegram, m, name, pre, aufgabe, pct, zeit, codes, dr.serial, task, dr, k)
 
 
 def uhrzeit(ts):
@@ -2158,11 +2190,16 @@ def _zeittext(p):
     return (" · noch %s" % _dauer(rest * 60) if rest else "") + (" · fertig ca. %s Uhr" % ende if ende else "")
 
 
-def tg_foto():
-    return einstellungen()["telegram"].get("foto", True) is not False
+def tg_foto(k="telegram"):
+    return kanal_cfg(k).get("foto", True) is not False
 
 
-def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=None):
+def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=None, kanal="telegram"):
+    def melde_senden(titel, text, bild="", foto=None):  # nur an diesen Meldeweg
+        return kanal_senden(kanal, titel, text, bild, foto)
+
+    def tg_foto():
+        return kanal_cfg(kanal).get("foto", True) is not False
     if art == "start":
         time.sleep(25)  # Name, Restzeit und Vorschaubild stehen erst kurz nach dem Start fest
         if dr is not None:
@@ -2302,11 +2339,18 @@ def fertig_melden(druckername, erg, kurz):
     titel = f"{erg['anlass']}: {aufgabe}"
     kopf = " · ".join(x for x in (druckername, _dauer(erg.get("dauer")),
                                   ("%d %%" % round(erg.get("anteil", 1) * 100)) if erg.get("anteil", 1) < 1 else "") if x)
-    tg = einstellungen()["telegram"]
-    ev = tg.get("ereignisse") if isinstance(tg.get("ereignisse"), dict) else {}
     art = "fertig" if erg.get("anlass") == "Druck fertig" else "abbruch"
-    foto = kamera_foto(erg["praefix"]) if erg.get("praefix") and tg.get("foto", True) is not False else None
-    handy_meldung(titel, kopf + (". " + ". ".join(kurz) if kurz else ""), erg.get("bild") or "", foto, telegram=ev.get(art, True) is not False)
+    text = kopf + (". " + ". ".join(kurz) if kurz else "")
+    bild = None
+    for k in ("telegram", "whatsapp"):
+        c = kanal_cfg(k)
+        ev = c.get("ereignisse") if isinstance(c.get("ereignisse"), dict) else {}
+        if not kanal_bereit(k) or ev.get(art, True) is False:
+            continue
+        if c.get("foto", True) is not False and erg.get("praefix") and bild is None:
+            bild = kamera_foto(erg["praefix"]) or b""
+        im_hintergrund(kanal_senden, k, titel, text, erg.get("bild") or "", (bild or None) if c.get("foto", True) is not False else None)
+    handy_meldung(titel, text, erg.get("bild") or "", None, telegram=False)
 
 
 def druck_abbuchen(druckername, erg):
