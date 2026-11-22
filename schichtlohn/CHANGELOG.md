@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.19.2 – 22.11.2026
+- Abgebrochene Drucke werden jetzt sicher als „Druck abgebrochen“ erkannt – auch wenn der Drucker (z. B. der H2C) beim Abbrechen „fertig“ meldet oder direkt in den Ruhezustand springt. Abgebucht wird dann nur der Teil, der wirklich gedruckt wurde.
+
 ## 3.19.1 – 22.11.2026
 - WhatsApp hat jetzt eine eigene Auswahl wie Telegram: Fortschritt, „Gleich fertig“, welche Ereignisse gemeldet werden und ob ein Kamerabild mitkommt. So kann zum Beispiel Telegram jeden Fortschritt melden und WhatsApp nur, wenn ein Druck fertig ist.
 - Was du bei WhatsApp noch nicht eingestellt hast, übernimmt es von Telegram.

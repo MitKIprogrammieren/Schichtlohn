@@ -1203,7 +1203,10 @@ class Drucker:
             self.auftrag["max"] = max(self.auftrag["max"], _int(self.p.get("mc_percent"), 0))
             self.auftrag["schicht"] = max(self.auftrag.get("schicht", 0), _int(self.p.get("layer_num"), 0) or 0)
             self._skip_merken(self.auftrag)
-        if self.vorher in LAUFEND and st in ("FINISH", "FAILED"):
+        ende_st = st
+        if self.vorher in LAUFEND and st == "IDLE" and self.auftrag and (self.auftrag.get("max") or self.auftrag.get("schicht")):
+            ende_st = "FAILED"  # manche Drucker (z. B. H2C) springen beim Abbrechen direkt auf IDLE
+        if self.vorher in LAUFEND and ende_st in ("FINISH", "FAILED"):
             a = self.auftrag or {"name": self.p.get("subtask_name") or "", "task": str(self.p.get("task_id") or ""),
                                  "rest": {}, "max": _int(self.p.get("mc_percent"), 0), "schicht": _int(self.p.get("layer_num"), 0) or 0,
                                  "skip": {}, "datei": None, "gcode": None, "objekte": None}
@@ -1213,8 +1216,11 @@ class Drucker:
             if ist_wartung(a.get("name")):
                 self.wirt.log(f"Drucker {self.serial}: „{a.get('name')}“ ist eine Kalibrierung/Wartung – keine Abbuchung")
             else:
-                anteil = 1.0 if st == "FINISH" else min(1.0, max(a.get("max", 0), _int(self.p.get("mc_percent"), 0)) / 100)
-                threading.Thread(target=self._abschluss, args=(a, st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
+                pct = max(a.get("max", 0), _int(self.p.get("mc_percent"), 0))
+                if ende_st == "FINISH" and (_int(self.p.get("print_error"), 0) != 0 or 0 < pct < 98):
+                    ende_st = "FAILED"  # als „fertig“ gemeldet, aber abgebrochen (Fehlercode oder nicht durchgelaufen)
+                anteil = 1.0 if ende_st == "FINISH" else min(1.0, pct / 100)
+                threading.Thread(target=self._abschluss, args=(a, ende_st, anteil, json.loads(json.dumps(self.p))), daemon=True).start()
         if st:
             self.vorher = st
         if time.time() - self._verlauf_t >= 10:
