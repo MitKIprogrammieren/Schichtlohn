@@ -7816,7 +7816,8 @@ const spoolVon=g=>window.LGN&&LGN.spool?LGN.spool(g.hex,undefined,[...g.kw].map(
 const packT=o=>(o.stueck>1?o.stueck+" × ":"")+kgT(o.gew);
 function bildBox(src,sp,tags){return `<div class="pvi">${sp?`<span class="pvi-sp">${sp}</span>`:""}${src?`<img src="${esc(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
   ${tags.length?`<span class="pvi-tg">${tags.map(t=>`<i class="${t[1]}">${esc(t[0])}</i>`).join("")}</span>`:""}</div>`}
-function gKarte({g,o}){const b=o[0],auf=P.offen===g.key;const bild=(o.find(x=>x.bild)||{}).bild||"";
+const nurSpule=()=>((S.cfg&&S.cfg.pvBild)||"foto")==="spule";
+function gKarte({g,o}){const b=o[0],auf=P.offen===g.key;const bild=nurSpule()?"":(o.find(x=>x.bild)||{}).bild||"";
   const rab=b.normal>b.preis?Math.round((1-b.preis/b.normal)*100):0;
   const tags=[imLager(g)?["im Lager","lg"]:null,rab>=5?["−"+rab+" %","rb"]:null,g.refill?["Refill",""]:null].filter(Boolean);
   return `<article class="pvc2${auf?" auf":""}"><a class="pvc2-a" href="${esc(b.url)}" target="_blank" rel="noopener" title="${esc(b.titel)}">${bildBox(bild,spoolVon(g),tags)}
@@ -7896,12 +7897,14 @@ function renderSeite(m){laden();const d=P.d;const shops=d?new Set(d.z.map(z=>z[0
     ${P.shopsAuf?shopsHTML():""}
     <div class="pvf"><div class="pvf-r"><span>Material</span>${chip("mat","","Alle",!P.mat)}${mats.map(x=>chip("mat",x,x,P.mat===x)).join("")}</div>
       <div class="pvf-r"><span>Gewicht</span>${chip("gew","einzel","Einzelspule",P.gew==="einzel")}${chip("gew","1","1 kg",P.gew==="1")}${chip("gew","klein","unter 1 kg",P.gew==="klein")}${chip("gew","gross","Großpackung",P.gew==="gross")}${chip("gew","alle","Alle",P.gew==="alle")}</div>
-      <div class="pvf-r"><span>Art</span>${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","Spule",P.art==="spule")}${chip("art","refill","Refill",P.art==="refill")}${chip("art","zubehoer","Zubehör",P.art==="zubehoer")}</div></div>
+      <div class="pvf-r"><span>Art</span>${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","Spule",P.art==="spule")}${chip("art","refill","Refill",P.art==="refill")}${chip("art","zubehoer","Zubehör",P.art==="zubehoer")}</div>
+      <div class="pvf-r"><span>Bild</span>${chip("bild","foto","Produktfoto",!nurSpule())}${chip("bild","spule","Spule der Marke",nurSpule())}</div></div>
     <div id="pvgL">${listeHTML()}</div></div>`;
   marktSuchen()}
 document.addEventListener("click",ev=>{const b=ev.target.closest("[data-pvg]");if(!b||S.tab!=="preise")return;const k=b.dataset.pvg;
   if(k==="mehr"){P.mehr+=40;teil();return}
   if(k==="offen"){P.offen=b.dataset.v;teil();return}
+  if(k==="bild"){S.cfg.pvBild=b.dataset.v;saveCfgSoon();render();return}
   if(k==="ansicht"){P.ansicht=b.dataset.v;P.shopsAuf=false;render();window.scrollTo({top:0});return}
   if(k==="shopsAuf"){P.shopsAuf=!P.shopsAuf;render();return}
   if(k==="sh"||k==="shAlle"){const aus=shopAus();if(k==="sh"){aus.has(b.dataset.v)?aus.delete(b.dataset.v):aus.add(b.dataset.v)}else if(b.dataset.v==="1")aus.clear();else new Set(P.d.z.map(z=>z[0])).forEach(x=>aus.add(x));

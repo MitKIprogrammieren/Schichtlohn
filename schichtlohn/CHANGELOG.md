@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.17.20 – 22.11.2026
+- Preise: Neue Zeile „Bild“ unter den Filtern – wahlweise das Produktfoto aus dem Shop oder die Spule der Marke wie im Lager. Die Wahl gilt auf allen Geräten.
+
 ## 3.17.19 – 22.11.2026
 - Preise: Ohne Produktfoto zeigt jede Karte jetzt die Spule der Marke wie im Lager – Bambu Lab klar, Sunlu mit Lochplatte, Tinmorry geschlitzt, Polymaker aus Pappe, Refills als Rolle. Die Spulen-Einstellungen je Marke gelten auch hier.
 - Sunlu, Tinmorry, Polymaker, Filaxix und FD3D bekommen ihre Spule jetzt auch ohne eigene Einstellung.
