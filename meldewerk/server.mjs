@@ -28,7 +28,7 @@ const LOGO = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect 
   '<g transform="translate(24 24) scale(.86) translate(-24 -25)">' + LOGO_INNEN + '</g></svg>';
 
 // ---------- Einstellungen ----------
-const STANDARD = { empfaenger: '', schluessel: '', aufbewahrung_tage: 365, absender_loeschen: true, archivieren: true };
+const STANDARD = { empfaenger: '', empfaenger_name: '', schluessel: '', aufbewahrung_tage: 365, absender_loeschen: true, archivieren: true };
 function einstLaden() {
   let e = {};
   try { e = JSON.parse(fs.readFileSync(EINST, 'utf8')); } catch {}
@@ -64,8 +64,34 @@ const GESENDET = new Map(); // id -> message (für Wiederholungsanfragen von Wha
 const log = pino({ level: process.env.LOG || 'warn' });
 
 function jid(nr) {
-  const d = String(nr || '').replace(/\D/g, '').replace(/^00/, '');
+  const t = String(nr || '').trim();
+  if (/@(g\.us|s\.whatsapp\.net)$/.test(t)) return t; // Gruppe oder fertige WhatsApp-Kennung
+  const d = t.replace(/\D/g, '').replace(/^00/, '');
   return d ? d + '@s.whatsapp.net' : '';
+}
+
+// Gruppen, in denen die Absender-Nummer ist (kurz zwischengespeichert)
+const GRUPPEN = { liste: [], zeit: 0 };
+async function gruppen(neu) {
+  if (!W.verbunden) return GRUPPEN.liste;
+  if (neu || Date.now() - GRUPPEN.zeit > 10 * 60000) {
+    const g = await W.sock.groupFetchAllParticipating();
+    GRUPPEN.liste = Object.values(g || {}).map(x => ({ id: x.id, name: x.subject || x.id, teilnehmer: (x.participants || []).length }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    GRUPPEN.zeit = Date.now();
+  }
+  return GRUPPEN.liste;
+}
+
+// Ziel einer Meldung: leer = Standard-Empfänger; sonst Gruppenname, „ich“, Nummer oder WhatsApp-Kennung
+async function zielFinden(ziel) {
+  const z = String(ziel || '').trim();
+  if (!z) return { jid: jid(EIN.empfaenger), name: EIN.empfaenger_name || '' };
+  if (/^(ich|mich|mir|standard)$/i.test(z)) return { jid: jid(EIN.empfaenger), name: EIN.empfaenger_name || '' };
+  if (/@/.test(z) || /^\+?[\d\s/-]{8,}$/.test(z)) return { jid: jid(z), name: z };
+  const g = (await gruppen()).find(x => x.name.toLowerCase() === z.toLowerCase()) || (await gruppen(true)).find(x => x.name.toLowerCase() === z.toLowerCase());
+  if (!g) throw new Error('Gruppe „' + z + '“ nicht gefunden – ist die Absender-Nummer drin?');
+  return { jid: g.id, name: g.name };
 }
 
 async function verbinden() {
@@ -116,9 +142,11 @@ async function bildHolen(quelle) {
 }
 
 async function zustellen(eintrag) {
-  const ziel = jid(EIN.empfaenger);
-  if (!ziel) throw new Error('Kein Empfänger eingestellt');
   if (!W.verbunden) throw new Error('nicht verbunden');
+  const zf = await zielFinden(eintrag.ziel);
+  const ziel = zf.jid;
+  if (!ziel) throw new Error('Kein Empfänger eingestellt');
+  eintrag.an = zf.name || (ziel.endsWith('@g.us') ? 'Gruppe' : '');
   let inhalt;
   if (eintrag.bild) {
     const buf = fs.readFileSync(path.join(BILDER, eintrag.bild));
@@ -156,17 +184,19 @@ async function warteschlange() {
 }
 setInterval(warteschlange, 60000);
 
-async function melden({ text, quelle, bild, titel }) {
+async function melden({ text, quelle, bild, titel, ziel }) {
   text = String(text || '').trim();
   titel = String(titel || '').trim();
   if (titel) text = '*' + titel + '*' + (text ? '\n' + text : '');
   if (!text && !bild) throw Object.assign(new Error('Text fehlt'), { code: 400 });
   const e = { id: crypto.randomUUID(), zeit: Date.now(), quelle: String(quelle || 'sonstige').slice(0, 24).toLowerCase(), text: text.slice(0, 4000), status: 'wartet', fehler: '' };
+  if (ziel) e.ziel = String(ziel).slice(0, 120);
   if (bild) {
     try { const b = await bildHolen(bild); if (b?.length) { e.bild = e.id + '.jpg'; fs.writeFileSync(path.join(BILDER, e.bild), b); } }
     catch (err) { e.fehler = 'Bild: ' + err.message; }
   }
   VERL.push(e);
+  alexaAnsagen(e).catch(() => {});
   try { e.wa_id = await zustellen(e); e.status = 'gesendet'; e.gesendet = Date.now(); }
   catch (err) { e.fehler = err.message; if (!/nicht verbunden|Kein Empfänger/.test(err.message)) e.status = 'fehler'; }
   verlaufSchreiben();
@@ -174,40 +204,90 @@ async function melden({ text, quelle, bild, titel }) {
 }
 
 // ---------- Home Assistant: Skript „Meldewerk senden“ löst das Ereignis meldewerk_senden aus ----------
-const HA_URL = (process.env.HA_URL || '').replace(/\/+$/, '');
-const HA_TOKEN = process.env.HA_TOKEN || '';
-const HA = { verbunden: false, fehler: '' };
+// Adresse und Token kommen aus den Einstellungen der Oberfläche, sonst aus der .env
+const haUrl = () => String(EIN.ha_url || process.env.HA_URL || '').replace(/\/+$/, '');
+const haToken = () => String(EIN.ha_token || process.env.HA_TOKEN || '');
+const HA = { verbunden: false, fehler: '', ws: null };
+
+async function haApi(pfad, daten) {
+  const r = await fetch(haUrl() + pfad, { method: daten ? 'POST' : 'GET', signal: AbortSignal.timeout(20000),
+    headers: { Authorization: 'Bearer ' + haToken(), 'Content-Type': 'application/json' }, body: daten ? JSON.stringify(daten) : undefined });
+  if (!r.ok) throw new Error('Home Assistant antwortet mit ' + r.status);
+  return r.json();
+}
+
+// ---------- Alexa über Home Assistant (Alexa Media Player) ----------
+const ALEXA = { mediaplayer: false, geraete: [], zeit: 0 };
+async function alexaLaden(neu) {
+  if (!HA.verbunden) return ALEXA;
+  if (!neu && Date.now() - ALEXA.zeit < 5 * 60000) return ALEXA;
+  try {
+    const dienste = await haApi('/api/services');
+    const notify = (dienste.find(d => d.domain === 'notify') || {}).services || {};
+    ALEXA.mediaplayer = Object.keys(notify).some(k => k === 'alexa_media' || k.startsWith('alexa_media'));
+    const st = await haApi('/api/states');
+    ALEXA.geraete = st.filter(x => x.entity_id.startsWith('media_player.') && x.attributes && 'last_called' in x.attributes)
+      .map(x => ({ id: x.entity_id, name: x.attributes.friendly_name || x.entity_id, art: x.attributes.device_family || x.attributes.model || 'Echo', online: x.state !== 'unavailable' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    ALEXA.zeit = Date.now();
+  } catch (e) { console.warn('Alexa-Geräte:', e.message); }
+  return ALEXA;
+}
+function alexaStatus() {
+  const a = EIN.alexa || {};
+  return { mediaplayer: ALEXA.mediaplayer, ruhe: a.ruhe || '', quellen: a.quellen || {},
+    geraete: ALEXA.geraete.map(g => ({ ...g, an: !!(a.geraete || {})[g.id] })) };
+}
+function nachtruhe() {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec((EIN.alexa || {}).ruhe || '');
+  if (!m) return false;
+  const h = Number(new Intl.DateTimeFormat('de-DE', { hour: 'numeric', hour12: false, timeZone: process.env.TZ || 'Europe/Berlin' }).format(new Date()));
+  const von = Number(m[1]), bis = Number(m[2]);
+  return von > bis ? (h >= von || h < bis) : (h >= von && h < bis);
+}
+async function alexaAnsagen(e) {
+  const a = EIN.alexa || {};
+  const ziele = Object.entries(a.geraete || {}).filter(([, an]) => an).map(([id]) => id);
+  if (!ziele.length || !HA.verbunden || (a.quellen || {})[e.quelle] === false || e.quelle === 'test' && !e.alexa_test || nachtruhe()) return;
+  await alexaLaden();
+  if (!ALEXA.mediaplayer) return;
+  const text = e.text.replace(/\*([^*\n]+)\*/g, '$1').replace(/\n+/g, '. ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, '').trim();
+  try { await haApi('/api/services/notify/alexa_media', { message: text, target: ziele, data: { type: 'announce' } }); e.alexa = true; }
+  catch (err) { console.warn('Alexa-Ansage:', err.message); }
+}
 
 async function haBild(d) {
   // kamera: camera.xyz → aktuelles Kamerabild; bild: /api/... (aus HA, mit Anmeldung) oder http(s)://…
   let pfad = d.kamera ? '/api/camera_proxy/' + String(d.kamera).trim() : String(d.bild || '').trim();
   if (!pfad) return '';
   if (/^https?:/.test(pfad) || pfad.startsWith('data:')) return pfad;
-  const r = await fetch(HA_URL + (pfad.startsWith('/') ? pfad : '/' + pfad), { headers: { Authorization: 'Bearer ' + HA_TOKEN }, signal: AbortSignal.timeout(20000) });
+  const r = await fetch(haUrl() + (pfad.startsWith('/') ? pfad : '/' + pfad), { headers: { Authorization: 'Bearer ' + haToken() }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error('Bild aus Home Assistant nicht abrufbar (' + r.status + ')');
   return 'data:' + (r.headers.get('content-type') || 'image/jpeg') + ';base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
 }
 
 function haVerbinden() {
-  if (!HA_URL || !HA_TOKEN || typeof WebSocket === 'undefined') return;
+  if (HA.ws) { try { HA.ws.onclose = null; HA.ws.close(); } catch {} HA.ws = null; HA.verbunden = false; }
+  clearTimeout(HA.timer);
+  if (!haUrl() || !haToken() || typeof WebSocket === 'undefined') return;
   let ws;
-  try { ws = new WebSocket(HA_URL.replace(/^http/, 'ws') + '/api/websocket'); }
-  catch (e) { HA.fehler = e.message; return setTimeout(haVerbinden, 30000); }
+  try { ws = HA.ws = new WebSocket(haUrl().replace(/^http/, 'ws') + '/api/websocket'); }
+  catch (e) { HA.fehler = e.message; HA.timer = setTimeout(haVerbinden, 30000); return; }
   ws.onmessage = async ev => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
-    if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: HA_TOKEN }));
+    if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: haToken() }));
     else if (m.type === 'auth_ok') ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'meldewerk_senden' }));
     else if (m.type === 'auth_invalid') { HA.fehler = 'Home-Assistant-Token ungültig'; console.warn(HA.fehler); }
-    else if (m.type === 'result' && m.id === 1 && m.success) { HA.verbunden = true; HA.fehler = ''; console.log('Home Assistant verbunden – warte auf meldewerk_senden'); }
+    else if (m.type === 'result' && m.id === 1 && m.success) { HA.verbunden = true; HA.fehler = ''; console.log('Home Assistant verbunden – warte auf meldewerk_senden'); alexaLaden(true); }
     else if (m.type === 'event' && m.event?.event_type === 'meldewerk_senden') {
       const d = m.event.data || {};
       let bild = '';
       try { bild = await haBild(d); } catch (e) { console.warn(e.message); }
-      melden({ titel: d.titel ?? d.title, text: d.text ?? d.message, quelle: d.quelle || 'ha', bild })
+      melden({ titel: d.titel ?? d.title, text: d.text ?? d.message, quelle: d.quelle || 'ha', ziel: d.ziel, bild })
         .catch(e => console.warn('Meldung aus Home Assistant:', e.message));
     }
   };
-  ws.onclose = () => { HA.verbunden = false; setTimeout(haVerbinden, 15000); };
+  ws.onclose = () => { HA.verbunden = false; if (HA.ws === ws) HA.timer = setTimeout(haVerbinden, 15000); };
   ws.onerror = () => { HA.fehler = HA.fehler || 'Home Assistant nicht erreichbar'; };
 }
 
@@ -239,7 +319,7 @@ function schluesselOk(req, u, d) {
 }
 function status() {
   return { verbunden: W.verbunden, qr: W.qr, nummer: W.nummer, name: W.name, fehler: W.fehler,
-    ha: { an: !!(HA_URL && HA_TOKEN), verbunden: HA.verbunden, fehler: HA.fehler }, einstellungen: EIN, wartend: VERL.filter(v => v.status === 'wartet').length, gesamt: VERL.length };
+    ha: { an: !!(haUrl() && haToken()), verbunden: HA.verbunden, fehler: HA.fehler, url: haUrl() }, alexa: alexaStatus(), einstellungen: { ...EIN, ha_token: EIN.ha_token ? '••••••' : '' }, wartend: VERL.filter(v => v.status === 'wartet').length, gesamt: VERL.length };
 }
 
 http.createServer(async (req, res) => {
@@ -251,6 +331,19 @@ http.createServer(async (req, res) => {
     if (p === '/logo.svg') return senden(res, 200, LOGO, 'image/svg+xml');
     if (p === '/gesund') return senden(res, 200, { ok: true, verbunden: W.verbunden });
     if (p === '/api/status') return senden(res, 200, status());
+    if (p === '/api/alexa') { await alexaLaden(u.searchParams.get('neu') === '1'); return senden(res, 200, alexaStatus()); }
+    if (req.method === 'POST' && p === '/api/alexa/test') {
+      await alexaLaden();
+      const ziele = Object.entries((EIN.alexa || {}).geraete || {}).filter(([, an]) => an).map(([id]) => id);
+      if (!ALEXA.mediaplayer) return senden(res, 400, { ok: false, text: 'Alexa Media Player ist in Home Assistant noch nicht eingerichtet' });
+      if (!ziele.length) return senden(res, 400, { ok: false, text: 'Erst mindestens einen Echo einschalten' });
+      await haApi('/api/services/notify/alexa_media', { message: 'Hallo, hier ist das Meldewerk. Ansagen funktionieren.', target: ziele, data: { type: 'announce' } });
+      return senden(res, 200, { ok: true });
+    }
+    if (p === '/api/gruppen') {
+      if (!W.verbunden) return senden(res, 200, { ok: false, liste: [], text: 'Nicht verbunden' });
+      return senden(res, 200, { ok: true, liste: await gruppen(u.searchParams.get('neu') === '1') });
+    }
     if (p === '/api/verlauf') {
       const q = (u.searchParams.get('q') || '').toLowerCase();
       const quelle = u.searchParams.get('quelle') || '';
@@ -268,21 +361,37 @@ http.createServer(async (req, res) => {
     if (p === '/api/senden') {
       const d = req.method === 'POST' ? await lesen(req) : Object.fromEntries(u.searchParams);
       if (!schluesselOk(req, u, d)) return senden(res, 401, { ok: false, text: 'Schlüssel fehlt oder falsch' });
-      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, bild: d.bild || d.bild_url || d.image });
+      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, ziel: d.ziel ?? d.an, bild: d.bild || d.bild_url || d.image });
       return senden(res, e.status === 'fehler' ? 500 : 200, { ok: e.status !== 'fehler', status: e.status, id: e.id, fehler: e.fehler });
     }
     // Ab hier nur die eigene Oberfläche
     if (req.method === 'POST' && p === '/api/test') {
       const d = await lesen(req);
-      const e = await melden({ text: d.text || 'Testnachricht vom Meldewerk', quelle: 'test' });
+      const e = await melden({ text: d.text || 'Testnachricht vom Meldewerk', quelle: 'test', ziel: d.ziel });
       return senden(res, 200, { ok: e.status !== 'fehler', status: e.status, fehler: e.fehler });
     }
     if (req.method === 'POST' && p === '/api/einstellungen') {
       const d = await lesen(req);
-      if ('empfaenger' in d) EIN.empfaenger = String(d.empfaenger).replace(/[^\d+]/g, '');
+      if ('empfaenger' in d) {
+        const t = String(d.empfaenger || '').trim();
+        EIN.empfaenger = t.endsWith('@g.us') ? t : t.replace(/[^\d+]/g, '');
+        EIN.empfaenger_name = String(d.empfaenger_name || '').slice(0, 120);
+      }
       if ('aufbewahrung_tage' in d) EIN.aufbewahrung_tage = Math.max(0, Number(d.aufbewahrung_tage) || 0);
       if ('absender_loeschen' in d) EIN.absender_loeschen = !!d.absender_loeschen;
       if ('archivieren' in d) EIN.archivieren = !!d.archivieren;
+      if ('ha_url' in d || 'ha_token' in d) {
+        if ('ha_url' in d) EIN.ha_url = String(d.ha_url || '').trim().replace(/\/+$/, '');
+        if (d.ha_token && !/^•+$/.test(d.ha_token)) EIN.ha_token = String(d.ha_token).trim();
+        if (d.ha_trennen) { EIN.ha_url = ''; EIN.ha_token = ''; }
+        setTimeout(haVerbinden, 50);
+      }
+      if (d.alexa && typeof d.alexa === 'object') {
+        const a = EIN.alexa = EIN.alexa || {};
+        if (d.alexa.geraet) { a.geraete = a.geraete || {}; a.geraete[d.alexa.geraet] = !!d.alexa.an; }
+        if (d.alexa.quelle) { a.quellen = a.quellen || {}; a.quellen[d.alexa.quelle] = !!d.alexa.an; }
+        if ('ruhe' in d.alexa) a.ruhe = /^\d{1,2}-\d{1,2}$/.test(d.alexa.ruhe) ? d.alexa.ruhe : '';
+      }
       if (d.neuer_schluessel) EIN.schluessel = crypto.randomBytes(16).toString('hex');
       einstSpeichern(EIN); aufraeumen();
       return senden(res, 200, status());

@@ -23,6 +23,14 @@ SchichtLohn schickt seine Druck- und Lager-Meldungen von selbst, wenn unter Eins
 
 In Automationen das Skript **Meldewerk senden** (`script.meldewerk_senden`) aufrufen – Felder Titel, Text und optional Kamera oder Bild. Das Skript löst das Ereignis `meldewerk_senden` aus, auf das das Meldewerk hört (dafür `HA_URL` und `HA_TOKEN` in der .env). Kein YAML, kein Neustart nötig.
 
+## Gruppen
+
+Unter Einstellungen → Empfänger stehen alle Gruppen, in denen die Absender-Nummer Mitglied ist. Pro Meldung geht auch ein anderes Ziel: Feld `ziel` mit dem Gruppennamen (oder einer Nummer).
+
+## Alexa
+
+Braucht in Home Assistant die Integration Alexa Media Player. Im Meldewerk unter Einstellungen → Alexa die Echos einschalten, die ansagen sollen, dazu Quellen und Nachtruhe. Home Assistant (Adresse und Token) wird direkt in der Oberfläche verbunden.
+
 ## Installation (Schaltwerk)
 
 Stack `meldewerk` mit `compose.yaml` aus diesem Ordner anlegen. Der Container holt sich die Programmdateien beim Start aus dem Repo – ein Update ist einfach ein Neustart des Stacks.
