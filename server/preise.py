@@ -224,15 +224,30 @@ def _alle_woerter(titel, woerter):
     return True
 
 
-def suchen(cfg, q, max_je=12):
+ZUBEHOER = re.compile(r"cutter|klinge|blade|messer|d[üu]se|nozzle|hotend|heatbreak|connector|verbinder|kupplung|ptfe|schlauch|tube|"
+                      r"spulenhalter|halter|holder|rack|trockner|dryer|druckbett|druckplatte|build ?plate|plate\b|extruder|sensor|l[üu]fter|fan\b|"
+                      r"riemen|belt|ersatz|spare|kit\b|werkzeug|tool|kleber|glue|adapter|schraube|screw|wischer|wiper|chip|rfid|kabel|cable|motor", re.I)
+FILAMENT = re.compile(r"filament|\b(pla|petg|pctg|abs|asa|tpu|pa\d*|pc|pet|pva|hips)\b", re.I)
+
+
+def ist_filament(titel, pk):
+    """Filament statt Zubehör: Materialwort im Titel, kein Zubehörwort, und ein Kilopreis, den es für Filament gibt."""
+    t = str(titel or "")
+    return bool(FILAMENT.search(t)) and not ZUBEHOER.search(t) and 5 <= (pk or 0) <= 300
+
+
+def suchen(cfg, q, max_je=12, zubehoer=False):
     """Freie Suche bei eBay und AliExpress, z. B. „petg schwarz“ → {"ebay": [...], "ali": [...], "fehler": [...]}.
-    Preise inkl. Versand, sofern der Händler ihn nennt; €/kg aus Gewicht und Stückzahl im Titel. Ergebnis 1 Stunde gemerkt."""
+    Preise inkl. Versand, sofern der Händler ihn nennt; €/kg aus Gewicht und Stückzahl im Titel. Ergebnis 1 Stunde gemerkt.
+    zubehoer=False: nur Filament (Klingen, Düsen, Verbinder … fallen raus); zubehoer=True: nur das Zubehör."""
     q = " ".join(str(q or "").split())[:80]
     woerter = [w for w in _norm(q).split() if len(w) > 1 and w not in ("filament", "1kg", "kg")]
     if not woerter:
         return {"ebay": [], "ali": [], "fehler": []}
     schluessel = " ".join(woerter)
-    alt = _such_cache.get(schluessel)
+    zusatz = "" if zubehoer else " filament"
+    ck = schluessel + ("|z" if zubehoer else "")
+    alt = _such_cache.get(ck)
     if alt and time.time() - alt[0] < 3600:
         return alt[1]
     eb, al = (cfg or {}).get("ebay") or {}, (cfg or {}).get("ali") or {}
@@ -241,7 +256,7 @@ def suchen(cfg, q, max_je=12):
     if eb.get("id") and eb.get("secret"):
         try:
             token = ebay_token(eb["id"], eb["secret"])
-            for t in _ebay_suche(token, {"q": schluessel + " filament"}):
+            for t in _ebay_suche(token, {"q": schluessel + zusatz}):
                 if not _alle_woerter(t.get("title"), woerter):
                     continue
                 p = t.get("price") or {}
@@ -263,7 +278,7 @@ def suchen(cfg, q, max_je=12):
             out["fehler"].append(str(getattr(ex, "reason", None) or ex)[:200])
     if al.get("key") and al.get("secret"):
         try:
-            for p in _ali_produkte(al, schluessel + " filament"):
+            for p in _ali_produkte(al, schluessel + zusatz):
                 if not _alle_woerter(p.get("product_title"), woerter):
                     continue
                 preis = float(p.get("target_sale_price") or p.get("sale_price") or 0)
@@ -275,11 +290,12 @@ def suchen(cfg, q, max_je=12):
         except Exception as ex:
             out["fehler"].append(str(getattr(ex, "reason", None) or ex)[:200])
     for k in ("ebay", "ali"):
-        out[k] = sorted(out[k], key=lambda x: x["pk"])[:max_je]
+        L = [x for x in out[k] if ist_filament(x["titel"], x["pk"]) != zubehoer]
+        out[k] = sorted(L, key=lambda x: x["preis"] if zubehoer else x["pk"])[:max_je]
     if not out["fehler"]:
         if len(_such_cache) > 200:
             _such_cache.clear()
-        _such_cache[schluessel] = (time.time(), out)
+        _such_cache[ck] = (time.time(), out)
     return out
 
 

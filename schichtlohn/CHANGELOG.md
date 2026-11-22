@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.17.18 – 22.11.2026
+- Preise: Die Suche bei eBay und AliExpress zeigt jetzt nur noch Filament. Klingen, Düsen, Schlauchverbinder und anderes Zubehör fallen raus.
+- Zubehör lässt sich gezielt suchen: unter „Art“ auf „Zubehör“ tippen. Dann gibt es den Preis statt €/kg.
+- Die Shop-Angebote stehen jetzt oben, eBay und AliExpress darunter. Der Materialfilter gilt auch für eBay und AliExpress.
+
 ## 3.17.17 – 22.11.2026
 - Preise im neuen Look: Jede Sorte ist jetzt eine Karte mit großem Produktbild, Marke und Packungsgröße, dem Preis je kg groß und darunter Preis und Shop. Rabatte und „im Lager“ stehen als Schild auf dem Bild. „weitere Shops“ klappt die übrigen Angebote auf.
 - Die Startseite zeigt je Material die günstigsten Spulen als Karten, eBay und AliExpress erscheinen ebenfalls als Karten.

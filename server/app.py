@@ -26,7 +26,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
   GET  /api/preise, POST …/abrufen    Preisvergleich eBay/AliExpress je Sorte (Schlüssel unter Einstellungen)
   GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
-  GET  /api/preise/suche?q=…          freie Suche bei eBay und AliExpress (Preisvergleichsseite)
+  GET  /api/preise/suche?q=…[&art=zubehoer]  freie Suche bei eBay und AliExpress (Preisvergleichsseite; ohne art nur Filament)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
   GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
   GET/POST /api/bambu_fm             Filament Manager in Bambu Studio: Modus aus|ams|lager, Stand, „Jetzt abgleichen“
@@ -77,7 +77,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.17.17"
+VERSION = "3.17.18"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3858,7 +3858,7 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["preise", "suche"] and methode == "GET":
             cfg = einstellungen().get("preise") or {}
             an = [k for k, f in (("ebay", ("id", "secret")), ("ali", ("key", "secret"))) if all((cfg.get(k) or {}).get(x) for x in f)]
-            erg = preise_mod.suchen(cfg, (q.get("q") or [""])[0]) if an else {"ebay": [], "ali": [], "fehler": []}
+            erg = preise_mod.suchen(cfg, (q.get("q") or [""])[0], zubehoer=(q.get("art") or [""])[0] == "zubehoer") if an else {"ebay": [], "ali": [], "fehler": []}
             return self._json(200, dict(erg, dienste=an))
         if teile == ["preise", "protokoll"] and methode == "GET":
             w, _ = daten_lesen(PROTOKOLL_KEY)

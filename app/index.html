@@ -7825,8 +7825,13 @@ function gKarte({g,o}){const b=o[0],auf=P.offen===g.key;const bild=(o.find(x=>x.
     ${o.length>1?`<button type="button" class="pvc2-w" data-pvg="offen" data-v="${auf?"":esc(g.key)}" aria-expanded="${auf}">${auf?"Weniger":`${o.length-1} ${o.length===2?"weiterer Shop":"weitere Shops"}`}<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`:""}
     ${auf?`<div class="pvk-o">${o.map((x,i)=>oZeile(x,i===0,true)).join("")}</div>`:""}</article>`}
 /* eBay/AliExpress live */
+/* Filament oder Zubehör? (wie auf dem Server: Materialwort, kein Zubehörwort, Kilopreis wie bei Filament) */
+const ZUB_RE=/cutter|klinge|blade|messer|d[üu]se|nozzle|hotend|heatbreak|connector|verbinder|kupplung|ptfe|schlauch|tube|spulenhalter|halter|holder|rack|trockner|dryer|druckbett|druckplatte|build ?plate|plate\b|extruder|sensor|l[üu]fter|fan\b|riemen|belt|ersatz|spare|kit\b|werkzeug|tool|kleber|glue|adapter|schraube|screw|wischer|wiper|chip|rfid|kabel|cable|motor/i;
+const FIL_RE=/filament|\b(pla|petg|pctg|abs|asa|tpu|pa\d*|pc|pet|pva|hips)\b/i;
+const istFil=o=>FIL_RE.test(o.titel||"")&&!ZUB_RE.test(o.titel||"")&&o.pk>=5&&o.pk<=300;
+const zub=()=>P.art==="zubehoer";
 function marktHTML(){if(!wds(P.q).length)return "";
-  const kopf=`<div class="plmk">Marktplätze · live</div>`;
+  const kopf=`<div class="plmk">${zub()?"Zubehör":"Marktplätze"} · eBay und AliExpress live</div>`;
   if(!S.srv)return kopf+`<div class="panel empty">eBay und AliExpress werden über den SchichtLohn-Server gesucht – unter Einstellungen verbinden.</div>`;
   if(P.marktLaeuft&&!P.markt)return kopf+`<div class="panel empty">Suche bei eBay und AliExpress …</div>`;
   const m=P.markt;if(!m)return "";
@@ -7834,17 +7839,17 @@ function marktHTML(){if(!wds(P.q).length)return "";
   const pa=k=>(typeof pvPausch==="function")?pvPausch(k):0;
   const L=[...(m.ebay||[]).map(x=>Object.assign({},x,{shop:"eBay",k:"ebay"})),...(m.ali||[]).map(x=>Object.assign({},x,{shop:"AliExpress",k:"ali"}))].map(x=>{
     const bek=x.versand!==null&&x.versand!==undefined,p=bek?0:pa(x.k),preis=Math.round((x.preis+p)*100)/100;
-    const o={shop:x.shop,preis,normal:0,gew:x.gew||1000,stueck:x.stueck||1,url:x.url,titel:x.titel,bild:x.bild||"",versand:bek?x.versand:(p||null),geschaetzt:!bek&&p>0,markt:true};o.pk=pk(o);return o}).filter(gewOk).sort((a,b)=>P.sort==="preis"?a.preis-b.preis:a.pk-b.pk);
+    const o={shop:x.shop,preis,normal:0,gew:x.gew||1000,stueck:x.stueck||1,url:x.url,titel:x.titel,bild:x.bild||"",versand:bek?x.versand:(p||null),geschaetzt:!bek&&p>0,markt:true};o.pk=pk(o);return o}).filter(o=>zub()?!istFil(o):istFil(o)&&gewOk(o)&&(!P.mat||matVon("",o.titel)===P.mat||(P.mat==="PLA"&&matVon("",o.titel)==="PLA+"))).sort((a,b)=>zub()||P.sort==="preis"?a.preis-b.preis:a.pk-b.pk);
   if(!L.length)return kopf+`<div class="panel empty">Bei ${(m.dienste||[]).map(k=>k==="ebay"?"eBay":"AliExpress").join(" und ")} nichts Passendes gefunden.${(m.fehler||[]).length?` <span style="color:var(--bad)">${esc(m.fehler.join("; "))}</span>`:""}</div>`;
   return kopf+`<div class="pvl">${L.slice(0,12).map((o,i)=>`<article class="pvc2"><a class="pvc2-a" href="${esc(o.url)}" target="_blank" rel="noopener" title="${esc(o.titel)}">${bildBox(o.bild||"","",i===0?[["Bestpreis","lg"]]:[])}
-    <div class="pvc2-b"><div class="pvc2-m"><span class="pvgsh ${o.shop==="eBay"?"eb":"al"}">${esc(o.shop)}</span><small>${esc(packT(o))}</small></div>
+    <div class="pvc2-b"><div class="pvc2-m"><span class="pvgsh ${o.shop==="eBay"?"eb":"al"}">${esc(o.shop)}</span><small>${zub()?"":esc(packT(o))}</small></div>
       <b class="pvc2-n pvc2-n3">${esc(o.titel)}</b>
-      <div class="pvc2-k"><b>${eur(o.pk)}</b><small>/kg</small></div>
-      <div class="pvc2-p"><span>${eur(o.preis)}</span><i>${(typeof pvVersandText==="function")?esc(pvVersandText(o)):""}</i></div></div></a></article>`).join("")}</div>
+      <div class="pvc2-k">${zub()?`<b>${eur(o.preis)}</b>`:`<b>${eur(o.pk)}</b><small>/kg</small>`}</div>
+      <div class="pvc2-p">${zub()?"":`<span>${eur(o.preis)}</span>`}<i>${(typeof pvVersandText==="function")?esc(pvVersandText(o)):""}</i></div></div></a></article>`).join("")}</div>
     ${(m.fehler||[]).length?`<div class="hint" style="color:var(--bad)">${esc(m.fehler.join("; "))}</div>`:""}`}
-let mT=0;function marktSuchen(){clearTimeout(mT);const q=P.q.trim();if(!S.srv||!window.SRV||wds(q).length===0||q.length<3){P.markt=null;P.marktQ="";return}
-  if(q===P.marktQ)return;mT=setTimeout(()=>{P.marktQ=q;P.marktLaeuft=true;P.markt=null;teil();
-    SRV.req("GET","/api/preise/suche?q="+encodeURIComponent(q)).then(d=>{if(P.marktQ!==q)return;P.markt=d||{}}).catch(x=>{if(P.marktQ===q)P.markt={dienste:["ebay"],ebay:[],ali:[],fehler:[x.message||String(x)]}}).finally(()=>{P.marktLaeuft=false;if(P.marktQ===q)teil()})},650)}
+let mT=0;function marktSuchen(){clearTimeout(mT);const q0=P.q.trim();if(!S.srv||!window.SRV||wds(q0).length===0||q0.length<3){P.markt=null;P.marktQ="";return}
+  const q=q0+(zub()?"\u0000z":"");if(q===P.marktQ)return;mT=setTimeout(()=>{P.marktQ=q;P.marktLaeuft=true;P.markt=null;teil();
+    SRV.req("GET","/api/preise/suche?q="+encodeURIComponent(q0)+(zub()?"&art=zubehoer":"")).then(d=>{if(P.marktQ!==q)return;P.markt=d||{}}).catch(x=>{if(P.marktQ===q)P.markt={dienste:["ebay"],ebay:[],ali:[],fehler:[x.message||String(x)]}}).finally(()=>{P.marktLaeuft=false;if(P.marktQ===q)teil()})},650)}
 /* Startansicht: je Material die günstigsten 1-kg-Spulen (eine je Marke) als Karten */
 function bestHTML(){const sek=["PLA","PETG","ABS","ASA","TPU","PLA+"];let h="";
   for(const mat of sek){const L=[];for(const g of P.idx){if(g.mat!==mat||g.refill||g.buendel)continue;const o=g.o.filter(o=>o.gew>=750&&o.gew<=1250&&shopOk(o)).sort((a,b)=>a.pk-b.pk);if(o.length)L.push({g,o})}
@@ -7853,10 +7858,12 @@ function bestHTML(){const sek=["PLA","PETG","ABS","ASA","TPU","PLA+"];let h="";
       <div class="pvl">${L.slice(0,4).map(gKarte).join("")}</div></section>`}
   return `<div class="pvbs2">${h}</div>`}
 function listeHTML(){if(P.fehler)return `<div class="panel empty">${esc(P.fehler)}</div>`;if(!P.idx)return `<div class="panel empty">Preise werden geladen …</div>`;
+  if(zub()){if(!wds(P.q).length)return `<div class="panel empty">Zubehör wird live bei eBay und AliExpress gesucht. Gib oben ein, was du suchst, z. B. „Düse 0,4 Bambu“ oder „PTFE Schlauch“.</div>`;
+    return marktHTML()||`<div class="panel empty">Suche läuft …</div>`}
   const leer=!wds(P.q).length&&!P.mat&&!P.marke&&P.art==="alle"&&P.gew==="einzel";
   if(leer)return bestHTML();
   const A=auswahl();const n=A.length;
-  return marktHTML()+`<div class="pvn">${N0.format(n)} ${n===1?"Sorte":"Sorten"} gefunden</div>`+(n?`<div class="pvl">${A.slice(0,P.mehr).map(gKarte).join("")}</div>${n>P.mehr?`<button class="btn ghost" data-pvg="mehr">Weitere ${Math.min(40,n-P.mehr)} von ${n-P.mehr} zeigen</button>`:""}`:`<div class="panel empty">Kein Shop führt das so. Weniger Wörter oder einen anderen Filter probieren.</div>`)}
+  return `<div class="pvn">${N0.format(n)} ${n===1?"Sorte":"Sorten"} gefunden</div>`+(n?`<div class="pvl">${A.slice(0,P.mehr).map(gKarte).join("")}</div>${n>P.mehr?`<button class="btn ghost" data-pvg="mehr">Weitere ${Math.min(40,n-P.mehr)} von ${n-P.mehr} zeigen</button>`:""}`:`<div class="panel empty">Kein Shop führt das so. Weniger Wörter oder einen anderen Filter probieren.</div>`)+marktHTML()}
 function teil(){const el=document.getElementById("pvgL");if(el)el.innerHTML=listeHTML()}
 function laden(){if(P.idx||P.laden)return;if(!(window.LGN&&LGN.preise)){setTimeout(laden,300);return}
   P.laden=LGN.preise().then(d=>{P.d=d;P.idx=indexBauen(d);P.lager=lagerKeys();P.laden=null;if(S.tab==="preise")render()}).catch(x=>{P.laden=null;P.fehler="Preise nicht erreichbar: "+(x.message||x);if(S.tab==="preise")render()})}
@@ -7887,7 +7894,7 @@ function renderSeite(m){laden();const d=P.d;const shops=d?new Set(d.z.map(z=>z[0
     ${P.shopsAuf?shopsHTML():""}
     <div class="pvf"><div class="pvf-r"><span>Material</span>${chip("mat","","Alle",!P.mat)}${mats.map(x=>chip("mat",x,x,P.mat===x)).join("")}</div>
       <div class="pvf-r"><span>Gewicht</span>${chip("gew","einzel","Einzelspule",P.gew==="einzel")}${chip("gew","1","1 kg",P.gew==="1")}${chip("gew","klein","unter 1 kg",P.gew==="klein")}${chip("gew","gross","Großpackung",P.gew==="gross")}${chip("gew","alle","Alle",P.gew==="alle")}</div>
-      <div class="pvf-r"><span>Art</span>${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","Spule",P.art==="spule")}${chip("art","refill","Refill",P.art==="refill")}</div></div>
+      <div class="pvf-r"><span>Art</span>${chip("art","alle","Spule & Refill",P.art==="alle")}${chip("art","spule","Spule",P.art==="spule")}${chip("art","refill","Refill",P.art==="refill")}${chip("art","zubehoer","Zubehör",P.art==="zubehoer")}</div></div>
     <div id="pvgL">${listeHTML()}</div></div>`;
   marktSuchen()}
 document.addEventListener("click",ev=>{const b=ev.target.closest("[data-pvg]");if(!b||S.tab!=="preise")return;const k=b.dataset.pvg;
