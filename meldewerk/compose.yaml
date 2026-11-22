@@ -1,0 +1,39 @@
+name: meldewerk
+# Meldewerk – WhatsApp-Meldungen für SchichtLohn, Home Assistant und alle Werke.
+# Holt sich beim Start die neueste Fassung aus diesem Repo (Ordner meldewerk/). Ohne Internet bleibt der zuletzt geladene Stand.
+# Update = Stack neu starten. Port über MW_PORT in der .env (Standard 8077).
+services:
+  meldewerk:
+    image: node:22-alpine
+    network_mode: bridge
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        for f in server.mjs index.html package.json; do
+          wget -q -T 20 -O /tmp/$$f https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/meldewerk/$$f && [ -s /tmp/$$f ] && cp /tmp/$$f /app/$$f
+        done
+        [ -f /app/server.mjs ] || { echo "Meldewerk: keine Programmdateien – Internet prüfen"; exit 1; }
+        if ! cmp -s package.json .pkg-stand || [ ! -d node_modules/baileys ]; then
+          npm install --omit=dev --no-audit --no-fund && cp package.json .pkg-stand
+        fi
+        exec node server.mjs
+    ports:
+      - "${MW_PORT:-8077}:8088"
+    volumes:
+      - /opt/stacks/meldewerk/daten:/daten
+      - /opt/stacks/meldewerk/app:/app
+    environment:
+      - TZ=Europe/Berlin
+      - PORT=8088
+      - DATEN=/daten
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8088/gesund').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      start_period: 180s
+    init: true
+    stop_grace_period: 10s
+    mem_limit: 384m
+    restart: unless-stopped

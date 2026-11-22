@@ -21,6 +21,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
   POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
+  POST /api/whatsapp/test             WhatsApp über das Meldewerk: Testmeldung
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
@@ -79,7 +80,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.18.0"
+VERSION = "3.19.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -643,6 +644,7 @@ def einstellungen():
     w.setdefault("cloud", {})
     w.setdefault("ha", {})
     w.setdefault("telegram", {})
+    w.setdefault("whatsapp", {})
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
     w.setdefault("fach_meldung", True)
@@ -664,6 +666,8 @@ def einstellungen_maskiert():
     for k in ("cloud", "ha", "telegram"):
         if e[k].get("token"):
             e[k]["token"] = MASKE
+    if e["whatsapp"].get("schluessel"):
+        e["whatsapp"]["schluessel"] = MASKE
     e["cloud"].pop("uid", None)
     for k in ("ebay", "ali"):
         if e["preise"][k].get("secret"):
@@ -697,7 +701,7 @@ def einstellungen_setzen(neu):
                     d["modell"] = drucker_mod.modell_aus_serie(d["serial"])
             liste.append(d)
         e["drucker"] = liste
-    for k in ("cloud", "ha", "telegram"):
+    for k in ("cloud", "ha", "telegram", "whatsapp"):
         if isinstance(neu.get(k), dict):
             x = dict(alt[k])
             for kk, v in neu[k].items():
@@ -727,7 +731,7 @@ def einstellungen_setzen(neu):
         e["fach_meldung"] = bool(neu["fach_meldung"])
     if "fach_link" in neu:
         e["fach_link"] = str(neu["fach_link"] or "").strip()[:200] or "/schichtlohn-app"
-    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram"}
+    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram", "whatsapp"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
@@ -1633,6 +1637,60 @@ def telegram_senden(titel, text, bild="", foto=None):
     return True
 
 
+# ---------------------------------------------------------------- WhatsApp über das Meldewerk (eigenes Gateway auf dem NUC)
+# Im Meldewerk unter Einstellungen → Schnittstelle stehen Adresse und Schlüssel. Es nutzt dieselbe Auswahl wie Telegram.
+def whatsapp_bereit():
+    w = einstellungen()["whatsapp"]
+    return bool(w.get("url") and w.get("schluessel") and not w.get("aus"))
+
+
+def whatsapp_senden(titel, text, bild="", foto=None):
+    import base64
+    import urllib.request
+    import urllib.error
+    w = einstellungen()["whatsapp"]
+    if not (w.get("url") and w.get("schluessel")) or w.get("aus"):
+        return False
+    daten = {"quelle": "sl", "titel": titel, "text": text}
+    if foto:
+        art = "image/png" if foto[:4] == b"\x89PNG" else "image/jpeg"
+        daten["bild"] = "data:%s;base64,%s" % (art, base64.b64encode(foto).decode())
+    elif bild and re.match(r"^https?://", bild):
+        daten["bild"] = bild
+    url = str(w["url"]).rstrip("/")
+    if not re.match(r"^https?://", url):
+        url = "http://" + url
+    req = urllib.request.Request(url + "/api/senden", method="POST", data=json.dumps(daten).encode(),
+                                 headers={"Content-Type": "application/json", "X-Schluessel": str(w["schluessel"])})
+    try:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            d = json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as ex:
+        try:
+            d = json.loads(ex.read().decode("utf-8") or "{}")
+        except ValueError:
+            d = {}
+        if ex.code == 401:
+            raise Fehler(502, "Meldewerk: Der Schlüssel stimmt nicht – bitte aus dem Meldewerk neu kopieren")
+        raise Fehler(502, "Meldewerk: " + str(d.get("fehler") or d.get("text") or ex))
+    except Exception as ex:
+        raise Fehler(502, "Meldewerk nicht erreichbar (Adresse richtig?): " + str(ex))
+    if d.get("status") == "fehler":
+        raise Fehler(502, "Meldewerk: " + str(d.get("fehler") or "unbekannter Fehler"))
+    return True
+
+
+def melde_senden(titel, text, bild="", foto=None):
+    """Telegram und WhatsApp (Meldewerk) – jeder Weg für sich, ein Fehler im einen bremst den anderen nicht."""
+    ok = False
+    for weg, f in (("Telegram", telegram_senden), ("WhatsApp", whatsapp_senden)):
+        try:
+            ok = bool(f(titel, text, bild, foto)) or ok
+        except Exception as ex:
+            print(weg + ":", ex, flush=True)
+    return ok
+
+
 def html_esc(t):
     return str(t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -1642,7 +1700,7 @@ def handy_meldung(titel, text, bild="", foto=None, aktionen=None, tag="", hinwei
     tag: gleiche Kennung ersetzt eine ältere Meldung auf dem Handy statt eine weitere anzuhängen."""
     melden({"typ": "meldung", "titel": titel, "text": text})
     if telegram:
-        im_hintergrund(telegram_senden, titel, text, bild, foto)
+        im_hintergrund(melde_senden, titel, text, bild, foto)
     h = einstellungen()["ha"]
     roh = h.get("notify") or ""
     ziele = [z.strip() for z in (roh if isinstance(roh, list) else str(roh).split(",")) if z.strip().startswith("notify.")]
@@ -2067,7 +2125,8 @@ def druck_beobachten(dr):
     if getattr(dr, "ha", False) and alt_st in drucker_mod.LAUFEND and st in ("FINISH", "FAILED"):
         meldungen.append("fertig" if st == "FINISH" else "abbruch")
     t = einstellungen()["telegram"]
-    if not meldungen or not (t.get("token") and t.get("chat")) or t.get("aus") or t.get("druckverlauf") is False:
+    tg_ok = bool(t.get("token") and t.get("chat")) and not t.get("aus")
+    if not meldungen or not (tg_ok or whatsapp_bereit()) or t.get("druckverlauf") is False:
         return
     ev = t.get("ereignisse") if isinstance(t.get("ereignisse"), dict) else {}
     meldungen = [m for m in meldungen if ev.get(m, True) is not False]
@@ -2117,20 +2176,20 @@ def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=N
                 bild = str((drucker_mod.cloud_aufgabe(c["token"], c.get("region", "global"), serial, task, aufgabe) or {}).get("cover") or "")
             except Exception:
                 bild = ""
-        telegram_senden(f"🟢 {name}: Druck gestartet", aufgabe + zeit, bild, foto)
+        melde_senden(f"🟢 {name}: Druck gestartet", aufgabe + zeit, bild, foto)
     elif art == "stand":
-        telegram_senden(f"{name}: {pct} % gedruckt", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
+        melde_senden(f"{name}: {pct} % gedruckt", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
     elif art == "vorende":
-        telegram_senden(f"⏰ {name}: gleich fertig", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
+        melde_senden(f"⏰ {name}: gleich fertig", aufgabe + zeit, "", kamera_foto(pre) if tg_foto() else None)
     elif art == "pause":
-        telegram_senden(f"⏸️ {name}: Druck pausiert", aufgabe + " – der Drucker wartet, vielleicht ist das Filament leer.",
+        melde_senden(f"⏸️ {name}: Druck pausiert", aufgabe + " – der Drucker wartet, vielleicht ist das Filament leer.",
                         "", kamera_foto(pre) if tg_foto() else None)
     elif art in ("fertig", "abbruch"):
-        telegram_senden(("✅ %s: Druck fertig" if art == "fertig" else "❌ %s: Druck abgebrochen") % name, aufgabe,
+        melde_senden(("✅ %s: Druck fertig" if art == "fertig" else "❌ %s: Druck abgebrochen") % name, aufgabe,
                         "", kamera_foto(pre) if tg_foto() else None)
     elif art == "fehler":
         nr = [c for c in codes if not c.startswith("ha_")]
-        telegram_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + (" – HMS " + ", ".join(nr) if nr else "")
+        melde_senden(f"⚠️ {name} meldet einen Fehler", aufgabe + (" – HMS " + ", ".join(nr) if nr else "")
                         + "\nDetails in der Bambu-App oder am Drucker.", "", kamera_foto(pre) if tg_foto() else None)
 
 
@@ -3941,6 +4000,15 @@ class Handler(BaseHTTPRequestHandler):
             if not telegram_senden("SchichtLohn – Test", "Telegram-Meldungen funktionieren. Jede Schicht zählt."
                                    + (" Das Bild kommt aus der Druckerkamera." if foto else ""), "", foto):
                 raise Fehler(400, "Telegram ist noch nicht vollständig eingerichtet (Token und Chat fehlen)")
+            return self._json(200, {"ok": True})
+        if teile == ["whatsapp", "test"] and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            if isinstance(b, dict) and (b.get("url") or b.get("schluessel")):
+                einstellungen_setzen({"whatsapp": {k: str(b[k]).strip() for k in ("url", "schluessel") if b.get(k)}})
+            foto = next((f for f in (kamera_foto(pre) for pre in list(HA_DRUCKER)[:3]) if f), None)
+            if not whatsapp_senden("SchichtLohn – Test", "WhatsApp-Meldungen über das Meldewerk funktionieren. Jede Schicht zählt."
+                                   + (" Das Bild kommt aus der Druckerkamera." if foto else ""), "", foto):
+                raise Fehler(400, "WhatsApp ist noch nicht eingerichtet (Adresse und Schlüssel vom Meldewerk fehlen)")
             return self._json(200, {"ok": True})
         if teile == ["ha", "notify", "test"] and methode == "POST":
             if not all(ha_cfg()):

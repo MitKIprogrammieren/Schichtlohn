@@ -1,0 +1,275 @@
+// Meldewerk – eigenes WhatsApp-Benachrichtigungs-Gateway für SchichtLohn, Home Assistant und alle Werke.
+// Läuft als verknüpftes Gerät (wie WhatsApp Web) an der Absender-Nummer und schickt Meldungen nur an den Empfänger.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import baileys, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from 'baileys';
+import QRCode from 'qrcode';
+import pino from 'pino';
+
+const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
+// libsignal schreibt beim Sitzungswechsel interne Schlüssel ins Protokoll – diese Zeilen nicht ausgeben
+const STILL = /^(Closing (open )?session|Removing old closed session|Decrypted message with closed session|Migrating session|Session error)/;
+for (const k of ['log', 'info', 'warn']) { const alt = console[k].bind(console); console[k] = (...a) => { if (!STILL.test(String(a[0] ?? ''))) alt(...a); }; }
+const HIER = path.dirname(fileURLToPath(import.meta.url));
+const DATEN = process.env.DATEN || '/daten';
+const PORT = Number(process.env.PORT || 8088);
+const AUTH = path.join(DATEN, 'auth');
+const BILDER = path.join(DATEN, 'bilder');
+const VERLAUF = path.join(DATEN, 'verlauf.jsonl');
+const EINST = path.join(DATEN, 'einstellungen.json');
+const SEITE = fs.readFileSync(process.env.SEITE || path.join(HIER, 'index.html'), 'utf8');
+fs.mkdirSync(BILDER, { recursive: true });
+// App-Symbol: das Kopfzeilen-Logo der Seite auf dunklem Grund
+const LOGO_INNEN = (SEITE.match(/<svg viewBox="0 0 48 48">([\s\S]*?)<\/svg>/) || [])[1] || '';
+const LOGO = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="10.5" fill="#1d1f23"/>' +
+  '<g transform="translate(24 24) scale(.86) translate(-24 -25)">' + LOGO_INNEN + '</g></svg>';
+
+// ---------- Einstellungen ----------
+const STANDARD = { empfaenger: '', schluessel: '', aufbewahrung_tage: 365, absender_loeschen: true, archivieren: true };
+function einstLaden() {
+  let e = {};
+  try { e = JSON.parse(fs.readFileSync(EINST, 'utf8')); } catch {}
+  e = { ...STANDARD, ...e };
+  if (!e.schluessel) { e.schluessel = crypto.randomBytes(16).toString('hex'); einstSpeichern(e); }
+  return e;
+}
+function einstSpeichern(e) { fs.writeFileSync(EINST + '.tmp', JSON.stringify(e, null, 2)); fs.renameSync(EINST + '.tmp', EINST); }
+let EIN = einstLaden();
+
+// ---------- Verlauf ----------
+let VERL = [];
+try { VERL = fs.readFileSync(VERLAUF, 'utf8').split('\n').filter(Boolean).map(z => JSON.parse(z)); } catch {}
+function verlaufSchreiben() {
+  fs.writeFileSync(VERLAUF + '.tmp', VERL.map(v => JSON.stringify(v)).join('\n') + (VERL.length ? '\n' : ''));
+  fs.renameSync(VERLAUF + '.tmp', VERLAUF);
+}
+function aufraeumen() {
+  const tage = Number(EIN.aufbewahrung_tage) || 0;
+  if (tage <= 0) return; // 0 = unbegrenzt
+  const grenze = Date.now() - tage * 86400000;
+  const weg = VERL.filter(v => v.zeit < grenze);
+  if (!weg.length) return;
+  for (const v of weg) if (v.bild) fs.rm(path.join(BILDER, v.bild), () => {});
+  VERL = VERL.filter(v => v.zeit >= grenze);
+  verlaufSchreiben();
+}
+setInterval(aufraeumen, 6 * 3600000);
+
+// ---------- WhatsApp ----------
+const W = { sock: null, verbunden: false, qr: null, nummer: '', name: '', fehler: '', start: 0 };
+const GESENDET = new Map(); // id -> message (für Wiederholungsanfragen von WhatsApp)
+const log = pino({ level: process.env.LOG || 'warn' });
+
+function jid(nr) {
+  const d = String(nr || '').replace(/\D/g, '').replace(/^00/, '');
+  return d ? d + '@s.whatsapp.net' : '';
+}
+
+async function verbinden() {
+  W.start = Date.now();
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH);
+  let version;
+  try { ({ version } = await fetchLatestBaileysVersion()); } catch {}
+  const sock = makeWASocket({
+    auth: state, logger: log, version,
+    browser: ['Meldewerk', 'Chrome', '1.0'],
+    markOnlineOnConnect: false, syncFullHistory: false,
+    getMessage: async key => GESENDET.get(key.id)?.message,
+  });
+  W.sock = sock;
+  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('connection.update', async u => {
+    if (u.qr) { W.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 320 }); W.verbunden = false; }
+    if (u.connection === 'open') {
+      W.verbunden = true; W.qr = null; W.fehler = '';
+      W.nummer = (sock.user?.id || '').split(':')[0].split('@')[0];
+      W.name = sock.user?.name || '';
+      console.log('Verbunden als', W.nummer);
+      warteschlange();
+    }
+    if (u.connection === 'close') {
+      W.verbunden = false;
+      const code = u.lastDisconnect?.error?.output?.statusCode;
+      if (code === DisconnectReason.loggedOut) {
+        console.log('Abgemeldet – neuer QR-Code folgt');
+        W.nummer = ''; W.fehler = 'Gerät wurde abgemeldet. Bitte neu verknüpfen.';
+        fs.rmSync(AUTH, { recursive: true, force: true });
+      } else {
+        W.fehler = u.lastDisconnect?.error?.message || '';
+      }
+      setTimeout(() => verbinden().catch(e => console.error('Verbinden fehlgeschlagen:', e)), 3000);
+    }
+  });
+}
+
+async function bildHolen(quelle) {
+  if (!quelle) return null;
+  if (quelle.startsWith('data:')) return Buffer.from(quelle.split(',')[1] || '', 'base64');
+  const r = await fetch(quelle, { signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error('Bild nicht abrufbar (' + r.status + ')');
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length > 15 * 1024 * 1024) throw new Error('Bild zu groß');
+  return b;
+}
+
+async function zustellen(eintrag) {
+  const ziel = jid(EIN.empfaenger);
+  if (!ziel) throw new Error('Kein Empfänger eingestellt');
+  if (!W.verbunden) throw new Error('nicht verbunden');
+  let inhalt;
+  if (eintrag.bild) {
+    const buf = fs.readFileSync(path.join(BILDER, eintrag.bild));
+    inhalt = { image: buf, caption: eintrag.text };
+  } else inhalt = { text: eintrag.text };
+  const msg = await W.sock.sendMessage(ziel, inhalt);
+  GESENDET.set(msg.key.id, msg);
+  if (GESENDET.size > 200) GESENDET.delete(GESENDET.keys().next().value);
+  // Absender-Seite sauber halten: kurz warten, dann „Für mich löschen“ und archivieren
+  setTimeout(async () => {
+    const ts = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
+    if (EIN.absender_loeschen) {
+      try { await W.sock.chatModify({ deleteForMe: { deleteMedia: false, key: msg.key, timestamp: ts } }, ziel); }
+      catch (e) { console.warn('Löschen beim Absender fehlgeschlagen:', e.message); }
+    }
+    if (EIN.archivieren) {
+      try { await W.sock.chatModify({ archive: true, lastMessages: [{ key: msg.key, messageTimestamp: msg.messageTimestamp }] }, ziel); }
+      catch (e) { console.warn('Archivieren fehlgeschlagen:', e.message); }
+    }
+  }, 4000);
+  return msg.key.id;
+}
+
+let laeuft = false;
+async function warteschlange() {
+  if (laeuft) return; laeuft = true;
+  try {
+    for (const v of VERL.filter(v => v.status === 'wartet')) {
+      if (!W.verbunden) break;
+      try { v.wa_id = await zustellen(v); v.status = 'gesendet'; v.gesendet = Date.now(); v.fehler = ''; }
+      catch (e) { v.fehler = e.message; if (!/nicht verbunden|Kein Empfänger/.test(e.message)) v.status = 'fehler'; }
+    }
+    verlaufSchreiben();
+  } finally { laeuft = false; }
+}
+setInterval(warteschlange, 60000);
+
+async function melden({ text, quelle, bild, titel }) {
+  text = String(text || '').trim();
+  titel = String(titel || '').trim();
+  if (titel) text = '*' + titel + '*' + (text ? '\n' + text : '');
+  if (!text && !bild) throw Object.assign(new Error('Text fehlt'), { code: 400 });
+  const e = { id: crypto.randomUUID(), zeit: Date.now(), quelle: String(quelle || 'sonstige').slice(0, 24).toLowerCase(), text: text.slice(0, 4000), status: 'wartet', fehler: '' };
+  if (bild) {
+    try { const b = await bildHolen(bild); if (b?.length) { e.bild = e.id + '.jpg'; fs.writeFileSync(path.join(BILDER, e.bild), b); } }
+    catch (err) { e.fehler = 'Bild: ' + err.message; }
+  }
+  VERL.push(e);
+  try { e.wa_id = await zustellen(e); e.status = 'gesendet'; e.gesendet = Date.now(); }
+  catch (err) { e.fehler = err.message; if (!/nicht verbunden|Kein Empfänger/.test(err.message)) e.status = 'fehler'; }
+  verlaufSchreiben();
+  return e;
+}
+
+// ---------- HTTP ----------
+function senden(res, code, body, typ = 'application/json; charset=utf-8') {
+  if (typeof body !== 'string' && !Buffer.isBuffer(body)) body = JSON.stringify(body);
+  res.writeHead(code, { 'Content-Type': typ, 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, X-Schluessel, Authorization' });
+  res.end(body);
+}
+function lesen(req) {
+  return new Promise((ok, nein) => {
+    const t = []; let n = 0;
+    req.on('data', c => { n += c.length; if (n > 20 * 1024 * 1024) { nein(new Error('zu groß')); req.destroy(); } else t.push(c); });
+    req.on('end', () => {
+      const s = Buffer.concat(t).toString('utf8');
+      const typ = req.headers['content-type'] || '';
+      if (!s) return ok({});
+      try {
+        if (typ.includes('json')) return ok(JSON.parse(s));
+        if (typ.includes('x-www-form-urlencoded')) return ok(Object.fromEntries(new URLSearchParams(s)));
+        try { return ok(JSON.parse(s)); } catch { return ok({ text: s }); }
+      } catch (e) { nein(e); }
+    });
+  });
+}
+function schluesselOk(req, u, d) {
+  const k = req.headers['x-schluessel'] || (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || u.searchParams.get('schluessel') || d?.schluessel;
+  return k && crypto.timingSafeEqual(Buffer.from(String(k).padEnd(64).slice(0, 64)), Buffer.from(EIN.schluessel.padEnd(64).slice(0, 64)));
+}
+function status() {
+  return { verbunden: W.verbunden, qr: W.qr, nummer: W.nummer, name: W.name, fehler: W.fehler,
+    einstellungen: EIN, wartend: VERL.filter(v => v.status === 'wartet').length, gesamt: VERL.length };
+}
+
+http.createServer(async (req, res) => {
+  const u = new URL(req.url, 'http://x');
+  const p = u.pathname;
+  try {
+    if (req.method === 'OPTIONS') return senden(res, 204, '');
+    if (p === '/' || p === '/index.html') return senden(res, 200, SEITE, 'text/html; charset=utf-8');
+    if (p === '/logo.svg') return senden(res, 200, LOGO, 'image/svg+xml');
+    if (p === '/gesund') return senden(res, 200, { ok: true, verbunden: W.verbunden });
+    if (p === '/api/status') return senden(res, 200, status());
+    if (p === '/api/verlauf') {
+      const q = (u.searchParams.get('q') || '').toLowerCase();
+      const quelle = u.searchParams.get('quelle') || '';
+      const max = Math.min(Number(u.searchParams.get('max') || 200), 2000);
+      const liste = VERL.filter(v => (!quelle || v.quelle === quelle) && (!q || v.text.toLowerCase().includes(q))).slice(-max).reverse();
+      return senden(res, 200, { liste, quellen: [...new Set(VERL.map(v => v.quelle))] });
+    }
+    if (p.startsWith('/bilder/')) {
+      const name = path.basename(p);
+      const f = path.join(BILDER, name);
+      if (!/^[\w-]+\.jpg(?![\s\S])/.test(name) || !fs.existsSync(f)) return senden(res, 404, { ok: false });
+      return senden(res, 200, fs.readFileSync(f), 'image/jpeg');
+    }
+    // Schnittstelle für SL, HA & Co. – GET (wie CallMeBot) oder POST
+    if (p === '/api/senden') {
+      const d = req.method === 'POST' ? await lesen(req) : Object.fromEntries(u.searchParams);
+      if (!schluesselOk(req, u, d)) return senden(res, 401, { ok: false, text: 'Schlüssel fehlt oder falsch' });
+      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, bild: d.bild || d.bild_url || d.image });
+      return senden(res, e.status === 'fehler' ? 500 : 200, { ok: e.status !== 'fehler', status: e.status, id: e.id, fehler: e.fehler });
+    }
+    // Ab hier nur die eigene Oberfläche
+    if (req.method === 'POST' && p === '/api/test') {
+      const d = await lesen(req);
+      const e = await melden({ text: d.text || 'Testnachricht vom Meldewerk', quelle: 'test' });
+      return senden(res, 200, { ok: e.status !== 'fehler', status: e.status, fehler: e.fehler });
+    }
+    if (req.method === 'POST' && p === '/api/einstellungen') {
+      const d = await lesen(req);
+      if ('empfaenger' in d) EIN.empfaenger = String(d.empfaenger).replace(/[^\d+]/g, '');
+      if ('aufbewahrung_tage' in d) EIN.aufbewahrung_tage = Math.max(0, Number(d.aufbewahrung_tage) || 0);
+      if ('absender_loeschen' in d) EIN.absender_loeschen = !!d.absender_loeschen;
+      if ('archivieren' in d) EIN.archivieren = !!d.archivieren;
+      if (d.neuer_schluessel) EIN.schluessel = crypto.randomBytes(16).toString('hex');
+      einstSpeichern(EIN); aufraeumen();
+      return senden(res, 200, status());
+    }
+    if (req.method === 'POST' && p === '/api/wiederholen') {
+      const d = await lesen(req);
+      const v = VERL.find(v => v.id === d.id);
+      if (v) { v.status = 'wartet'; v.fehler = ''; await warteschlange(); }
+      return senden(res, 200, { ok: !!v, status: v?.status });
+    }
+    if (req.method === 'POST' && p === '/api/verlauf_loeschen') {
+      for (const v of VERL) if (v.bild) fs.rm(path.join(BILDER, v.bild), () => {});
+      VERL = []; verlaufSchreiben();
+      return senden(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && p === '/api/abmelden') {
+      try { await W.sock?.logout(); } catch {}
+      fs.rmSync(AUTH, { recursive: true, force: true });
+      return senden(res, 200, { ok: true });
+    }
+    senden(res, 404, { ok: false, text: 'Nicht gefunden' });
+  } catch (e) {
+    senden(res, e.code === 400 ? 400 : 500, { ok: false, text: e.message });
+  }
+}).listen(PORT, () => console.log('Meldewerk läuft auf Port', PORT));
+
+aufraeumen();
+verbinden().catch(e => console.error('Start fehlgeschlagen:', e));

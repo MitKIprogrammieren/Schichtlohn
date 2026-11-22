@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b1b1d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Meldewerk</title>
+<link rel="icon" href="/logo.svg">
+<link rel="apple-touch-icon" href="/logo.svg">
+<style>
+:root{--bg:#232326;--fl:#2c2c30;--fl2:#38383d;--rand:#3c3c42;--txt:#e8e8ea;--txt2:#a7a7ae;--txt3:#7c7c84;--gruen:#00ae42;--gruen2:#19d36b;--gelb:#f2b84b;--rot:#ff6b5e;--blau:#6aa9ff}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;font:15px/1.45 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:#1b1b1d;border-bottom:1px solid var(--rand);position:sticky;top:0;z-index:5}
+header svg{width:40px;height:40px;flex:none}
+header h1{font:700 26px/1.1 "Chakra Petch","Segoe UI",-apple-system,sans-serif;margin:0}
+header h1 small{display:block;font:500 11px/1 "IBM Plex Sans",-apple-system,sans-serif;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+#live{margin-left:auto;font-size:12px;color:var(--txt2);display:flex;align-items:center;gap:6px;background:var(--fl);border:1px solid var(--rand);border-radius:999px;padding:5px 10px;white-space:nowrap}
+#live i{width:8px;height:8px;border-radius:50%;background:var(--txt3)}
+#live.an i{background:var(--gruen2)}#live.warn i{background:var(--gelb)}
+main{max-width:760px;margin:0 auto;padding:16px;padding-bottom:calc(90px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+main>section{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}main>section[hidden]{display:none}
+.karte{background:var(--fl);border:1px solid var(--rand);border-radius:18px;padding:18px}
+h2{font-size:16px;font-weight:700;margin:0 0 14px}
+.zustand{display:flex;gap:16px;align-items:center}
+.ampel{width:64px;height:64px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:30px;color:var(--f);background:color-mix(in srgb,var(--f) 18%,transparent);border:3px solid var(--f)}
+.zustand b{font-size:21px;display:block;line-height:1.2}
+.zustand span{color:var(--txt2);font-size:14px}
+.fragen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.frage{min-width:0;padding:14px 16px}
+.frage .q{color:var(--txt2);font-size:13px}
+.frage .a{font-size:16px;font-weight:700;margin:6px 0 2px;color:var(--f,var(--txt));overflow-wrap:anywhere}
+.frage .d{color:var(--txt3);font-size:13px}
+.qr{display:grid;place-items:center;gap:12px;text-align:center}
+.qr img{width:240px;height:240px;border-radius:14px;background:#fff;padding:8px}
+.qr ol{text-align:left;color:var(--txt2);font-size:14px;margin:0;padding-left:20px}
+.feld{display:block;width:100%;margin-bottom:8px;background:#1f1f22;border:1px solid var(--rand);border-radius:12px;padding:11px 12px;color:var(--txt);font:inherit;font-size:16px;outline:none;-webkit-appearance:none}
+.feld:focus{border-color:var(--gruen)}
+textarea.feld{min-height:84px;resize:vertical}
+.mehr,.knopf{display:block;width:100%;margin-top:10px;border:0;border-radius:12px;padding:11px;font:600 14px "IBM Plex Sans",-apple-system,sans-serif;cursor:pointer}
+.mehr{background:var(--fl2);color:var(--txt)}
+.knopf{background:var(--gruen);color:#fff}
+.knopf.rot{background:#4a2624;color:var(--rot)}
+.tabs{display:flex;gap:4px;background:var(--fl2);border-radius:12px;padding:3px;margin-bottom:10px;overflow-x:auto}
+.tabs button{flex:1;background:none;border:0;color:var(--txt2);font:inherit;font-size:13px;padding:7px 10px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.tabs button.an{background:var(--gruen);color:#fff;font-weight:600}
+.zeile2{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--rand)}
+.zeile2:first-child{border-top:0;padding-top:0}
+.av{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);grid-row:span 2;align-self:start}
+.zn{font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere}
+.zu{font-size:12px;color:var(--txt3)}
+.zr{font-size:12px;text-align:right;white-space:nowrap;align-self:start}
+.zbild{grid-column:2/4;margin-top:6px}
+.zbild img{max-width:100%;max-height:220px;border-radius:12px;display:block}
+.chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);display:inline-block}
+.leer{color:var(--txt3);font-size:14px}
+.einst{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--rand)}
+.einst:first-of-type{border-top:0;padding-top:0}
+.einst .tx{flex:1}.einst b{display:block;font-size:15px}.einst .tx>span{color:var(--txt2);font-size:13px}
+.schalter{flex:none;width:58px;height:34px;border-radius:17px;border:0;background:var(--fl2);position:relative;cursor:pointer;transition:background .2s}
+.schalter i{position:absolute;top:3px;left:3px;width:28px;height:28px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px #0006}
+.schalter.an{background:var(--gruen)}.schalter.an i{left:27px}
+select.feld{width:auto;margin:0;padding:8px 12px;font-size:14px}
+label.k{display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px}
+code,.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.code{display:block;background:#1f1f22;border:1px solid var(--rand);border-radius:12px;padding:10px 12px;color:var(--txt2);overflow-x:auto;white-space:pre;margin-top:6px}
+.erkl{color:var(--txt3);font-size:13px;margin-top:10px}
+.meld{font-size:13px;margin-top:8px;min-height:18px}
+nav.unten{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:#1b1b1d;border-top:1px solid var(--rand);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+nav.unten button{flex:1;background:none;border:0;color:var(--txt3);font:600 12px "IBM Plex Sans",-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;position:relative}
+nav.unten svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav.unten button.an{color:var(--gruen2)}
+nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--gruen2)}
+</style>
+</head>
+<body>
+<header>
+<svg viewBox="0 0 48 48"><defs><linearGradient id="mwg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19d36b"/><stop offset="1" stop-color="#00a845"/></linearGradient><clipPath id="mwc"><path d="M12 9h24a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H22l-9 7v-7h-1a6 6 0 0 1-6-6V15a6 6 0 0 1 6-6z"/></clipPath><mask id="mwm"><rect width="48" height="48" fill="#fff"/><circle cx="36.5" cy="12.5" r="6.6" fill="#000"/></mask></defs><g clip-path="url(#mwc)" mask="url(#mwm)" fill="url(#mwg)"><rect x="0" y="9.0" width="48" height="2.4"/><rect x="0" y="12.4" width="48" height="2.4"/><rect x="0" y="15.8" width="48" height="2.4"/><rect x="0" y="19.2" width="48" height="2.4"/><rect x="0" y="22.6" width="48" height="2.4"/><rect x="0" y="26.0" width="48" height="2.4"/><rect x="0" y="29.4" width="48" height="2.4"/><rect x="0" y="32.8" width="48" height="2.4"/><rect x="0" y="36.2" width="48" height="2.4"/><rect x="0" y="39.6" width="48" height="2.4"/></g><circle cx="36.5" cy="12.5" r="4.2" fill="#19d36b"/></svg>
+<h1>Meldewerk<small>WhatsApp · SL · HA</small></h1>
+<div id="live"><i></i><span>verbinde …</span></div>
+</header>
+<main>
+<section id="s-start">
+ <div class="karte zustand"><div class="ampel" id="ampel" style="--f:var(--txt3)">…</div><div><b id="zTitel">Wird geladen</b><span id="zText"></span></div></div>
+ <div class="karte qr" id="qrKarte" hidden>
+  <h2 style="margin:0">Absender verknüpfen</h2>
+  <img id="qrBild" alt="QR-Code zum Verknüpfen">
+  <ol><li>WhatsApp mit der zweiten Nummer öffnen</li><li>Einstellungen → Verknüpfte Geräte</li><li>„Gerät hinzufügen“ und den Code scannen</li></ol>
+ </div>
+ <div class="fragen">
+  <div class="karte frage"><div class="q">Absender</div><div class="a" id="aAbs">–</div><div class="d" id="dAbs"></div></div>
+  <div class="karte frage"><div class="q">Empfänger</div><div class="a" id="aEmp">–</div><div class="d" id="dEmp">dein iPhone</div></div>
+  <div class="karte frage"><div class="q">Heute gemeldet</div><div class="a" id="aHeute">–</div><div class="d" id="dHeute"></div></div>
+  <div class="karte frage"><div class="q">Warten</div><div class="a" id="aWart">–</div><div class="d">werden nachgeschickt</div></div>
+ </div>
+ <div class="karte">
+  <h2>Testnachricht</h2>
+  <textarea class="feld" id="testText" placeholder="Hallo vom Meldewerk"></textarea>
+  <button class="knopf" id="testKnopf">Senden</button>
+  <div class="meld" id="testMeld"></div>
+ </div>
+</section>
+
+<section id="s-verlauf" hidden>
+ <div class="karte">
+  <h2>Verlauf</h2>
+  <input class="feld" id="suche" type="search" placeholder="Suchen, z. B. P2S oder Rolle">
+  <div class="tabs" id="quellen"></div>
+  <div id="liste"><div class="leer">Noch keine Meldungen.</div></div>
+ </div>
+</section>
+
+<section id="s-einst" hidden>
+ <div class="karte">
+  <h2>Empfänger</h2>
+  <label class="k" for="empf">Deine WhatsApp-Nummer</label>
+  <input class="feld" id="empf" inputmode="tel" placeholder="+49 151 23456789">
+  <button class="knopf" id="empfKnopf">Speichern</button>
+  <div class="meld" id="empfMeld"></div>
+ </div>
+ <div class="karte">
+  <h2>Absender-Handy</h2>
+  <div class="einst"><div class="tx"><b>Nachrichten dort löschen</b><span>„Für mich löschen“ nach dem Senden</span></div><button class="schalter" id="swLoeschen" aria-label="Nachrichten beim Absender löschen"><i></i></button></div>
+  <div class="einst"><div class="tx"><b>Chat archivieren</b><span>taucht in der Chatliste nicht auf</span></div><button class="schalter" id="swArchiv" aria-label="Chat archivieren"><i></i></button></div>
+  <button class="knopf rot" id="abmelden">Absender abmelden</button>
+ </div>
+ <div class="karte">
+  <h2>Verlauf aufbewahren</h2>
+  <div class="einst"><div class="tx"><b>Speicherdauer</b><span>ältere Meldungen werden gelöscht</span></div>
+   <select class="feld" id="aufb"><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="365">1 Jahr</option><option value="0">Unbegrenzt</option></select></div>
+  <button class="mehr" id="verlaufLeeren">Verlauf jetzt leeren</button>
+ </div>
+ <div class="karte">
+  <h2>Schnittstelle</h2>
+  <label class="k">Schlüssel</label>
+  <div class="code" id="schl">–</div>
+  <button class="mehr" id="neuSchl">Neuen Schlüssel erzeugen</button>
+  <div class="erkl">So schicken SchichtLohn, Home Assistant und die anderen Werke eine Meldung:</div>
+  <div class="code" id="bspGet"></div>
+  <div class="code" id="bspPost"></div>
+ </div>
+</section>
+</main>
+
+<nav class="unten">
+ <button class="an" data-s="s-start"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>Start</button>
+ <button data-s="s-verlauf"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/></svg>Verlauf</button>
+ <button data-s="s-einst"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Einstellungen</button>
+</nav>
+
+<script>
+const el = id => document.getElementById(id);
+const FARBE = { sl: '#19d36b', ha: '#6aa9ff', test: '#a7a7ae', amazon: '#f2b84b', bambu: '#19d36b', alexa: '#5ec8f2' };
+const NAME = { sl: 'SL', ha: 'HA', test: 'Test', amazon: 'Amazon', bambu: 'Bambu', alexa: 'Alexa' };
+let S = null, quelle = '', sucheTimer;
+
+document.querySelectorAll('nav.unten button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav.unten button').forEach(x => x.classList.toggle('an', x === b));
+  document.querySelectorAll('main>section').forEach(s => s.hidden = s.id !== b.dataset.s);
+  if (b.dataset.s === 's-verlauf') verlauf();
+  scrollTo(0, 0);
+});
+
+async function api(pfad, daten) {
+  const r = await fetch(pfad, daten === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten) });
+  return r.json();
+}
+const nr = n => n ? '+' + String(n).replace(/^\+/, '').replace(/^(\d{2})(\d{3})(\d+)(?!.)/, (m, a, b, c) => a + ' ' + b + ' ' + c) : '–';
+const zeit = t => { const d = new Date(t), h = new Date(); const u = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === h.toDateString() ? u : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' · ' + u; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function zeigen() {
+  const e = S.einstellungen, live = el('live');
+  live.className = S.verbunden ? 'an' : S.qr ? 'warn' : '';
+  live.querySelector('span').textContent = S.verbunden ? 'verbunden' : S.qr ? 'wartet auf QR' : 'verbinde …';
+  const amp = el('ampel');
+  if (S.verbunden && e.empfaenger) { amp.style.setProperty('--f', 'var(--gruen2)'); amp.textContent = '✓'; el('zTitel').textContent = 'Alles bereit'; el('zText').textContent = 'Meldungen gehen an dein iPhone.'; }
+  else if (S.verbunden) { amp.style.setProperty('--f', 'var(--gelb)'); amp.textContent = '!'; el('zTitel').textContent = 'Empfänger fehlt'; el('zText').textContent = 'Trag unter Einstellungen deine Nummer ein.'; }
+  else if (S.qr) { amp.style.setProperty('--f', 'var(--gelb)'); amp.textContent = '⌁'; el('zTitel').textContent = 'Noch nicht verknüpft'; el('zText').textContent = 'Scanne den QR-Code mit dem Absender-Handy.'; }
+  else { amp.style.setProperty('--f', 'var(--rot)'); amp.textContent = '×'; el('zTitel').textContent = 'Keine Verbindung'; el('zText').textContent = S.fehler || 'Verbindung wird aufgebaut …'; }
+  el('qrKarte').hidden = !S.qr; if (S.qr) el('qrBild').src = S.qr;
+  el('aAbs').textContent = nr(S.nummer); el('dAbs').textContent = S.name || (S.verbunden ? '' : 'nicht verknüpft');
+  el('aEmp').textContent = nr(e.empfaenger);
+  el('aWart').textContent = S.wartend; el('aWart').style.setProperty('--f', S.wartend ? 'var(--gelb)' : 'var(--txt)');
+  if (document.activeElement !== el('empf')) el('empf').value = e.empfaenger ? nr(e.empfaenger) : '';
+  el('swLoeschen').classList.toggle('an', !!e.absender_loeschen);
+  el('swArchiv').classList.toggle('an', !!e.archivieren);
+  el('aufb').value = String(e.aufbewahrung_tage);
+  el('schl').textContent = e.schluessel;
+  const basis = location.origin;
+  el('bspGet').textContent = basis + '/api/senden?schluessel=' + e.schluessel + '&quelle=sl&text=Druck%20fertig';
+  el('bspPost').textContent = 'POST ' + basis + '/api/senden\nX-Schluessel: ' + e.schluessel + '\n{"quelle":"ha","titel":"Druck fertig","text":"P2S · Halterung","bild":"http://…/kamera.jpg"}';
+}
+async function laden() { try { S = await api('/api/status'); zeigen(); } catch { el('live').className = ''; el('live').querySelector('span').textContent = 'offline'; } }
+async function heute() {
+  try { const d = await api('/api/verlauf?max=2000'); const h = new Date().toDateString();
+    const n = d.liste.filter(v => new Date(v.zeit).toDateString() === h).length; el('aHeute').textContent = n; el('dHeute').textContent = d.liste.length + ' insgesamt'; } catch {}
+}
+async function verlauf() {
+  const d = await api('/api/verlauf?max=300&quelle=' + encodeURIComponent(quelle) + '&q=' + encodeURIComponent(el('suche').value));
+  const qs = ['', ...d.quellen];
+  el('quellen').innerHTML = qs.map(q => '<button class="' + (q === quelle ? 'an' : '') + '" data-q="' + esc(q) + '">' + (q ? esc(NAME[q] || q) : 'Alle') + '</button>').join('');
+  el('quellen').querySelectorAll('button').forEach(b => b.onclick = () => { quelle = b.dataset.q; verlauf(); });
+  if (!d.liste.length) { el('liste').innerHTML = '<div class="leer">Keine Meldungen gefunden.</div>'; return; }
+  el('liste').innerHTML = d.liste.map(v => {
+    const c = FARBE[v.quelle] || '#a7a7ae';
+    const st = v.status === 'gesendet' ? '<span class="chip" style="--c:#19d36b">gesendet</span>' : v.status === 'wartet' ? '<span class="chip" style="--c:#f2b84b">wartet</span>' : '<span class="chip" style="--c:#ff6b5e">Fehler</span>';
+    return '<div class="zeile2"><div class="av" style="--c:' + c + '">' + esc((NAME[v.quelle] || v.quelle).slice(0, 3)) + '</div>' +
+      '<div class="zn">' + esc(v.text).replace(/\*([^*\n]+)\*/g, (m, a) => '<b>' + a + '</b>') + '</div><div class="zr">' + st + '</div>' +
+      '<div class="zu">' + zeit(v.zeit) + (v.fehler ? ' · ' + esc(v.fehler) : '') + '</div><div></div>' +
+      (v.bild ? '<div class="zbild"><img loading="lazy" src="/bilder/' + v.bild + '" alt=""></div>' : '') + '</div>';
+  }).join('');
+}
+el('suche').oninput = () => { clearTimeout(sucheTimer); sucheTimer = setTimeout(verlauf, 250); };
+el('testKnopf').onclick = async () => {
+  el('testMeld').textContent = 'Sende …'; el('testMeld').style.color = 'var(--txt2)';
+  const r = await api('/api/test', { text: el('testText').value.trim() || 'Hallo vom Meldewerk' });
+  el('testMeld').textContent = r.status === 'gesendet' ? 'Gesendet. Schau auf dein iPhone.' : r.status === 'wartet' ? 'Wartet, wird gesendet sobald verbunden.' : 'Fehler: ' + (r.fehler || 'unbekannt');
+  el('testMeld').style.color = r.status === 'gesendet' ? 'var(--gruen2)' : r.status === 'wartet' ? 'var(--gelb)' : 'var(--rot)';
+  laden(); heute();
+};
+el('empfKnopf').onclick = async () => {
+  const n = el('empf').value.replace(/[^\d+]/g, '').replace(/^00/, '+').replace(/^0/, '+49');
+  if (n.replace(/\D/g, '').length < 8) { el('empfMeld').textContent = 'Gib deine Nummer mit Vorwahl ein.'; el('empfMeld').style.color = 'var(--rot)'; return; }
+  S = await api('/api/einstellungen', { empfaenger: n }); zeigen();
+  el('empfMeld').textContent = 'Gespeichert'; el('empfMeld').style.color = 'var(--gruen2)';
+};
+el('empf').oninput = () => el('empfMeld').textContent = '';
+const schalter = (id, k) => el(id).onclick = async () => { S = await api('/api/einstellungen', { [k]: !S.einstellungen[k] }); zeigen(); };
+schalter('swLoeschen', 'absender_loeschen'); schalter('swArchiv', 'archivieren');
+el('aufb').onchange = async () => { S = await api('/api/einstellungen', { aufbewahrung_tage: Number(el('aufb').value) }); zeigen(); };
+el('neuSchl').onclick = async () => { if (!confirm('Neuen Schlüssel erzeugen? Der alte funktioniert dann nicht mehr.')) return; S = await api('/api/einstellungen', { neuer_schluessel: true }); zeigen(); };
+el('verlaufLeeren').onclick = async () => { if (!confirm('Den ganzen Verlauf löschen?')) return; await api('/api/verlauf_loeschen', {}); verlauf(); heute(); };
+el('abmelden').onclick = async () => { if (!confirm('Absender-Handy abmelden? Danach musst du neu verknüpfen.')) return; await api('/api/abmelden', {}); setTimeout(laden, 3000); };
+laden(); heute(); setInterval(() => { laden(); }, 3000); setInterval(heute, 30000);
+</script>
+</body>
+</html>

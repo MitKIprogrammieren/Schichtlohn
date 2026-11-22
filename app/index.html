@@ -452,7 +452,7 @@ const SRV=window.SRV=(()=>{
   /* Einstellungen */
   /* Einstellungen */
   const SVG=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const IC={tg:SVG('<path d="M21 4 3 11l6 2.5L18 7l-6.5 7.5L17 20z"/><path d="m9 13.5.5 5.5 2.5-3"/>'),srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+  const IC={tg:SVG('<path d="M21 4 3 11l6 2.5L18 7l-6.5 7.5L17 20z"/><path d="m9 13.5.5 5.5 2.5-3"/>'),wa:SVG('<path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-6l-4.5 3.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z"/><path d="M8 9.5h8M8 13h5"/>'),srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
     dr:SVG('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/>'),
     ha:SVG('<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>'),
     wg:SVG('<path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/>'),
@@ -482,6 +482,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.dr,"Bambu Studio · Filament Manager",`<span class="chip" id="srv_bfmchip">…</span>`,`<div id="srv_bfm"><p>wird geprüft …</p></div>`)}
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
+        ${karte(IC.wa,"WhatsApp","",`<div id="srv_wa"></div>`)}
         ${karte(IC.zg,"Zugang",`<span class="chip" id="srv_zgchip">…</span>`,`<div id="srv_zugang"><p>wird geprüft …</p></div>`)}
         ${karte(IC.cl,"Claude",`<span class="chip" id="srv_mcpchip">…</span>`,`<div id="srv_mcp"><p>wird geprüft …</p></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
@@ -570,24 +571,34 @@ const SRV=window.SRV=(()=>{
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
       <div id="srv_handys"></div>
       <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button><button class="btn sm ghost" data-act="srvHaTest" title="Speichert die Auswahl und schickt eine Testmeldung an jedes angekreuzte Gerät">Test senden</button></div>`;
-    handysLaden();telegramForm()}
+    handysLaden();telegramForm();whatsappForm()}
   /* Telegram: Meldungen aufs Handy auch ohne Home Assistant */
   function telegramForm(){const box=document.getElementById("srv_tg");if(!box)return;const t=E.telegram||{};
-    const st=Array.isArray(t.stufen)?t.stufen:[25,50,75];const ev=t.ereignisse||{};const an=k=>ev[k]!==false;const vor=Number(t.vor_ende)||0;
-    const VOR=[["aus",[]],["50 %",[50]],["25 · 50 · 75 %",[25,50,75]],["alle 20 %",[20,40,60,80]],["alle 10 %",[10,20,30,40,50,60,70,80,90]]];
-    const gleich=(a,b)=>a.length===b.length&&a.every((x,i)=>x===b[i]);const eigen=!VOR.some(([,v])=>gleich(v,st));
-    const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
     box.innerHTML=t.token&&t.chat?`<p>Meldungen gehen an <b>${esc(t.chat_name||t.chat)}</b> – zusätzlich zu Home Assistant.</p>
-      <div class="tgs"><div class="tgs-k">Fortschritt melden bei</div><div class="tgr">${VOR.map(([n,v])=>ch(`data-tgst="${v.join(",")}"`,n,gleich(v,st))).join("")}${eigen?ch('data-tgst="eigen"',"eigene: "+st.join(" · ")+" %",true):""}</div>
-        <div class="tgr tgp">${[10,20,25,30,40,50,60,70,75,80,90].map(x=>ch(`data-tgx="${x}"`,x+" %",st.includes(x))).join("")}</div>
-        <div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[["aus",0],["5 min",5],["10 min",10],["15 min",15],["30 min",30]].map(([n,v])=>ch(`data-tgvor="${v}"`,v?n+" vorher":n,vor===v)).join("")}</div>
-        <div class="tgs-k">Melden, wenn ein Druck …</div><div class="tgr">${[["start","startet"],["pause","pausiert"],["fertig","fertig ist"],["abbruch","abgebrochen wird"],["fehler","einen Fehler hat"]].map(([k,n])=>ch(`data-tgev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
-        <label class="tgf"><input type="checkbox" id="srv_tgfoto"${t.foto===false?"":" checked"}> Kamerabild mitschicken</label></div>
+      ${wahlHtml(t)}
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvTgTest">Test senden</button><button class="btn sm ghost" data-act="srvTgAus">Trennen</button></div>`
     :`<p>Auch ohne Home Assistant: In Telegram <b>@BotFather</b> öffnen, <code>/newbot</code> schreiben und den Token hier eintragen. Dann deinem neuen Bot einmal <code>/start</code> schreiben und auf „Verbinden“ tippen.</p>
       <div class="srvcopy"><input type="password" id="srv_tgtok" value="" placeholder="123456789:AA…" autocomplete="off"><button class="btn sm" data-act="srvTgVerb">Verbinden</button></div>`}
-  async function tgSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{telegram:neu});telegramForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
-  document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("#srv_tg [data-tgst],#srv_tg [data-tgx],#srv_tg [data-tgvor],#srv_tg [data-tgev]");if(!b)return;const t=E.telegram||{};
+  /* Was beim Drucken gemeldet wird – gilt für Telegram und WhatsApp gemeinsam */
+  function wahlHtml(t){t=t||{};const st=Array.isArray(t.stufen)?t.stufen:[25,50,75];const ev=t.ereignisse||{};const an=k=>ev[k]!==false;const vor=Number(t.vor_ende)||0;
+    const VOR=[["aus",[]],["50 %",[50]],["25 · 50 · 75 %",[25,50,75]],["alle 20 %",[20,40,60,80]],["alle 10 %",[10,20,30,40,50,60,70,80,90]]];
+    const gleich=(a,b)=>a.length===b.length&&a.every((x,i)=>x===b[i]);const eigen=!VOR.some(([,v])=>gleich(v,st));
+    const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
+    return `<div class="tgs"><div class="tgs-k">Fortschritt melden bei</div><div class="tgr">${VOR.map(([n,v])=>ch(`data-tgst="${v.join(",")}"`,n,gleich(v,st))).join("")}${eigen?ch('data-tgst="eigen"',"eigene: "+st.join(" · ")+" %",true):""}</div>
+        <div class="tgr tgp">${[10,20,25,30,40,50,60,70,75,80,90].map(x=>ch(`data-tgx="${x}"`,x+" %",st.includes(x))).join("")}</div>
+        <div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[["aus",0],["5 min",5],["10 min",10],["15 min",15],["30 min",30]].map(([n,v])=>ch(`data-tgvor="${v}"`,v?n+" vorher":n,vor===v)).join("")}</div>
+        <div class="tgs-k">Melden, wenn ein Druck …</div><div class="tgr">${[["start","startet"],["pause","pausiert"],["fertig","fertig ist"],["abbruch","abgebrochen wird"],["fehler","einen Fehler hat"]].map(([k,n])=>ch(`data-tgev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
+        <label class="tgf"><input type="checkbox" id="srv_tgfoto"${t.foto===false?"":" checked"}> Kamerabild mitschicken</label></div>`}
+  /* WhatsApp über das Meldewerk (eigenes Gateway auf dem NUC) */
+  function whatsappForm(){const box=document.getElementById("srv_wa");if(!box)return;const w=E.whatsapp||{},t=E.telegram||{};const tgAn=!!(t.token&&t.chat);
+    box.innerHTML=w.url&&w.schluessel?`<p>Meldungen gehen per WhatsApp über das <b>Meldewerk</b> an dein Handy – zusätzlich zu Home Assistant${tgAn?" und Telegram":""}.</p>
+      ${tgAn?`<p class="hint" style="margin:0">Was beim Drucken gemeldet wird, stellst du oben bei Telegram ein. Die Auswahl gilt für beide.</p>`:wahlHtml(t)}
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="srvWaTest">Test senden</button><a class="btn sm ghost" href="${esc(/^https?:/.test(w.url)?w.url:"http://"+w.url)}" target="_blank" rel="noopener">Meldewerk öffnen</a><button class="btn sm ghost" data-act="srvWaAus">Trennen</button></div>`
+    :`<p>Meldungen als WhatsApp, verschickt von deinem <b>Meldewerk</b>. Adresse und Schlüssel stehen dort unter Einstellungen → Schnittstelle.</p>
+      <label class="field"><span>Adresse</span><input type="text" id="srv_waurl" value="${esc(w.url||"")}" placeholder="http://192.168.1.30:8077" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="srvcopy"><input type="password" id="srv_waschl" value="" placeholder="Schlüssel aus dem Meldewerk" autocomplete="off"><button class="btn sm" data-act="srvWaVerb">Verbinden</button></div>`}
+  async function tgSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{telegram:neu});telegramForm();whatsappForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
+  document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("#srv_tg [data-tgst],#srv_tg [data-tgx],#srv_tg [data-tgvor],#srv_tg [data-tgev],#srv_wa [data-tgst],#srv_wa [data-tgx],#srv_wa [data-tgvor],#srv_wa [data-tgev]");if(!b)return;const t=E.telegram||{};
     if(b.dataset.tgst!=null){if(b.dataset.tgst==="eigen")return;tgSpeichern({stufen:b.dataset.tgst?b.dataset.tgst.split(",").map(Number):[]},"Fortschritt-Meldungen gespeichert");return}
     if(b.dataset.tgx){const x=Number(b.dataset.tgx);const st=new Set(Array.isArray(t.stufen)?t.stufen:[25,50,75]);st.has(x)?st.delete(x):st.add(x);tgSpeichern({stufen:[...st].sort((a,b)=>a-b)});return}
     if(b.dataset.tgvor!=null){tgSpeichern({vor_ende:Number(b.dataset.tgvor)});return}
@@ -681,6 +692,11 @@ const SRV=window.SRV=(()=>{
       try{const d=await req("POST","/api/telegram/chat",{token:tok});E=await req("GET","/api/einstellungen");telegramForm();await req("POST","/api/telegram/test");msg(`✓ Verbunden mit ${esc(d.name||d.chat)} – Testmeldung ist unterwegs.`)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
     if(a==="srvTgSet"){return}
     if(a==="srvTgTest"){msg("Sende Testmeldung …");try{await req("POST","/api/telegram/test");msg("✓ Testmeldung an Telegram gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvWaVerb"){const v=id=>((document.getElementById(id)||{}).value||"").trim();const url=v("srv_waurl").replace(/\/+$/,""),schl=v("srv_waschl");
+      if(!url||!schl)return msg("Bitte Adresse und Schlüssel aus dem Meldewerk eintragen.");msg("Verbinde mit dem Meldewerk …");
+      try{await req("POST","/api/whatsapp/test",{url,schluessel:schl});E=await req("GET","/api/einstellungen");whatsappForm();msg("✓ Meldewerk verbunden – die Testmeldung ist unterwegs.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvWaTest"){msg("Sende Testmeldung …");try{await req("POST","/api/whatsapp/test");msg("✓ Testmeldung an WhatsApp gesendet.")}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`)}return}
+    if(a==="srvWaAus"){try{E=await req("PUT","/api/einstellungen",{whatsapp:{url:"",schluessel:""}});whatsappForm();msg("WhatsApp getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}
     if(a==="srvTgAus"){try{E=await req("PUT","/api/einstellungen",{telegram:{token:"",chat:"",chat_name:""}});telegramForm();msg("Telegram getrennt.")}catch(x){msg(esc(x.message||String(x)))}return}
     if(a==="srvHaSpeichern"){const v=id=>((document.getElementById(id)||{}).value||"").trim();einstSpeichern({ha:{url:v("srv_haurl").replace(/\/+$/,""),token:v("srv_hatok"),notify:v("srv_hanot")}},"✓ Home Assistant gespeichert.");return}
     if(a==="srvFdb"){msg("Hole die neueste Filament-Datenbank auf den Server …");b.disabled=true;
@@ -8030,7 +8046,7 @@ const B=[
   {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Bambu-Cloud","Creality-Cloud","#karten","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach"],karten:["Bambu-Drucker","Bambu Studio · Filament Manager","Druckprotokoll"]},
   {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Anzeige im Lager","Warnungen","Leere Spulen","Spulen-Etiketten","#karten"],karten:["Waage","Filament-Datenbank"]},
   {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Materialien","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
-  {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
+  {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram","WhatsApp"]},
   {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter & Zusatzfunktionen"],karten:[]},
   /* Zugänge: alles, was der Server zum Arbeiten braucht (Konten, Schlüssel, Adressen) an einer Stelle */
   {k:"zug",t:"Zugänge",ic:"zg",abschnitte:["#karten","Preisvergleich"],karten:["Zugang","Claude"]},
@@ -8044,7 +8060,7 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "drucker":{const l=(window.__einDR||[]);if(!S.srv)return (c.printers||[]).length+" Drucker im Rechner";if(!l.length)return "wird geprüft …";const on=l.filter(d=>d.online).length;return `${on} verbunden${l.length>on?` · ${l.length-on} offline`:""}`}
     case "lager":return "Waage, Datenbank, Preise";
     case "kalk":return `Strom ${n(c.kwh||0)} €/kWh · ${n(c.rate||0)} €/h`;
-    case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":""].filter(Boolean).join(" · ")||"Handy · Telegram";
+    case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":"",E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel?"WhatsApp":""].filter(Boolean).join(" · ")||"Handy · Telegram · WhatsApp";
     case "aus":return "Design, Reiter, Zusatzfunktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
 /* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
@@ -8103,6 +8119,7 @@ function zugZeilen(){const E=SLF.e||{},I=S.srvInfo||{},dr=E.drucker||[];const L=
    {t:"Home Assistant",w:I.ha_app?"automatisch – Server läuft als HA-App":((E.ha||{}).url||"nicht verbunden"),ok:!!(I.ha_app||(E.ha||{}).url),zaehlt:true,ziel:"b:meld"},
    {t:"Meldung aufs Handy",w:notify.length?`${notify.length} Gerät${notify.length>1?"e":""}`:"kein Gerät",ok:notify.length>0,zaehlt:false,ziel:"b:meld"},
    {t:"Telegram",w:tg.token&&tg.chat?("Bot an "+(tg.chat_name||tg.chat)):"nicht eingerichtet",ok:!!(tg.token&&tg.chat),zaehlt:false,ziel:"b:meld"},
+   {t:"WhatsApp",w:(E.whatsapp||{}).url&&(E.whatsapp||{}).schluessel?"Meldewerk "+String(E.whatsapp.url).replace(/^https?:\/\//,""):"nicht eingerichtet",ok:!!((E.whatsapp||{}).url&&(E.whatsapp||{}).schluessel),zaehlt:false,ziel:"b:meld"},
    {t:"eBay-Preise",w:eb.id&&eb.secret?"Client-ID "+String(eb.id).slice(0,14)+(String(eb.id).length>14?"…":""):"keine Schlüssel",ok:!!(eb.id&&eb.secret),zaehlt:false,ziel:"s:Preisvergleich"},
    {t:"AliExpress-Preise",w:ali.key&&ali.secret?"App-Key "+ali.key:"keine Schlüssel",ok:!!(ali.key&&ali.secret),zaehlt:false,ziel:"s:Preisvergleich"},
    {t:"Claude",w:"Adresse für den Konnektor",ok:true,zaehlt:false,ziel:"k:Claude"}]}
