@@ -7973,14 +7973,14 @@ const IC={dr:'<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx=
   sy:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   zg:'<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M17 6l2.5 2.5M14.5 8.5 16.5 10.5"/>'};
 const B=[
-  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach"],karten:["Bambu-Drucker","Bambu Studio · Filament Manager","Druckprotokoll"]},
-  {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Anzeige im Lager","Warnungen","Leere Spulen","Spulen-Etiketten"],karten:["Filament-Datenbank"]},
+  {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Bambu-Cloud","Creality-Cloud","#karten","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach"],karten:["Bambu-Drucker","Bambu Studio · Filament Manager","Druckprotokoll"]},
+  {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Anzeige im Lager","Warnungen","Leere Spulen","Spulen-Etiketten","#karten"],karten:["Waage","Filament-Datenbank"]},
   {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Materialien","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
   {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram"]},
   {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter & Zusatzfunktionen"],karten:[]},
   /* Zugänge: alles, was der Server zum Arbeiten braucht (Konten, Schlüssel, Adressen) an einer Stelle */
-  {k:"zug",t:"Zugänge",ic:"zg",abschnitte:["Bambu-Cloud","Creality-Cloud","Preisvergleich","Home Assistant verbinden"],karten:["Zugang","Claude","Waage"]},
-  {k:"sys",t:"System",ic:"sy",abschnitte:["SchichtLohn-Server","Sync zwischen Geräten","Daten und Sicherung"],karten:[]}];
+  {k:"zug",t:"Zugänge",ic:"zg",abschnitte:["#karten","Preisvergleich"],karten:["Zugang","Claude"]},
+  {k:"sys",t:"System",ic:"sy",abschnitte:["SchichtLohn-Server","Daten und Sicherung","Sync zwischen Geräten","Home Assistant verbinden"],karten:[]}];
 const svg=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 let akt=null,suche="";try{akt=sessionStorage.getItem("sl_einst_bereich")||null}catch(e){}
 const titel=e=>{const h=e.querySelector&&(e.querySelector(":scope>.sec-title h2, :scope>h2")||e.querySelector("h2"));return h?h.textContent.trim():""};
@@ -7994,7 +7994,7 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "aus":return "Design, Reiter, Zusatzfunktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
 /* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
-function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einDR||[]).filter(d=>!d.online).map(d=>d.name).filter(Boolean);return off.length?"offline: "+off.join(", "):"Bambu, Creality, verpasste Drucke"}return status(b)}case "lager":return "Anzeige, Warnungen, Leerspulen, Etiketten";case "zug":return "Konten, Schlüssel, Adressen";case "sys":return S.srv?"Version, Sicherung":status(b);default:return status(b)}}
+function unter(b){switch(b.k){case "drucker":{if(S.srv){const off=(window.__einDR||[]).filter(d=>!d.online).map(d=>d.name).filter(Boolean);return off.length?"offline: "+off.join(", "):"Bambu, Creality, verpasste Drucke"}return status(b)}case "lager":return "Anzeige, Warnungen, Leerspulen, Etiketten";case "zug":return "Server-Schlüssel, Claude, eBay und AliExpress";case "sys":return S.srv?"Server, Sicherung, Umzug":status(b);default:return status(b)}}
 function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!l.length)return null;const on=l.filter(d=>d.online).length;return {t:on===l.length?"alle online":`${on} von ${l.length} online`,ok:on===l.length,teil:on>0&&on<l.length}}
   if(b.k==="zug"&&S.srv&&SLF.e){const z=zugZeilen().filter(x=>x.zaehlt);const ok=z.filter(x=>x.ok).length;return {t:ok===z.length?"alles eingerichtet":`${ok} von ${z.length}`,ok:ok===z.length,teil:ok>0&&ok<z.length}}
   if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
@@ -8004,18 +8004,18 @@ function zugZeilen(){const E=SLF.e||{},I=S.srvInfo||{},dr=E.drucker||[];const L=
   const notify=String((E.ha||{}).notify||"").split(",").map(x=>x.trim()).filter(Boolean);
   return [
    {t:"Server-Schlüssel",w:I.token?"geschützt":"kein Schlüssel – jeder im Heimnetz hat Zugriff",ok:!!I.token,zaehlt:true,ziel:"k:Zugang"},
-   {t:"Bambu-Cloud",w:(E.cloud||{}).token?((E.cloud||{}).konto||"angemeldet"):"nicht angemeldet",ok:!!(E.cloud||{}).token,zaehlt:true,ziel:"s:Bambu-Cloud"},
+   {t:"Bambu-Cloud",w:(E.cloud||{}).token?((E.cloud||{}).konto||"angemeldet"):"nicht angemeldet",ok:!!(E.cloud||{}).token,zaehlt:true,ziel:"b:drucker|Bambu-Cloud"},
    {t:"Drucker im Heimnetz",w:dr.length?`${mitLan.length} von ${dr.length} mit IP und Zugangscode${ohne.length?" · ohne: "+ohne.join(", "):""}`:"keine Drucker eingetragen",ok:dr.length>0&&!ohne.length,teil:mitLan.length>0&&ohne.length>0,zaehlt:true,ziel:"b:drucker"},
-   {t:"Creality-Cloud",w:cr&&(cr.token||cr.accessToken)?"angemeldet":"nicht angemeldet",ok:!!(cr&&(cr.token||cr.accessToken)),zaehlt:false,ziel:"s:Creality-Cloud"},
+   {t:"Creality-Cloud",w:cr&&(cr.token||cr.accessToken)?"angemeldet":"nicht angemeldet",ok:!!(cr&&(cr.token||cr.accessToken)),zaehlt:false,ziel:"b:drucker|Creality-Cloud"},
    {t:"Filamentwaage",w:E.waage_url||"keine Adresse",ok:!!E.waage_url,zaehlt:true,ziel:"b:lager|Spulen-Etiketten"},
-   {t:"Home Assistant",w:I.ha_app?"automatisch – Server läuft als HA-App":((E.ha||{}).url||"nicht verbunden"),ok:!!(I.ha_app||(E.ha||{}).url),zaehlt:true,ziel:I.ha_app?"b:meld":"s:Home Assistant verbinden"},
+   {t:"Home Assistant",w:I.ha_app?"automatisch – Server läuft als HA-App":((E.ha||{}).url||"nicht verbunden"),ok:!!(I.ha_app||(E.ha||{}).url),zaehlt:true,ziel:"b:meld"},
    {t:"Meldung aufs Handy",w:notify.length?`${notify.length} Gerät${notify.length>1?"e":""}`:"kein Gerät",ok:notify.length>0,zaehlt:false,ziel:"b:meld"},
    {t:"Telegram",w:tg.token&&tg.chat?("Bot an "+(tg.chat_name||tg.chat)):"nicht eingerichtet",ok:!!(tg.token&&tg.chat),zaehlt:false,ziel:"b:meld"},
    {t:"eBay-Preise",w:eb.id&&eb.secret?"Client-ID "+String(eb.id).slice(0,14)+(String(eb.id).length>14?"…":""):"keine Schlüssel",ok:!!(eb.id&&eb.secret),zaehlt:false,ziel:"s:Preisvergleich"},
    {t:"AliExpress-Preise",w:ali.key&&ali.secret?"App-Key "+ali.key:"keine Schlüssel",ok:!!(ali.key&&ali.secret),zaehlt:false,ziel:"s:Preisvergleich"},
    {t:"Claude",w:"Adresse für den Konnektor",ok:true,zaehlt:false,ziel:"k:Claude"}]}
 function zugHtml(){if(!S.srv)return "";if(!SLF.e)return `<div class="eb-cap">Auf einen Blick</div><div class="eb-liste"><div class="eb-z">wird geladen …</div></div>`;
-  return `<div class="eb-cap">Auf einen Blick</div><div class="eb-liste">${zugZeilen().map(z=>`<button type="button" class="eb-z zg-z" data-act="zugZiel" data-ziel="${esc(z.ziel)}"><span class="zg-pu${z.ok?" ok":z.teil?" teil":""}"></span><span class="eb-tx"><b>${esc(z.t)}</b><small>${esc(z.w)}</small></span><span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`).join("")}</div>
+  return `<div class="eb-cap">Alles auf einen Blick</div><div class="eb-liste">${zugZeilen().map(z=>`<button type="button" class="eb-z zg-z" data-act="zugZiel" data-ziel="${esc(z.ziel)}"><span class="zg-pu${z.ok?" ok":z.teil?" teil":""}"></span><span class="eb-tx"><b>${esc(z.t)}</b><small>${esc(z.w)}</small></span><span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`).join("")}</div>
   <div class="zg-fuss">Alles, was hier steht, liegt auf dem SchichtLohn-Server. Für einen Umzug auf einen neuen Rechner: unter <b>System → Umzug</b> die Adresse des alten Servers eintragen – Zugänge, Drucker und Lager kommen dann mit.</div>`}
 function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelector("#main>.stack");if(!st)return;
   const kopf=[...st.children].find(e=>e.classList.contains("row")&&e.querySelector("h1"));if(!kopf)return;
@@ -8051,6 +8051,10 @@ function ordnen(){if(S.tab!=="einstellungen")return;const st=document.querySelec
     let zeigen=akt?e.dataset.eb===akt:!!q&&e.textContent.toLowerCase().includes(q);
     if(e.classList.contains("ebk-hulle")&&!e.querySelector(".srvk"))zeigen=false;e.classList.toggle("eb-weg",!zeigen)});
   st.classList.toggle("eb-detail",!!akt||!!q);
+  /* Reihenfolge im geöffneten Bereich wie in B (Abschnitte und „#karten“), nur umstellen, wenn nötig */
+  if(akt){const b=B.find(x=>x.k===akt);if(b){const rang=e=>{const i=b.abschnitte.indexOf(e.classList.contains("ebk-hulle")?"#karten":titel(e));return i<0?99:i};
+    const el=[...st.children].filter(e=>e.dataset.eb===akt&&e!==zo&&!e.classList.contains("eb-weg"));const soll=[...el].sort((x,y)=>rang(x)-rang(y));
+    if(soll.some((e,i)=>e!==el[i])){let vor=zo&&zo.parentElement===st?zo:ov;soll.forEach(e=>{vor.after(e);vor=e})}}}
   /* Im Unterbereich steht „‹ Einstellungen“ schon als Zurück-Knopf – große Überschrift dann ausblenden */
   if(kopf)kopf.hidden=!!akt;
   const inp=document.getElementById("eb_q");if(inp&&ordnen.fokus){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);ordnen.fokus=false}}

@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.17.16 – 22.11.2026
+- Einstellungen weiter aufgeräumt: Bambu- und Creality-Cloud stehen jetzt unter Drucker, die Waagen-Adresse unter Lager & Filament, „Home Assistant verbinden“ (nur für diesen Browser) unter System.
+- Zugänge enthält nur noch Server-Schlüssel, Claude und eBay/AliExpress. Die Liste „Alles auf einen Blick“ springt beim Antippen direkt in den richtigen Bereich.
+- Die Zeile „Home Assistant“ in der Liste führt jetzt zu den Meldungen statt zur falschen Verbindung.
+
 ## 3.17.15 – 22.11.2026
 - Einstellungen aufgeräumt: „Lager & Filament“ ist jetzt in Anzeige im Lager, Warnungen, Leere Spulen und Spulen-Etiketten aufgeteilt. Die Lager-Werte speichern sich sofort, der Knopf „Übernehmen“ ist weg.
 - „Materialien“ steht jetzt unter Kalkulation, weil sie nur der Rechner braucht.
