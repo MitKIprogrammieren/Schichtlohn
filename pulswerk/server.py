@@ -169,38 +169,144 @@ def verlauf(bereich):
 
 # ---------- Plan: Heimnetz-Übersicht mit Live-Erreichbarkeit ----------
 # Feste Beschreibung des Heimnetzes. Überschreibbar mit /daten/plan.json (gleiches Format).
+# Feste Beschreibung des Heimnetzes (nur lokale Adressen). Private Adressen für unterwegs
+# (Tailscale, Nabu Casa) kommen aus /plan.json bzw. /daten/plan.json und stehen nicht im Repo.
 PLAN = {
     "geraete": [
-        {"id": "fritz", "name": "FritzBox", "rolle": "Router · verteilt Adressen", "ip": "192.168.1.1", "ports": [80, 443], "art": "router", "url": "http://192.168.1.1"},
-        {"id": "dscloud", "name": "DsCLoud", "rolle": "Synology DS718+ · Dateien & Backups", "ip": "192.168.1.4", "ports": [4001, 5000, 5001, 443], "art": "nas", "url": "https://192.168.1.4:4001"},
-        {"id": "ds2", "name": "DS1819+", "rolle": "Synology · Filme & Serien", "ip": "192.168.1.2", "ports": [5000, 5001, 4001, 443], "art": "nas", "url": "http://192.168.1.2:5000"},
-        {"id": "pve", "name": "NUC · Proxmox", "rolle": "Server für alle Werke", "ip": "192.168.1.5", "ports": [8006], "art": "server", "url": "https://192.168.1.5:8006"},
-        {"id": "ha", "name": "Home Assistant", "rolle": "Smart Home", "ip": "192.168.1.66", "ports": [8123], "art": "ha", "url": "http://192.168.1.66:8123"},
-        {"id": "usv", "name": "USV Zinto 1000", "rolle": "Notstrom", "ip": "192.168.1.3", "ports": [80, 443, 3493], "art": "usv", "url": "http://192.168.1.3"},
-        {"id": "pihole", "name": "Pi-hole", "rolle": "Raspberry Pi · abgeschaltet", "ip": "192.168.1.250", "ports": [80, 53], "art": "pi", "aus": True, "url": "http://192.168.1.250/admin"},
-        {"id": "kind", "name": "Kinder-Gerät", "rolle": "sperrbar über Home Assistant", "ip": "192.168.1.31", "ports": [], "art": "handy"},
+        {
+            "id": "fritz",
+            "name": "FritzBox",
+            "rolle": "Router · verteilt Adressen",
+            "ip": "192.168.1.1",
+            "ports": [
+                80,
+                443
+            ],
+            "art": "router",
+            "url": "http://192.168.1.1"
+        },
+        {
+            "id": "dscloud",
+            "name": "DsCLoud",
+            "rolle": "Synology DS718+ · Dateien & Backups",
+            "ip": "192.168.1.4",
+            "ports": [
+                4001,
+                5000,
+                5001,
+                443
+            ],
+            "art": "nas",
+            "url": "https://192.168.1.4:4001"
+        },
+        {
+            "id": "ds2",
+            "name": "DS1819+",
+            "rolle": "Synology · Filme & Serien",
+            "ip": "192.168.1.2",
+            "ports": [
+                5000,
+                5001,
+                4001,
+                443
+            ],
+            "art": "nas",
+            "url": "http://192.168.1.2:5000"
+        },
+        {
+            "id": "pve",
+            "name": "NUC · Proxmox",
+            "rolle": "Server für alle Werke",
+            "ip": "192.168.1.5",
+            "ports": [
+                8006
+            ],
+            "art": "server",
+            "url": "https://192.168.1.5:8006"
+        },
+        {
+            "id": "ha",
+            "name": "Home Assistant",
+            "rolle": "Smart Home",
+            "ip": "192.168.1.66",
+            "ports": [
+                8123
+            ],
+            "art": "ha",
+            "url": "http://192.168.1.66:8123"
+        },
+        {
+            "id": "usv",
+            "name": "USV Zinto 1000",
+            "rolle": "Notstrom",
+            "ip": "192.168.1.3",
+            "ports": [
+                80,
+                443,
+                3493
+            ],
+            "art": "usv",
+            "url": "http://192.168.1.3"
+        },
+        {
+            "id": "pihole",
+            "name": "Pi-hole",
+            "rolle": "Raspberry Pi · abgeschaltet",
+            "ip": "192.168.1.250",
+            "ports": [
+                80,
+                53
+            ],
+            "art": "pi",
+            "aus": True,
+            "url": "http://192.168.1.250/admin"
+        },
+        {
+            "id": "kind",
+            "name": "Kinder-Gerät",
+            "rolle": "sperrbar über Home Assistant",
+            "ip": "192.168.1.31",
+            "ports": [],
+            "art": "handy"
+        }
     ],
     "gaeste": {
-        "100": {"rolle": "Docker · alle Werke", "ip": "192.168.1.30", "url": "http://192.168.1.30:8090"},
-        "101": {"rolle": "AdGuard · Werbeblocker & DNS", "ip": "192.168.1.34", "url": "http://192.168.1.34"},
-        "102": {"rolle": "JDownloader · Downloads", "ip": "192.168.1.37"},
-        "103": {"rolle": "Plex · Filme & Serien", "ip": "192.168.1.21", "url": "http://192.168.1.21:32400/web"},
+        "100": {
+            "rolle": "Docker · alle Werke",
+            "ip": "192.168.1.30",
+            "url": "http://192.168.1.30:8090"
+        },
+        "101": {
+            "rolle": "AdGuard · Werbeblocker & DNS",
+            "ip": "192.168.1.34",
+            "url": "http://192.168.1.34"
+        },
+        "102": {
+            "rolle": "JDownloader · Downloads",
+            "ip": "192.168.1.37"
+        },
+        "103": {
+            "rolle": "Plex · Filme & Serien",
+            "ip": "192.168.1.21",
+            "url": "http://192.168.1.21:32400/web"
+        }
     },
-    "unterwegs": [
-        {"name": "DsCLoud", "ip": "100.105.178.64", "wozu": "DSM von unterwegs", "url": "https://dscloud.tail293912.ts.net"},
-        {"name": "nuc-schichtlohn", "ip": "100.82.144.96", "wozu": "SchichtLohn & Werke", "url": "http://100.82.144.96:8090"},
-        {"name": "adguard", "ip": "100.124.111.62", "wozu": "Werbeblocker unterwegs", "url": "http://100.124.111.62"},
-    ],
+    "werke_host": {
+        "lokal": "192.168.1.30"
+    },
+    "unterwegs": []
 }
 PLAN_CACHE = {"zeit": 0, "daten": None}
 
 
 def plan_laden():
-    try:
-        with open(os.path.join(DATEN, "plan.json")) as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return PLAN
+    for pfad in ("/plan.json", os.path.join(DATEN, "plan.json")):
+        try:
+            with open(pfad) as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            continue
+    return PLAN
 
 
 def erreichbar(ip, ports):
@@ -338,7 +444,7 @@ def plan():
         info = p.get("gaeste", {}).get(str(x["id"]), {})
         gaeste.append({"id": x["id"], "name": x["name"], "ram": x.get("ram"), "cpu": x.get("cpu"), **info})
     daten = {"zeit": round(time.time()), "geraete": geraete, "gaeste": sorted(gaeste, key=lambda x: x["id"]),
-             "container": docker_alle(), "unterwegs": p.get("unterwegs", []), "sensor": bool(s), "fritz": fritz()}
+             "container": docker_alle(), "unterwegs": p.get("unterwegs", []), "werke_host": p.get("werke_host", {}), "sensor": bool(s), "fritz": fritz()}
     PLAN_CACHE.update(zeit=time.time(), daten=daten)
     return daten
 
