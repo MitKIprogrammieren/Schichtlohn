@@ -2,9 +2,11 @@
 """Baut preise.json aus den vereinheitlichten Shopzeilen (tools/shops.py) und den 3DJake-Daten.
 Aufruf: preise_bauen.py <ordner mit <shop>.jsonl> <ziel preise.json>
 
-Format: {"stand", "shops": {schlüssel: [Name, Basis-URL]}, "z": [[shop, marke, titel, material, farbe, gewicht, refill, preis, normal, pfad, ean]]}
+Format: {"stand", "shops": {schlüssel: [Name, Basis-URL]}, "z": [[shop, marke, titel, material, farbe, gewicht, refill, preis, normal, pfad, ean, stand, bild]]}
+stand bleibt hier leer (nur bei selbst übernommenen Shoppreisen belegt).
+bild: Produktbild – „~/…“ steht für https://cdn.shopify.com/s/files/, ohne https:// relativ zur Basis-URL des Shops, sonst volle Adresse.
 Die App ordnet die Zeilen selbst den Sorten im Lager zu (Marke, Material, Besonderheit, Farbe – oder EAN)."""
-import json, os, sys, time
+import json, os, re, sys, time
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,6 +18,21 @@ def plausibel(preis, gewicht):
     except (TypeError, ValueError, ZeroDivisionError):
         return False
     return 7 <= pk <= 300
+
+
+def bild_kurz(u, basis):
+    """Bildadresse kürzen, damit preise.json klein bleibt (Shopify-CDN und Shop-eigene Bilder)."""
+    u = str(u or "").strip()
+    if not u:
+        return ""
+    if u.startswith("//"):
+        u = "https:" + u
+    u = re.sub(r"\?v=\d+$", "", u)
+    if u.startswith("https://cdn.shopify.com/s/files/"):
+        return "~/" + u[len("https://cdn.shopify.com/s/files/"):]
+    if u.startswith(basis):
+        return u[len(basis):]
+    return u
 
 
 def main():
@@ -40,7 +57,7 @@ def main():
             if not r.get("preis_eur") or not plausibel(r.get("normalpreis_eur") or r["preis_eur"], r.get("gewicht_g")):
                 continue
             z.append([k, r["marke"], r["titel"], r["material"], r["farbe"], r["gewicht_g"], 1 if r["ausfuehrung"] == "refill" else 0,
-                      round(r["preis_eur"], 2), round(r["normalpreis_eur"] or r["preis_eur"], 2), pfad(k, r["url"]), r.get("ean") or ""])
+                      round(r["preis_eur"], 2), round(r["normalpreis_eur"] or r["preis_eur"], 2), pfad(k, r["url"]), r.get("ean") or "", "", bild_kurz(r.get("bild"), alle[k][1])])
     jake = [json.loads(l) for l in open(os.path.join(HIER, "haendler", "3djake.jsonl"), encoding="utf-8") if l.strip()]
     # Dieselbe Ausführung (EAN) gibt es oft auch mit eigener Adresse (?sai=…): deren Preis stimmt sicher,
     # die Hauptseite zeigt dagegen den Preis der voreingestellten Ausführung (z. B. 1 kg statt 3 kg).
@@ -55,7 +72,7 @@ def main():
             continue
         z.append(["3djake", r["marke"], f"{r['marke']} {r.get('serie') or ''} {r.get('farbe') or ''}".strip(), r.get("material") or "", r.get("farbe") or "",
                   r.get("gewicht_g") or 1000, 1 if r.get("ausfuehrung") == "refill" else 0, r["preis_eur"], r.get("normalpreis_eur") or r["preis_eur"],
-                  pfad("3djake", r.get("url") or ""), r.get("ean") or ""])
+                  pfad("3djake", r.get("url") or ""), r.get("ean") or "", "", bild_kurz(r.get("bild"), alle["3djake"][1])])
     json.dump({"stand": time.strftime("%Y-%m-%d"), "shops": alle, "z": z}, open(ziel, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(len(z), "Angebote,", os.path.getsize(ziel) // 1024, "KB")
 

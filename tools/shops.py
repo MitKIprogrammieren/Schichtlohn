@@ -86,12 +86,13 @@ def farbe_putzen(f):
     return re.sub(r"\s+", " ", f).strip(" -/–,")
 
 
-def zeile(shop, marke, titel, farbe, gw, refill, preis, normal, url, ean="", artnr=""):
+def zeile(shop, marke, titel, farbe, gw, refill, preis, normal, url, ean="", artnr="", bild=""):
     titel = html.unescape(re.sub(r"\s+", " ", titel)).strip()
     farbe = farbe_putzen(farbe) or farbe_putzen(farbe_aus_titel(titel))
     return {"shop": shop, "marke": marke, "titel": titel, "material": material(titel), "farbe": html.unescape(farbe or "").strip(),
             "gewicht_g": gw or 1000, "ausfuehrung": "refill" if refill else "spule", "preis_eur": preis,
-            "normalpreis_eur": normal if normal and normal > (preis or 0) else preis, "url": url, "ean": ean if ean_ok(ean) else "", "artnr": artnr}
+            "normalpreis_eur": normal if normal and normal > (preis or 0) else preis, "url": url, "ean": ean if ean_ok(ean) else "", "artnr": artnr,
+            "bild": ("https:" + bild) if str(bild or "").startswith("//") else (bild or "")}
 
 
 def shopify(shop, cfg, daten):
@@ -132,7 +133,8 @@ def shopify(shop, cfg, daten):
             if re.search(r"2[.,]85\s*mm", vt) or (gw and gw < 200) or re.search(r"\bbundle\b|\d\s*x\s*\d", vt, re.I):
                 continue
             out.append(zeile(shop, marke, titel + ("" if vt == "Default Title" else " – " + vt), farbe, gw, refill, preis, normal,
-                             f"{basis}/products/{p.get('handle')}?variant={v.get('id')}", sku if ean_ok(sku) else "", "" if ean_ok(sku) else sku))
+                             f"{basis}/products/{p.get('handle')}?variant={v.get('id')}", sku if ean_ok(sku) else "", "" if ean_ok(sku) else sku,
+                             ((v.get("featured_image") or {}).get("src")) or ((p.get("images") or [{}])[0] or {}).get("src") or ""))
     return out
 
 
@@ -178,7 +180,8 @@ def woo(shop, cfg, daten):
             continue
         marke = cfg["marke"] or re.split(r"\s+(?:&#8211;|–|-)\s+", html.unescape(name))[0].split()[0]  # Filamentworld: „Fillamentum – Extrafill – PLA …“
         out.append(zeile(shop, marke, name + (" – " + attr if attr else ""), farbe, gw, "refill" in (name + attr).lower(),
-                         preis, normal, p.get("permalink") or "", "", p.get("sku") or ""))
+                         preis, normal, p.get("permalink") or "", "", p.get("sku") or "",
+                         ((p.get("images") or (eltern.get(p.get("parent")) or {}).get("images") or [{}])[0] or {}).get("src") or ""))
     return out
 
 
@@ -193,7 +196,8 @@ def wix(shop, cfg, daten):
         m = material(t)
         farbe = re.sub(rf"^.*?\b{re.escape(m)}\w*\s+", "", t, flags=re.I) if m else ""
         farbe = re.sub(r"\s*filament.*$", "", farbe, flags=re.I).strip()
-        out.append(zeile(shop, cfg["marke"], t, farbe, gewicht(t), "refill" in t.lower(), float(preis), None, p["url"]))
+        out.append(zeile(shop, cfg["marke"], t, farbe, gewicht(t), "refill" in t.lower(), float(preis), None, p["url"],
+                         bild=(p.get("meta") or {}).get("og:image") or ""))
     return out
 
 
@@ -279,7 +283,7 @@ def seiten(shop, cfg, daten):
             m = material(name)
             marke = re.split(rf"\s+{re.escape(m)}\b", name, maxsplit=1, flags=re.I)[0].strip() if m else name.split()[0]
         out.append(zeile(shop, marke, name, farbe, gw, bool(re.search(r"refill|ohne spule", name, re.I)), round(p["preis"], 2), None,
-                         p["url"], p.get("ean") or "", p.get("sku") or ""))
+                         p["url"], p.get("ean") or "", p.get("sku") or "", p.get("bild") or ""))
     return out
 
 
@@ -367,7 +371,7 @@ def alle(roh, shops):
         if not os.path.exists(pfad):
             continue
         daten = json.load(open(pfad, encoding="utf-8"))
-        f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl, "seiten": seiten}[cfg["art"]]
+        f = {"shopify": shopify, "woo": woo, "wix": wix, "plenty": plenty, "jtl": jtl, "seiten": seiten, "bambu": seiten}[cfg["art"]]
         z = f(k, cfg, daten)
         if cfg.get("nur_mit_material"):  # Hersteller- und Händlershops mit viel Zubehör: nur eindeutige Filamente
             z = [x for x in z if x["material"]]

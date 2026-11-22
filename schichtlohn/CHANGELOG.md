@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.17.17 – 22.11.2026
+- Preise im neuen Look: Jede Sorte ist jetzt eine Karte mit großem Produktbild, Marke und Packungsgröße, dem Preis je kg groß und darunter Preis und Shop. Rabatte und „im Lager“ stehen als Schild auf dem Bild. „weitere Shops“ klappt die übrigen Angebote auf.
+- Die Startseite zeigt je Material die günstigsten Spulen als Karten, eBay und AliExpress erscheinen ebenfalls als Karten.
+- Produktbilder kommen ab dem nächsten täglichen Preisabruf dazu, bis dahin steht die Spule in der passenden Farbe da.
+- Neu in der Preisliste: der Bambu Lab Store.
+
 ## 3.17.16 – 22.11.2026
 - Einstellungen weiter aufgeräumt: Bambu- und Creality-Cloud stehen jetzt unter Drucker, die Waagen-Adresse unter Lager & Filament, „Home Assistant verbinden“ (nur für diesen Browser) unter System.
 - Zugänge enthält nur noch Server-Schlüssel, Claude und eBay/AliExpress. Die Liste „Alles auf einen Blick“ springt beim Antippen direkt in den richtigen Bereich.

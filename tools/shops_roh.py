@@ -207,6 +207,16 @@ def _sitemap_urls(url, tiefe=0):
     return locs
 
 
+def _bild(b):
+    """Erstes Produktbild aus ld+json (Text, Liste oder ImageObject)."""
+    if isinstance(b, list):
+        b = b[0] if b else ""
+    if isinstance(b, dict):
+        b = b.get("url") or b.get("contentUrl") or ""
+    b = str(b or "")
+    return ("https:" + b) if b.startswith("//") else b
+
+
 def _ld_produkte(h, url):
     """Produkte aus ld+json (Product, ProductGroup mit hasVariant), sonst aus den Meta-Angaben."""
     import html as H, re
@@ -235,7 +245,8 @@ def _ld_produkte(h, url):
             return
         out.append({"name": H.unescape(x.get("name") or (eltern or {}).get("name") or ""), "marke": marke(x) or marke(eltern or {}),
                     "farbe": x.get("color") or "", "ean": str(x.get("gtin13") or x.get("gtin") or ""), "sku": str(x.get("sku") or ""),
-                    "preis": float(str(pr).replace(",", ".")), "waehrung": cur or "", "url": url, "verfuegbar": verf(x.get("offers"))})
+                    "preis": float(str(pr).replace(",", ".")), "waehrung": cur or "", "url": url, "verfuegbar": verf(x.get("offers")),
+                    "bild": _bild(x.get("image")) or _bild((eltern or {}).get("image"))})
 
     for b in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', h, re.S):
         try:
@@ -256,7 +267,7 @@ def _ld_produkte(h, url):
         m = dict(re.findall(r'<meta[^>]+property="([^"]+)"[^>]+content="([^"]*)"', h))
         if m.get("product:price:amount"):
             out.append({"name": H.unescape((m.get("og:title") or "").split("|")[0].strip()), "marke": "", "farbe": "", "ean": "", "sku": "",
-                        "preis": float(m["product:price:amount"]), "waehrung": m.get("product:price:currency") or "", "url": url})
+                        "preis": float(m["product:price:amount"]), "waehrung": m.get("product:price:currency") or "", "url": url, "bild": m.get("og:image") or ""})
     return out
 
 
@@ -283,6 +294,44 @@ def seiten(cfg):
     return out
 
 
+def bambu(cfg):
+    """Bambu Lab Store (EU): Filamente über die Shop-Suche finden, Preise und Farben aus den Produktseiten (ld+json mit hasVariant)."""
+    basis = cfg["basis"].rstrip("/")
+    api = cfg.get("api") or "https://eu-store-api.bambulab.com"
+    kopf = {"User-Agent": UA, "Content-Type": "application/json", "Accept": "application/json", "Bbl-Locale": "de-DE", "X-BBL-STORE-REGION": "EU"}
+    codes = {}
+    for wort in cfg.get("suche") or ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC", "PET", "Support", "Filament"]:
+        for seite in range(1, 6):
+            req = urllib.request.Request(api + "/mall-goods/product/globalSearchV2", data=json.dumps({"content": wort, "current": seite, "size": 50}).encode(), headers=kopf)
+            try:
+                with urllib.request.urlopen(req, timeout=40) as r:
+                    d = json.loads(r.read().decode("utf-8") or "{}")
+            except Exception as e:
+                print(f"  Suche {wort}: {e}")
+                break
+            recs = ((d.get("data") or {}).get("page") or {}).get("records") or []
+            for x in recs:
+                if x.get("seoCode"):
+                    codes.setdefault(x["seoCode"], x.get("name") or "")
+            if len(recs) < 50:
+                break
+            time.sleep(0.8)
+    print(f"  {len(codes)} Produkte gefunden")
+    out = []
+    for code in list(codes)[: int(cfg.get("max") or 400)]:
+        u = f"{basis}/de/products/{code}"
+        try:
+            p = _ld_produkte(_text(u), u)
+        except Exception as e:
+            out.append({"url": u, "fehler": str(e)})
+            continue
+        for x in p:
+            x["marke"] = "Bambu Lab"
+        out += p
+        time.sleep(float(cfg.get("pause") or 0.8))
+    return out
+
+
 def main():
     shops = json.load(open(sys.argv[1], encoding="utf-8"))
     ziel = sys.argv[2]
@@ -295,7 +344,7 @@ def main():
             daten = (shopify(s["basis"], s.get("waehrung", "")) if s["art"] == "shopify" else woo(s["basis"]) if s["art"] == "woo"
                      else plenty(s["basis"], s.get("pfad") or "/de/filament-resin/filament/") if s["art"] == "plenty"
                      else jtl(s["basis"], s.get("kategorien") or []) if s["art"] == "jtl"
-                     else seiten(s) if s["art"] == "seiten" else wix(s["basis"]))
+                     else seiten(s) if s["art"] == "seiten" else bambu(s) if s["art"] == "bambu" else wix(s["basis"]))
             json.dump(daten, open(os.path.join(ziel, k + ".json"), "w", encoding="utf-8"), ensure_ascii=False)
             print(f"{k}: {len(daten)} Produkte")
         except Exception as e:

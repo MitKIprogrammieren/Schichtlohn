@@ -21,5 +21,6 @@
                     "ersetzen": {"https://3do.dk/": "https://3do.dk/de/"}, "kurs": {"DKK": 7.46}, "sprache": "da", "nur_mit_material": true},
   "eryone":         {"name": "Eryone", "marke": "Eryone", "art": "shopify", "nur_mit_material": true, "basis": "https://de.eryone3d.com", "farbe_nach_strich": true},
   "fillamentum":    {"name": "Fillamentum", "marke": "Fillamentum", "art": "shopify", "nur_mit_material": true, "basis": "https://shop.fillamentum.com", "farbe_in_anfuehrung": true},
-  "rosa3d":         {"name": "Rosa3D", "marke": "Rosa3D", "art": "seiten", "nur_mit_material": true, "basis": "https://www.rosa3d.pl", "sitemaps": ["https://www.rosa3d.pl/sitemap/render/product.xml?page=1"], "muster": ".", "kurs": {"PLN": 4.25}, "sprache": "pl"}
+  "rosa3d":         {"name": "Rosa3D", "marke": "Rosa3D", "art": "seiten", "nur_mit_material": true, "basis": "https://www.rosa3d.pl", "sitemaps": ["https://www.rosa3d.pl/sitemap/render/product.xml?page=1"], "muster": ".", "kurs": {"PLN": 4.25}, "sprache": "pl"},
+  "bambulab":      {"name": "Bambu Lab Store", "marke": "Bambu Lab", "art": "bambu", "basis": "https://eu.store.bambulab.com", "nur_mit_material": true}
 }

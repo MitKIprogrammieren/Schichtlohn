@@ -36,6 +36,16 @@ def zahl(t):
     return float(m.group(1).replace(".", "").replace(",", ".")) if m else None
 
 
+def _bild(b):
+    """Erstes Produktbild aus ld+json (Text, Liste oder ImageObject)."""
+    if isinstance(b, list):
+        b = b[0] if b else ""
+    if isinstance(b, dict):
+        b = b.get("url") or b.get("contentUrl") or ""
+    b = str(b or "")
+    return ("https:" + b) if b.startswith("//") else b
+
+
 def lesen(url, h):
     """Produktseite → Felder; None, wenn kein Filament mit 1,75 mm."""
     prod = None
@@ -71,7 +81,8 @@ def lesen(url, h):
     ean = str(prod.get("gtin13") or "")
     return {"name": name, "marke": ((prod.get("brand") or {}).get("name") or "").strip(), "preis_eur": preis,
             "normalpreis_eur": normal if normal and preis and normal > preis else preis, "gewicht_g": gew, "ausfuehrung": aus,
-            "ean": ean if ean_ok(ean) else None, "artnr": prod.get("sku") or "", "verfuegbar": "InStock" in str(off.get("availability"))}
+            "ean": ean if ean_ok(ean) else None, "artnr": prod.get("sku") or "", "verfuegbar": "InStock" in str(off.get("availability")),
+            "bild": _bild(prod.get("image"))}
 
 
 def verweise(url, h):
@@ -120,7 +131,7 @@ def main():
         if r:  # bekannte Seite: nur Preise und Kennzahlen auffrischen, Serie und Farbe bleiben wie gepflegt
             if (r.get("ean") and x["ean"] and r["ean"] != x["ean"]) or (x["gewicht_g"] and r.get("gewicht_g") and x["gewicht_g"] != r["gewicht_g"]):
                 continue  # Seite zeigt eine andere Ausführung (z. B. 1 kg statt 3 kg) – deren Preis nicht übernehmen
-            r.update({k: x[k] for k in ("preis_eur", "normalpreis_eur") if x[k]})
+            r.update({k: x[k] for k in ("preis_eur", "normalpreis_eur", "bild") if x.get(k)})
             if x["ean"] and not r.get("ean"):
                 r["ean"] = x["ean"]
             alt_ok += 1
@@ -140,7 +151,7 @@ def main():
              "ausfuehrung": x["ausfuehrung"], "url": url, "preis_eur": x["preis_eur"], "normalpreis_eur": x["normalpreis_eur"],
              "gewicht_g": x["gewicht_g"] or 1000, "durchmesser": 1.75, "ean": x["ean"], "artnr": x["artnr"], "herstellernr": None,
              "duese_min": None, "duese_max": None, "bett_min": None, "bett_max": None, "trocknen_c": None, "trocknen_h": None,
-             "duese_hinweis": None, "anmerkung": "automatisch gefunden"}
+             "duese_hinweis": None, "anmerkung": "automatisch gefunden", "bild": x.get("bild") or ""}
         rows.append(r)
         nach_url[url] = r
         neu += 1
