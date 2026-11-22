@@ -19,6 +19,10 @@ POST /api/senden   (Kopfzeile X-Schluessel: …)
 
 SchichtLohn schickt seine Druck- und Lager-Meldungen von selbst, wenn unter Einstellungen → Meldungen → WhatsApp Adresse und Schlüssel eingetragen sind.
 
+## Aus Home Assistant
+
+In Automationen das Skript **Meldewerk senden** (`script.meldewerk_senden`) aufrufen – Felder Titel, Text und optional Kamera oder Bild. Das Skript löst das Ereignis `meldewerk_senden` aus, auf das das Meldewerk hört (dafür `HA_URL` und `HA_TOKEN` in der .env). Kein YAML, kein Neustart nötig.
+
 ## Installation (Schaltwerk)
 
 Stack `meldewerk` mit `compose.yaml` aus diesem Ordner anlegen. Der Container holt sich die Programmdateien beim Start aus dem Repo – ein Update ist einfach ein Neustart des Stacks.

@@ -1,7 +1,7 @@
 name: meldewerk
 # Meldewerk – WhatsApp-Meldungen für SchichtLohn, Home Assistant und alle Werke.
 # Holt sich beim Start die neueste Fassung aus diesem Repo (Ordner meldewerk/). Ohne Internet bleibt der zuletzt geladene Stand.
-# Update = Stack neu starten. Port über MW_PORT in der .env (Standard 8077).
+# Update = Stack neu starten. In der .env: MW_PORT (Standard 8077), HA_URL und HA_TOKEN für Home Assistant.
 services:
   meldewerk:
     image: node:22-alpine
@@ -28,6 +28,8 @@ services:
       - TZ=Europe/Berlin
       - PORT=8088
       - DATEN=/daten
+      - HA_URL=${HA_URL:-}
+      - HA_TOKEN=${HA_TOKEN:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8088/gesund').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 60s

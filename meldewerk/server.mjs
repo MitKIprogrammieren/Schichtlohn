@@ -173,6 +173,44 @@ async function melden({ text, quelle, bild, titel }) {
   return e;
 }
 
+// ---------- Home Assistant: Skript „Meldewerk senden“ löst das Ereignis meldewerk_senden aus ----------
+const HA_URL = (process.env.HA_URL || '').replace(/\/+$/, '');
+const HA_TOKEN = process.env.HA_TOKEN || '';
+const HA = { verbunden: false, fehler: '' };
+
+async function haBild(d) {
+  // kamera: camera.xyz → aktuelles Kamerabild; bild: /api/... (aus HA, mit Anmeldung) oder http(s)://…
+  let pfad = d.kamera ? '/api/camera_proxy/' + String(d.kamera).trim() : String(d.bild || '').trim();
+  if (!pfad) return '';
+  if (/^https?:/.test(pfad) || pfad.startsWith('data:')) return pfad;
+  const r = await fetch(HA_URL + (pfad.startsWith('/') ? pfad : '/' + pfad), { headers: { Authorization: 'Bearer ' + HA_TOKEN }, signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error('Bild aus Home Assistant nicht abrufbar (' + r.status + ')');
+  return 'data:' + (r.headers.get('content-type') || 'image/jpeg') + ';base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
+}
+
+function haVerbinden() {
+  if (!HA_URL || !HA_TOKEN || typeof WebSocket === 'undefined') return;
+  let ws;
+  try { ws = new WebSocket(HA_URL.replace(/^http/, 'ws') + '/api/websocket'); }
+  catch (e) { HA.fehler = e.message; return setTimeout(haVerbinden, 30000); }
+  ws.onmessage = async ev => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: HA_TOKEN }));
+    else if (m.type === 'auth_ok') ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'meldewerk_senden' }));
+    else if (m.type === 'auth_invalid') { HA.fehler = 'Home-Assistant-Token ungültig'; console.warn(HA.fehler); }
+    else if (m.type === 'result' && m.id === 1 && m.success) { HA.verbunden = true; HA.fehler = ''; console.log('Home Assistant verbunden – warte auf meldewerk_senden'); }
+    else if (m.type === 'event' && m.event?.event_type === 'meldewerk_senden') {
+      const d = m.event.data || {};
+      let bild = '';
+      try { bild = await haBild(d); } catch (e) { console.warn(e.message); }
+      melden({ titel: d.titel ?? d.title, text: d.text ?? d.message, quelle: d.quelle || 'ha', bild })
+        .catch(e => console.warn('Meldung aus Home Assistant:', e.message));
+    }
+  };
+  ws.onclose = () => { HA.verbunden = false; setTimeout(haVerbinden, 15000); };
+  ws.onerror = () => { HA.fehler = HA.fehler || 'Home Assistant nicht erreichbar'; };
+}
+
 // ---------- HTTP ----------
 function senden(res, code, body, typ = 'application/json; charset=utf-8') {
   if (typeof body !== 'string' && !Buffer.isBuffer(body)) body = JSON.stringify(body);
@@ -201,7 +239,7 @@ function schluesselOk(req, u, d) {
 }
 function status() {
   return { verbunden: W.verbunden, qr: W.qr, nummer: W.nummer, name: W.name, fehler: W.fehler,
-    einstellungen: EIN, wartend: VERL.filter(v => v.status === 'wartet').length, gesamt: VERL.length };
+    ha: { an: !!(HA_URL && HA_TOKEN), verbunden: HA.verbunden, fehler: HA.fehler }, einstellungen: EIN, wartend: VERL.filter(v => v.status === 'wartet').length, gesamt: VERL.length };
 }
 
 http.createServer(async (req, res) => {
@@ -273,3 +311,4 @@ http.createServer(async (req, res) => {
 
 aufraeumen();
 verbinden().catch(e => console.error('Start fehlgeschlagen:', e));
+haVerbinden();
