@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}
+<style>.fzw .fen{font-weight:600;color:var(--fg)}.fzw .fde{font-size:.8em;font-weight:400;color:var(--fg-3);margin-left:2px}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}
 </style>
 <script>/* eingebettet (Home-Assistant-App): die iPhone-Aussparung gilt hier nicht, kein leerer Streifen oben */try{if(self!==top)document.documentElement.classList.add("eingebettet")}catch(e){document.documentElement.classList.add("eingebettet")}</script>
 <style>html.eingebettet{padding-top:0!important}html.eingebettet body::before{display:none}html.eingebettet header.top{top:0}html.eingebettet .result{top:76px}html.eingebettet .modal-bg{padding-top:5vh}</style>
@@ -7469,7 +7469,7 @@ function blSeite(live){
   const spulText=e=>{const mit=Math.max(0,e.spulen-e.refills);return e.spulen<=0?"aufgebraucht":[mit>0?`${mit}× Spule`:"",e.refills>0?`${e.refills}× Refill`:""].filter(Boolean).join(" + ")+` à ${kg(e.gewicht)}`};
   const werte=e=>{const d=blSpan(e.duese_min,e.duese_max),b=blSpan(e.bett_min,e.bett_max),t=e.trocknen_c!=null?`${e.trocknen_c} °C${e.trocknen_h!=null?" · "+e.trocknen_h+" h":""}`:"";
     return d||b||t?[d?`<div><i>Düse</i>${d}</div>`:"",b?`<div><i>Bett</i>${b}</div>`:"",t?`<div><i>Trockn.</i>${t}</div>`:""].join(""):`<span class="blm">–</span>`};
-  const sub=e=>`${esc(e.farbe||"–")} <span class="blhx"><i style="background:${e.hex}"></i>${e.hex.toUpperCase()}</span> · ${String(e.durchmesser).replace(".",",")} mm`;
+  const sub=e=>`${window.slFarbe?slFarbe(e,"–"):esc(e.farbe||"–")} <span class="blhx"><i style="background:${e.hex}"></i>${e.hex.toUpperCase()}</span> · ${String(e.durchmesser).replace(".",",")} mm`;
   const code=e=>e.codes[0]||e.bambu_id?`${e.codes[0]?`<div>${esc(e.codes[0])}</div>`:""}${e.bambu_id?`<div class="blm">${esc(e.bambu_id)}</div>`:""}`:`<span class="blm">–</span>`;
   const leerKl=e=>e.spulen<=0?" blleer":"";
   const kopfZ=(k,arr)=>`<b>${esc(k)}</b><span>${plural(arr.length,"Sorte","Sorten")} · ${plural(arr.reduce((a,e)=>a+Math.max(0,e.spulen),0),"Spule","Spulen")} · ${kg(arr.reduce((a,e)=>a+total(e),0))}</span>`;
@@ -7492,7 +7492,7 @@ ${sp.werte?`<td class="blw">${werte(e)}</td>`:""}${sp.ort?`<td class="blort">${e
 ${sp.werte&&(e.duese_min!=null||e.bett_min!=null)?`<div class="blkw">${blSpan(e.duese_min,e.duese_max)?`<span><i>Düse</i>${blSpan(e.duese_min,e.duese_max)}</span>`:""}${blSpan(e.bett_min,e.bett_max)?`<span><i>Bett</i>${blSpan(e.bett_min,e.bett_max)}</span>`:""}</div>`:""}
 <div class="blkf">${sp.ort&&orte(e)?`<span>${esc(orte(e))}</span>`:""}${sp.preis&&preisVon(e)?`<span>${blEur(preisVon(e).pk)}/kg${preisVon(e).q==="markt"?" (Ø Shops)":""}</span>`:""}${sp.code&&e.codes[0]?`<span class="blcd">${esc(e.codes[0])}</span>`:""}<span class="blic">${istZelle(e)}</span></div></div>`).join("")}</div>`});}
   else{
-    gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blcheck">${arr.map(e=>`<div class="blc${leerKl(e)}"><span class="blic">${istZelle(e)}</span>${spool(e.hex,"blsw blsmall",e.besonderheiten,e)}<span class="blcn"><b>${esc(e.material||"Filament")}</b>${chips(e)} <span class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${esc(e.farbe||"")}</span></span>${sp.ort&&orte(e)?`<span class="blsub blcort">${esc(orte(e))}</span>`:""}<span class="blcs">Soll <b>${kg(total(e))}</b> · ${Math.max(0,e.spulen)} Sp.</span>${live&&inv?"":`<span class="bllinie"></span>`}</div>`).join("")}</div>`})}
+    gruppen.forEach(([k,arr])=>{h+=`<div class="blgh2">${kopfZ(k,arr)}</div><div class="blcheck">${arr.map(e=>`<div class="blc${leerKl(e)}"><span class="blic">${istZelle(e)}</span>${spool(e.hex,"blsw blsmall",e.besonderheiten,e)}<span class="blcn"><b>${esc(e.material||"Filament")}</b>${chips(e)} <span class="blsub">${BL.sort!=="hersteller"&&e.hersteller?esc(e.hersteller)+" · ":""}${window.slFarbe?slFarbe(e,""):esc(e.farbe||"")}</span></span>${sp.ort&&orte(e)?`<span class="blsub blcort">${esc(orte(e))}</span>`:""}<span class="blcs">Soll <b>${kg(total(e))}</b> · ${Math.max(0,e.spulen)} Sp.</span>${live&&inv?"":`<span class="bllinie"></span>`}</div>`).join("")}</div>`})}
   h+=`<div class="blfuss"><span>* Lagerwert: ${blEur(Math.round(wL)).replace(",00","")} aus Lagerpreisen${wM>0?` + ${blEur(Math.round(wM)).replace(",00","")} aus Ø Shop-Preisen`:""}${ohneP?` · ${plural(ohneP,"Sorte","Sorten")} ohne Preis`:""}${!BL.leer?` · ${all.filter(e=>e.spulen<=0).length} aufgebrauchte Sorten nicht gelistet`:""}</span><span>SchichtLohn</span></div>`;
   return h}
 function blAenderungen(){const all=entries();return all.filter(e=>{const i=BL.ist[e.uid];return i&&i.g!=null&&Math.round(i.g)!==Math.round(total(e))})}
@@ -9202,7 +9202,8 @@ window.slMarke=function(name){const n=String(name||"").trim();if(!n)return "";co
   if(!u)return `<span class="hm-n">${esc(n)}</span>`;const dk=L.darkUI?L.darkUI():true;
   return `<img class="hm-l" src="${u.u}" alt="${esc(n)}" title="${esc(n)}"${!u.dunkel&&!dk?' style="filter:invert(1) brightness(.3)"':""}>`};
 window.slRolle=function(e,hex,gr){const L=window.LGN;try{if(L&&L.spool)return L.spool(e?e.hex:hex,"hz-sp",e?e.besonderheiten:undefined,e)}catch(x){}return `<i class="hz-f" style="background:${esc(hex||"#888")}"></i>`};
-window.slRolleTitel=function(e){return `<span class="hm">${slMarke(e.hersteller)}<span class="hm-t">${esc([e.material,...((e.besonderheiten||[]).filter(b=>!/^(basic)$/i.test(b)))].filter(Boolean).join(" "))}${e.farbe?` <em>· ${esc(e.farbe)}</em>`:""}</span></span>`};
+window.slFarbe=function(e,leer){const r=(e&&e.raw)||{};if(r.farbe_en&&r.farbe_de&&r.farbe_en!==r.farbe_de)return `<span class="fzw"><b class="fen">${esc(r.farbe_en)}</b> <small class="fde">${esc(r.farbe_de)}</small></span>`;return esc((e&&e.farbe)||leer||"")};
+window.slRolleTitel=function(e){return `<span class="hm">${slMarke(e.hersteller)}<span class="hm-t">${esc([e.material,...((e.besonderheiten||[]).filter(b=>!/^(basic)$/i.test(b)))].filter(Boolean).join(" "))}${e.farbe?` <em>· ${slFarbe(e,"")}</em>`:""}</span></span>`};
 function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   const D=(window.DLIVE&&DLIVE.liste())||[];const art=d=>DLIVE.art(d);const lauf=D.filter(d=>/druckt|pause/.test(art(d))),fehl=D.filter(d=>art(d)==="err"),ruhe=D.filter(d=>art(d)==="bereit"),aus=D.filter(d=>art(d)==="aus");
   const V=bereit?B.verbrauch().filter(d=>!isNaN(zeitMs(d.zeit))).sort((a,b)=>zeitMs(b.zeit)-zeitMs(a.zeit)):[];

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.20.2 – 23.11.2026
+- Bambu-Lab-Farben stehen im Lager jetzt zweisprachig: der englische Name fett, der deutsche klein und blasser dahinter (z. B. **Bone White** Knochenweiß). Die Sorten selbst bleiben unverändert.
+
 ## 3.20.1 – 23.11.2026
 - Das SchichtRadar ist entfernt. Drucker, Licht und Kamera findest du wie gewohnt in der Druckerübersicht.
 
