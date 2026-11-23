@@ -2,6 +2,7 @@
 mod export;
 mod werk;
 mod mesh;
+mod prep;
 mod section;
 
 use axum::{
@@ -19,6 +20,12 @@ fn data_dir() -> PathBuf {
 }
 
 static INDEX: &str = include_str!("../static/index.html");
+static DRUCK: &str = include_str!("../static/druck.html");
+static DRUCK_APP: &str = include_str!("../static/druck_app.js");
+static DRUCK_GEST: &str = include_str!("../static/druck_gestalten.js");
+static OPENTYPE: &[u8] = include_bytes!("../static/vendor/opentype.min.js");
+static QRCODE: &[u8] = include_bytes!("../static/vendor/qrcode.js");
+static FONT: &[u8] = include_bytes!("../static/vendor/schrift.woff");
 static THREE: &[u8] = include_bytes!("../static/vendor/three.module.min.js");
 static STL_LOADER: &[u8] = include_bytes!("../static/vendor/STLLoader.js");
 static ORBIT: &[u8] = include_bytes!("../static/vendor/OrbitControls.js");
@@ -28,8 +35,14 @@ async fn main() {
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8097);
     let _ = std::fs::create_dir_all(data_dir().join("jobs"));
     let app = Router::new()
-        .route("/", get(|| async { Html(INDEX) }))
+        .route("/", get(|| async { Html(DRUCK) }))
+        .route("/teilen", get(|| async { Html(INDEX) }))
+        .route("/api/prep/load", post(prep_load))
+        .route("/api/prep/{sid}/{id}/bin", get(prep_bin))
+        .route("/api/prep/{sid}/export", post(prep_export))
+        .route("/api/prep/{sid}/zerlegen", post(prep_zerlegen))
         .route("/vendor/{name}", get(vendor))
+        .route("/js/{name}", get(js))
         .route("/api/run", post(run))
         .route("/api/load", post(load_model))
         .route("/api/job/{id}/zip", get(job_zip))
@@ -50,9 +63,21 @@ async fn vendor(Path(name): Path<String>) -> Response {
         "three.module.min.js" => THREE,
         "STLLoader.js" => STL_LOADER,
         "OrbitControls.js" => ORBIT,
+        "opentype.min.js" => OPENTYPE,
+        "qrcode.js" => QRCODE,
+        "schrift.woff" => return ([(header::CONTENT_TYPE, "font/woff"), (header::CACHE_CONTROL, "public, max-age=604800")], FONT).into_response(),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     ([(header::CONTENT_TYPE, "text/javascript"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
+}
+
+async fn js(Path(name): Path<String>) -> Response {
+    let body = match name.as_str() {
+        "druck_app.js" => DRUCK_APP,
+        "druck_gestalten.js" => DRUCK_GEST,
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], body).into_response()
 }
 
 fn err(msg: impl ToString) -> Response {
@@ -267,4 +292,125 @@ async fn job_zip(Path(id): Path<String>) -> Response {
         res,
     )
         .into_response()
+}
+
+// ───────────────────────── Druckvorbereitung ─────────────────────────
+
+fn modell_json(id: u32, m: &prep::Modell) -> serde_json::Value {
+    let mut k = prep::kennzahlen(m);
+    k["id"] = json!(id);
+    k
+}
+
+/// Dateien laden. Mehrere Dateien mit `zusammen=1` werden ein Modell aus Teilen (Filament je Datei in `ext`).
+async fn prep_load(mut mp: Multipart) -> Response {
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut exts: Vec<u32> = Vec::new();
+    let mut namen: Vec<String> = Vec::new();
+    let (mut sid, mut zusammen, mut titel) = (String::new(), false, String::new());
+    while let Ok(Some(field)) = mp.next_field().await {
+        match field.name().unwrap_or("") {
+            "file" => {
+                let fname = field.file_name().unwrap_or("upload.stl").to_string();
+                match field.bytes().await {
+                    Ok(b) => files.push((fname, b.to_vec())),
+                    Err(e) => return err(format!("Upload fehlgeschlagen: {e}")),
+                }
+            }
+            "ext" => exts.push(field.text().await.unwrap_or_default().parse().unwrap_or(1)),
+            "teilname" => namen.push(field.text().await.unwrap_or_default()),
+            "sid" => sid = field.text().await.unwrap_or_default(),
+            "zusammen" => zusammen = field.text().await.unwrap_or_default() == "1",
+            "titel" => titel = field.text().await.unwrap_or_default(),
+            _ => {}
+        }
+    }
+    if files.is_empty() {
+        return err("Keine Datei");
+    }
+    let res = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<prep::Modell>> {
+        let mut alle = Vec::new();
+        for (fname, b) in &files {
+            alle.extend(prep::laden(b, fname)?);
+        }
+        if zusammen {
+            let mut teile = Vec::new();
+            for (i, m) in alle.into_iter().enumerate() {
+                for mut t in m.teile {
+                    t.extruder = exts.get(i).copied().unwrap_or(t.extruder).max(1);
+                    if let Some(n) = namen.get(i).filter(|n| !n.is_empty()) {
+                        t.name = n.clone();
+                    }
+                    teile.push(t);
+                }
+            }
+            return Ok(vec![prep::Modell { name: if titel.is_empty() { "Eigenes Teil".into() } else { titel.clone() }, teile }]);
+        }
+        Ok(alle)
+    })
+    .await;
+    let modelle = match res {
+        Ok(Ok(m)) => m,
+        Ok(Err(e)) => return err(e),
+        Err(_) => return err("Laden abgestürzt"),
+    };
+    let (sid, neu) = prep::ablegen(&sid, modelle);
+    let infos = tokio::task::spawn_blocking(move || neu.iter().map(|(id, m)| modell_json(*id, m)).collect::<Vec<_>>()).await.unwrap_or_default();
+    Json(json!({ "sid": sid, "modelle": infos })).into_response()
+}
+
+async fn prep_bin(Path((sid, id)): Path<(String, u32)>) -> Response {
+    let Some(m) = prep::holen(&sid, id) else { return (StatusCode::NOT_FOUND, "abgelaufen").into_response() };
+    let b = tokio::task::spawn_blocking(move || prep::vorschau(&m)).await.unwrap_or_default();
+    ([(header::CONTENT_TYPE, "application/octet-stream")], b).into_response()
+}
+
+async fn prep_export(Path(sid): Path<String>, Json(a): Json<prep::Auftrag>) -> Response {
+    if !prep::bekannt(&sid) {
+        return err("Die Sitzung ist abgelaufen – bitte das Modell neu laden.");
+    }
+    match tokio::task::spawn_blocking(move || prep::ausgeben(&sid, &a)).await {
+        Ok(Ok((name, ct, data))) => (
+            [(header::CONTENT_TYPE, ct.to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\""))],
+            data,
+        )
+            .into_response(),
+        Ok(Err(e)) => err(e),
+        Err(_) => err("Die Ausgabe ist abgestürzt."),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ZerlegenAuftrag {
+    m: u32,
+    r: [f64; 9],
+    s: f64,
+    drucker: werk::Printer,
+}
+
+async fn prep_zerlegen(Path(sid): Path<String>, Json(z): Json<ZerlegenAuftrag>) -> Response {
+    let Some(m) = prep::holen(&sid, z.m) else { return err("Die Sitzung ist abgelaufen – bitte das Modell neu laden.") };
+    let res = tokio::task::spawn_blocking(move || prep::zerlegen(&m, &z.r, z.s, z.drucker)).await;
+    let (neu, out) = match res {
+        Ok(Ok(x)) => x,
+        Ok(Err(e)) => return err(e),
+        Err(_) => return err("Das Zerlegen ist abgestürzt."),
+    };
+    cleanup();
+    // Montageanleitung und Dübel ablegen
+    let id = uuid::Uuid::new_v4().simple().to_string()[..12].to_string();
+    let dir = data_dir().join("jobs").join(&id);
+    let mut extra = Vec::new();
+    for (name, data) in &out.files {
+        if name.ends_with(".txt") || name.contains("duebel") {
+            let path = dir.join(name);
+            let _ = std::fs::create_dir_all(path.parent().unwrap());
+            if std::fs::write(&path, data).is_ok() {
+                extra.push(json!({ "name": name, "url": format!("/api/job/{id}/file/{name}") }));
+            }
+        }
+    }
+    let (sid, neu) = prep::ablegen(&sid, neu);
+    let infos = tokio::task::spawn_blocking(move || neu.iter().map(|(id, m)| modell_json(*id, m)).collect::<Vec<_>>()).await.unwrap_or_default();
+    Json(json!({ "sid": sid, "modelle": infos, "dateien": extra, "hinweise": out.warnings })).into_response()
 }
