@@ -29,6 +29,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/preise/protokoll          die letzten Preisabrufe: Zeit, Anlass, Dauer, Ergebnis je Sorte
   GET  /api/update                    Selbst-Update: Version, ob möglich, Stand · POST startet es (braucht Docker-Socket)
   GET  /api/preise/suche?q=…[&art=zubehoer]  freie Suche bei eBay und AliExpress (Preisvergleichsseite; ohne art nur Filament)
+  GET  /api/rechnungen/abholen        Stand · POST holt neue Bestellmails aus Home Assistant (sonst alle 5 Minuten)
   GET  /api/drucker                   verbundene Bambu-Drucker (MQTT) mit AMS-Fächern
   GET  /api/faecher                   alle AMS-Fächer mit Prüfung gegen das Lager (zugeordnet / offen)
   GET/POST /api/bambu_fm             Filament Manager in Bambu Studio: Modus aus|ams|lager, Stand, „Jetzt abgleichen“
@@ -81,7 +82,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.21.2"
+VERSION = "3.22.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -950,6 +951,113 @@ def bambushop_auto():
         except Exception as e:
             print("Bambu-Shop:", e, flush=True)
         time.sleep(12 * 3600)
+
+
+# ---------- Rechnungen: Bestellmails aus Home Assistant abholen ----------
+# Die Mail-Automationen in Home Assistant legen neue Bestellungen und Erstattungen in die To-do-Listen
+# todo.<shop>_rechnungen (Eingang). Der Server holt sie regelmäßig ab, trägt sie in seine Rechnungslisten ein
+# (jede Bestellnummer nur einmal), rechnet Erstattungen an und leert den Eingang.
+RECHNUNG_QUELLEN = {"bambu": "todo.bambu_rechnungen", "amazon": "todo.amazon_rechnungen", "aliexpress": "todo.aliexpress_rechnungen"}
+RECHNUNG_STAND_KEY = "_rechnungen_abholen"
+_rechnungen_lock = threading.Lock()
+
+
+def _erstattung_anwenden(j, e):
+    refs = list(j.get("refs") or [])
+    b0 = e.get("betrag")
+    if isinstance(b0, float) and b0.is_integer():
+        b0 = int(b0)  # wie in der Karte (JavaScript schreibt 10 statt 10.0)
+    key = f"{e.get('datum')}|{b0}"
+    if key in refs:
+        return None
+    alt, b = _zahl(j.get("erst")), _zahl(e.get("betrag"))
+    ne = alt if (not refs and abs(alt - b) < 0.01) else alt + b
+    asin, titel = str(e.get("asin") or ""), str(e.get("titel") or "")[:35].lower()
+    treffer = False
+    items = []
+    for a in j.get("items") or []:
+        a = list(a) + [""] * max(0, 5 - len(a))
+        hit = bool((asin and a[4] == asin) or (titel and str(a[0])[:35].lower() == titel))
+        treffer = treffer or hit
+        items.append(a[:5] + [1 if hit else (a[5] if len(a) > 5 else 0)])
+    if not treffer and ne >= _zahl(j.get("net")) - 0.01:
+        items = [a[:5] + [1] for a in items]
+    return dict(j, erst=round(ne * 100) / 100, refs=refs + [key], items=items)
+
+
+def rechnungen_abholen():
+    """Eingang aus Home Assistant abholen. Gibt je Shop zurück, was neu kam."""
+    if not _rechnungen_lock.acquire(blocking=False):
+        return {"laeuft": True}
+    erg = {}
+    try:
+        for src, ent in RECHNUNG_QUELLEN.items():
+            antwort = ha_anfrage("/api/services/todo/get_items?return_response", {"entity_id": ent}, timeout=20) or {}
+            ha = (((antwort.get("service_response") or {}).get(ent) or {}).get("items")) or []
+            if not ha:
+                continue
+            liste = "rechnungen_" + src
+            nach_o = {}
+            for it in liste_lesen(liste):
+                try:
+                    j = json.loads(it["description"] or "")
+                except ValueError:
+                    continue
+                if isinstance(j, dict) and j.get("o"):
+                    nach_o[str(j["o"])] = (it["uid"], j)
+            neu, erst, weg = 0, 0, []
+            for it in ha:
+                try:
+                    j = json.loads(it.get("description") or "")
+                except ValueError:
+                    continue
+                if not isinstance(j, dict):
+                    continue
+                if j.get("typ") == "erstattung":
+                    z = nach_o.get(str(j.get("o") or ""))
+                    if not z:
+                        continue  # Bestellung (noch) nicht da – Erstattung bleibt im Eingang
+                    nj = _erstattung_anwenden(z[1], j)
+                    if nj:
+                        liste_aendern(liste, "update_item", {"item": z[0], "description": json.dumps(nj, ensure_ascii=False)})
+                        nach_o[str(j["o"])] = (z[0], nj)
+                        erst += 1
+                    weg.append(it.get("uid"))
+                    continue
+                if not j.get("o"):
+                    continue
+                if str(j["o"]) not in nach_o:
+                    r = liste_aendern(liste, "add_item", {"uid": it.get("uid"), "item": it.get("summary") or "",
+                                                          "status": it.get("status") or "needs_action",
+                                                          "description": it.get("description") or ""})
+                    nach_o[str(j["o"])] = (r["uid"], j)
+                    neu += 1
+                weg.append(it.get("uid"))
+            weg = [w for w in weg if w]
+            for i in range(0, len(weg), 100):
+                ha_anfrage("/api/services/todo/remove_item", {"entity_id": ent, "item": weg[i:i + 100]})
+            if neu or erst:
+                erg[src] = {"neu": neu, "erstattungen": erst}
+                print(f"Rechnungen {src}: {neu} neu, {erst} Erstattungen aus Home Assistant geholt", flush=True)
+        daten_schreiben(RECHNUNG_STAND_KEY, {"zeit": time.strftime("%Y-%m-%d %H:%M"), "ergebnis": erg, "fehler": ""})
+        return erg
+    except Exception as e:
+        daten_schreiben(RECHNUNG_STAND_KEY, {"zeit": time.strftime("%Y-%m-%d %H:%M"), "ergebnis": erg, "fehler": str(e)})
+        raise
+    finally:
+        _rechnungen_lock.release()
+
+
+def rechnungen_auto():
+    time.sleep(60)
+    while True:
+        try:
+            url, token = ha_cfg()
+            if url and token:
+                rechnungen_abholen()
+        except Exception as e:
+            print("Rechnungen abholen:", e, flush=True)
+        time.sleep(300)
 
 
 def waage_weiter(was, methode, rumpf):
@@ -3926,6 +4034,11 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["bambushop", "aktualisieren"] and methode == "POST":
             threading.Thread(target=bambushop_holen, daemon=True).start()
             return self._json(200, {"laeuft": True})
+        if teile == ["rechnungen", "abholen"]:
+            if methode == "POST":
+                return self._json(200, rechnungen_abholen())
+            w, _ = daten_lesen(RECHNUNG_STAND_KEY)
+            return self._json(200, w or {})
         if teile == ["filamentdb"] and methode == "GET":
             return self._json(200, dict(fdb_info(), auto=AUTO))
         if teile == ["filamentdb", "aktualisieren"] and methode == "POST":
@@ -4534,6 +4647,7 @@ if __name__ == "__main__":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
     threading.Thread(target=preise_auto, daemon=True).start()
     threading.Thread(target=bambushop_auto, daemon=True).start()
+    threading.Thread(target=rechnungen_auto, daemon=True).start()
     threading.Thread(target=speicher_auto, daemon=True).start()
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     threading.Thread(target=faecher_schleife, daemon=True).start()

@@ -4,9 +4,9 @@
 // (Bestellungen und Erstattungen) beim Öffnen ab, trägt sie auf dem Server ein und leert den Eingang.
 // Neue Rechnung: PDF aus dem Bambu Lab EU-Store auf die Karte ziehen oder auswählen → wird gelesen, eingetragen
 // und die Filamentpreise (bezahlter Preis pro Rolle) über die Farbnummer ins SchichtLohn-Lager geschrieben.
-// Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), preise_ins_lager (true)
+// Optionen: entity (Standard todo.bambu_rechnungen), lager_app (Standard 7c128fa3_schichtlohn), lager_url (SchichtLohn-Server direkt, z. B. http://IP:8093 – auch als Liste), preise_ins_lager (true)
 (()=>{
-const VERSION='2.3.0';
+const VERSION='2.4.0';
 const PB_LEER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>');
 const SL_LISTE={bambu:'rechnungen_bambu',amazon:'rechnungen_amazon',aliexpress:'rechnungen_aliexpress',andere:'rechnungen_andere'};
 const SEITE=150;
@@ -635,7 +635,13 @@ class BambuRechnungenCard extends HTMLElement{
     }catch(e){this._lb=null;this._log('err','Preise konnten nicht ins Lager übernommen werden: '+esc(e.message||e))}
   }
   async _lagerBase(){ if(this._lb) return this._lb;
+    /* 1. direkt: SchichtLohn-Server außerhalb von Home Assistant (Option lager_url, eine Adresse oder eine Liste – die erste, die antwortet) */
+    const direkt=[].concat(this._c.lager_url||[]).map(u=>String(u).replace(/\/+$/,'')).filter(Boolean);
+    for(const u of direkt){ try{ const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),4000);
+        const r=await fetch(u+'/api',{signal:ac.signal}); clearTimeout(t); if(r.ok){ this._lb=u; return u; } }catch(e){} }
+    /* 2. SchichtLohn als Home-Assistant-App über Ingress */
     const info=await this._h.callWS({type:'supervisor/api',endpoint:`/addons/${this._c.lager_app}/info`,method:'get'});
+    if(info&&info.state&&info.state!=='started') throw new Error(direkt.length?'SchichtLohn-Server nicht erreichbar ('+direkt.join(', ')+')':'SchichtLohn läuft nicht in Home Assistant – in der Karte lager_url eintragen');
     const s=await this._h.callWS({type:'supervisor/api',endpoint:'/ingress/session',method:'post'});
     document.cookie=`ingress_session=${s.session};path=/api/hassio_ingress/;SameSite=Strict${location.protocol==='https:'?';Secure':''}`;
     this._lb=info.ingress_entry; return this._lb; }

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.22.0 – 24.11.2026
+- Rechnungen: Der Server holt neue Bestellmails (Bambu Lab, Amazon, AliExpress) und Erstattungen jetzt selbst alle 5 Minuten aus Home Assistant ab – auch wenn die Rechnungen-Karte nicht geöffnet ist und SchichtLohn nicht mehr in Home Assistant läuft.
+
 ## 3.21.2 – 23.11.2026
 - Warenkorb: mehrere Sorten auf einmal wählen („Sorte wählen“) und mit „Alles in den Bambu-Shop“ gemeinsam in den Warenkorb legen. Jede Sorte zeigt ihr Produktbild aus dem Bambu-Shop, die Bambu-Abschnitte das Bambu-Lab-Logo.
 
