@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.20.3 – 23.11.2026
+- Neue Bambu-Lab-Rollen werden automatisch zweisprachig angezeigt (Englisch fett, Deutsch klein dahinter) – egal ob du die Farbe auf Deutsch oder Englisch einträgst. An der Sorte selbst ändert sich nichts.
+
 ## 3.20.2 – 23.11.2026
 - Bambu-Lab-Farben stehen im Lager jetzt zweisprachig: der englische Name fett, der deutsche klein und blasser dahinter (z. B. **Bone White** Knochenweiß). Die Sorten selbst bleiben unverändert.
 
