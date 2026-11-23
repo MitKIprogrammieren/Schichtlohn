@@ -39,6 +39,9 @@
   .dot.on{background:#19d36b;box-shadow:0 0 0 3px #00ae4230}
   .dot.off{background:var(--off)}
   .dot.warn{background:var(--warn)}
+  .zahn{position:absolute;bottom:8px;right:32px;background:none;border:0;color:#4c4c53;font-size:15px;cursor:pointer;padding:2px}
+  .zahn:hover{color:var(--text)}
+  .d.zust{font-size:11.5px;color:var(--mute2);margin-top:2px}
   .srvkopf{margin-top:0}.srvwerte{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 18px;margin:10px 0 2px;font-size:13px}
   .srvwerte span{color:var(--mute)}.srvwerte b{font-weight:500}
   .balken{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-top:5px}.balken i{display:block;height:100%;background:var(--acc);border-radius:3px}
@@ -102,7 +105,7 @@
   <div id="inhalt"></div>
   <section id="srvbereich"></section>
   <section id="pibereich"></section>
-  <footer>Grüner Punkt = erreichbar · Stern = oben anheften · Server-Kachel antippen für Neustart, Update und Logs</footer>
+  <footer>Grüner Punkt = erreichbar · Stern = oben anheften · ⚙ = Neustart, Update und Logs</footer>
 </div>
 <div class="schicht" id="schicht" hidden><div class="fenster" id="fenster"></div></div>
 
@@ -167,16 +170,18 @@ function zeichne(){
   if(typeof srvZeichnen==="function") srvZeichnen();
 }
 function karte(w){
-  return `<a class="card" href="${w[netz]}" target="_blank" rel="noopener" data-u="${w[netz]}">
+  const c = werkContainer(w);
+  return `<a class="card" href="${w[netz]}" target="_blank" rel="noopener" data-u="${w[netz]}"${c?` data-con="${esc(c.name)}"`:""}>
     <div class="ic">${logo(w.l||w.n)}</div>
-    <div><div class="t">${w.n}</div><div class="d">${w.d}</div></div>
-    <span class="dot"></span>
+    <div><div class="t">${w.n}</div><div class="d">${w.d}</div>${c?`<div class="d zust">${srvZustand(c)}</div>`:""}</div>
+    <span class="dot ${c?srvPunkt(c):""}"></span>
+    ${c?`<button class="zahn" data-z="${esc(c.name)}" title="Neustart, Update, Logs">⚙</button>`:""}
     <button class="star ${favs.has(w.n)?"on":""}" data-f="${w.n}" title="Anheften">★</button>
   </a>`;
 }
 // Erreichbarkeit: kurzer Abruf ohne CORS – Antwort egal, Hauptsache keine Netzfehler
 function pruefe(){
-  document.querySelectorAll("a.card").forEach(a=>{
+  document.querySelectorAll("a.card:not([data-con])").forEach(a=>{
     const dot = a.querySelector(".dot"), ctl = new AbortController();
     const t = setTimeout(()=>ctl.abort(), 3500);
     fetch(a.dataset.u,{mode:"no-cors",cache:"no-store",signal:ctl.signal})
@@ -185,6 +190,8 @@ function pruefe(){
   });
 }
 inhalt.addEventListener("click",e=>{
+  const z = e.target.closest(".zahn");
+  if(z){ e.preventDefault(); const c=srvDaten?.container.find(x=>x.name===z.dataset.z); if(c) srvFenster(c); return; }
   const s = e.target.closest(".star"); if(!s) return;
   e.preventDefault();
   favs.has(s.dataset.f)?favs.delete(s.dataset.f):favs.add(s.dataset.f);
@@ -494,7 +501,7 @@ async function srvApi(methode, pfad, daten){
 async function srvLaden(){
   try{ srvDaten = await srvApi("GET","/api/uebersicht"); srvAnmelden=false; }
   catch(e){ if(e.message!=="anmelden") srvDaten=null; }
-  srvZeichnen();
+  zeichne();
 }
 function srvZeichnen(){
   const q = document.getElementById("suche").value.trim().toLowerCase();
@@ -510,7 +517,8 @@ function srvZeichnen(){
   if(srvDaten===undefined){ srvBox.innerHTML=""; return; }
   if(!srvDaten){ srvBox.hidden=!!q; srvBox.innerHTML=`<div class="pikopf"><h2>Server</h2></div><p class="d">Der Server-Dienst ist gerade nicht erreichbar.</p>`; return; }
   const h = srvDaten.host||{}, alle = srvDaten.container||[];
-  const liste = alle.filter(c=>!q || (c.anzeige+" "+c.name+" "+c.bild+" server container").toLowerCase().includes(q));
+  const belegt = new Set(WERKE.map(werkContainer).filter(Boolean).map(c=>c.name));
+  const liste = alle.filter(c=>!belegt.has(c.name)).filter(c=>!q || (c.anzeige+" "+c.name+" "+c.bild+" server container").toLowerCase().includes(q));
   srvBox.hidden = !!q && !liste.length;
   const laufen = alle.filter(c=>c.zustand==="running").length;
   const balken = (txt,w,m)=>{const p=m?Math.round(100*w/m):0; return `<div><div class="pizeile"><span>${txt}</span><b>${m?bytes(w)+" / "+bytes(m):"–"}</b></div><div class="balken"><i style="width:${p}%;${p>85?"background:var(--off)":p>70?"background:var(--warn)":""}"></i></div></div>`};
@@ -524,15 +532,29 @@ function srvZeichnen(){
         <div><div class="pizeile"><span>CPU</span><b>${cpu} %</b></div><div class="balken"><i style="width:${cpu}%;${cpu>85?"background:var(--off)":""}"></i></div></div>
         ${balken("RAM",h.ram,h.ram_max)}${balken("SSD",h.disk,h.disk_max)}
       </div>${gaeste?`<div class="knoepfe">${gaeste}</div>`:""}</div>`}
-    <div class="grid" style="margin-top:12px">${liste.map(c=>srvKarte(c,alle)).join("")}</div>`;
+    ${liste.length?`<h2 style="font-size:14px;color:var(--mute);margin:18px 2px 10px">Weitere Container</h2>
+    <div class="grid">${liste.map(c=>srvKarte(c,alle)).join("")}</div>`:""}`;
+}
+function werkContainer(w){
+  if(!srvDaten) return null;
+  const norm = x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const m = String(w.lan||"").match(/192\.168\.1\.30:(\d+)/), cs = srvDaten.container||[];
+  return (m && cs.find(c=>(c.ports||[]).includes(m[1]))) || cs.find(c=>norm(c.anzeige)===norm(w.l||w.n)) || null;
+}
+function srvZustand(c){
+  const an = c.zustand==="running", lauf = srvLauf[c.name]||c.aktion;
+  if(lauf) return ({restart:"startet neu …",stop:"stoppt …",start:"startet …",update:"wird aktualisiert …"})[lauf]||"arbeitet …";
+  let d = an ? "läuft"+(c.ram?" · "+esc(c.ram).replace("MiB"," MB").replace("GiB"," GB"):"") : "gestoppt";
+  if(an && c.gesund==="unhealthy") d = "läuft, aber meldet Fehler";
+  if(c.update) d += " · Update da";
+  return d;
+}
+function srvPunkt(c){
+  const an = c.zustand==="running";
+  return (srvLauf[c.name]||c.aktion) ? "" : !an ? "off" : c.gesund==="unhealthy"||c.update ? "warn" : "on";
 }
 function srvKarte(c, alle){
-  const an = c.zustand==="running", lauf = srvLauf[c.name]||c.aktion;
-  let d = an ? "läuft"+(c.ram?" · "+esc(c.ram).replace("MiB"," MB").replace("GiB"," GB"):"") : "gestoppt";
-  if(c.gesund==="unhealthy") d = "läuft, aber meldet Fehler";
-  if(c.update) d += " · Update da";
-  if(lauf) d = ({restart:"startet neu …",stop:"stoppt …",start:"startet …",update:"wird aktualisiert …"})[lauf]||"arbeitet …";
-  const punkt = lauf ? "" : !an ? "off" : c.gesund==="unhealthy"||c.update ? "warn" : "on";
+  const d = srvZustand(c), punkt = srvPunkt(c);
   return `<div class="card srv" data-c="${esc(c.name)}" role="button" tabindex="0">
     <div class="ic">${srvSymbol(c)}</div>
     <div><div class="t">${esc(srvName(c,alle))}</div><div class="d">${d}</div></div>
@@ -546,7 +568,7 @@ async function srvAnmeldenJetzt(){
 async function srvAktion(c, a){
   const frage = {stop:`${c.anzeige} stoppen?`, restart:`${c.anzeige} neu starten?`, update:`${c.anzeige} auf die neueste Version bringen?`}[a];
   if(frage && !confirm(frage)) return;
-  srvLauf[c.name]=a; schliesse(); srvZeichnen();
+  srvLauf[c.name]=a; schliesse(); zeichne();
   try{ const j = await srvApi("POST",`/api/c/${encodeURIComponent(c.name)}/${a}`); if(a==="update") alert(`${c.anzeige}: ${j.text}`); }
   catch(e){ if(e.message!=="anmelden") alert(`${c.anzeige}: ${e.message}`); }
   delete srvLauf[c.name]; srvLaden();
