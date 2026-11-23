@@ -489,6 +489,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.app,"Druckprotokoll",`<button class="btn sm" data-act="srvSpeicher" title="Druckdateien aller Drucker mit IP-Adresse jetzt auslesen">Druckerspeicher lesen</button>`,`<p id="srv_druckinfo">wird geprüft …</p><div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn sm" style="cursor:pointer">Spooly-Datei importieren<input type="file" id="srv_spooly" accept=".json,application/json" hidden></label><button class="btn sm ghost" data-act="srvSpoolyWeg" title="Alle aus Spooly übernommenen Drucke wieder entfernen">Spooly-Import entfernen</button><span id="srv_spooly_msg" class="hint" style="align-self:center"></span></div><div class="hint">Der Server schreibt jeden Druck mit, den er enden sieht – egal ob aus Bambu Studio oder über die Cloud gestartet. Ältere Drucke kannst du aus Spooly übernehmen: auf spooly.eu die Druckaufträge als Datei sichern und hier auswählen.</div>`)}
         ${karte(IC.db,"Filament-Datenbank",`<button class="btn sm" data-act="srvFdb" title="Neueste Filament-Datenbank auf den Server holen">Aktualisieren</button>`,`<p id="srv_fdbinfo">wird geprüft …</p>`)}
         ${karte(IC.db,"Server",`<button class="btn sm" id="srv_updknopf" data-act="slUpdate" title="Neue Server-Version laden und neu starten">Server aktualisieren</button>`,`<p id="srv_verinfo">wird geprüft …</p>`)}
+        ${karte(IC.db,"Shop-Preise",`<button class="btn sm" data-act="srvPreise" title="Shop-Preise (3DJake, Bambu Store …) und eBay/AliExpress neu holen">Preise aktualisieren</button>`,`<p id="srv_preisinfo">wird geprüft …</p>`)}
         ${karte(IC.app,"App",`<button class="btn sm" data-act="srvApp" title="Neueste App-Version vom Server holen lassen">Aktualisieren</button>${window.__SL_SRV?"":`<a class="btn sm ghost" href="${esc(u)}/app/" target="_blank" rel="noopener">Öffnen</a>`}`,`<p id="srv_appinfo">wird geprüft …</p>`)}
         <details class="srvk weit srvum"><summary class="srvh"><span class="srvi">${IC.um}</span><h3>Umzug von einem anderen SchichtLohn-Server</h3><span class="sp"></span><span class="srvpf">›</span></summary>
           <p>Holt Lager, Verbrauch, Einstellungen, Portfolio, Aufträge, Drucker, gelernte Fotos und die Filament-Datenbank von dort hierher. Was hier liegt, wird ersetzt. Den alten Server danach stoppen, sonst bucht er weiter ab.</p>
@@ -510,8 +511,8 @@ const SRV=window.SRV=(()=>{
     try{if(!window.SPOOLY)throw new Error("Der Reiter „Druckaufträge“ ist ausgeschaltet – unter Einstellungen → Reiter einschalten.");if(!S.srv)throw new Error("Keine Verbindung zum SchichtLohn-Server"+(S.srvFehler?": "+S.srvFehler:"")+".");
       const r=await SPOOLY.importieren(f);zeig(`✓ ${r.uebernommen.toLocaleString("de-DE")} Drucke aus Spooly übernommen (${r.neu.toLocaleString("de-DE")} neu). Du findest sie unter „Druckaufträge“.`);druckInfo()}
     catch(x){console.error("Spooly-Import",x);zeig(`<span style="color:var(--bad)">Import fehlgeschlagen: ${esc(x&&x.message||String(x))}</span>`)}});
-  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();verInfo();druckInfo();drLaden();zugangInfo();mcpInfo()},50)});
-  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();verInfo();druckInfo();drLaden()}const z=document.getElementById("srv_zugang");if(z&&z.textContent==="wird geprüft …"){zugangInfo();mcpInfo()}},1500);
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#srvsec .sec-title"))setTimeout(()=>{fdbInfo();appInfo();verInfo();preisInfo();druckInfo();drLaden();zugangInfo();mcpInfo()},50)});
+  setInterval(()=>{const el=document.getElementById("srv_fdbinfo");if(el&&el.textContent==="wird geprüft …"){fdbInfo();appInfo();verInfo();preisInfo();druckInfo();drLaden()}const z=document.getElementById("srv_zugang");if(z&&z.textContent==="wird geprüft …"){zugangInfo();mcpInfo()}},1500);
   /* Zugang: App-Schlüssel des Servers setzen, erzeugen, ausschalten (wird auf dem Server gespeichert, gilt für alle Geräte) */
   const zgChip=(t,farbe)=>{const c=document.getElementById("srv_zgchip");if(c){c.textContent=t;c.style.color=farbe}};
   async function zugangInfo(neu){const el=document.getElementById("srv_zugang");if(!el)return;let d;
@@ -545,6 +546,10 @@ const SRV=window.SRV=(()=>{
     const mehr=ist&&neu&&vgl(neu,ist)>0;if(mehr){UPD.neu=neu;UPD.geprueft=Date.now()}
     const b=document.getElementById("srv_updknopf");if(b)b.classList.toggle("pri",!!mehr);
     el.innerHTML=fehler?`<span style="color:var(--bad)">${esc(fehler)}</span>`:`Läuft: <b>${esc(ist||"?")}</b>${neu?` · Neueste: <b${mehr?' style="color:var(--good)"':""}>${esc(neu)}</b>${mehr?" – Update verfügbar":" – aktuell"}`:""}${UPD.moeglich===false?`<br><small>Kein Docker-Zugriff – Update dann in Schaltwerk beim Stack „schichtlohn“.</small>`:""}`}
+  async function preisInfo(){const el=document.getElementById("srv_preisinfo");if(!el)return;
+    let shop="",markt="";try{const f=await req("GET","/api/filamentdb");shop=f&&f.stand?`Shop-Preise vom ${esc(f.stand)}`:""}catch(e){}
+    try{const p=await req("GET","/api/preise");markt=p.laeuft?"eBay/AliExpress werden gerade abgerufen …":p.stand?`eBay/AliExpress zuletzt ${esc(p.stand)}`:""}catch(e){}
+    el.innerHTML=[shop,markt].filter(Boolean).join("<br>")||"Noch keine Preise geladen."}
   async function appInfo(){const el=document.getElementById("srv_appinfo");if(!el)return;try{const d=await req("GET","/api/app");
       el.innerHTML=(d.vorhanden?`Stand ${esc(d.stand)} · ${d.bibliotheken||0} Bibliotheken gespeichert. ${window.__SL_SRV?"Du benutzt gerade diese Version.":`Öffnen unter <code>${esc(url())}/app/</code>, läuft auch ohne Internet.`}`:"Noch keine App auf dem Server.")+esc(autoText(d.auto))}
     catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+")."}}
@@ -664,6 +669,11 @@ const SRV=window.SRV=(()=>{
     const {u,t}=feld();
     if(a==="srvSpoolyWeg"){b.disabled=true;try{const r=await req("POST","/api/drucke/entfernen",{herkunft:"spooly"});const m2=document.getElementById("srv_spooly_msg");if(m2)m2.textContent=`${r.entfernt} Drucke aus Spooly entfernt.`;druckInfo()}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
     if(a==="srvSpeicher"){b.disabled=true;try{await req("POST","/api/drucke/speicher");msg("Der Server liest jetzt die Druckdateien aller Drucker mit IP-Adresse – das dauert ein paar Minuten.");setTimeout(druckInfo,1500)}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
+    if(a==="srvPreise"){b.disabled=true;const el=document.getElementById("srv_preisinfo");if(el)el.textContent="Shop-Preise werden geholt …";
+      let fehler=[];try{await req("POST","/api/filamentdb/aktualisieren")}catch(x){fehler.push("Shops: "+(x.message||x))}
+      try{await req("POST","/api/preise/abrufen")}catch(x){if(x.status!==409)fehler.push("eBay/AliExpress: "+(x.message||x))}
+      if(fehler.length)msg(`<span style="color:var(--bad)">${esc(fehler.join(" · "))}</span>`);else toast("Preise werden aktualisiert");
+      try{PV.d=null}catch(x){}fdbInfo();setTimeout(preisInfo,800);b.disabled=false;return}
     if(a==="srvApp"){msg("Hole die neueste App und ihre Bibliotheken auf den Server …");b.disabled=true;
       try{const d=await req("POST","/api/app/aktualisieren");msg(`✓ App auf Stand ${esc(d.stand)}, ${d.geladen} Bibliotheken gespeichert${d.fehler&&d.fehler.length?` (${d.fehler.length} nicht ladbar)`:""}. Seite neu laden (in der iPhone-App: schließen und neu öffnen), um sie zu nutzen.`);appInfo()}
       catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`)}b.disabled=false;return}
@@ -3927,7 +3937,11 @@ async function coverFor(serial){
   const t=J.cloud.filter(c=>c.serial.toUpperCase()===serial&&c.cover).sort((a,b)=>(b.end||b.start||"").localeCompare(a.end||a.start||""))[0];
   return t?t.cover:"";
 }
-window.JOBS={historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_fromSrv:fromSrv,_fromSpeicher:fromSpeicher};
+let vorschauP=null;
+function vorschau(){if(vorschauP)return vorschauP;
+  vorschauP=Promise.all([S.srv?loadSrv(false):null,S.backend==="ha"?loadHa(false):null,acct()?loadCloud(false):null].filter(Boolean).map(p=>Promise.resolve(p).catch(()=>{})))
+    .then(()=>{try{if(S.tab==="heute"&&window.HEUTE&&HEUTE.auf)HEUTE.auf()}catch(e){}}).finally(()=>{setTimeout(()=>{vorschauP=null},60000)});return vorschauP}
+window.JOBS={vorschau,historie:()=>buchIndex()?all():null,mehr:()=>!!(acct()&&J.more),alleLaden:loadAll,laedtAlles:()=>J.alle,auto:()=>{if(S.backend==="ha")loadHa(false);if(acct())loadCloud(false);if(window.CRE&&CRE.connected())CRE.load(false)},render,settingsHTML,cloudStatus,coverFor,ensure,jobsFor,usedOf,takeKeys,busy,thumbFor,fixThumbs,_J:J,_fromCloud:fromCloud,_fromHa:fromHa,_fromSrv:fromSrv,_fromSpeicher:fromSpeicher};
 cloudStatus();setTimeout(cloudStatus,500);
 })();
 </script>
@@ -9152,7 +9166,7 @@ function heuteHTML(){const B=window.LGN&&LGN._book;const bereit=B&&B.ready();
   fast.slice(0,3).forEach(({e,t})=>br+=rolle(e,t,`nur noch ${kgT(t)} von ${kgT(e.gewicht||1000)}`,"warn"));
   if(W&&W.trocknen>0)br+=z(HIC.feuer,`${W.trocknen} ${W.trocknen===1?"Sorte sollte":"Sorten sollten"} getrocknet werden`,"laut Trocknungsplan der Waage","","trock");
   fe.slice(0,2).forEach(f=>br+=z(HIC.tropfen,`${esc(f.ams)} am ${esc(f.dr)}`,"Trockenmittel wechseln oder trocknen",`${N0.format(f.v)} %`,"nass"));
-  const JH=window.JOBS&&JOBS.historie?JOBS.historie():null;const abNt=t=>String(t||"").toLowerCase().replace(/(\.gcode)?\.3mf$/,"").replace(/[^a-z0-9äöüß]+/g,"");const abBild=d=>{if(!JH)return "";const t=zeitMs(d.zeit)||0,a=abNt(d.aufgabe);const j=JH.find(j=>j.cover&&((d.task&&(String(j.task)===String(d.task)||(j.cloud&&String(j.cloud.id)===String(d.task))))||(a&&abNt(j.title)===a&&Math.abs(new Date(j.end||j.start).getTime()-t)<6*3600000)));return j?j.cover:""};const ab=V.slice(0,3).map(d=>{const gd=Number(d.gramm_datei)||0,g=Number(d.gramm)||0;const sub=[d.drucker,/abgebrochen/i.test(d.anlass||"")?"abgebrochen":"",d.sorte,gd>g?`${g1(g)} von ${g1(gd)} g`:"",wann(zeitMs(d.zeit))].filter(Boolean).join(" · ");
+  const JH=window.JOBS&&JOBS.historie?JOBS.historie():null;const abNt=t=>String(t||"").toLowerCase().replace(/(\.gcode)?\.3mf$/,"").replace(/[^a-z0-9äöüß]+/g,"");const abBild=d=>{if(!JH)return "";const t=zeitMs(d.zeit)||0,a=abNt(d.aufgabe);const j=JH.find(j=>j.cover&&((d.task&&(String(j.task)===String(d.task)||(j.cloud&&String(j.cloud.id)===String(d.task))))||(a&&abNt(j.title)===a&&Math.abs(new Date(j.end||j.start).getTime()-t)<6*3600000)));return j?j.cover:""};if(window.JOBS&&JOBS.vorschau&&V.length&&(!JH||V.slice(0,3).some(d=>!abBild(d))))JOBS.vorschau();const ab=V.slice(0,3).map(d=>{const gd=Number(d.gramm_datei)||0,g=Number(d.gramm)||0;const sub=[d.drucker,/abgebrochen/i.test(d.anlass||"")?"abgebrochen":"",d.sorte,gd>g?`${g1(g)} von ${g1(gd)} g`:"",wann(zeitMs(d.zeit))].filter(Boolean).join(" · ");
     const se=sorte(d.uid);const rl=se?slRolle(se):slRolle(null,d.hex),bi=abBild(d);return z(bi?`<span class="hz-db" style="background-image:url('${esc(bi)}')">${rl}</span>`:rl,esc(String(d.aufgabe||d.anlass||"Druck").replace(/\.(gcode\.3mf|3mf|gcode)$/i,"")),esc(sub),`${g>=0?"−":"+"}${g1(g)} g`)}).join("");
   const ekH=(leer.slice(0,3)).map(({e})=>rolle(e,0,"aufgebraucht – nachkaufen","bad")).join("");
   const sek=(t,inh,link)=>inh?`<section class="hk"><header><b>${t}</b>${link||""}</header>${inh}</section>`:"";
