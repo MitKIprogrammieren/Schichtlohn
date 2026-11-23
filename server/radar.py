@@ -155,13 +155,15 @@ def aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, s
     t = drucker_mod.temperaturen(p, modell)
     info = drucker_mod.duesen_info(p)
     nach_id = {x["id"]: x for x in t["duesen"]}
-    if len(t["duesen"]) > 1:  # H2D/H2C: id 1 = links, id 0 = rechts
+    if modell == "u1":  # Snapmaker U1: vier Druckköpfe
+        duesen = [{"id": str(x["id"] + 1), "name": f"Kopf {x['id'] + 1}", "nr": x["id"]} for x in t["duesen"]]
+    elif len(t["duesen"]) > 1:  # H2D/H2C: id 1 = links, id 0 = rechts
         duesen = [{"id": "L", "name": "Links", "nr": 1}, {"id": "R", "name": "Rechts", "nr": 0}]
     else:
         duesen = [{"id": "1", "name": "Düse", "nr": t["duesen"][0]["id"]}]
     for du in duesen:
         x = nach_id.get(du.pop("nr")) or {}
-        g, typ = info.get(0 if du["id"] in ("1", "R") else 1, ("", ""))
+        g, typ = info.get(0 if du["id"] in ("1", "R") else 1, ("", "")) if modell != "u1" else ("", "")
         du.update({"temp": x.get("temp"), "ziel": x.get("ziel"), "groesse": g, "typ": typ})
     akt = max(range(len(duesen)), key=lambda i: ((duesen[i]["ziel"] or 0), (duesen[i]["temp"] or 0)))
     for i, du in enumerate(duesen):
@@ -184,7 +186,7 @@ def aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, s
         u = ams.get(nr)
         if u is None:
             e = einheiten.get(f["ams"]) or {}
-            u = ams[nr] = {"nr": nr, "name": f"AMS HT {nr - 127}" if nr >= 128 else f"AMS {nr}", "ht": nr >= 128, "faecher": [],
+            u = ams[nr] = {"nr": nr, "name": "Druckköpfe" if modell == "u1" else f"AMS HT {nr - 127}" if nr >= 128 else f"AMS {nr}", "ht": nr >= 128, "faecher": [],
                            "feuchte": e.get("feuchte"), "feuchte_stufe": e.get("feuchte_stufe"), "temp": e.get("temp"),
                            "trocknet": bool(e.get("trocken_rest")), "trocken_rest": e.get("trocken_rest") or None}
         u["faecher"].append(fach)
@@ -244,7 +246,7 @@ def aus_drucker(dr, by, ha_anfrage, preis_fn, zuordnung, modell_namen, anzahl, s
         "luefter": luefter, "profil": drucker_mod.PROFILE.get(drucker_mod._int(p.get("spd_lvl")), ""),
         "platte": (a or {}).get("platte_typ") or "", "wlan": wlan if re.fullmatch(r"-?\d+", wlan) else "",
         "duesen": duesen, "ams": ams_liste, "extern": extern, "filament": aktiv,
-        "kamera": bool(d.get("ip") and d.get("code")) and status != "offline",
+        "kamera": bool(d.get("ip") and (d.get("code") or modell == "u1")) and status != "offline",
         "bild": str(int((a or {}).get("start") or 1)) if (a or {}).get("vorschau") else "",
         "licht": drucker_mod.licht_an(p) if dr.online else None,
         "energie": _energie_paket(lei_ent, en_ent, leistung, kwh, strom_kosten, posten, fil_kosten, fehlt, strompreis),

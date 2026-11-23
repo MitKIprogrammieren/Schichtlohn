@@ -561,10 +561,10 @@ const SRV=window.SRV=(()=>{
   async function drLaden(){bfmLaden();const el=document.getElementById("srv_drliste");if(!el)return;
     try{E=await req("GET","/api/einstellungen");const l=await req("GET","/api/drucker");DR=l.drucker||[]}catch(e){el.textContent="Braucht Server-Version 3.0 ("+(e.message||e)+").";return}
     const zeilen=(E.drucker||[]).map((d,i)=>{const live=DR.find(x=>x.serial===d.serial)||{};const st=d.aktiv===false?"aus":live.online?"ok":live.fehler?"err":"warte";
-      return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.modus==="cloud"?(d.ip?"Bambu-Cloud + Heimnetz "+esc(d.ip):"Bambu-Cloud"):"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
+      return `<div class="srvdr"><span class="srvdot ${st}"></span><div class="srvdrt"><b>${esc(d.name||d.serial)}</b><small>${d.typ==="snapmaker"?"Snapmaker · Heimnetz "+esc(d.ip||""):d.modus==="cloud"?(d.ip?"Bambu-Cloud + Heimnetz "+esc(d.ip):"Bambu-Cloud"):"Heimnetz "+esc(d.ip||"")} · ${d.aktiv===false?"ausgeschaltet":drStatus(live)}</small></div><button class="btn sm ghost" data-act="srvDrEdit" data-i="${i}">Bearbeiten</button></div>`}).join("");
     const bc=!!bambuKonto();const ab=document.getElementById("srv_abb");if(ab)ab.checked=E.abbuchung!==false;
-    el.innerHTML=`${zeilen||`<p>Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern und bucht nach jedem Druck das Filament im Lager ab.</p>`}
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${bc&&!zeilen?" pri":""}" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button><button class="btn sm ghost" data-act="srvDrNeu">${ICON.plus||"+"} Von Hand</button></div>
+    el.innerHTML=`${zeilen||`<p>Noch kein Drucker. Der Server verbindet sich direkt mit deinen Bambu-Druckern (und dem Snapmaker U1) und bucht nach jedem Druck das Filament im Lager ab.</p>`}
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${bc&&!zeilen?" pri":""}" data-act="srvDrCloud">Aus Bambu-Cloud übernehmen</button><button class="btn sm ghost" data-act="srvDrNeu">${ICON.plus||"+"} Von Hand</button><button class="btn sm ghost" data-act="srvDrSnap">${ICON.plus||"+"} Snapmaker U1</button></div>
       ${bc?"":`<p>Für „Aus Bambu-Cloud übernehmen“ und Drucker über die Cloud erst oben unter <b>Bambu-Cloud</b> anmelden.</p>`}${E.abbuchung!==false&&(E.drucker||[]).length?`<p>Schalte in Home Assistant die Automation „FilamentLager – Abbuchung nach Druckende“ aus, sonst kommen Meldungen doppelt.</p>`:""}`;
     const h=E.ha||{};const hf=document.getElementById("srv_haform");
     if(hf)hf.innerHTML=`<div class="g2"${(S.srvInfo||{}).ha_app?" hidden":""} style="margin-bottom:8px"><label class="field"><span>Adresse</span><input type="text" id="srv_haurl" value="${esc(h.url||"")}" placeholder="http://192.168.1.66:8123" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
@@ -622,6 +622,7 @@ const SRV=window.SRV=(()=>{
   document.addEventListener("change",e=>{if(e.target&&e.target.id==="srv_abb")einstSpeichern({abbuchung:e.target.checked},e.target.checked?"✓ Automatische Abbuchung an.":"Automatische Abbuchung aus.")});
   const MOD=[["","automatisch (aus der Seriennummer)"],["h2c","H2C"],["h2d","H2D"],["h2s","H2S"],["x1c","X1C"],["x1e","X1E"],["p1s","P1S"],["p1p","P1P"],["p2s","P2S"],["a1","A1"],["a1mini","A1 mini"]];
   function drModal(i,vorlage){const d=Object.assign({modus:"lokal",aktiv:true},i!=null?E.drucker[i]:vorlage||{});
+    if(d.typ==="snapmaker")return snapModal(i,d);
     modal(i!=null?"Drucker bearbeiten":"Drucker hinzufügen",`<div class="stack" style="gap:10px">
       <label class="field"><span>Name</span><input type="text" id="dr_name" value="${esc(d.name||"")}" placeholder="z. B. H2C"></label>
       <label class="field"><span>Seriennummer</span><input type="text" id="dr_serial" value="${esc(d.serial||"")}" placeholder="am Drucker unter Einstellungen → Gerät" autocapitalize="characters" spellcheck="false"></label>
@@ -637,6 +638,16 @@ const SRV=window.SRV=(()=>{
       `${i!=null?`<button class="btn ghost" data-act="srvDrWeg" data-i="${i}" style="color:var(--bad)">Entfernen</button>`:""}<span class="sp" style="flex:1"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="srvDrOk" data-i="${i!=null?i:""}">Speichern</button>`);
     const m=document.getElementById("dr_modus");if(m)m.addEventListener("change",()=>{const c=m.value==="cloud",box=document.getElementById("dr_lokal");box.classList.toggle("zusatz",c);
       document.getElementById("dr_lan_t").innerHTML=c?drLanText:"";document.getElementById("dr_ip").placeholder=c?"leer = nur Cloud":"192.168.1.50"})}
+  function snapModal(i,d){
+    modal(i!=null?"Snapmaker bearbeiten":"Snapmaker U1 hinzufügen",`<div class="stack" style="gap:10px">
+      <label class="field"><span>Name</span><input type="text" id="dr_name" value="${esc(d.name||"")}" placeholder="z. B. U1"></label>
+      <div class="g2"><label class="field"><span>IP-Adresse</span><input type="text" id="dr_ip" value="${esc(d.ip||"")}" placeholder="192.168.1.60" inputmode="decimal"></label>
+      <label class="field"><span>Moonraker-Schlüssel <span class="chip">optional</span></span><input type="text" id="dr_code" value="${esc(d.code||"")}" placeholder="leer lassen (ab Werk nicht nötig)" autocomplete="off" spellcheck="false"></label></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm ghost" data-act="srvDrLanPruefen" data-typ="snapmaker" type="button">Verbindung prüfen</button><span class="hint" id="dr_lan_msg" role="status"></span></div>
+      <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="dr_aktiv"${d.aktiv!==false?" checked":""}> <span>Verbindung an</span></label>
+      <input type="hidden" id="dr_serial" value="${esc(d.serial||"")}"><input type="hidden" id="dr_typ" value="snapmaker">
+      <div class="hint">Der Server liest den U1 direkt im Heimnetz (Moonraker, wie Fluidd im Browser) – keine Cloud nötig. Die vier Druckköpfe erscheinen im Lager als <b>Kopf 1–4</b>, Material und Farbe kommen vom RFID-Chip der Spule bzw. aus der Auswahl am Display. Die Gramm je Filament liest der Server nach dem Druck aus der G-Code-Datei (Snapmaker Orca). Am besten dem U1 in der FritzBox immer dieselbe IP geben.</div></div>`,
+      `${i!=null?`<button class="btn ghost" data-act="srvDrWeg" data-i="${i}" style="color:var(--bad)">Entfernen</button>`:""}<span class="sp" style="flex:1"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="srvDrOk" data-i="${i!=null?i:""}">Speichern</button>`)}
   const drLanText=`<b>Zusätzlich übers Heimnetz</b> <span class="chip">optional</span><div class="hint">Der Drucker bleibt über die Cloud verbunden. Mit der IP holt der Server außerdem die Druckdatei vom Drucker – dann werden übersprungene Teile und Abbrüche genau abgebucht.</div>`;
   function bambuKonto(){try{const v=JSON.parse(localStorage.getItem("schichtlohn_bambu")||"null");return v&&v.token?v:null}catch(e){return null}}
   const msg=t=>{const m=document.getElementById("srv_msg");if(m)m.innerHTML=t;if((!m||!m.offsetParent)&&window.toast&&t)toast(String(t).replace(/<[^>]+>/g,""))};
@@ -652,18 +663,22 @@ const SRV=window.SRV=(()=>{
     if(a==="srvDrLanSuchen"||a==="srvDrLanPruefen"){const v=id=>((document.getElementById(id)||{}).value||"").trim();const m2=document.getElementById("dr_lan_msg");
       const such=a==="srvDrLanSuchen";const ip=v("dr_ip");if(!such&&!ip){m2.textContent="Erst eine IP-Adresse eintragen oder „IP suchen“ antippen.";return}
       m2.textContent=such?"Suche im Heimnetz … (bis zu einer halben Minute)":"Prüfe …";b.disabled=true;
-      try{const r=await req("POST","/api/drucker/lan",{serial:v("dr_serial").toUpperCase(),ip,code:v("dr_code"),suchen:such});
+      try{const r=await req("POST","/api/drucker/lan",{serial:v("dr_serial").toUpperCase(),ip,code:v("dr_code"),suchen:such,typ:b.dataset.typ||""});
         if(r.ok&&r.ip){document.getElementById("dr_ip").value=r.ip}m2.innerHTML=`<span style="color:var(--${r.ok?"good":"bad"})">${r.ok?"✓ ":""}${esc(r.text)}</span>${r.ok&&such?" – jetzt speichern.":""}`}
       catch(x){m2.innerHTML=`<span style="color:var(--bad)">${esc(x.message)}</span>`}b.disabled=false;return}
     if(a==="srvDrNeu"){drModal(null);return}
+    if(a==="srvDrSnap"){drModal(null,{typ:"snapmaker"});return}
     if(a==="srvDrEdit"){drModal(+b.dataset.i);return}
     if(a==="srvDrWeg"){const weg=((E&&E.drucker)||[])[+b.dataset.i];if(!weg)return;let l;try{l=(await druckerFrisch()).filter(x=>(weg.id?x.id!==weg.id:x.serial!==weg.serial))}catch(x){msg(`<span style="color:var(--bad)">${esc(x.message)}</span>`);return}
       closeModal();einstSpeichern({drucker:l,drucker_leeren:!l.length},"Drucker entfernt.");return}
     if(a==="srvDrOk"){const v=id=>((document.getElementById(id)||{}).value||"").trim();
-      const d={name:v("dr_name"),serial:v("dr_serial").toUpperCase(),modus:v("dr_modus"),ip:v("dr_ip"),code:v("dr_code"),modell:v("dr_modell"),aktiv:document.getElementById("dr_aktiv").checked};
-      if(!d.serial){toast("Seriennummer fehlt");return}if(d.modus==="lokal"&&(!d.ip||!d.code)){toast("IP-Adresse und Zugangscode fehlen");return}
+      const snap=v("dr_typ")==="snapmaker";
+      const d=snap?{name:v("dr_name")||"Snapmaker U1",serial:v("dr_serial").toUpperCase(),typ:"snapmaker",modell:"u1",modus:"lokal",ip:v("dr_ip"),code:v("dr_code"),aktiv:document.getElementById("dr_aktiv").checked}
+        :{name:v("dr_name"),serial:v("dr_serial").toUpperCase(),modus:v("dr_modus"),ip:v("dr_ip"),code:v("dr_code"),modell:v("dr_modell"),aktiv:document.getElementById("dr_aktiv").checked};
+      if(snap&&!d.ip){toast("IP-Adresse fehlt");return}
+      if(!snap&&!d.serial){toast("Seriennummer fehlt");return}if(!snap&&d.modus==="lokal"&&(!d.ip||!d.code)){toast("IP-Adresse und Zugangscode fehlen");return}
       const vorher=b.dataset.i!==""?((E&&E.drucker)||[])[+b.dataset.i]:null;let l;try{l=await druckerFrisch()}catch(x){toast(x.message);return}
-      const alt=l.findIndex(x=>(vorher&&vorher.id&&x.id===vorher.id)||x.serial===d.serial);if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d);
+      const alt=l.findIndex(x=>(vorher&&vorher.id&&x.id===vorher.id)||(d.serial&&x.serial===d.serial));if(alt>=0)l[alt]=Object.assign({},l[alt],d);else l.push(d);
       if(d.modus==="cloud"){const k=bambuKonto();if(k)await req("POST","/api/cloud/geraete",{token:k.token,region:k.region==="china"||k.region==="cn"?"china":"global",konto:k.account||""}).catch(()=>{})}
       closeModal();einstSpeichern({drucker:l},`✓ ${esc(d.name||d.serial)} gespeichert – der Server verbindet sich …`);return}
     if(a==="srvBfm"||a==="srvBfmJetzt"){try{await req("POST","/api/bambu_fm",a==="srvBfm"?{modus:b.dataset.m}:{jetzt:true});toast(a==="srvBfm"?(b.dataset.m==="aus"?"Filament Manager aus – Einträge werden entfernt":"Filament Manager an – gleicht ab …"):"Gleicht ab …")}catch(x){toast(x.message||String(x))}setTimeout(bfmLaden,600);return}

@@ -66,6 +66,7 @@ import aktualisieren as aktualisieren_mod
 import web
 import radar
 import kamera as kamera_mod
+import snapmaker as snapmaker_mod
 import platte as platte_mod
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
@@ -80,7 +81,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.19.2"
+VERSION = "3.20.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -695,6 +696,10 @@ def einstellungen_setzen(neu):
                 d["code"] = vorher["code"]
             if d.get("code") == MASKE:
                 d["code"] = vorher.get("code", "")
+            if snapmaker_mod.ist_snapmaker(d):
+                # Snapmaker U1: keine Seriennummer nötig – eine feste Kennung reicht (sie steckt in den Fach-Namen im Lager)
+                d["typ"], d["modell"], d["modus"] = "snapmaker", "u1", "lokal"
+                d["serial"] = d.get("serial") or vorher.get("serial") or ("U1" + uuid.uuid4().hex[:8].upper())
             if d.get("serial"):
                 d["serial"] = d["serial"].upper()
                 if not d.get("modell"):
@@ -1061,7 +1066,7 @@ def _chip(tag):
 def bambu_fm_soll(modus):
     if modus not in ("ams", "lager"):
         return []
-    drucker = {drucker_mod.praefix(d): d for d in einstellungen().get("drucker") or [] if d.get("serial")}
+    drucker = {drucker_mod.praefix(d): d for d in einstellungen().get("drucker") or [] if d.get("serial") and not snapmaker_mod.ist_snapmaker(d)}
     ams_mod = {}  # AMS-Seriennummern/-Typen je Drucker (zum Binden an ein Fach im Filament Manager)
     for dr in BAMBU.drucker.values():
         try:
@@ -2051,6 +2056,9 @@ def kamera_grund(pre):
     dr = eigener_drucker(pre)
     if not dr:
         return "Drucker ist nicht direkt im SchichtLohn-Server eingetragen (Einstellungen → Drucker)"
+    if getattr(dr, "snapmaker", False):
+        k = dr.kamera
+        return (k.fehler + " – " if k and k.fehler else "") + f"Snapmaker {dr.d.get('ip')} schickt kein Kamerabild – Kamera am Drucker an?"
     if not (dr.d.get("ip") and dr.d.get("code")):
         return "IP-Adresse oder Zugangscode des Druckers fehlt (Einstellungen → Drucker)"
     k = dr.kamera
@@ -2273,6 +2281,8 @@ def eigener_drucker(pre):
 def drucker_kamera(dr):
     """Kamera eines eigenen Druckers (braucht IP und Zugangscode) – wird beim ersten Abruf angelegt."""
     ip, code = dr.d.get("ip"), dr.d.get("code")
+    if getattr(dr, "snapmaker", False):
+        code = code or "-"  # Snapmaker: Kamerabild per HTTP, ohne Zugangscode
     if not (ip and code):
         return None
     k = dr.kamera
@@ -2480,7 +2490,7 @@ def verpasste_drucke(seit):
     out = []
     for dr in list(BAMBU.drucker.values()):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
-        if not c.get("token"):
+        if not c.get("token") or getattr(dr, "snapmaker", False):
             continue
         try:
             d = drucker_mod.cloud_anfrage(c["token"], c.get("region", "global"),
@@ -2925,6 +2935,8 @@ def fach_belegen(k):
     dr = next((d for d in BAMBU.drucker.values() if d.serial == name or (d.info().get("name") or "") == name), None)
     if not dr:
         raise Fehler(404, "Drucker nicht verbunden")
+    if getattr(dr, "snapmaker", False):
+        raise Fehler(409, "Beim Snapmaker U1 das Filament bitte am Drucker-Display einstellen (oder die Spule mit RFID-Chip einlegen).")
     if dr.d.get("modus") == "cloud":
         # Neuere Firmware (Autorisierungskontrolle) lehnt unsignierte Schreibbefehle ab – auch über die IP – und zeigt
         # am Drucker „Überprüfung des MQTT-Befehls fehlgeschlagen“. Geht nur mit LAN-Modus + Entwicklermodus.
@@ -3041,6 +3053,8 @@ def senden_pruefen(serial, name):
     erlaubt = set(ids.get(mid) or ()) or {herkunft}
     drucker = []
     for dr in BAMBU.drucker.values():
+        if getattr(dr, "snapmaker", False):
+            continue  # Bambu-3MF – der Snapmaker druckt G-Code aus Snapmaker Orca
         modell = drucker_mod.modell_aus_serie(dr.serial, dr.d.get("modell") or "")
         fl = drucker_mod.faecher(dr.p)
         vorschlag = {}
@@ -3066,6 +3080,8 @@ def senden(k):
     dr = BAMBU.drucker.get(str(k.get("ziel") or "").strip())
     if not dr:
         raise Fehler(404, "Drucker nicht gefunden")
+    if getattr(dr, "snapmaker", False):
+        raise Fehler(409, "Der Snapmaker U1 druckt G-Code aus Snapmaker Orca – bitte von dort senden.")
     if not (dr.d.get("ip") and dr.d.get("code")):
         raise Fehler(409, "Für diesen Drucker fehlen IP-Adresse und Zugangscode (Heimnetz) – ohne die kann SchichtLohn keine Datei hochladen")
     mid = drucker_mod.modell_id(daten)
@@ -3118,6 +3134,8 @@ def speicher_abrufen(anlass="automatisch"):
                 continue
             vorher = alt.get(serial) or {}
             name = d.get("name") or drucker_mod.MODELL_NAMEN.get(d.get("modell") or "", serial)
+            if snapmaker_mod.ist_snapmaker(d):
+                continue  # Snapmaker: Gramm kommen direkt aus der G-Code-Datei beim Druck
             if not (d.get("ip") and d.get("code")):
                 neu[serial] = {"drucker": name, "stand": vorher.get("stand"), "fehler": "Keine IP-Adresse eingetragen",
                                "dateien": vorher.get("dateien") or []}
@@ -3258,6 +3276,8 @@ def fach_ort(eid):
         return ""
     if m.group(1):
         a = int(m.group(1))
+        if eid.split(".", 1)[-1].startswith("u1_"):  # Snapmaker U1: Druckköpfe statt AMS
+            return f"Kopf {m.group(2)}"
         return f"AMS HT {a - 127}" if a >= 128 else f"AMS {a} Fach {m.group(2)}"
     return "Externe Spule 2" if m.group(3) == "2" else "Externe Spule"
 
@@ -4229,6 +4249,15 @@ class Handler(BaseHTTPRequestHandler):
         if teile == ["drucker", "lan"] and methode == "POST":
             # Heimnetz zusätzlich zur Cloud: Druckerspeicher prüfen oder die IP suchen (für die genaue Abbuchung aus der Druckdatei)
             b = self._json_rumpf()
+            if str(b.get("typ") or "") == "snapmaker":
+                ip = str(b.get("ip") or "").strip()
+                if not ip:
+                    raise Fehler(400, "IP-Adresse fehlt – am Drucker unter Einstellungen → WLAN ablesen")
+                schl = str(b.get("code") or "").strip()
+                if schl == MASKE:
+                    schl = next((d.get("code") or "" for d in einstellungen()["drucker"] if str(d.get("serial") or "").upper() == str(b.get("serial") or "").upper()), "")
+                ok, text, _ = snapmaker_mod.pruefen(ip, schl)
+                return self._json(200, {"ok": ok, "ip": ip if ok else "", "text": text})
             serial = str(b.get("serial") or "").strip().upper()
             alt = next((d for d in einstellungen()["drucker"] if str(d.get("serial") or "").upper() == serial), {}) if serial else {}
             code = str(b.get("code") or "").strip()

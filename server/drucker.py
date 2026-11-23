@@ -51,7 +51,7 @@ KOPF = {
 MODELLE = [("00M", "x1c"), ("00W", "x1"), ("03W", "x1e"), ("01S", "p1p"), ("01P", "p1s"), ("22E", "p2s"),
            ("030", "a1mini"), ("039", "a1"), ("094", "h2d"), ("239", "h2d"), ("093", "h2s"), ("31B", "h2c")]
 MODELL_NAMEN = {"x1c": "X1C", "x1": "X1", "x1e": "X1E", "p1p": "P1P", "p1s": "P1S", "p2s": "P2S", "a1mini": "A1 mini",
-                "a1": "A1", "h2d": "H2D", "h2s": "H2S", "h2c": "H2C"}
+                "a1": "A1", "h2d": "H2D", "h2s": "H2S", "h2c": "H2C", "u1": "Snapmaker U1"}
 LAUFEND = ("RUNNING", "PAUSE", "PREPARE", "SLICING")
 
 # Wartungs-/Kalibrierläufe der Drucker (z. B. Kamera-Kalibrierung beim H2). Sie laufen wie ein Druck durch
@@ -143,13 +143,15 @@ def ams_module_map(dr):
 def faecher(p):
     """Alle belegten und leeren Fächer: [{ams, fach, global, ort, fid, farbe, typ, name, rest, gewicht, tag, leer}]"""
     out = []
+    kopf = bool(p.get("_kopf"))  # Snapmaker U1: vier Druckköpfe statt AMS
     ams = (p.get("ams") or {}).get("ams") or []
     for a in ams:
         aid = _int(a.get("id"), 0)
         for t in a.get("tray") or []:
             tid = _int(t.get("id"), 0)
             leer = not t.get("tray_type")
-            out.append({"ams": aid, "fach": tid, "global": aid * 4 + tid if aid < 128 else aid, "ort": ort_name(aid, tid),
+            out.append({"ams": aid, "fach": tid, "global": aid * 4 + tid if aid < 128 else aid,
+                        "ort": f"Kopf {tid + 1}" if kopf else ort_name(aid, tid),
                         "fid": str(t.get("tray_info_idx") or ""), "farbe": _farbe(t.get("tray_color")),
                         "farbe_roh": str(t.get("tray_color") or ""), "typ": str(t.get("tray_type") or ""),
                         "name": str(t.get("tray_sub_brands") or t.get("tray_type") or ""), "rest": _int(t.get("remain"), -1),
@@ -234,8 +236,9 @@ def temperaturen(p, modell):
     out = {"duesen": []}
     ex = (dev.get("extruder") or {}).get("info") if isinstance(dev.get("extruder"), dict) else None
     zwei = modell in ("h2d", "h2c", "h2dpro", "x2d")
+    ids = (0, 1, 2, 3) if modell == "u1" else (0, 1)
     if isinstance(ex, list) and ex:
-        for e in sorted((e for e in ex if isinstance(e, dict) and e.get("id") in (0, 1)), key=lambda e: e["id"]):
+        for e in sorted((e for e in ex if isinstance(e, dict) and e.get("id") in ids), key=lambda e: e["id"]):
             t, z = _gepackt(e.get("temp"))
             out["duesen"].append({"id": e["id"], "temp": t, "ziel": z})
     if not out["duesen"] or (not zwei and out["duesen"][0]["temp"] is None):
@@ -1394,12 +1397,14 @@ class Bambu:
             for dr in self.drucker.values():
                 dr.beenden()
             self.drucker = {}
+            import snapmaker
             if mqtt is None:
-                self.wirt.log("paho-mqtt fehlt – Drucker-Anbindung aus")
-                return
+                self.wirt.log("paho-mqtt fehlt – Bambu-Anbindung aus")
             for d in self.wirt.einstellungen().get("drucker") or []:
                 if d.get("aktiv", True) and d.get("serial"):
-                    dr = Drucker(dict(d), self.wirt)
+                    if mqtt is None and not snapmaker.ist_snapmaker(d):
+                        continue
+                    dr = (snapmaker.SnapmakerDrucker if snapmaker.ist_snapmaker(d) else Drucker)(dict(d), self.wirt)
                     self.drucker[dr.serial] = dr
                     dr.starten()
 

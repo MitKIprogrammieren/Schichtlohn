@@ -17,6 +17,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.request
 
 PORT6000 = ("a1", "a1mini", "p1p", "p1s")
 LEERLAUF = 90
@@ -116,7 +117,7 @@ class Kamera:
         fehlversuche = 0
         while not self._leerlauf():
             try:
-                (self._port6000 if nutzt_port6000(self.modell) else self._rtsp)()
+                (self._http if self.modell == "u1" else self._port6000 if nutzt_port6000(self.modell) else self._rtsp)()
                 fehlversuche = 0
             except Exception as e:
                 fehlversuche += 1
@@ -147,6 +148,45 @@ class Kamera:
                     if not 0 < groesse < 8_000_000:
                         raise ConnectionError(f"unerwartete Bildgröße {groesse} – Zugangscode richtig?")
                     self._merken(_genau(s, groesse))
+
+    def _http(self):
+        """Snapmaker U1: Einzelbilder per HTTP (/webcam/snapshot.jpg); klappt das nicht, aus dem MJPEG-Strom lesen
+        (der Strom weckt die Kamera auch auf, wenn sie schläft)."""
+        basis = self.ip if str(self.ip).startswith("http") else "http://" + str(self.ip)
+        fehler = 0
+        while not self._leerlauf():
+            try:
+                with urllib.request.urlopen(basis + "/webcam/snapshot.jpg", timeout=8) as r:
+                    bild = r.read()
+                if bild[:2] != SOI:
+                    raise ConnectionError("kein JPEG")
+                self._merken(bild)
+                fehler = 0
+                self.stop.wait(0.5)
+            except Exception:
+                fehler += 1
+                if fehler >= 2:
+                    self._mjpeg(basis + "/webcam/stream.mjpg")
+                    fehler = 0
+
+    def _mjpeg(self, url):
+        with urllib.request.urlopen(url, timeout=10) as r:
+            puffer = b""
+            while not self._leerlauf():
+                stueck = r.read(16384)
+                if not stueck:
+                    raise ConnectionError("Kamerastrom beendet")
+                puffer += stueck
+                while True:
+                    a = puffer.find(SOI)
+                    e = puffer.find(EOI, a + 2) if a >= 0 else -1
+                    if a < 0 or e < 0:
+                        puffer = puffer[a:] if a >= 0 else b""
+                        break
+                    self._merken(puffer[a:e + 2])
+                    puffer = puffer[e + 2:]
+                if len(puffer) > 4_000_000:
+                    puffer = b""
 
     def _rtsp(self):
         ffmpeg = shutil.which("ffmpeg")

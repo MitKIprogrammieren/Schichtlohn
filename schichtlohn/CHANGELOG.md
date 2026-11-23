@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.20.0 – 23.11.2026
+- Neu: Snapmaker U1. Unter Einstellungen → Drucker gibt es „Snapmaker U1“ – nur die IP-Adresse eintragen, eine Seriennummer oder Cloud braucht es nicht.
+- Die vier Druckköpfe erscheinen im Lager, in der Druckerübersicht und im SchichtRadar als „Kopf 1–4“, mit Material und Farbe vom Spulen-Chip bzw. vom Display.
+- Nach jedem Druck (auch bei Abbruch) bucht SchichtLohn die Gramm aus der Druckdatei von Snapmaker Orca ab; Vorschaubild, Temperaturen aller vier Köpfe und Kamerabild sind dabei.
+
 ## 3.19.2 – 22.11.2026
 - Abgebrochene Drucke werden jetzt sicher als „Druck abgebrochen“ erkannt – auch wenn der Drucker (z. B. der H2C) beim Abbrechen „fertig“ meldet oder direkt in den Ruhezustand springt. Abgebucht wird dann nur der Teil, der wirklich gedruckt wurde.
 
