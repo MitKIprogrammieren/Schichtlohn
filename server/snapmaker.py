@@ -3,7 +3,7 @@
 Der U1 hat vier Druckköpfe statt eines AMS. SchichtLohn fragt den Drucker alle 2 Sekunden über die
 Moonraker-Schnittstelle ab (http://<IP>/printer/objects/query, Port 80, ab Werk ohne Schlüssel im Heimnetz)
 und übersetzt die Werte in dieselbe Form wie eine Bambu-Meldung. Dadurch laufen Lager, Abbuchung,
-Druckerübersicht und SchichtRadar unverändert mit:
+Druckerübersicht unverändert mit:
 
   Kopf 1–4   → wie „AMS 1, Fach 1–4“ (Entitäten sensor.u1_<serie>_ams_1_slot_N), angezeigt als „Kopf N“
   Filament   → aus print_task_config (RFID-Chip der Spule oder Auswahl am Display)

@@ -64,7 +64,6 @@ import bambu_fm
 import produktbilder
 import aktualisieren as aktualisieren_mod
 import web
-import radar
 import kamera as kamera_mod
 import snapmaker as snapmaker_mod
 import platte as platte_mod
@@ -81,7 +80,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.20.0"
+VERSION = "3.20.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2248,26 +2247,6 @@ HA_DRUCKER_VORLAGE = ("{% set ns = namespace(o=[]) %}{% for s in states.sensor i
 HA_DRUCKER = {}
 
 
-# SchichtRadar: Live-Übersicht aller Bambu-Drucker (radar.html)
-RADAR_KEY = "_radar"
-
-
-def radar_einst():
-    w, _ = daten_lesen(RADAR_KEY)
-    return w if isinstance(w, dict) else {}
-
-
-def radar_preis(fid, col, drucker, ort):
-    """Preis je kg der Lager-Sorte, die zu diesem Fach passt (wie bei der Abbuchung) – None, wenn keine passt."""
-    if not fid:
-        return None
-    try:
-        treffer, _ = sorte_fuer(fid, (col or "").lower(), fach_key(drucker, ort))
-    except Exception:
-        return None
-    return (_zahl(treffer[1].get("preis")) or None) if treffer else None
-
-
 def eigene_drucker():
     return list(BAMBU.drucker.values())
 
@@ -2291,13 +2270,6 @@ def drucker_kamera(dr):
             k.beenden()
         k = dr.kamera = kamera_mod.Kamera(ip, code, drucker_mod.modell_von(dr.d), lambda t: print(t, flush=True))
     return k
-
-
-def radar_daten():
-    eigene = eigene_drucker()
-    if not eigene and not all(ha_cfg()):
-        raise Fehler(503, "Keine Drucker eingetragen (Einstellungen → SchichtLohn-Server → Drucker)")
-    return radar.holen(ha_anfrage, radar_preis, radar_einst(), drucker_mod.MODELL_NAMEN, eigene=eigene)
 
 
 class _HaDrucker:
@@ -4343,45 +4315,7 @@ class Handler(BaseHTTPRequestHandler):
         raise Fehler(404, "Unbekannter Pfad")
 
     def _radar(self, methode, teile, q):
-        if not teile and methode == "GET":
-            return self._json(200, radar_daten())
-        if teile == ["einstellungen"] and methode == "GET":
-            return self._json(200, radar_einst())
-        if teile == ["einstellungen"] and methode == "POST":
-            b = self._json_rumpf()
-            if not isinstance(b, dict):
-                raise Fehler(400, "Einstellungen fehlen")
-            neu = {"strompreis": max(0.0, min(5.0, _zahl(b.get("strompreis"), 0.35))),
-                   "reihenfolge": [str(x) for x in (b.get("reihenfolge") or []) if isinstance(x, str)][:50],
-                   "drucker": {re.sub(r"[^a-z0-9_]", "", str(k)): {kk: (bool(vv) if kk == "aus" else str(vv or "")[:120])
-                                                                    for kk, vv in v.items() if kk in ("name", "leistung", "energie", "aus")}
-                               for k, v in (b.get("drucker") or {}).items() if isinstance(v, dict)}}
-            daten_schreiben(RADAR_KEY, neu, "radar")
-            radar.leeren()
-            return self._json(200, neu)
-        if len(teile) == 2 and teile[0] == "verlauf" and methode == "GET":
-            try:
-                minuten = int((q.get("min") or ["15"])[0])
-            except ValueError:
-                minuten = 15
-            dr = eigener_drucker(teile[1])
-            if dr:
-                return self._json(200, radar.verlauf_eigen(dr, minuten))
-            try:
-                return self._json(200, radar.verlauf(ha_anfrage, teile[1], minuten))
-            except Exception:
-                return self._json(200, {"von": "", "reihen": {}})
-        if len(teile) == 2 and teile[0] == "bild" and methode == "GET":
-            pre = re.sub(r"[^a-z0-9_]", "", teile[1].lower())
-            dr = eigener_drucker(pre)
-            if dr:
-                a = dr.auftrag or dr.letzter or {}
-                bild = a.get("vorschau")
-            else:
-                bild = ha_bild(f"/api/image_proxy/image.{pre}_titelbild")
-            if not bild:
-                return self._senden(404, b"", "image/png", "no-store")
-            return self._senden(200, bild, "image/jpeg" if bild[:1] == b"\xff" else "image/png", "max-age=60")
+        """Nur noch der Licht-Knopf der Druckerübersicht (Pfad /api/radar/licht bleibt für ältere App-Stände)."""
         if teile == ["licht"] and methode == "POST":
             b = self._json_rumpf()
             pre = re.sub(r"[^a-z0-9_]", "", str(b.get("pre") or "").lower())
@@ -4396,9 +4330,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 ha_anfrage("/api/services/light/" + ("turn_on" if b.get("an") else "turn_off"),
                            {"entity_id": f"light.{pre}_druckraumbeleuchtung"}, timeout=15)
-            radar.leeren()
             return self._json(200, {"ok": True})
-        raise Fehler(404, "Unbekannter Radar-Pfad")
+        raise Fehler(404, "Unbekannter Pfad")
 
     def _kamera_live(self, pre, dauer=600, takt=0.25):
         """Live-Bild als MJPEG. Eigene Drucker: direkt von der Druckerkamera. Sonst Einzelbilder aus Home Assistant.

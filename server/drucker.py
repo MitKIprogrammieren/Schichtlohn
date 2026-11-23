@@ -173,7 +173,7 @@ def faecher(p):
     return out
 
 
-# ---------------------------------------------------------------- Live-Werte für SchichtRadar (ohne Home Assistant)
+# ---------------------------------------------------------------- Live-Werte der eigenen Drucker (ohne Home Assistant)
 
 SCHRITTE = {0: "printing", 1: "auto_bed_leveling", 2: "heatbed_preheating", 3: "sweeping_xy_mech_mode", 4: "changing_filament",
             5: "m400_pause", 6: "paused_filament_runout", 7: "heating_hotend", 8: "calibrating_extrusion", 9: "scanning_bed_surface",

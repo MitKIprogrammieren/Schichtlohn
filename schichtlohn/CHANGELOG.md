@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.20.1 – 23.11.2026
+- Das SchichtRadar ist entfernt. Drucker, Licht und Kamera findest du wie gewohnt in der Druckerübersicht.
+
 ## 3.20.0 – 23.11.2026
 - Neu: Snapmaker U1. Unter Einstellungen → Drucker gibt es „Snapmaker U1“ – nur die IP-Adresse eintragen, eine Seriennummer oder Cloud braucht es nicht.
 - Die vier Druckköpfe erscheinen im Lager, in der Druckerübersicht und im SchichtRadar als „Kopf 1–4“, mit Material und Farbe vom Spulen-Chip bzw. vom Display.
