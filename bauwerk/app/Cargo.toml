@@ -1,0 +1,23 @@
+[package]
+name = "bauwerk-app"
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+description = "Bauwerk als Mac-App: natives Fenster, Rust-Kern im selben Programm, MCP auf 127.0.0.1:8765"
+
+[[bin]]
+name = "Bauwerk"
+path = "src/main.rs"
+
+[dependencies]
+bauwerk = { path = "../crates/cli" }
+bauwerk-kern = { path = "../crates/kern" }
+tao = "0.37"
+wry = "0.57"
+muda = "0.21"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

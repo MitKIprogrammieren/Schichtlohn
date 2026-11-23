@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bauwerk</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%2300AE42%22/%3E%3Ctext x=%2212%22 y=%2217%22 font-size=%2214%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22Arial%22 font-weight=%22bold%22%3EB%3C/text%3E%3C/svg%3E">
+<style>
+:root{--gruen:#00AE42;--gruen-d:#008f36;--gruen-h:#e3f6ea;--bg:#eef0f3;--fl:#ffffff;--fl2:#f7f8fa;--rand:#dcdfe4;--text:#1f2329;--text2:#6b7280;--rot:#d93025;--gelb:#b26a00;--blau:#0a7cff}
+[data-thema=dunkel]{--bg:#17191c;--fl:#222529;--fl2:#1c1f23;--rand:#353a41;--text:#e8eaed;--text2:#9aa0a6;--gruen-h:#173f29;--gelb:#e0a43a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+input,select,textarea{-webkit-user-select:text;user-select:text}
+button,select,input{font:inherit;color:inherit}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#app{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;grid-template-columns:minmax(0,1fr);height:100%}
+/* Kopf */
+#kopf{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--fl);border-bottom:1px solid var(--rand);overflow-x:auto}
+.logo{flex:none;width:24px;height:24px;border-radius:6px;background:var(--gruen);display:grid;place-items:center;color:#fff;font-weight:700}
+#name{border:1px solid transparent;background:none;padding:3px 6px;border-radius:5px;width:170px;font-weight:600}
+#name:hover,#name:focus{border-color:var(--rand);outline:none}
+#reiter{display:flex;gap:2px;margin-left:8px;background:var(--fl2);border:1px solid var(--rand);border-radius:7px;padding:2px}
+#reiter button{border:none;background:none;padding:4px 12px;border-radius:5px;cursor:pointer;color:var(--text2)}
+#reiter button.an{background:var(--fl);color:var(--text);box-shadow:0 0 0 1px var(--rand)}
+.sp{flex:1}
+.k{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--rand);background:var(--fl);border-radius:6px;cursor:pointer;white-space:nowrap;flex:none}
+.k:hover{border-color:var(--gruen)}
+.k.voll{background:var(--gruen);border-color:var(--gruen);color:#fff}
+.k.voll:hover{background:var(--gruen-d)}
+.k:disabled{opacity:.4;cursor:default}
+.k.klein{padding:2px 6px;font-size:12px}
+/* Menüband */
+#band{display:flex;align-items:stretch;gap:2px;padding:4px 8px;background:var(--fl);border-bottom:1px solid var(--rand);overflow-x:auto;min-height:58px}
+.gruppe{display:flex;flex-direction:column;align-items:center;padding:0 6px;border-right:1px solid var(--rand)}
+.gruppe:last-child{border-right:none}
+.gruppe .reihe{display:flex;gap:1px;flex:1;align-items:center}
+.gruppe .titel{font-size:10px;color:var(--text2);margin-top:1px}
+.bk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:52px;padding:3px 4px;border:1px solid transparent;background:none;border-radius:6px;cursor:pointer;font-size:11px;color:var(--text)}
+.bk svg.i{width:20px;height:20px}
+.bk:hover{background:var(--fl2);border-color:var(--rand)}
+.bk.an{background:var(--gruen-h);border-color:var(--gruen)}
+.bk:disabled{opacity:.35;cursor:default;background:none;border-color:transparent}
+.bk.fertig{color:var(--gruen-d)}
+[data-thema=dunkel] .bk.fertig{color:#6fdc9c}
+/* Hauptbereich */
+main{display:grid;grid-template-columns:210px minmax(0,1fr) 270px;min-height:0}
+aside{background:var(--fl);overflow:auto;min-height:0}
+#browser{border-right:1px solid var(--rand)}
+#eigenschaften{border-left:1px solid var(--rand)}
+h3{margin:0;padding:8px 10px 4px;font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.02em}
+.baum{list-style:none;margin:0;padding:0 6px 6px}
+.baum li{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.baum li:hover{background:var(--fl2)}
+.baum li.gew{background:var(--gruen-h)}
+.baum li .neben{margin-left:auto;color:var(--text2);font-size:11px}
+.baum li.leer{color:var(--text2);cursor:default}
+.punktstatus{width:8px;height:8px;border-radius:50%;flex:none;background:var(--text2)}
+.punktstatus.voll_bestimmt{background:var(--gruen)}
+.punktstatus.unterbestimmt{background:var(--blau)}
+.punktstatus.widerspruechlich{background:var(--rot)}
+#ansicht{position:relative;min-width:0;min-height:0}
+#ansicht canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#overlay{pointer-events:none}
+#ansichtsknoepfe{position:absolute;right:8px;top:8px;display:grid;grid-template-columns:1fr 1fr;gap:3px;z-index:2}
+#skizzenstatus{position:absolute;left:8px;bottom:8px;z-index:2;padding:3px 9px;border-radius:5px;font-size:12px;display:none}
+#skizzenstatus.voll_bestimmt{display:block;background:var(--gruen-h);color:var(--gruen-d)}
+#skizzenstatus.unterbestimmt{display:block;background:#e5f0ff;color:#0b4fa8}
+#skizzenstatus.widerspruechlich{display:block;background:#fde7e6;color:var(--rot)}
+[data-thema=dunkel] #skizzenstatus.unterbestimmt{background:#11294a;color:#8fbdfd}
+[data-thema=dunkel] #skizzenstatus.widerspruechlich{background:#3b1716}
+[data-thema=dunkel] #skizzenstatus.voll_bestimmt{color:#6fdc9c}
+#hinweis{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--fl);border:1px solid var(--rand);border-radius:6px;padding:4px 10px;z-index:3;display:none;max-width:80%;text-align:center}
+#form{padding:0 10px 12px}
+.feld{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:6px;margin:6px 0}
+.feld label{color:var(--text2)}
+.feld input,.feld select{width:100%;padding:4px 6px;border:1px solid var(--rand);border-radius:5px;background:var(--fl2);min-width:0}
+.feld input:focus,.feld select:focus{outline:none;border-color:var(--gruen)}
+.feld input[type=checkbox]{width:auto}
+.feld input.fehler{border-color:var(--rot)}
+.wert{color:var(--text2);font-size:11px;grid-column:2}
+.reihe2{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.leer{color:var(--text2);padding:2px 0;margin:4px 0}
+.fehlertext{color:var(--rot)}
+table.par{width:100%;border-collapse:collapse;margin-top:4px}
+table.par td{padding:2px 2px}
+table.par input{width:100%;padding:3px 5px;border:1px solid var(--rand);border-radius:4px;background:var(--fl2);min-width:0}
+table.par .erg{color:var(--text2);font-size:11px;text-align:right;white-space:nowrap}
+/* Zeitleiste */
+#zeitleiste{display:flex;align-items:center;gap:4px;padding:5px 8px;background:var(--fl);border-top:1px solid var(--rand);overflow-x:auto;min-height:40px}
+#zeitleiste .zk{border:none;background:none;padding:2px;cursor:pointer;color:var(--text2);border-radius:4px}
+#zeitleiste .zk:hover{background:var(--fl2);color:var(--text)}
+.zl{display:flex;align-items:center;gap:3px;padding:0 4px;overflow-x:auto}
+.zf{display:grid;place-items:center;width:30px;height:28px;border:1px solid var(--rand);border-radius:5px;background:var(--fl2);cursor:pointer;flex:none;color:var(--text)}
+.zf.gew{border-color:var(--gruen);background:var(--gruen-h)}
+.zf.aus{opacity:.4}
+.zf.fehler{border-color:var(--rot);color:var(--rot)}
+.zf.spaeter{opacity:.35;border-style:dashed}
+.marke{width:4px;height:30px;border-radius:2px;background:var(--gruen);flex:none;cursor:ew-resize}
+footer{display:flex;gap:14px;padding:3px 10px;background:var(--fl);border-top:1px solid var(--rand);color:var(--text2);font-size:11px;white-space:nowrap;overflow:hidden}
+#fehlerleiste{color:var(--rot)}
+dialog{border:1px solid var(--rand);border-radius:10px;background:var(--fl);color:var(--text);padding:0;width:min(460px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog .dkopf{display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--rand);font-weight:600}
+dialog .dinhalt{padding:10px 12px;max-height:60vh;overflow:auto}
+.proj{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer}
+.proj:hover{background:var(--fl2)}
+.proj .zeit{color:var(--text2);font-size:12px;margin-left:auto}
+.nurgross{}
+@media (max-width:900px){
+ main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto}
+ #browser{order:2;border-right:none;border-top:1px solid var(--rand);max-height:18vh}
+ #eigenschaften{order:3;border-left:none;border-top:1px solid var(--rand);max-height:30vh}
+ #ansicht{order:1}
+ .nurgross{display:none}
+ #name{width:110px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+ <header id="kopf">
+  <div class="logo">B</div>
+  <input id="name" value="Neues Teil" aria-label="Projektname">
+  <div id="reiter"><button data-reiter="volumen" class="an">Volumen</button><button data-reiter="skizze">Skizze</button><button data-reiter="pruefen">Prüfen</button></div>
+  <span class="sp"></span>
+  <button class="k" id="kNeu" title="Neues Projekt"></button>
+  <button class="k" id="kOeffnen" title="Öffnen"></button>
+  <button class="k" id="kUndo" title="Rückgängig (Strg+Z)"></button>
+  <button class="k" id="kRedo" title="Wiederholen (Strg+Y)"></button>
+  <button class="k" id="kThema" title="Hell/Dunkel"></button>
+ </header>
+ <nav id="band"></nav>
+ <main>
+  <aside id="browser"><h3>BROWSER</h3><ul class="baum" id="baum"></ul></aside>
+  <section id="ansicht">
+   <canvas id="c3d"></canvas>
+   <canvas id="overlay"></canvas>
+   <div id="hinweis"></div>
+   <div id="skizzenstatus"></div>
+   <div id="ansichtsknoepfe">
+    <button class="k klein" data-ansicht="oben">Oben</button><button class="k klein" data-ansicht="vorne">Vorne</button>
+    <button class="k klein" data-ansicht="rechts">Rechts</button><button class="k klein" data-ansicht="iso">Iso</button>
+    <button class="k klein" data-ansicht="alles" style="grid-column:span 2">Alles zeigen</button>
+   </div>
+  </section>
+  <aside id="eigenschaften"><h3 id="formtitel">EIGENSCHAFTEN</h3><div id="form"></div></aside>
+ </main>
+ <div id="zeitleiste"></div>
+ <footer><span id="masse">Kein Körper</span><span id="zeit"></span><span id="speicherstand"></span><span id="fehlerleiste"></span></footer>
+</div>
+<dialog id="dlgOeffnen">
+ <div class="dkopf">Projekt öffnen<span class="sp"></span><button class="k" data-schliessen>Schließen</button></div>
+ <div class="dinhalt"><div id="projliste" class="leer">Lade …</div>
+  <div class="reihe2"><button class="k" id="kDateiLaden">Datei laden (.bwk/.json)</button><button class="k" id="kDateiSichern">Als Datei sichern</button></div>
+  <input type="file" id="dateiwahl" accept=".bwk,.json" hidden>
+ </div>
+</dialog>
+<script type="module" src="app.js"></script>
+</body>
+</html>

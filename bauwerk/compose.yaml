@@ -1,0 +1,15 @@
+# Stack „bauwerk“ auf dem NUC – baut direkt aus dem Schichtlohn-Repo (Ordner bauwerk/)
+name: bauwerk
+services:
+  bauwerk:
+    build:
+      context: https://github.com/MitKIprogrammieren/schichtlohn.git#main:bauwerk
+    image: bauwerk:lokal
+    ports:
+      - "${BAUWERK_PORT:-8061}:8088"
+    volumes:
+      - /opt/stacks/bauwerk/daten:/daten
+    environment:
+      - BASIS_URL=http://192.168.1.30:${BAUWERK_PORT:-8061}
+    mem_limit: 512m
+    restart: unless-stopped

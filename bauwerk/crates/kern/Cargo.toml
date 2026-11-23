@@ -1,0 +1,13 @@
+[package]
+name = "bauwerk-kern"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bauwerk – parametrischer CAD-Kern (Skizzen-Löser, Features, Boolesche Operationen, Export)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+boolmesh = "0.2.2"
+i_overlay = "9.2"
+earcutr = "0.5"

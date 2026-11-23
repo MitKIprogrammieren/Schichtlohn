@@ -1,0 +1,6 @@
+target/
+app/target/
+*.stl
+*.3mf
+*.step
+.DS_Store
