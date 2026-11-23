@@ -28,9 +28,9 @@
   .search:focus{border-color:var(--acc)}
   h2{font-size:17px;font-weight:700;margin:22px 2px 12px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-  a.card{position:relative;display:flex;gap:14px;align-items:center;padding:14px 32px 14px 14px;border-radius:18px;
+  .card{position:relative;cursor:pointer;display:flex;gap:14px;align-items:center;padding:14px 32px 14px 14px;border-radius:18px;
     background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none;transition:transform .12s,border-color .12s,background .12s}
-  a.card:hover{border-color:#4c4c53;background:var(--panel2);transform:translateY(-1px)}
+  .card:hover{border-color:#4c4c53;background:var(--panel2);transform:translateY(-1px)}
   .ic{flex:none;width:52px;height:52px}
   .ic svg{width:52px;height:52px;display:block}
   .t{font-weight:600}
@@ -38,6 +38,11 @@
   .dot{position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%;background:#4c4c53}
   .dot.on{background:#19d36b;box-shadow:0 0 0 3px #00ae4230}
   .dot.off{background:var(--off)}
+  .dot.warn{background:var(--warn)}
+  .srvkopf{margin-top:0}.srvwerte{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 18px;margin:10px 0 2px;font-size:13px}
+  .srvwerte span{color:var(--mute)}.srvwerte b{font-weight:500}
+  .balken{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-top:5px}.balken i{display:block;height:100%;background:var(--acc);border-radius:3px}
+  .knopf:disabled{opacity:.5;cursor:default}
   .star{position:absolute;bottom:8px;right:10px;background:none;border:0;color:#4c4c53;font-size:16px;cursor:pointer;padding:2px}
   .star.on{color:var(--warn)}
   .pikopf{display:flex;align-items:center;gap:10px;margin:22px 2px 12px;flex-wrap:wrap}
@@ -95,8 +100,9 @@
 <div class="wrap">
   <input class="search" id="suche" placeholder="Werk suchen …" autocomplete="off">
   <div id="inhalt"></div>
+  <section id="srvbereich"></section>
   <section id="pibereich"></section>
-  <footer>Grüner Punkt = erreichbar · Stern = oben anheften · Pis über Piwerk</footer>
+  <footer>Grüner Punkt = erreichbar · Stern = oben anheften · Server-Kachel antippen für Neustart, Update und Logs</footer>
 </div>
 <div class="schicht" id="schicht" hidden><div class="fenster" id="fenster"></div></div>
 
@@ -125,7 +131,6 @@ const WERKE = [
   {g:"Werke", n:"Gridwerk", d:"Gridfinity-Generator", lan:"http://192.168.1.30:8099/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8099/"},
   {g:"Werke", n:"Formwerk", d:"Großformat-Generator (LuBan)", lan:"http://192.168.1.30:8092/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8092/"},
   {g:"Werke", n:"Konturwerk", d:"Werkzeugeinsätze aus Foto (Tooltrace)", lan:"http://192.168.1.30:8089/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8089/"},
-  {g:"Werke", n:"Server", l:"Schaltwerk", d:"Container, Stacks & Proxmox", lan:"/server/", ts:"/server/"},
   {g:"Werke", n:"Meldewerk", d:"WhatsApp-Meldungen von SL & HA", lan:"http://192.168.1.30:8077/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8077/"},
   {g:"Werke", n:"Pulswerk", d:"NUC, Netzwerk & aufgerufene Seiten", lan:"http://192.168.1.30:8088/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8088/"},
   {g:"Werke", n:"Skizze → Zeichnung", l:"Skizze", d:"Skizzen umwandeln", lan:"http://192.168.1.30:8095/", ts:"http://nuc-schichtlohn.tail293912.ts.net:8095/"},
@@ -159,6 +164,7 @@ function zeichne(){
     `${liste.length} Werke · ${netz==="lan"?"im Heimnetz":"über Tailscale"}`;
   pruefe();
   piZeichnen();
+  if(typeof srvZeichnen==="function") srvZeichnen();
 }
 function karte(w){
   return `<a class="card" href="${w[netz]}" target="_blank" rel="noopener" data-u="${w[netz]}">
@@ -461,8 +467,204 @@ piBox.addEventListener("click",async e=>{
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) piLaden(); });
 setInterval(()=>{ if(!document.hidden && schicht.hidden) piLaden(); },10000);
 
+// ---------- Server: Container, Stacks & Proxmox (früher Schaltwerk; nginx leitet /api/ an den Server-Dienst weiter) ----------
+FORMEN["_Container"] = ['<path stroke-width="0" d="M24 5 41 14v20L24 43 7 34V14z"/><path fill="#000" stroke="#000" stroke-width="2.4" stroke-linejoin="round" d="M7 14l17 9 17-9M24 23v20"/>', ""];
+const srvBox = document.getElementById("srvbereich");
+let srvDaten, srvAnmelden = false, srvLauf = {};
+const SYMBOL_NAMEN = Object.keys(FORMEN).filter(k=>!k.startsWith("_"));
+function srvSymbol(c){
+  const a = (c.anzeige||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(a==="werke") return logo("_Werke");
+  const k = SYMBOL_NAMEN.find(k=>{const n=k.toLowerCase().replace(/[^a-z0-9]/g,""); return n===a || (n.length>4 && a.startsWith(n));});
+  return logo(k||"_Container");
+}
+function srvName(c, alle){
+  const gleich = alle.filter(x=>x.anzeige===c.anzeige).length > 1;
+  if(!gleich) return c.anzeige;
+  const teile = c.name.split("-"); return c.anzeige + " · " + (teile.length>2 ? teile.slice(1,-1).join("-") : c.name);
+}
+function bytes(b){ return b>=1e9 ? (b/1073741824).toFixed(1).replace(".",",")+" GB" : Math.round(b/1048576)+" MB"; }
+async function srvApi(methode, pfad, daten){
+  const r = await fetch(pfad,{method:methode,cache:"no-store",headers:daten?{"Content-Type":"application/json"}:{},body:daten?JSON.stringify(daten):undefined});
+  const j = await r.json().catch(()=>({}));
+  if(r.status===401){ srvAnmelden=true; srvZeichnen(); throw new Error("anmelden"); }
+  if(!r.ok) throw new Error(j.fehler||("Fehler "+r.status));
+  return j;
+}
+async function srvLaden(){
+  try{ srvDaten = await srvApi("GET","/api/uebersicht"); srvAnmelden=false; }
+  catch(e){ if(e.message!=="anmelden") srvDaten=null; }
+  srvZeichnen();
+}
+function srvZeichnen(){
+  const q = document.getElementById("suche").value.trim().toLowerCase();
+  if(srvAnmelden){
+    srvBox.hidden = !!q;
+    srvBox.innerHTML = `<div class="pikopf"><h2>Server</h2></div>
+      <div class="pi" style="max-width:420px"><div class="d" style="margin-bottom:8px">Unterwegs brauchst du einmal das Server-Passwort. Danach bleibst du 30 Tage angemeldet.</div>
+      <div class="knoepfe" style="flex-wrap:nowrap;margin-top:0"><input id="s_pw" class="search" type="password" placeholder="Passwort" style="margin:0;padding:8px 11px;border-radius:10px">
+      <button class="knopf gruen" data-a="anmelden">Anmelden</button></div><div class="d" id="s_pwf" style="color:var(--off);margin-top:6px"></div></div>`;
+    const pw = document.getElementById("s_pw"); pw.onkeydown = e=>{ if(e.key==="Enter") srvAnmeldenJetzt(); };
+    return;
+  }
+  if(srvDaten===undefined){ srvBox.innerHTML=""; return; }
+  if(!srvDaten){ srvBox.hidden=!!q; srvBox.innerHTML=`<div class="pikopf"><h2>Server</h2></div><p class="d">Der Server-Dienst ist gerade nicht erreichbar.</p>`; return; }
+  const h = srvDaten.host||{}, alle = srvDaten.container||[];
+  const liste = alle.filter(c=>!q || (c.anzeige+" "+c.name+" "+c.bild+" server container").toLowerCase().includes(q));
+  srvBox.hidden = !!q && !liste.length;
+  const laufen = alle.filter(c=>c.zustand==="running").length;
+  const balken = (txt,w,m)=>{const p=m?Math.round(100*w/m):0; return `<div><div class="pizeile"><span>${txt}</span><b>${m?bytes(w)+" / "+bytes(m):"–"}</b></div><div class="balken"><i style="width:${p}%;${p>85?"background:var(--off)":p>70?"background:var(--warn)":""}"></i></div></div>`};
+  const cpu = Math.round(100*(h.cpu||0));
+  const gaeste = (h.gaeste||[]).map(g=>`<span class="marke ${g.zustand==="running"?"on":"off"}">${esc(g.art)} ${g.id} · ${esc(g.name)}</span>`).join("");
+  srvBox.innerHTML = `<div class="pikopf"><h2>Server</h2><span class="d">${laufen} von ${alle.length} Containern laufen</span><div class="grow"></div>
+      <button class="knopf" data-a="stacks">Stacks</button></div>
+    ${q?"":`<div class="pi srvkopf">
+      <div class="pizeile"><span class="t">NUC „${esc(h.knoten||"pxx")}“</span><span class="d">${h.laufzeit?"läuft seit "+dauer(h.laufzeit):""}</span></div>
+      <div class="srvwerte">
+        <div><div class="pizeile"><span>CPU</span><b>${cpu} %</b></div><div class="balken"><i style="width:${cpu}%;${cpu>85?"background:var(--off)":""}"></i></div></div>
+        ${balken("RAM",h.ram,h.ram_max)}${balken("SSD",h.disk,h.disk_max)}
+      </div>${gaeste?`<div class="knoepfe">${gaeste}</div>`:""}</div>`}
+    <div class="grid" style="margin-top:12px">${liste.map(c=>srvKarte(c,alle)).join("")}</div>`;
+}
+function srvKarte(c, alle){
+  const an = c.zustand==="running", lauf = srvLauf[c.name]||c.aktion;
+  let d = an ? "läuft"+(c.ram?" · "+esc(c.ram).replace("MiB"," MB").replace("GiB"," GB"):"") : "gestoppt";
+  if(c.gesund==="unhealthy") d = "läuft, aber meldet Fehler";
+  if(c.update) d += " · Update da";
+  if(lauf) d = ({restart:"startet neu …",stop:"stoppt …",start:"startet …",update:"wird aktualisiert …"})[lauf]||"arbeitet …";
+  const punkt = lauf ? "" : !an ? "off" : c.gesund==="unhealthy"||c.update ? "warn" : "on";
+  return `<div class="card srv" data-c="${esc(c.name)}" role="button" tabindex="0">
+    <div class="ic">${srvSymbol(c)}</div>
+    <div><div class="t">${esc(srvName(c,alle))}</div><div class="d">${d}</div></div>
+    <span class="dot ${punkt}"></span></div>`;
+}
+async function srvAnmeldenJetzt(){
+  const pw = document.getElementById("s_pw");
+  try{ await srvApi("POST","/api/anmelden",{passwort:pw.value}); srvAnmelden=false; srvLaden(); }
+  catch(e){ document.getElementById("s_pwf").textContent = e.message==="anmelden"?"":e.message; }
+}
+async function srvAktion(c, a){
+  const frage = {stop:`${c.anzeige} stoppen?`, restart:`${c.anzeige} neu starten?`, update:`${c.anzeige} auf die neueste Version bringen?`}[a];
+  if(frage && !confirm(frage)) return;
+  srvLauf[c.name]=a; schliesse(); srvZeichnen();
+  try{ const j = await srvApi("POST",`/api/c/${encodeURIComponent(c.name)}/${a}`); if(a==="update") alert(`${c.anzeige}: ${j.text}`); }
+  catch(e){ if(e.message!=="anmelden") alert(`${c.anzeige}: ${e.message}`); }
+  delete srvLauf[c.name]; srvLaden();
+}
+function srvFenster(c){
+  const an = c.zustand==="running", kn = [];
+  if(!c.selbst){
+    if(an){ kn.push(`<button class="knopf" data-s="restart">Neustart</button>`);
+      if(c.compose) kn.push(`<button class="knopf ${c.update?"gruen":""}" data-s="update">Update</button>`);
+      kn.push(`<button class="knopf rot" data-s="stop">Stoppen</button>`); }
+    else kn.push(`<button class="knopf gruen" data-s="start">Starten</button>`);
+  }
+  kn.push(`<button class="knopf" data-s="logs">Logs</button>`);
+  const port = (c.ports||[])[0];
+  if(port && an) kn.push(`<a class="knopf" href="http://${location.hostname}:${port}${esc(c.pfad||"/")}" target="_blank" rel="noopener">Öffnen ↗</a>`);
+  oeffne(`<div class="fkopf"><b style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;display:inline-block">${srvSymbol(c)}</span>${esc(srvName(c,srvDaten.container))}</b>
+      <span class="marke ${an?"on":"off"}">${an?"läuft":"gestoppt"}</span><span class="grow"></span><button class="knopf" data-zu>✕</button></div>
+    <div class="werte">
+      <span>Status</span><b>${esc(c.status)}</b>
+      <span>Container</span><b>${esc(c.name)}</b>
+      <span>Image</span><b style="word-break:break-all">${esc(c.bild.length>50?c.bild.slice(0,22)+"…":c.bild)}</b>
+      ${c.ports?.length?`<span>Ports</span><b>${c.ports.map(esc).join(", ")}</b>`:""}
+      ${an?`<span>RAM</span><b>${esc(c.ram||"–")}</b><span>CPU</span><b>${esc(c.cpu||"–")}</b>`:""}
+      ${c.update?`<span>Update</span><b style="color:var(--warn)">neue Version verfügbar</b>`:""}
+    </div>
+    ${c.selbst?`<div class="hin lauf">Das ist Werke selbst – Neustart und Update gehen über „Stacks“.</div>`:""}
+    <div class="knoepfe">${kn.join("")}</div>`);
+  fensterEl.onclick = e=>{
+    const b = e.target.closest("[data-s]"); if(!b) return;
+    if(b.dataset.s==="logs") return srvLogs(c);
+    srvAktion(c, b.dataset.s);
+  };
+}
+async function srvLogs(c){
+  fensterEl.onclick = null;
+  oeffne(`<div class="fkopf"><b>${esc(srvName(c,srvDaten.container))} – Logs</b><span class="grow"></span>
+    <button class="knopf" id="s_neu">Aktualisieren</button><button class="knopf" data-zu>✕</button></div><pre id="logtext">lädt …</pre>`);
+  fensterEl.classList.add("gross");
+  const hol = async()=>{ const pre=document.getElementById("logtext"); if(!pre) return;
+    try{ const j=await srvApi("GET",`/api/logs/${encodeURIComponent(c.name)}?n=400`); pre.textContent=j.text||"(leer)"; pre.scrollTop=pre.scrollHeight; }
+    catch(e){ pre.textContent=e.message; } };
+  document.getElementById("s_neu").onclick = hol; hol();
+  logTimer = setInterval(hol, 5000);
+}
+// Stacks: Liste, Bearbeiten, Starten/Stoppen, neu anlegen
+async function srvStacks(){
+  fensterEl.onclick = null;
+  oeffne(`<div class="fkopf"><b>Stacks</b><span class="grow"></span><button class="knopf gruen" id="st_neu">＋ Neuer Stack</button><button class="knopf" data-zu>✕</button></div>
+    <input id="st_such" placeholder="Stack suchen …" style="margin-bottom:10px"><div class="pliste" id="st_liste"><p class="leer">lädt …</p></div>`);
+  let liste = [];
+  const zeichneListe = ()=>{
+    const q = document.getElementById("st_such").value.trim().toLowerCase();
+    document.getElementById("st_liste").innerHTML = liste.filter(s=>!q||s.name.includes(q)).map(s=>{
+      const kl = !s.gesamt ? "" : s.laufen===s.gesamt ? "on" : s.laufen ? "warn" : "off";
+      const txt = !s.gesamt ? "aus" : s.laufen===s.gesamt ? "läuft" : s.laufen ? `${s.laufen} von ${s.gesamt}` : "gestoppt";
+      return `<div class="bz" data-st="${esc(s.name)}" style="cursor:pointer"><div><div style="font-weight:500">${esc(s.name)}${s.selbst?' <span class="marke">Werke selbst</span>':""}</div>
+        <div class="v">${esc(s.ordner||"")}</div></div><span class="marke ${kl}">${txt}</span><span class="d">›</span></div>`;
+    }).join("") || `<p class="leer">Nichts gefunden.</p>`;
+  };
+  document.getElementById("st_such").addEventListener("input", zeichneListe);
+  document.getElementById("st_neu").onclick = ()=>srvStackEdit(null);
+  fensterEl.onclick = e=>{ const z=e.target.closest("[data-st]"); if(z) srvStackEdit(z.dataset.st); };
+  try{ const j = await srvApi("GET","/api/stacks"); liste = Array.isArray(j)?j:(j.stacks||[]); zeichneListe(); }
+  catch(e){ document.getElementById("st_liste").innerHTML = `<p class="leer">${esc(e.message)}</p>`; }
+}
+async function srvStackEdit(name){
+  fensterEl.onclick = null;
+  let i = {compose:"services:\n  app:\n    image: \n    restart: unless-stopped\n    ports:\n      - \"8000:8000\"\n", env:""};
+  if(name){ try{ i = await srvApi("GET","/api/stacks/"+encodeURIComponent(name)); }catch(e){ return alert(e.message); } }
+  const an = i.laufen>0;
+  oeffne(`<div class="fkopf"><button class="knopf" id="st_zur">‹</button><b>${name?esc(name):"Neuer Stack"}</b>
+      ${name?`<span class="marke ${an?"on":"off"}">${an?`läuft (${i.laufen}/${i.gesamt})`:"gestoppt"}</span>`:""}<span class="grow"></span><button class="knopf" data-zu>✕</button></div>
+    ${name?"":`<label>Name</label><input id="st_name" placeholder="meinwerk">`}
+    <label>compose.yaml</label><textarea id="st_compose" spellcheck="false" style="height:42vh">${esc(i.compose||"")}</textarea>
+    <label>.env (Passwörter und Schlüssel)</label><textarea id="st_env" spellcheck="false" style="height:70px">${esc(i.env||"")}</textarea>
+    <div class="knoepfe">
+      <button class="knopf" data-w="pruefen">Prüfen</button>
+      <button class="knopf gruen" data-w="${name?"speichern":"neu"}">${name?"Speichern & starten":"Anlegen & starten"}</button>
+      ${name?`<button class="knopf" data-w="restart">Neustart</button><button class="knopf" data-w="update">Update</button>
+        ${an?(i.selbst?"":`<button class="knopf rot" data-w="down">Stoppen</button>`):`<button class="knopf" data-w="up">Starten</button>`}`:""}
+    </div><div class="hin lauf" id="st_meld" hidden></div><pre id="st_aus" hidden style="height:22vh"></pre>`);
+  fensterEl.classList.add("gross"); fensterEl.style.overflow="auto";
+  document.getElementById("st_zur").onclick = ()=>{ fensterEl.classList.remove("gross"); fensterEl.style.overflow=""; srvStacks(); };
+  fensterEl.onclick = async e=>{
+    const b = e.target.closest("[data-w]"); if(!b) return;
+    const w = b.dataset.w, meld = document.getElementById("st_meld"), aus = document.getElementById("st_aus");
+    const compose = document.getElementById("st_compose").value, env = document.getElementById("st_env").value;
+    if(w==="down" && !confirm(`Stack „${name}“ stoppen?`)) return;
+    fensterEl.querySelectorAll("[data-w]").forEach(x=>x.disabled=true);
+    meld.hidden=false; meld.className="hin lauf"; meld.textContent = {pruefen:"Prüfe …",speichern:"Speichere und starte …",neu:"Lege an und starte …",restart:"Starte neu …",update:"Hole neue Images …",down:"Stoppe …",up:"Starte …"}[w];
+    try{
+      let j;
+      if(w==="neu"){ const n=document.getElementById("st_name").value.trim(); if(!n) throw new Error("Bitte einen Namen eingeben.");
+        j = await srvApi("POST","/api/stacks",{name:n,compose,env}); name=n; }
+      else if(w==="pruefen" && !name) j = await srvApi("POST","/api/stacks/neu/pruefen",{compose,env});
+      else j = await srvApi("POST",`/api/stacks/${encodeURIComponent(name)}/${w}`,{compose,env,deploy:true});
+      meld.className = "hin "+(j.ok===false?"off":"ok");
+      meld.textContent = j.ok===false ? "Das hat nicht geklappt – siehe Ausgabe." : (j.selbst ? j.text : {pruefen:j.text||"Alles in Ordnung",neu:"Angelegt und gestartet"}[w]||"Fertig");
+      if(j.text && w!=="pruefen"){ aus.hidden=false; aus.textContent=j.text; }
+      srvLaden();
+    }catch(e){ meld.className="hin off"; meld.textContent=e.message; }
+    fensterEl.querySelectorAll("[data-w]").forEach(x=>x.disabled=false);
+  };
+}
+srvBox.addEventListener("click", e=>{
+  const a = e.target.closest("[data-a]")?.dataset.a;
+  if(a==="stacks") return srvStacks();
+  if(a==="anmelden") return srvAnmeldenJetzt();
+  const k = e.target.closest("[data-c]"); if(!k) return;
+  const c = srvDaten?.container.find(x=>x.name===k.dataset.c); if(c) srvFenster(c);
+});
+srvBox.addEventListener("keydown", e=>{ if(e.key==="Enter" && e.target.matches("[data-c]")) e.target.click(); });
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) srvLaden(); });
+setInterval(()=>{ if(!document.hidden && schicht.hidden && !srvAnmelden) srvLaden(); },15000);
+
 zeichne();
 piLaden();
+srvLaden();
 </script>
 </body>
 </html>
