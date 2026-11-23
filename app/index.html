@@ -1397,6 +1397,7 @@ function renderSettings(m){
       <div class="tabtg">${Object.entries(TABNAMES).map(([k,t])=>{const on=!hiddenTabs().includes(k);return`<button type="button" class="chip${on?" on":""}" data-act="tabToggle" data-t="${k}" aria-pressed="${on}">${on?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`:""}${esc(t)}</button>`}).join("")}</div>
       <div class="hint">Ausgeblendete Reiter verschwinden oben aus der Leiste. Daten bleiben erhalten, Einstellungen sind immer sichtbar.</div>
       <label class="field" style="max-width:320px"><span>Beim Öffnen anzeigen</span><select id="startTab">${[...Object.entries(TABNAMES),["einstellungen","Einstellungen"],["last","Zuletzt geöffneter Reiter"]].map(([k,t])=>`<option value="${k}"${(S.cfg.startTab||"lager")===k?" selected":""}>${esc(t)}</option>`).join("")}</select></label>
+      <label class="field" style="max-width:320px"><span>Leiste unten (Handy)</span><select id="bnavArt">${[["wisch","Wischen – alle Reiter nebeneinander"],["menue","Kleines Menü über „Mehr“"]].map(([k,t])=>`<option value="${k}"${(LS.get("bnav_art")||"wisch")===k?" selected":""}>${t}</option>`).join("")}</select></label>
       ${funktionenHTML()}
     </section>
 
@@ -9115,10 +9116,11 @@ const NAMEN={heute:"Heute",lager:"Lager",drucke:"Drucker",preise:"Preise",mehr:"
 /* ---- Leiste unten ---- */
 function navBauen(){let n=document.getElementById("bnav");if(!n){n=document.createElement("nav");n.id="bnav";n.className="bnav";n.setAttribute("aria-label","Bereiche");document.body.appendChild(n)}
   /* alle eingeschalteten Reiter in einer Leiste zum Wischen – kein „Mehr“ */
-  const H=HAUPT().concat(MEHR()),ek=(()=>{try{return window.LGN&&LGN._G&&LGN._G.loaded?LGN.einkauf().length:0}catch(e){return 0}})();const akt=H.includes(S.tab)?S.tab:(GRUPPE[S.tab]||"");
+  const menue=LS.get("bnav_art")==="menue";
+  const H=menue?HAUPT().concat(["mehr"]):HAUPT().concat(MEHR()),ek=(()=>{try{return window.LGN&&LGN._G&&LGN._G.loaded?LGN.einkauf().length:0}catch(e){return 0}})();const akt=H.includes(S.tab)?S.tab:(GRUPPE[S.tab]||(menue?"mehr":""));
   const nm=k=>k==="einstellungen"?"Einstellungen":NAMEN[k]||TABNAMES[k]||k;
   const h=H.map(k=>`<button type="button" class="${k===akt?"on":""}" data-bn="${k}" aria-current="${k===akt?"page":"false"}">${SL_FORM[k]?slIc(k,24):svg(k)}<span>${nm(k)}</span>${k==="lager"&&ek?`<i class="bn-z" title="${ek} ${ek===1?"Sorte":"Sorten"} auf der Einkaufsliste" aria-label="${ek} auf der Einkaufsliste">${ek>99?"99+":ek}</i>`:""}</button>`).join("");
-  if(n.dataset.h!==h){n.innerHTML=h;n.dataset.h=h;n.classList.toggle("wisch",H.length>5);
+  if(n.dataset.h!==h){n.innerHTML=h;n.dataset.h=h;n.classList.toggle("wisch",!menue&&H.length>5);n.classList.toggle("menue",menue);
     if(!n.__w){n.__w=1;const r=()=>n.classList.toggle("rechts",n.scrollLeft+n.clientWidth<n.scrollWidth-4);n.addEventListener("scroll",r,{passive:true});addEventListener("resize",r)}
     const on=n.querySelector("button.on");if(on&&on.scrollIntoView)on.scrollIntoView({block:"nearest",inline:"nearest"});n.classList.toggle("rechts",n.scrollLeft+n.clientWidth<n.scrollWidth-4)}
   const fab=document.getElementById("lgfab");if(fab)fab.hidden=S.tab!=="lager"}
@@ -9127,6 +9129,11 @@ function sheet(titel,inhalt){zu();const d=document.createElement("div");d.classN
   document.body.appendChild(d);document.body.appendChild(s);requestAnimationFrame(()=>{d.classList.add("auf");s.classList.add("auf")})}
 function zu(){["bs","bsdim"].forEach(i=>{const e=document.getElementById(i);if(e)e.remove()})}
 const kachel=(k,t,attr,pri)=>`<button type="button" class="bs-k${pri?" pri":""}" ${attr}>${SL_FORM[k]?slIc(k,28):svg(k,26)}<span>${esc(t)}</span></button>`;
+document.addEventListener("change",e=>{if(e.target&&e.target.id==="bnavArt"){LS.set("bnav_art",e.target.value);navBauen()}});
+function mehrMenue(){let m=document.getElementById("bmenu");if(m){m.remove();return}
+  m=document.createElement("div");m.id="bmenu";m.className="bmenu";m.setAttribute("role","menu");
+  m.innerHTML=MEHR().map(k=>`<button type="button" role="menuitem" data-bt="${k}" class="${S.tab===k?"on":""}">${SL_FORM[k]?slIc(k,20):svg(k)}<span>${k==="einstellungen"?"Einstellungen":TABNAMES[k]||k}</span></button>`).join("");
+  document.body.appendChild(m);setTimeout(()=>document.addEventListener("click",function zuM(e){if(!e.target.closest("#bmenu [data-bt]")&&e.target.closest("#bmenu"))return;const x=document.getElementById("bmenu");if(x)x.remove();document.removeEventListener("click",zuM,true)},true),0)}
 function mehrSheet(){sheet("Mehr",`<div class="bs-g">${MEHR().map(k=>kachel(k,k==="einstellungen"?"Einstellungen":TABNAMES[k]||k,`data-bt="${k}"`,S.tab===k)).join("")}</div>`)}
 function plusSheet(){const hat=a=>!!document.querySelector(`.lgact2 [data-act="${a}"]`)||a==="lgNew";
   sheet("Filament hinzufügen",`<div class="bs-g">${kachel("scan","Scannen",'data-act="lgScan"',true)}${kachel("foto","Foto",'data-act="lgFoto"')}${kachel("hand","Von Hand",'data-act="lgNew"')}${kachel("serie","Serienscan",'data-act="lgSerie"')}${window.SYNC?kachel("handy","Mit Handy",'data-act="syHandy"'):""}</div>`)}
@@ -9138,7 +9145,7 @@ document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest
   if(!t){if(e.target.closest&&e.target.closest("#bs [data-act]"))setTimeout(zu,0);return}
   if(t.id==="lgfab"){plusSheet();return}
   if(t.dataset.lglisten!=null){e.preventDefault();e.stopPropagation();listenSheet();return}
-  const k=t.dataset.bn||t.dataset.bt;if(k==="mehr"){mehrSheet();return}
+  const k=t.dataset.bn||t.dataset.bt;if(k==="mehr"){mehrMenue();return}{const x=document.getElementById("bmenu");if(x)x.remove()}
   zu();S.tab=k;LS.set("lasttab",S.tab);render();window.scrollTo({top:0})},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")zu()});
 /* Lager: „Listen“-Knopf in den Kopf, „+“ schwebend */
@@ -9409,6 +9416,10 @@ window.addEventListener("resize",()=>{try{wuRahmen()}catch(e){}});
   body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
   .bnav{display:flex;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .bnav::-webkit-scrollbar{display:none}
+  .bnav.menue{overflow:visible}
+  .bmenu{position:fixed;right:8px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:45;min-width:190px;padding:5px;border-radius:14px;background:var(--solid,var(--panel));border:1px solid var(--line-2,var(--line));box-shadow:0 10px 30px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:2px}
+  .bmenu button{display:flex;align-items:center;gap:12px;padding:11px 12px;border:0;border-radius:10px;background:none;color:var(--fg);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}
+  .bmenu button .sl-ic{color:var(--accent);width:20px;height:20px}.bmenu button.on{background:var(--accent-soft);color:var(--accent)}
   .bnav>button{flex:1 0 20%;min-width:0;scroll-snap-align:start}.bnav>button span{white-space:nowrap}
   .bnav.rechts{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 38px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 38px),transparent)}
   .lgbar .lgact2{display:none!important}
