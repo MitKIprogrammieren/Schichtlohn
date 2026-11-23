@@ -9521,5 +9521,48 @@ document.addEventListener("click",ev=>{const k=ev.target.closest("[data-sps]");i
 window.SPULE={tick,_:SP};
 })();
 </script>
+<script>/* ===== Updates automatisch: neue App selbst holen, neue Server-Version melden – Hinweis über der Leiste, auf jeder Seite ===== */
+(()=>{
+const AU={start:"",gh:0,ghT:0,appBereit:false,srvNeu:"",t:0};
+const weg=k=>{try{return sessionStorage.getItem("sl_upd_weg")===k}catch(e){return false}};
+const zeit=x=>{const t=Date.parse(String(x||"").replace(" ","T"));return isNaN(t)?0:t};
+function zeigen(){let el=document.getElementById("aubanner");
+  let html="";
+  if(AU.appBereit&&!weg("app"))html=`<span class="au-ic">${window.slIc?window.slIc("update",22):""}</span><span class="au-t"><b>Neue App bereit</b><small>schon geladen</small></span><button type="button" class="au-b" data-au="laden">Neu laden</button><button type="button" class="au-x" data-au="weg" data-k="app" aria-label="Ausblenden">×</button>`;
+  else if(AU.srvNeu&&!weg("srv"+AU.srvNeu)&&!(window.SL_UPD&&SL_UPD.laeuft))html=`<span class="au-ic">${window.slIc?window.slIc("update",22):""}</span><span class="au-t"><b>Server-Update ${AU.srvNeu}</b><small>dauert etwa eine Minute</small></span><button type="button" class="au-b" data-act="slUpdate" data-au="srv">Installieren</button><button type="button" class="au-x" data-au="weg" data-k="srv${AU.srvNeu}" aria-label="Ausblenden">×</button>`;
+  if(!html){if(el)el.remove();return}
+  if(!el){el=document.createElement("div");el.id="aubanner";el.className="aubanner";el.setAttribute("role","status");document.body.appendChild(el)}
+  if(el.dataset.h!==html){el.dataset.h=html;el.innerHTML=html}}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("#aubanner [data-au]");if(!b)return;
+  if(b.dataset.au==="laden"){location.reload();return}
+  if(b.dataset.au==="weg"){try{sessionStorage.setItem("sl_upd_weg",b.dataset.k)}catch(x){}zeigen();return}
+  if(b.dataset.au==="srv"){setTimeout(()=>{const el=document.getElementById("aubanner");if(el)el.remove()},50)}});
+async function pruefen(){if(typeof S==="undefined"||!S.srv||!window.SRV||document.hidden)return;if(Date.now()-AU.t<5*6e4)return;AU.t=Date.now();
+  try{
+    let app=await SRV.req("GET","/api/app");if(!app||!app.vorhanden)return;if(!AU.start)AU.start=app.stand;
+    /* Neue App auf GitHub? Dann gleich auf den Server holen */
+    try{const l=await fetch("https://api.github.com/repos/MitKIprogrammieren/Schichtlohn/commits?path=app/index.html&per_page=1").then(r=>r.ok?r.json():null);
+      const d=l&&l[0]&&Date.parse(l[0].commit.committer.date);if(d&&d>zeit(app.stand)+120000){app=await SRV.req("POST","/api/app/aktualisieren");}}catch(x){}
+    /* Läuft hier eine ältere App als auf dem Server liegt? */
+    if(window.__SL_SRV&&app.stand&&AU.start&&zeit(app.stand)>zeit(AU.start))AU.appBereit=true;
+  }catch(x){}
+  try{const t=await fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/schichtlohn/config.yaml?t="+Math.floor(Date.now()/6e5)).then(r=>r.ok?r.text():"");
+    const m=/^version:\s*"?([\d.]+)/m.exec(t),ist=(S.srvInfo||{}).version;const v=(a,b)=>{const x=String(a).split(".").map(Number),y=String(b).split(".").map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)-(y[i]||0)}return 0};
+    AU.srvNeu=m&&ist&&v(m[1],ist)>0?m[1]:"";if(AU.srvNeu&&window.SL_UPD&&!SL_UPD.neu){SL_UPD.neu=AU.srvNeu}}catch(x){}
+  zeigen()}
+setTimeout(pruefen,8000);setInterval(pruefen,10*6e4);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){AU.t=Math.min(AU.t,Date.now()-4*6e4);setTimeout(pruefen,1500)}});
+window.SL_AUTO={pruefen:()=>{AU.t=0;return pruefen()},_AU:AU};
+})();
+</script>
+<style>
+.aubanner{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:44;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 14%,var(--solid,#16191d));box-shadow:0 8px 24px rgba(0,0,0,.3);animation:auIn .25s ease-out}
+@media (min-width:821px){.aubanner{left:auto;right:20px;bottom:20px;max-width:440px}}
+.aubanner .au-ic{color:var(--accent);display:grid;place-items:center;flex:none}
+.aubanner .au-t{flex:1;min-width:0;display:flex;flex-direction:column}.aubanner .au-t b{font-size:14.5px}.aubanner .au-t small{font-size:12px;color:var(--fg-2)}
+.aubanner .au-b{border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink,#fff);font:inherit;font-weight:600;font-size:13.5px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+.aubanner .au-x{border:0;background:none;color:var(--fg-3);font-size:22px;line-height:1;padding:4px 6px;cursor:pointer}
+@keyframes auIn{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
 </body>
 </html>
