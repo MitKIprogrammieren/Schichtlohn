@@ -76,10 +76,14 @@ def katalog():
     """Alle Filamentvarianten des Shops; Seiten, die gerade nicht laden, werden bis zu dreimal versucht."""
     produkte, fehler = [], []
     for slug, (mat, linie) in PRODUKTE.items():
-        vs = []
+        vs, bild = [], ""
         for versuch in range(4):
             try:
-                vs = _varianten(_holen(slug))
+                html = _holen(slug)
+                vs = _varianten(html)
+                m = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', html) or \
+                    re.search(r'<meta[^>]+content="([^"]+)"[^>]+property="og:image"', html)
+                bild = m.group(1) if m else ""
             except Exception as e:
                 fehler.append(f"{slug}: {e}")
                 if "429" in str(e):  # zu viele Abrufe: länger warten
@@ -88,6 +92,6 @@ def katalog():
                 break
             time.sleep(2 + versuch)
         if vs:
-            produkte.append({"slug": slug, "material": mat, "linie": linie, "varianten": vs})
+            produkte.append({"slug": slug, "material": mat, "linie": linie, "varianten": vs, "bild": bild})
         time.sleep(2.5)
     return {"stand": time.strftime("%Y-%m-%d %H:%M"), "produkte": produkte, "fehler": fehler[:20]}

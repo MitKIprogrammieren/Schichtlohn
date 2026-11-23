@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.21.2 – 23.11.2026
+- Warenkorb: mehrere Sorten auf einmal wählen („Sorte wählen“) und mit „Alles in den Bambu-Shop“ gemeinsam in den Warenkorb legen. Jede Sorte zeigt ihr Produktbild aus dem Bambu-Shop, die Bambu-Abschnitte das Bambu-Lab-Logo.
+
 ## 3.21.1 – 23.11.2026
 - Einkaufsliste: Der Bambu-Shop wird jetzt langsamer eingelesen, damit er nicht abblockt. Was einmal nicht lädt, bleibt vom letzten Mal erhalten.
 
