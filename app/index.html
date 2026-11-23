@@ -7525,7 +7525,7 @@ async function ekModal(){await ekLaden();const kat=ekKatLaden();const pl=preiseL
   const liste=ekListe(),fehlAlle=ekFehlend(),fehl=fehlAlle.filter(f=>EK.d.fehl[f.key]);
   const gruppen={};liste.forEach(x=>{(gruppen[x.shop||""]=gruppen[x.shop||""]||[]).push(x)});
   const kopf=(shop,rows)=>{const z=ekZiel(shop,rows,shop==="bambu"?fehl:[]);const n=rows.length+(shop==="bambu"?fehl.length:0);
-    return `<div class="ekkopf">${shop==="bambu"&&window.slMarke?`<span class="eklogo">${slMarke("Bambu Lab")}</span>`:""}<b>${esc(EK_SHOPS[shop]||"Ohne Shop")}</b><span class="eks">${n} ${n===1?"Sorte":"Sorten"}</span><span class="sp"></span>${z?`<a class="btn sm pri" href="${esc(z.url)}" target="_blank" rel="noopener">${SV_KORB} ${z.lz?"Shop öffnen":"In den Warenkorb"}${z.n<n?` (${z.n})`:""}</a>`:""}</div>${z&&z.lz?`<div class="hint ekhint">Im Shop dann auf das Lesezeichen „SL → Warenkorb“ tippen.</div>`:""}`};
+    return `<div class="ekkopf">${shop==="bambu"?ekLogo():""}<b>${esc(EK_SHOPS[shop]||"Ohne Shop")}</b><span class="eks">${n} ${n===1?"Sorte":"Sorten"}</span><span class="sp"></span>${z?`<a class="btn sm pri" href="${esc(z.url)}" target="_blank" rel="noopener">${SV_KORB} ${z.lz?"Shop öffnen":"In den Warenkorb"}${z.n<n?` (${z.n})`:""}</a>`:""}</div>${z&&z.lz?`<div class="hint ekhint">Im Shop dann auf das Lesezeichen „SL → Warenkorb“ tippen.</div>`:""}`};
   let h=`<div id="ekBox" class="ekbox">`;
   for(const shop of [...Object.keys(EK_SHOPS),""]){const rows=gruppen[shop]||[];if(!rows.length&&!(shop==="bambu"&&fehl.length))continue;
     h+=`<section class="ekgr">${kopf(shop,rows)}${shop===""?`<div class="hint ekhint">Für diese Sorten ist kein Shop bekannt – wähle einen, sonst bleiben sie hier stehen.</div>`:""}${rows.map(ekRow).join("")}
