@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.21.1 – 23.11.2026
+- Einkaufsliste: Der Bambu-Shop wird jetzt langsamer eingelesen, damit er nicht abblockt. Was einmal nicht lädt, bleibt vom letzten Mal erhalten.
+
 ## 3.21.0 – 23.11.2026
 - Neu: Einkaufsliste. Im Lager gibt es den Knopf „Einkauf“. Auf die Liste kommen Sorten unter dem Mindestbestand (einstellbar, Standard 1 Rolle), Sorten, die du beim Bearbeiten mit „Nachkaufen“ markierst, und auf Wunsch Bambu-Farben, die du noch gar nicht hast.
 - Die Liste ist nach Shops getrennt – Bambu Lab, Amazon, 3DJake und Tinmorry. Der Shop kommt von deinem letzten Kauf, du kannst ihn pro Sorte ändern.

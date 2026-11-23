@@ -77,15 +77,17 @@ def katalog():
     produkte, fehler = [], []
     for slug, (mat, linie) in PRODUKTE.items():
         vs = []
-        for versuch in range(3):
+        for versuch in range(4):
             try:
                 vs = _varianten(_holen(slug))
             except Exception as e:
                 fehler.append(f"{slug}: {e}")
+                if "429" in str(e):  # zu viele Abrufe: länger warten
+                    time.sleep(20 * (versuch + 1))
             if vs:
                 break
-            time.sleep(1.5 + versuch)
+            time.sleep(2 + versuch)
         if vs:
             produkte.append({"slug": slug, "material": mat, "linie": linie, "varianten": vs})
-        time.sleep(0.4)
+        time.sleep(2.5)
     return {"stand": time.strftime("%Y-%m-%d %H:%M"), "produkte": produkte, "fehler": fehler[:20]}

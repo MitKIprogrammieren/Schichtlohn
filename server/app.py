@@ -81,7 +81,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.21.0"
+VERSION = "3.21.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -929,6 +929,10 @@ def bambushop_holen():
         return None
     try:
         k = bambushop.katalog()
+        alt, _ = daten_lesen(BAMBUSHOP_KEY)
+        if isinstance(alt, dict):  # Produkte, die diesmal nicht geladen haben, vom letzten Stand behalten
+            da = {p["slug"] for p in k["produkte"]}
+            k["produkte"] += [p for p in alt.get("produkte") or [] if p.get("slug") not in da]
         if k["produkte"]:
             daten_schreiben(BAMBUSHOP_KEY, k, "bambushop")
         print(f"Bambu-Shop: {sum(len(p['varianten']) for p in k['produkte'])} Varianten in {len(k['produkte'])} Produkten"
