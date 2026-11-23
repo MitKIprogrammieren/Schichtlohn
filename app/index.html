@@ -540,7 +540,8 @@ const SRV=window.SRV=(()=>{
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm ghost" data-act="srvMcpNeu">Neue Adresse</button></div>
       <div class="hint">In Claude: Einstellungen → Konnektoren → Eigenen Konnektor hinzufügen. Für claude.ai und das Handy muss die Adresse aus dem Internet erreichbar sein (z. B. über Tailscale Funnel). Wer die Adresse kennt, kann dein Lager ändern.</div>`}
   /* App von der Synology */
-  async function verInfo(){const el=document.getElementById("srv_verinfo");if(!el)return;
+  async function verInfo(){const el=document.getElementById("srv_verinfo");if(!el)return;const UPD=window.SL_UPD||{};
+    const vgl=(a,b)=>{const x=String(a).split(".").map(Number),y=String(b).split(".").map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)-(y[i]||0)}return 0};
     let ist="",neu="",fehler="";try{const u=await req("GET","/api/update");ist=u.version||"";UPD.moeglich=!!u.moeglich}catch(e){fehler=e.message||String(e)}
     try{const t=await fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/schichtlohn/config.yaml?t="+Math.floor(Date.now()/6e4)).then(r=>r.ok?r.text():"");const m=/^version:\s*"?([\d.]+)/m.exec(t);neu=m?m[1]:""}catch(e){}
     const mehr=ist&&neu&&vgl(neu,ist)>0;if(mehr){UPD.neu=neu;UPD.geprueft=Date.now()}
@@ -8128,7 +8129,7 @@ function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat
     gr("App & Server",[da("sys")&&z("Server",S.srv?`Verbunden${I.version?" · "+I.version:""}`:status(B_("sys")),"sys",S.srv?{ok:true}:{ok:false}),
       da("zug")&&z("Zugänge",zp?zp.t:"","zug",zp)])+`</div>`}
 /* Neue Server-Version? Vergleich mit schichtlohn/config.yaml auf GitHub (einmal pro Stunde) */
-const UPD={neu:"",geprueft:0,laeuft:false,meldung:"",moeglich:null};
+const UPD={neu:"",geprueft:0,laeuft:false,meldung:"",moeglich:null};window.SL_UPD=UPD;
 const vgl=(a,b)=>{const x=String(a).split(".").map(Number),y=String(b).split(".").map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)-(y[i]||0)}return 0};
 async function updPruefen(){if(!S.srv||Date.now()-UPD.geprueft<36e5)return;UPD.geprueft=Date.now();
   try{const t=await fetch("https://cdn.jsdelivr.net/gh/MitKIprogrammieren/Schichtlohn@main/schichtlohn/config.yaml?t="+Math.floor(Date.now()/36e5)).then(r=>r.ok?r.text():"");
