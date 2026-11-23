@@ -9114,9 +9114,13 @@ const MEHR=()=>["rechner","auftraege","portfolio","geschaeft"].filter(sichtbar).
 const NAMEN={heute:"Heute",lager:"Lager",drucke:"Drucker",preise:"Preise",mehr:"Mehr"};
 /* ---- Leiste unten ---- */
 function navBauen(){let n=document.getElementById("bnav");if(!n){n=document.createElement("nav");n.id="bnav";n.className="bnav";n.setAttribute("aria-label","Bereiche");document.body.appendChild(n)}
-  const H=HAUPT(),ek=(()=>{try{return window.LGN&&LGN._G&&LGN._G.loaded?LGN.einkauf().length:0}catch(e){return 0}})();const akt=GRUPPE[S.tab]||"mehr";
-  const h=H.concat(["mehr"]).map(k=>`<button type="button" class="${k===akt?"on":""}" data-bn="${k}" aria-current="${k===akt?"page":"false"}">${SL_FORM[k]?slIc(k,24):svg(k)}<span>${NAMEN[k]}</span>${k==="lager"&&ek?`<i class="bn-z" title="${ek} ${ek===1?"Sorte":"Sorten"} auf der Einkaufsliste" aria-label="${ek} auf der Einkaufsliste">${ek>99?"99+":ek}</i>`:""}</button>`).join("");
-  if(n.dataset.h!==h){n.innerHTML=h;n.dataset.h=h;n.style.gridTemplateColumns=`repeat(${H.length+1},1fr)`}
+  /* alle eingeschalteten Reiter in einer Leiste zum Wischen – kein „Mehr“ */
+  const H=HAUPT().concat(MEHR()),ek=(()=>{try{return window.LGN&&LGN._G&&LGN._G.loaded?LGN.einkauf().length:0}catch(e){return 0}})();const akt=H.includes(S.tab)?S.tab:(GRUPPE[S.tab]||"");
+  const nm=k=>k==="einstellungen"?"Einstellungen":NAMEN[k]||TABNAMES[k]||k;
+  const h=H.map(k=>`<button type="button" class="${k===akt?"on":""}" data-bn="${k}" aria-current="${k===akt?"page":"false"}">${SL_FORM[k]?slIc(k,24):svg(k)}<span>${nm(k)}</span>${k==="lager"&&ek?`<i class="bn-z" title="${ek} ${ek===1?"Sorte":"Sorten"} auf der Einkaufsliste" aria-label="${ek} auf der Einkaufsliste">${ek>99?"99+":ek}</i>`:""}</button>`).join("");
+  if(n.dataset.h!==h){n.innerHTML=h;n.dataset.h=h;n.classList.toggle("wisch",H.length>5);
+    if(!n.__w){n.__w=1;const r=()=>n.classList.toggle("rechts",n.scrollLeft+n.clientWidth<n.scrollWidth-4);n.addEventListener("scroll",r,{passive:true});addEventListener("resize",r)}
+    const on=n.querySelector("button.on");if(on&&on.scrollIntoView)on.scrollIntoView({block:"nearest",inline:"nearest"});n.classList.toggle("rechts",n.scrollLeft+n.clientWidth<n.scrollWidth-4)}
   const fab=document.getElementById("lgfab");if(fab)fab.hidden=S.tab!=="lager"}
 function sheet(titel,inhalt){zu();const d=document.createElement("div");d.className="bs-dim";d.id="bsdim";d.addEventListener("click",zu);
   const s=document.createElement("div");s.className="bs";s.id="bs";s.setAttribute("role","dialog");s.setAttribute("aria-label",titel);s.innerHTML=`<div class="bs-grip"></div><h3>${esc(titel)}</h3>${inhalt}`;
@@ -9403,7 +9407,10 @@ window.addEventListener("resize",()=>{try{wuRahmen()}catch(e){}});
 @media (max-width:700px){
   #tabs{display:none!important}
   body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
-  .bnav{display:grid}
+  .bnav{display:flex;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .bnav::-webkit-scrollbar{display:none}
+  .bnav>button{flex:1 0 20%;min-width:0;scroll-snap-align:start}.bnav>button span{white-space:nowrap}
+  .bnav.rechts{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 38px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 38px),transparent)}
   .lgbar .lgact2{display:none!important}
   .lgfab:not([hidden]){display:grid}
 }
