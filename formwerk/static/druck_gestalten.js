@@ -254,7 +254,7 @@ export function gestalten(ctx) {
   }
 
   // Schilder, Anhänger, QR, Schriftzug, eigene Formen
-  const SCHILD = { art: 'name', text: 'Michaels Werkstatt', text2: '', qr: 'https://', breite: 80, hoehe: 30, dicke: 3, relief: 1, form: 'rund', loecher: 'keine', lochD: 4, rand: false };
+  const SCHILD = { art: 'name', text: 'Benny’s 3D Stube', text2: '', qr: 'https://', breite: 80, hoehe: 30, dicke: 3, relief: 1, form: 'rund', loecher: 'keine', lochD: 4, rand: false };
   BL.schild = (art) => {
     if (art) SCHILD.art = art;
     const ARTEN = [['name', 'Namensschild'], ['anhaenger', 'Schlüsselanhänger'], ['qr', 'QR-Code-Schild'], ['schrift', 'Nur Schriftzug'], ['form', 'Eigene Form']];
