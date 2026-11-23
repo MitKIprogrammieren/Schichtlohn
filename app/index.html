@@ -8115,8 +8115,16 @@ function pille(b){try{if(b.k==="drucker"&&S.srv){const l=window.__einDR||[];if(!
   if(b.k==="sys")return S.srv?{t:"Verbunden",ok:true}:null}catch(e){}return null}
 /* Übersicht: oben nur, was dich braucht (Update, offline, fehlt) – dann Server & Updates, Allgemein, Werkstatt.
    Jede Zeile: Symbol, Name, rechts der wichtigste Wert mit Punkt (grün = aktuell/läuft, gelb = anschauen). */
-const ST={t:0,app:null,preise:null,fdb:null};
-function stLaden(){if(!(S.srv&&window.SRV)||Date.now()-ST.t<3e5)return;ST.t=Date.now();
+const ST={t:0,app:null,preise:null,fdb:null,gh:0,ghT:0,holt:false};
+/* Neue App? Letzte Änderung an app/index.html auf GitHub mit dem App-Stand auf dem Server vergleichen (alle 10 Minuten) */
+function ghLaden(){if(Date.now()-ST.ghT<6e5)return;ST.ghT=Date.now();
+  fetch("https://api.github.com/repos/MitKIprogrammieren/Schichtlohn/commits?path=app/index.html&per_page=1").then(r=>r.ok?r.json():null)
+    .then(l=>{const d=l&&l[0]&&l[0].commit&&l[0].commit.committer&&Date.parse(l[0].commit.committer.date);if(d){ST.gh=d;if(S.tab==="einstellungen"&&!akt)ordnen()}}).catch(()=>{})}
+const appNeu=()=>{const a=ST.app;if(!(a&&a.vorhanden&&ST.gh))return false;const t=Date.parse(String(a.stand||"").replace(" ","T"));return !isNaN(t)&&ST.gh>t+120000};
+document.addEventListener("click",async e=>{const b=e.target.closest&&e.target.closest("[data-act=ebAppHolen]");if(!b||!window.SRV)return;e.stopPropagation();
+  ST.holt=true;ordnen();try{await SRV.req("POST","/api/app/aktualisieren");toast("App aktualisiert");setTimeout(()=>location.reload(),600)}
+  catch(x){ST.holt=false;ordnen();toast("App-Update ging nicht: "+(x.message||x))}});
+function stLaden(){ghLaden();if(!(S.srv&&window.SRV)||Date.now()-ST.t<3e5)return;ST.t=Date.now();
   Promise.all([SRV.req("GET","/api/app").catch(()=>null),SRV.req("GET","/api/preise").catch(()=>null),SRV.req("GET","/api/filamentdb").catch(()=>null)])
     .then(([a,p,f])=>{ST.app=a;ST.preise=p;ST.fdb=f;if(S.tab==="einstellungen"&&!akt)ordnen()})}
 window.addEventListener("sl-pv",()=>{ST.t=0});
@@ -8139,13 +8147,15 @@ function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat
   if(!S.srv)H.push(hin("warn","wn","Kein Server verbunden","Lager und Drucke gibt es nur mit dem SchichtLohn-Server","","sys"));
   if(UPD.laeuft)H.push(hin("","dl","Server wird aktualisiert …",esc(UPD.meldung||"Bitte kurz warten"),""));
   else if(UPD.neu)H.push(hin("","dl",`Server-Update ${esc(UPD.neu)}`,`du hast ${esc(I.version||"")} · dauert etwa eine Minute`,`<button type="button" class="eb-upd-b" data-act="slUpdate">Installieren</button>`));
+  if(S.srv&&ST.holt)H.push(hin("","dl","App wird geholt …","gleich lädt die Seite neu",""));
+  else if(S.srv&&appNeu())H.push(hin("","dl","App-Update da","neue Oberfläche · dauert ein paar Sekunden",`<button type="button" class="eb-upd-b" data-act="ebAppHolen">Holen</button>`));
   if(S.srv){const off=(window.__einDR||[]).filter(d=>d.aktiv!==false&&!d.online).map(d=>d.name||d.serial).filter(Boolean);
     if(off.length)H.push(hin("warn","dr",off.length===1?`${esc(off[0])} offline`:`${off.length} Drucker offline`,off.length===1?"nicht erreichbar":esc(off.join(", ")),"","drucker"))}
   if(zp&&!zp.ok)H.push(hin("warn","zg","Zugänge unvollständig",`${esc(zp.t)} eingerichtet`,"","zug"));
   const hinweise=H.length?`<div class="eb-hin">${H.join("")}</div>`:(S.srv?`<div class="eb-ok"><i class="eb-d"></i>Alles in Ordnung</div>`:"");
   /* Server & Updates */
   const srvZ=S.srv?(UPD.neu?{t:"Update da",p:{neu:true}}:{t:I.version||"verbunden",p:{ok:true}}):{t:"nicht verbunden",p:{ok:false}};
-  const appZ=ST.app&&ST.app.vorhanden?{t:"aktuell",p:{ok:true}}:{t:ST.app?"fehlt":"",p:ST.app?{ok:false,teil:true}:null};
+  const appZ=ST.app&&ST.app.vorhanden?(appNeu()?{t:"Update da",p:{neu:true}}:{t:"aktuell",p:{ok:true}}):{t:ST.app?"fehlt":"",p:ST.app?{ok:false,teil:true}:null};
   const pz=ST.preise||{},fz=ST.fdb||{};const prT=pz.laeuft?"wird geholt …":pz.stand?rel(pz.stand):fz.stand?rel(fz.stand):"";
   return hinweise+`<div class="eb-gruppen">`+
     gr("Server & Updates",[da("sys")&&z("sy","Server",srvZ.t,"sys",srvZ.p),
