@@ -886,6 +886,9 @@ function roundPrice(p,mode){
 const TABNAMES={heute:"Heute",lager:"Lager",drucke:"Drucker",rechner:"Rechner",preise:"Preise",auftraege:"Aufträge",portfolio:"Portfolio",geschaeft:"Geschäft"};
 function hiddenTabs(){return (S.cfg&&Array.isArray(S.cfg.hiddenTabs))?S.cfg.hiddenTabs:[]}
 /* neu zeichnen, ohne dass die Seite nach oben springt (Schalter in den Einstellungen) */
+/* Schalter an Ort und Stelle umlegen – die Seite wird nicht neu aufgebaut, nichts springt */
+function schalterSetzen(b,on){b.classList.toggle("on",on);b.setAttribute("aria-pressed",String(on));const sv=b.querySelector("svg");
+  if(on&&!sv)b.insertAdjacentHTML("afterbegin",`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`);if(!on&&sv)sv.remove()}
 function renderHalten(){const y=window.scrollY;render();const z=()=>window.scrollTo(0,y);requestAnimationFrame(z);setTimeout(z,80)}
 function render(){if(window.WACHE)WACHE.Z.render++;try{designAnwenden()}catch(e){}
   const hid=hiddenTabs();$$("#tabs button").forEach(b=>{b.hidden=hid.includes(b.dataset.tab)});
@@ -2157,11 +2160,11 @@ document.addEventListener("click",async e=>{
   if(a==="pvLogAlle"){PVL.alle=!PVL.alle;const el=document.getElementById("pv_log");if(el)el.outerHTML=pvLogHTML();return}
   if(a==="pvJetzt"){SRV.req("POST","/api/preise/abrufen").then(()=>{PV.d=Object.assign({},PV.d,{laeuft:true});const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand();toast("Preise werden abgerufen")}).catch(x=>toast(x.message||String(x)));return}
   if(a==="fnToggle"){const k=b.dataset.k;
-    if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;renderHalten();toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>toast(x.message||String(x)));return}
-    const h=new Set(S.cfg.fnAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.fnAus=[...h];saveCfgSoon();renderHalten();return}
-  if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();renderHalten();return}
+    if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);schalterSetzen(b,neu);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>{schalterSetzen(b,!neu);toast(x.message||String(x))});return}
+    const h=new Set(S.cfg.fnAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.fnAus=[...h];saveCfgSoon();schalterSetzen(b,!h.has(k));return}
+  if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();schalterSetzen(b,!h.has(k));return}
   if(a==="logoWeg"){const l=Object.assign({},S.cfg.logos||{});delete l[b.dataset.s];S.cfg.logos=l;saveCfgSoon();render();return}
-  if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();renderHalten();return}
+  if(a==="tabToggle"){const k=b.dataset.t,h=new Set(hiddenTabs());h.has(k)?h.delete(k):h.add(k);S.cfg.hiddenTabs=[...h];saveCfgSoon();schalterSetzen(b,!h.has(k));$$("#tabs button").forEach(x=>{x.hidden=h.has(x.dataset.tab)});try{window.navBauen&&window.navBauen()}catch(x){}return}
   switch(a){
     case "close":closeModal();break;
     case "confirmOk":{const f=S._confirm;closeModal();if(f)await f();break}
@@ -9263,7 +9266,7 @@ window.HEUTE={render:heuteRender,auf:()=>{const el=document.querySelector(".heut
 const _r=window.render;if(typeof _r==="function"){window.render=function(){const x=_r.apply(this,arguments);try{navBauen();lagerExtras()}catch(e){}return x}}
 new MutationObserver(()=>{try{navBauen();lagerExtras()}catch(e){}}).observe(document.getElementById("main"),{childList:true});
 setInterval(()=>{try{navBauen();lagerExtras()}catch(e){}},1500);
-try{navBauen()}catch(e){}
+window.navBauen=()=>navBauen();try{navBauen()}catch(e){}
 /* ---- Stil „Modern“: Leiste links und Meldungsspalte rechts (nur im Browser, nicht in HA) ---- */
 const WU_KEY="sl_wu_meldungen";let WU_LOG=[];try{WU_LOG=JSON.parse(localStorage.getItem(WU_KEY)||"[]").filter(m=>m&&m.t&&Date.now()-m.ms<7*864e5)}catch(e){WU_LOG=[]}
 WU_LOG.forEach(m=>{if(/Abbuchung/.test(m.t))m.t=m.t.replace(/^✓\s*/,"").replace(/✕$/,"").replace(/Besuchzusammen/,"Besuch · zusammen").trim()});
