@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.21.0 – 23.11.2026
+- Neu: Einkaufsliste. Im Lager gibt es den Knopf „Einkauf“. Auf die Liste kommen Sorten unter dem Mindestbestand (einstellbar, Standard 1 Rolle), Sorten, die du beim Bearbeiten mit „Nachkaufen“ markierst, und auf Wunsch Bambu-Farben, die du noch gar nicht hast.
+- Die Liste ist nach Shops getrennt – Bambu Lab, Amazon, 3DJake und Tinmorry. Der Shop kommt von deinem letzten Kauf, du kannst ihn pro Sorte ändern.
+- Amazon und Tinmorry: ein Tipp legt alles direkt in den Warenkorb (bei Amazon einmal pro Sorte den Artikel-Link einfügen). Bambu Lab und 3DJake: Shop öffnen und dort auf das neue Lesezeichen „SL → Warenkorb“ tippen. Bestellen machst du weiterhin selbst.
+- Der Server liest dafür zweimal am Tag den Bambu-Shop ein (welche Farben es gibt und was gerade vorrätig ist).
+
 ## 3.20.3 – 23.11.2026
 - Neue Bambu-Lab-Rollen werden automatisch zweisprachig angezeigt (Englisch fett, Deutsch klein dahinter) – egal ob du die Farbe auf Deutsch oder Englisch einträgst. An der Sorte selbst ändert sich nichts.
 

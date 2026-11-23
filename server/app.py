@@ -67,6 +67,7 @@ import web
 import kamera as kamera_mod
 import snapmaker as snapmaker_mod
 import platte as platte_mod
+import bambushop
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
 try:
@@ -80,7 +81,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.20.3"
+VERSION = "3.21.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -916,6 +917,35 @@ def preise_auto():
         except Exception as e:
             print("Preisvergleich:", e, flush=True)
         time.sleep(24 * 3600)
+
+
+BAMBUSHOP_KEY = "bambushop"
+_bambushop_lock = threading.Lock()
+
+
+def bambushop_holen():
+    """Katalog des Bambu-Shops für die Einkaufsliste neu einlesen (täglich und auf Wunsch)."""
+    if not _bambushop_lock.acquire(blocking=False):
+        return None
+    try:
+        k = bambushop.katalog()
+        if k["produkte"]:
+            daten_schreiben(BAMBUSHOP_KEY, k, "bambushop")
+        print(f"Bambu-Shop: {sum(len(p['varianten']) for p in k['produkte'])} Varianten in {len(k['produkte'])} Produkten"
+              + (f" – {len(k['fehler'])} Fehler" if k["fehler"] else ""), flush=True)
+        return k
+    finally:
+        _bambushop_lock.release()
+
+
+def bambushop_auto():
+    time.sleep(240)
+    while True:
+        try:
+            bambushop_holen()
+        except Exception as e:
+            print("Bambu-Shop:", e, flush=True)
+        time.sleep(12 * 3600)
 
 
 def waage_weiter(was, methode, rumpf):
@@ -3886,6 +3916,12 @@ class Handler(BaseHTTPRequestHandler):
             if not b.get("uid") or not b.get("vid"):
                 raise Fehler(400, "uid und vid fehlen")
             return self._json(200, abdruck_speichern(str(b["uid"]), str(b["vid"])))
+        if teile == ["bambushop"] and methode == "GET":
+            w, _ = daten_lesen(BAMBUSHOP_KEY)
+            return self._json(200, dict(w if isinstance(w, dict) else {"produkte": []}, laeuft=_bambushop_lock.locked()))
+        if teile == ["bambushop", "aktualisieren"] and methode == "POST":
+            threading.Thread(target=bambushop_holen, daemon=True).start()
+            return self._json(200, {"laeuft": True})
         if teile == ["filamentdb"] and methode == "GET":
             return self._json(200, dict(fdb_info(), auto=AUTO))
         if teile == ["filamentdb", "aktualisieren"] and methode == "POST":
@@ -4493,6 +4529,7 @@ if __name__ == "__main__":
     if os.environ.get("AUTO_AKTUALISIEREN", "1") != "0":
         threading.Thread(target=auto_aktualisieren, daemon=True).start()
     threading.Thread(target=preise_auto, daemon=True).start()
+    threading.Thread(target=bambushop_auto, daemon=True).start()
     threading.Thread(target=speicher_auto, daemon=True).start()
     threading.Thread(target=ha_drucker_schleife, daemon=True).start()
     threading.Thread(target=faecher_schleife, daemon=True).start()
