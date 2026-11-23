@@ -8125,10 +8125,10 @@ const rel=x=>{const t=Date.parse(String(x||"").replace(" ","T"));if(isNaN(t))ret
 function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat("de-DE",{maximumFractionDigits:2}).format(v||0);
   updPruefen();stLaden();
   const B_=k=>B.find(b=>b.k===k);const da=k=>{const b=B_(k);return b&&sichtbar(b)};
-  const dot=p=>p?`<i class="eb-d${p.neu?" neu":p.ok?"":p.teil?" teil":" aus"}"></i>`:"";
+  const dot=p=>`<i class="eb-d${!p?" leer":p.neu?" neu":p.ok?"":p.teil?" teil":" aus"}"></i>`;
   const SLK={sy:"server",ap:"app",pr:"preise",me:"meldungen",zg:"zugaenge",au:"aussehen",dr:"drucke",la:"lager",ka:"rechner",dl:"update",wn:"warn"};
   const sym=(ic,w)=>{const x=window.slIc&&SLK[ic]?window.slIc(SLK[ic],w||22):"";return x||svg(IC[ic]||IC.sy)};
-  const z=(ic,t,v,k,p)=>`<button type="button" class="eb-r" data-act="ebOeffnen" data-k="${k}"><span class="eb-ri">${sym(ic)}</span><span class="eb-rt">${esc(t)}</span><span class="eb-rv">${dot(p)}${esc(v||"")}</span><span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`;
+  const z=(ic,t,v,k,p)=>`<button type="button" class="eb-r" data-act="ebOeffnen" data-k="${k}"><span class="eb-ri">${sym(ic)}</span><span class="eb-rt">${esc(t)}</span><span class="eb-rv">${esc(v||"")}</span>${dot(p)}<span class="eb-pf">${svg('<path d="m9 18 6-6-6-6"/>')}</span></button>`;
   let sorten=0;try{sorten=(window.LGN&&LGN.sorten?LGN.sorten():[]).length}catch(e){}
   const dc=(typeof designCfg==="function")?designCfg():{};const modus={hell:"Hell",dunkel:"Dunkel",auto:"Automatisch"}[dc.modus]||"Automatisch";
   const dp=pille(B_("drucker")),zp=pille(B_("zug")),I=S.srvInfo||{};
@@ -8144,14 +8144,14 @@ function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat
   if(zp&&!zp.ok)H.push(hin("warn","zg","Zugänge unvollständig",`${esc(zp.t)} eingerichtet`,"","zug"));
   const hinweise=H.length?`<div class="eb-hin">${H.join("")}</div>`:(S.srv?`<div class="eb-ok"><i class="eb-d"></i>Alles in Ordnung</div>`:"");
   /* Server & Updates */
-  const srvZ=S.srv?(UPD.neu?{t:"Update da",p:{neu:true}}:{t:I.version?"aktuell · "+I.version:"verbunden",p:{ok:true}}):{t:"nicht verbunden",p:{ok:false}};
-  const appZ=ST.app&&ST.app.vorhanden?{t:"aktuell · "+rel(ST.app.stand),p:{ok:true}}:{t:ST.app?"fehlt":"",p:ST.app?{ok:false,teil:true}:null};
+  const srvZ=S.srv?(UPD.neu?{t:"Update da",p:{neu:true}}:{t:I.version||"verbunden",p:{ok:true}}):{t:"nicht verbunden",p:{ok:false}};
+  const appZ=ST.app&&ST.app.vorhanden?{t:"aktuell",p:{ok:true}}:{t:ST.app?"fehlt":"",p:ST.app?{ok:false,teil:true}:null};
   const pz=ST.preise||{},fz=ST.fdb||{};const prT=pz.laeuft?"wird geholt …":pz.stand?rel(pz.stand):fz.stand?rel(fz.stand):"";
   return hinweise+`<div class="eb-gruppen">`+
     gr("Server & Updates",[da("sys")&&z("sy","Server",srvZ.t,"sys",srvZ.p),
       S.srv&&da("sys")&&z("ap","App",appZ.t,"sys",appZ.p),
       S.srv&&da("sys")&&z("pr","Preise & Datenbank",prT,"sys",prT?{ok:true}:null)])+
-    gr("Allgemein",[da("meld")&&z("me","Meldungen",status(B_("meld")),"meld"),
+    gr("Allgemein",[da("meld")&&(()=>{const E=window.SLF&&SLF.e||{};const an=[E.ha&&E.ha.notify,E.telegram&&E.telegram.chat,E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel].filter(Boolean).length;return z("me","Meldungen",an?`${an} aktiv`:"aus","meld")})(),
       da("zug")&&z("zg","Zugänge",zp?zp.t:"","zug",zp),
       da("aus")&&z("au","Aussehen",modus,"aus")])+
     gr("Werkstatt",[da("drucker")&&z("dr","Drucker",dp?dp.t:status(B_("drucker")),"drucker",dp),
@@ -8289,7 +8289,7 @@ document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[da
 .eb-r:first-child{border-top:0}.eb-r:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
 .eb-rt{flex:1;min-width:0;font-size:15.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .eb-rv{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--fg-3);white-space:nowrap;max-width:55%;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.eb-d{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}.eb-d.teil{background:var(--warn,#f0a020)}.eb-d.aus{background:var(--line-2)}.eb-d.neu{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+.eb-d{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}.eb-d.teil{background:var(--warn,#f0a020)}.eb-d.aus{background:var(--line-2)}.eb-d.leer{background:transparent}.eb-r .eb-rv{max-width:50%}.eb-d.neu{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
 .eb-ri{width:28px;height:28px;display:grid;place-items:center;flex:none;color:var(--accent)}.eb-ri svg{width:24px;height:24px}
 .eb-upd .eb-upd-ic .sl-ic{width:24px;height:24px}.eb-upd:not(.warn) .eb-upd-ic{background:none;color:var(--accent)}
 .eb-hin{display:flex;flex-direction:column;gap:8px;margin:0 0 6px}.eb-upd[role=button]{cursor:pointer}.eb-upd .eb-pf{color:var(--fg-3);display:grid;place-items:center}.eb-upd .eb-pf svg{width:16px;height:16px}
