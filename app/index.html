@@ -9746,7 +9746,7 @@ html body .lgtop .lgknopf .lgekbtn{flex:0 0 auto!important;height:32px!important
 /* Lager (Handy): Suche, Sortierung und Filter eingeklappt – Lupe und Regler in der Knopfreihe */
 .lgknopf .lgsp,.lgknopf .lgrund{display:none}
 @media (max-width:620px){
-#lgHead:not(.auf) .lgbar{display:none!important}
+#lgHead:not(.auf) .lgbar,#lgHead:not(.auf)~#lgList .lgbar,#lgHead:not(.auf)~* .lgbar{display:none!important}
 #lgTop .lgknopf{align-items:center!important}
 #lgTop .lgknopf .lgsp{display:block;flex:1}
 #lgTop .lgknopf .lgrund{display:inline-flex!important;width:34px!important;height:32px!important;padding:0!important;position:relative}
