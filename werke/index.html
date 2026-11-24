@@ -647,7 +647,8 @@ async function srvStackEdit(name){
       <button class="knopf" data-w="pruefen">Prüfen</button>
       <button class="knopf gruen" data-w="${name?"speichern":"neu"}">${name?"Speichern & starten":"Anlegen & starten"}</button>
       ${name?`<button class="knopf" data-w="restart">Neustart</button><button class="knopf" data-w="update">Update</button>
-        ${an?(i.selbst?"":`<button class="knopf rot" data-w="down">Stoppen</button>`):`<button class="knopf" data-w="up">Starten</button>`}`:""}
+        ${an?(i.selbst?"":`<button class="knopf rot" data-w="down">Stoppen</button>`):`<button class="knopf" data-w="up">Starten</button>`}
+        ${!an&&!i.selbst&&!i.extern?`<button class="knopf rot" data-w="loeschen">🗑 Löschen</button>`:""}`:""}
     </div><div class="hin lauf" id="st_meld" hidden></div><pre id="st_aus" hidden style="height:22vh"></pre>`);
   fensterEl.classList.add("gross"); fensterEl.style.overflow="auto";
   document.getElementById("st_zur").onclick = ()=>{ fensterEl.classList.remove("gross"); fensterEl.style.overflow=""; srvStacks(); };
@@ -656,6 +657,17 @@ async function srvStackEdit(name){
     const w = b.dataset.w, meld = document.getElementById("st_meld"), aus = document.getElementById("st_aus");
     const compose = document.getElementById("st_compose").value, env = document.getElementById("st_env").value;
     if(w==="down" && !confirm(`Stack „${name}“ stoppen?`)) return;
+    if(w==="loeschen"){
+      if(!confirm(`Stack „${name}“ löschen?\n\nContainer werden abgebaut, der Ordner wandert nach /opt/stacks/_geloescht/.`)) return;
+      meld.hidden=false; meld.className="hin lauf"; meld.textContent="Lösche …";
+      fensterEl.querySelectorAll("[data-w]").forEach(x=>x.disabled=true);
+      try{ const j = await srvApi("POST",`/api/stacks/${encodeURIComponent(name)}/loeschen`,{});
+        if(j.ok===false){ meld.className="hin off"; meld.textContent="Das hat nicht geklappt – siehe Ausgabe."; aus.hidden=false; aus.textContent=j.text||""; }
+        else { srvLaden(); fensterEl.classList.remove("gross"); fensterEl.style.overflow=""; return srvStacks(); } }
+      catch(e){ meld.className="hin off"; meld.textContent = e.message.includes("nicht gefunden")||e.message.includes("Unbekannte")?"Der Server kennt „Löschen“ noch nicht – Werke einmal neu starten.":e.message; }
+      fensterEl.querySelectorAll("[data-w]").forEach(x=>x.disabled=false);
+      return;
+    }
     fensterEl.querySelectorAll("[data-w]").forEach(x=>x.disabled=true);
     meld.hidden=false; meld.className="hin lauf"; meld.textContent = {pruefen:"Prüfe …",speichern:"Speichere und starte …",neu:"Lege an und starte …",restart:"Starte neu …",update:"Hole neue Images …",down:"Stoppe …",up:"Starte …"}[w];
     try{
