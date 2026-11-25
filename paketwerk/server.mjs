@@ -215,14 +215,15 @@ async function t17(pfad, body) {
   if (j.code !== 0) throw new Error('17TRACK: ' + (j.data?.errors?.[0]?.message || 'Fehler ' + j.code));
   return j.data || {};
 }
-async function t17Abfragen(p) {
+const T17_CODE = { dhl: 7041, post: 7041 };
+async function t17Abfragen(p, carrier) {
   if (!p.t17) {
-    const d = await t17('register', [{ number: p.nummer, lang: 'de' }]);
+    const d = await t17('register', [{ number: p.nummer, lang: 'de', ...(carrier ? { carrier } : {}) }]);
     const abgelehnt = d.rejected?.[0];
     if (abgelehnt && abgelehnt.error?.code !== -18019901) throw new Error('17TRACK: ' + (abgelehnt.error?.message || 'Nummer abgelehnt'));
     p.t17 = true;
   }
-  const t = (await t17('gettrackinfo', [{ number: p.nummer }])).accepted?.[0]?.track_info;
+  const t = (await t17('gettrackinfo', [{ number: p.nummer, ...(carrier ? { carrier } : {}) }])).accepted?.[0]?.track_info;
   if (!t) return null;
   const ls = t.latest_status || {};
   let status = T17[ls.status] || 'angekuendigt';
@@ -241,12 +242,13 @@ async function abfragen(p) {
   if (p.traeger === 'amazon') { p.fehler = ''; return; }
   let erg = null;
   try {
-    // DHL und Deutsche Post nur über DHL – nie über 17TRACK, das spart Kontingent
-    if (p.traeger === 'dhl' || p.traeger === 'post') {
-      if (!EIN.dhl_key) { p.fehler = 'Kein DHL-Schlüssel – nur Link'; return; }
-      erg = await dhlAbfragen(p);
-    } else if (EIN.t17_key) erg = await t17Abfragen(p);
-    else { p.fehler = 'Kein Schlüssel für ' + (TRAEGER[p.traeger]?.name || 'diesen Versender') + ' – nur Link'; return; }
+    // DHL/Post: mit eigenem DHL-Schlüssel direkt, sonst über 17TRACK mit fester Versender-Kennung (DHL Paket = 7041)
+    if ((p.traeger === 'dhl' || p.traeger === 'post') && EIN.dhl_key && !DB.dhl_gesperrt) {
+      try { erg = await dhlAbfragen(p); }
+      catch (e) { if (!/freigeschaltet/.test(e.message) || !EIN.t17_key) throw e; DB.dhl_gesperrt = true; }
+    }
+    if (!erg && EIN.t17_key) erg = await t17Abfragen(p, T17_CODE[p.traeger]);
+    else if (!erg) { p.fehler = 'Kein Schlüssel für ' + (TRAEGER[p.traeger]?.name || 'diesen Versender') + ' – nur Link'; return; }
     p.fehler = erg?.hinweis || '';
   } catch (e) { p.fehler = /fetch failed|abort|timeout/i.test(e.message + e.cause) ? 'Versender gerade nicht erreichbar' : e.message; ZUSTAND.abfrage.fehler = p.fehler; return; }
   if (!erg) return;
@@ -473,6 +475,7 @@ http.createServer(async (req, res) => {
         if (k === 'melden' || k === 'alexa') EIN[k] = { ...EIN[k], ...d[k] };
         else EIN[k] = typeof STANDARD[k] === 'number' ? Number(d[k]) || STANDARD[k] : typeof STANDARD[k] === 'boolean' ? !!d[k] : String(d[k]).trim();
       }
+      if (d.dhl_key && d.dhl_key !== MASKE) DB.dhl_gesperrt = false; // neuer DHL-Schlüssel: wieder probieren
       jsonSchreiben(EINST, EIN);
       letzteMail = 0; letzteRechnung = 0;
       setTimeout(runde, 500);

@@ -8,7 +8,7 @@ Paketverfolgung für alle Bestellungen – läuft als Stack auf dem Proxmox-NUC 
 - **Rechnungs-Modul:** neue Bestellungen aus SchichtLohn erscheinen als „bestellt“. Sobald die Versandmail kommt, wird die Sendungsnummer automatisch dazugeschrieben.
 
 **Woher der Status kommt**
-- DHL und Deutsche Post: über die DHL-Schnittstelle (kostenloser Schlüssel von developer.dhl.com, bis zu 240 Abfragen am Tag).
+- DHL und Deutsche Post: über 17TRACK mit fester Versender-Kennung „DHL Paket“. DHL gibt die eigene Schnittstelle inzwischen nur noch an Firmen frei; ist doch ein DHL-Schlüssel eingetragen, nutzt Paketwerk ihn zuerst.
 - Alle anderen Versender: über 17TRACK (kostenloser Schlüssel von api.17track.net).
 - Amazon-eigene Sendungen (TBA…) und Amazon-Pakete ohne Sendungsnummer laufen nur über die Amazon-Mails („Versandt“, „Kommt heute“, „Zugestellt“) und verbrauchen kein 17TRACK-Kontingent. Liefert DHL, Hermes oder DPD für Amazon aus, wird ganz normal abgefragt.
 
