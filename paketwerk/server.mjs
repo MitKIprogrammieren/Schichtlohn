@@ -267,24 +267,31 @@ async function mailsPruefen() {
   let neu = 0;
   try {
     await imap.connect();
-    const lock = await imap.getMailboxLock('INBOX');
-    try {
-      const seit = new Date(Date.now() - (Number(EIN.mail_tage) || 14) * 86400000);
-      const uids = await imap.search({ since: seit }, { uid: true });
-      const kopf = [];
-      if (uids.length) for await (const m of imap.fetch(uids, { envelope: true, uid: true }, { uid: true })) kopf.push(m);
-      const gesehen = new Set(DB.mails);
-      for (const m of kopf) {
-        const mid = m.envelope?.messageId || 'uid:' + m.uid;
-        if (gesehen.has(mid)) continue;
-        DB.mails.push(mid); gesehen.add(mid);
-        if (!RELEVANT.test(m.envelope?.subject || '')) continue;
-        const voll = await imap.fetchOne(m.uid, { source: true }, { uid: true });
-        if (!voll?.source) continue;
-        const mail = await simpleParser(voll.source);
-        neu += await mailAuswerten(mail);
-      }
-    } finally { lock.release(); }
+    // Gmail: „Alle Nachrichten“ + Spam durchsuchen, damit Mails in Labels/Ordnern und Fehlsortiertes nicht fehlen
+    const ordner = await imap.list();
+    const alle = ordner.find(o => o.specialUse === '\\All')?.path;
+    const spam = ordner.find(o => o.specialUse === '\\Junk')?.path;
+    const postfaecher = [alle || 'INBOX', spam].filter(Boolean);
+    const seit = new Date(Date.now() - (Number(EIN.mail_tage) || 14) * 86400000);
+    const gesehen = new Set(DB.mails);
+    for (const box of postfaecher) {
+      const lock = await imap.getMailboxLock(box);
+      try {
+        const uids = await imap.search({ since: seit }, { uid: true });
+        const kopf = [];
+        if (uids.length) for await (const m of imap.fetch(uids, { envelope: true, uid: true }, { uid: true })) kopf.push(m);
+        for (const m of kopf) {
+          const mid = m.envelope?.messageId || box + ':uid:' + m.uid;
+          if (gesehen.has(mid)) continue;
+          DB.mails.push(mid); gesehen.add(mid);
+          if (!RELEVANT.test(m.envelope?.subject || '')) continue;
+          const voll = await imap.fetchOne(m.uid, { source: true }, { uid: true });
+          if (!voll?.source) continue;
+          const mail = await simpleParser(voll.source);
+          neu += await mailAuswerten(mail);
+        }
+      } finally { lock.release(); }
+    }
     await imap.logout();
     ZUSTAND.mail = { zeit: Date.now(), fehler: '', neu };
   } catch (e) {
