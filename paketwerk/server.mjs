@@ -45,6 +45,8 @@ EIN.alexa = { ...STANDARD.alexa, ...(EIN.alexa || {}) };
 for (const [k, v] of [['t17_key', 'T17_KEY'], ['dhl_key', 'DHL_KEY'], ['imap_pass', 'IMAP_PASS'], ['mw_schluessel', 'MW_SCHLUESSEL']]) if (!EIN[k] && process.env[v]) EIN[k] = process.env[v];
 
 let DB = jsonLesen(PAKETE, null) || { pakete: [], ignoriert: [], mails: [], dhl_tag: '', dhl_anzahl: 0 };
+// Einmalig: Mail-Pakete ohne Sendungsnummer neu einlesen (behebt Dubletten und falsche Titel/Zeiten aus der ersten Fassung)
+if (!DB.v2) { DB.pakete = DB.pakete.filter(p => !(p.quelle === 'mail' && !p.nummer)); DB.mails = []; DB.v2 = true; }
 const ZUSTAND = { mail: { zeit: 0, fehler: '', neu: 0 }, rechnungen: { zeit: 0, fehler: '', neu: 0 }, abfrage: { zeit: 0, fehler: '' } };
 function speichern() {
   DB.mails = DB.mails.slice(-3000);
@@ -309,7 +311,12 @@ async function mailAuswerten(mail) {
   const nummern = nummernFinden(text, html).filter(n => n.nummer !== bestellung.replace(/-/g, ''));
   const st = mailStatus(betreff, text);
   const alt = Date.now() - (mail.date ? +mail.date : Date.now()) > 12 * 3600000; // ältere Mails melden nicht
-  const titel = kurz((betreff.match(/[„"»](.{3,80}?)[“"«]/) || [])[1] || '');
+  const titelGenerisch = t => !t || /bestellung$/i.test(t) || /^\d+\s+artikel/i.test(t) || /^(versendet|versandt|in zustellung|geliefert|zugestellt)/i.test(t);
+  const zitat = kurz((betreff.match(/[„"»](.{3,80}?)[“"«]/) || [])[1] || '');
+  const rest = kurz(betreff.replace(/^(fwd?|wg|aw|re):\s*/i, '').replace(/^(versendet|versandt|in zustellung|geliefert|zugestellt|bestellt|shipped|delivered)\s*:\s*/i, ''));
+  const generisch = !zitat && (/^\d+\s+artikel/i.test(rest) || rest.length < 3);
+  const titel = zitat || (generisch ? ({ amazon: 'Amazon-Bestellung', aliexpress: 'AliExpress-Bestellung', bambu: 'Bambu-Lab-Bestellung' })[shop] || 'Bestellung' : rest.slice(0, 80));
+  const mailZeit = mail.date ? +mail.date : Date.now();
   let neu = 0;
   if (!nummern.length && !(bestellung && st)) return 0;
   for (const { nummer, traeger } of nummern) {
@@ -318,17 +325,21 @@ async function mailAuswerten(mail) {
       p = DB.pakete.find(x => !x.nummer && bestellung && x.bestellung === bestellung);
       if (p) { p.nummer = nummer; p.traeger = traeger; if (p.status === 'bestellt') p.status = 'angekuendigt'; }
       else if (DB.ignoriert.includes(nummer)) continue;
-      else { p = neuesPaket({ nummer, traeger, titel: titel || betreff.slice(0, 80), shop, bestellung, quelle: 'mail', status: 'angekuendigt' }); neu++; }
+      else { p = neuesPaket({ nummer, traeger, titel, shop, bestellung, quelle: 'mail', status: 'angekuendigt', angelegt: mailZeit }); neu++; }
     }
-    if (st && RANG[st] > RANG[p.status]) await statusSetzen(p, st, { stumm: alt });
+    if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
+    if (st && RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
     if (!alt) p.abgefragt = 0; // gleich nachsehen
   }
   if (!nummern.length && bestellung) {
-    let p = DB.pakete.find(x => x.bestellung === bestellung && x.status !== 'zugestellt');
-    if (!p && !DB.ignoriert.includes(bestellung) && st !== 'zugestellt') {
-      p = neuesPaket({ titel: titel || betreff.slice(0, 80), shop, bestellung, quelle: 'mail', traeger: shop === 'amazon' ? 'amazon' : '' }); neu++;
+    let p = DB.pakete.find(x => x.bestellung === bestellung);
+    if (!p && !DB.ignoriert.includes(bestellung)) {
+      p = neuesPaket({ titel, shop, bestellung, quelle: 'mail', traeger: shop === 'amazon' ? 'amazon' : '', angelegt: mailZeit }); neu++;
     }
-    if (p && RANG[st] > RANG[p.status]) await statusSetzen(p, st, { stumm: alt });
+    if (p) {
+      if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
+      if (RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
+    }
   }
   return neu;
 }
