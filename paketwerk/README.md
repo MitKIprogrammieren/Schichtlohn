@@ -10,7 +10,7 @@ Paketverfolgung für alle Bestellungen – läuft als Stack auf dem Proxmox-NUC 
 **Woher der Status kommt**
 - DHL und Deutsche Post: über die DHL-Schnittstelle (kostenloser Schlüssel von developer.dhl.com, bis zu 240 Abfragen am Tag).
 - Alle anderen Versender: über 17TRACK (kostenloser Schlüssel von api.17track.net).
-- Amazon-Pakete ohne Sendungsnummer werden über die Amazon-Mails verfolgt („Versandt“, „Kommt heute“, „Zugestellt“).
+- Amazon-eigene Sendungen (TBA…) und Amazon-Pakete ohne Sendungsnummer laufen nur über die Amazon-Mails („Versandt“, „Kommt heute“, „Zugestellt“) und verbrauchen kein 17TRACK-Kontingent. Liefert DHL, Hermes oder DPD für Amazon aus, wird ganz normal abgefragt.
 
 **Meldungen** laufen über das Meldewerk: WhatsApp und Alexa lassen sich je Status getrennt ein- und ausschalten. Die Nachtruhe und die Alexa-Geräte stellst du im Meldewerk ein.
 

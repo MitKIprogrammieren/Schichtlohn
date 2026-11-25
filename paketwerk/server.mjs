@@ -234,6 +234,8 @@ async function t17Abfragen(p) {
 async function abfragen(p) {
   if (!p.nummer) return;
   p.abgefragt = Date.now();
+  // Amazon-eigene Sendungen (TBA…) laufen nur über die Amazon-Mails – spart das 17TRACK-Kontingent
+  if (p.traeger === 'amazon') { p.fehler = ''; return; }
   let erg = null;
   try {
     if (p.traeger === 'dhl' && EIN.dhl_key) erg = await dhlAbfragen(p);
@@ -356,7 +358,7 @@ async function runde() {
     if (jetzt - letzteRechnung > 15 * 60000) { letzteRechnung = jetzt; await rechnungenHolen(); }
     const takt = (Number(EIN.intervall_min) || 45) * 60000;
     for (const p of DB.pakete) {
-      if (p.archiviert || !p.nummer || p.status === 'zugestellt') continue;
+      if (p.archiviert || !p.nummer || p.status === 'zugestellt' || p.traeger === 'amazon') continue;
       const faellig = p.status === 'zustellung' ? Math.min(takt, 20 * 60000) : takt;
       if (Date.now() - p.abgefragt > faellig) await abfragen(p);
     }
