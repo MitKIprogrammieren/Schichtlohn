@@ -198,10 +198,11 @@ function karte(p) {
     if (p.erwartet && p.status !== 'zugestellt') h += '<div class="hinweis" style="color:var(--txt2)">Erwartet: ' + esc(wann(p.erwartet)) + '</div>';
     if (p.ereignisse?.length) h += '<div class="verlauf">' + p.ereignisse.slice(0, 8).map(e => '<div class="ev"><b>' + esc(e.text) + '</b> <small>· ' + esc(wann(e.zeit)) + '</small>' + (e.ort ? '<div>' + esc(e.ort) + '</div>' : '') + '</div>').join('') + '</div>';
     else if (p.traeger === 'amazon') h += '<div class="hinweis" style="color:var(--txt2)">Amazon-Pakete verfolgt Paketwerk über die Amazon-Mails.</div>';
+    else if (p.perMail) h += '<div class="hinweis" style="color:var(--txt2)">Verfolgt über die Paketankündigung von DHL – ohne 17TRACK.</div>';
     else if (!p.nummer) h += '<div class="hinweis" style="color:var(--txt2)">Noch keine Sendungsnummer – kommt meist mit der Versandmail.</div>';
     if (p.fehler) h += '<div class="hinweis">' + esc(p.fehler) + '</div>';
     h += '<div class="aktionen">' + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + (p.nummer ? 'Beim Versender' : 'Bestellung') + '</a>' : '') +
-      (p.nummer && p.traeger !== 'amazon' ? '<button data-a="neu">Neu abfragen</button>' : '') +
+      (p.nummer && p.traeger !== 'amazon' && !p.perMail ? '<button data-a="neu">Neu abfragen</button>' : '') +
       '<button data-a="bearb">' + (p.nummer ? 'Bearbeiten' : 'Nummer eintragen') + '</button>' +
       '<button data-a="archiv">' + (p.archiviert ? 'Zurückholen' : 'Archivieren') + '</button><button data-a="weg" class="rot">Löschen</button></div>';
   }

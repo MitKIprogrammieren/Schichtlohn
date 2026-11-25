@@ -256,6 +256,7 @@ async function abfragen(p) {
   p.abgefragt = Date.now();
   // Amazon-eigene Sendungen (TBA…) laufen nur über die Amazon-Mails – spart das 17TRACK-Kontingent
   if (p.traeger === 'amazon') { p.fehler = ''; return; }
+  if (p.perMail && (p.traeger === 'dhl' || p.traeger === 'post') && !EIN.dhl_key) { p.fehler = ''; return; }
   let erg = null;
   try {
     // DHL/Post: mit eigenem DHL-Schlüssel direkt, sonst über 17TRACK mit fester Versender-Kennung (DHL Paket = 7041)
@@ -345,6 +346,8 @@ async function mailAuswerten(mail) {
     }
     if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
     if (ablage) p.ablage = ablage;
+    // Schickt DHL/Post selbst Mails zu dieser Sendung, reicht das – kein 17TRACK-Kontingent nötig
+    if ((traeger === 'dhl' || traeger === 'post') && /dhl|deutschepost|deutsche post/i.test(von)) p.perMail = true;
     if (st && RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
     if (!alt) p.abgefragt = 0; // gleich nachsehen
   }
