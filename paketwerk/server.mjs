@@ -195,6 +195,7 @@ async function dhlAbfragen(p) {
   const r = await fetch('https://api-eu.dhl.com/track/shipments?language=de&trackingNumber=' + encodeURIComponent(p.nummer),
     { headers: { 'DHL-API-Key': EIN.dhl_key, accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
   if (r.status === 404) return { status: p.status === 'bestellt' ? 'angekuendigt' : p.status, ereignisse: p.ereignisse, hinweis: 'DHL kennt die Nummer noch nicht' };
+  if (r.status === 401 || r.status === 403) throw new Error('DHL-Schlüssel noch nicht freigeschaltet (kann bis zu 24 Std. dauern)');
   if (!r.ok) throw new Error('DHL antwortet ' + r.status);
   const s = (await r.json()).shipments?.[0];
   if (!s) return null;
@@ -240,9 +241,11 @@ async function abfragen(p) {
   if (p.traeger === 'amazon') { p.fehler = ''; return; }
   let erg = null;
   try {
-    if (p.traeger === 'dhl' && EIN.dhl_key) erg = await dhlAbfragen(p);
-    else if (EIN.t17_key) erg = await t17Abfragen(p);
-    else if (EIN.dhl_key && p.traeger === 'post') erg = await dhlAbfragen(p);
+    // DHL und Deutsche Post nur über DHL – nie über 17TRACK, das spart Kontingent
+    if (p.traeger === 'dhl' || p.traeger === 'post') {
+      if (!EIN.dhl_key) { p.fehler = 'Kein DHL-Schlüssel – nur Link'; return; }
+      erg = await dhlAbfragen(p);
+    } else if (EIN.t17_key) erg = await t17Abfragen(p);
     else { p.fehler = 'Kein Schlüssel für ' + (TRAEGER[p.traeger]?.name || 'diesen Versender') + ' – nur Link'; return; }
     p.fehler = erg?.hinweis || '';
   } catch (e) { p.fehler = /fetch failed|abort|timeout/i.test(e.message + e.cause) ? 'Versender gerade nicht erreichbar' : e.message; ZUSTAND.abfrage.fehler = p.fehler; return; }
