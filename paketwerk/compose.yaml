@@ -28,6 +28,10 @@ services:
       - TZ=Europe/Berlin
       - PORT=8088
       - DATEN=/daten
+      - T17_KEY=${T17_KEY:-}
+      - DHL_KEY=${DHL_KEY:-}
+      - IMAP_PASS=${IMAP_PASS:-}
+      - MW_SCHLUESSEL=${MW_SCHLUESSEL:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8088/gesund').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 60s

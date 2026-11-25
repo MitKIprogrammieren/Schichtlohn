@@ -41,6 +41,8 @@ const MASKE = '••••••';
 let EIN = { ...STANDARD, ...jsonLesen(EINST, {}) };
 EIN.melden = { ...STANDARD.melden, ...(EIN.melden || {}) };
 EIN.alexa = { ...STANDARD.alexa, ...(EIN.alexa || {}) };
+// Schlüssel können auch in der .env des Stacks stehen (T17_KEY, DHL_KEY, IMAP_PASS, MW_SCHLUESSEL)
+for (const [k, v] of [['t17_key', 'T17_KEY'], ['dhl_key', 'DHL_KEY'], ['imap_pass', 'IMAP_PASS'], ['mw_schluessel', 'MW_SCHLUESSEL']]) if (!EIN[k] && process.env[v]) EIN[k] = process.env[v];
 
 let DB = jsonLesen(PAKETE, null) || { pakete: [], ignoriert: [], mails: [], dhl_tag: '', dhl_anzahl: 0 };
 const ZUSTAND = { mail: { zeit: 0, fehler: '', neu: 0 }, rechnungen: { zeit: 0, fehler: '', neu: 0 }, abfrage: { zeit: 0, fehler: '' } };
