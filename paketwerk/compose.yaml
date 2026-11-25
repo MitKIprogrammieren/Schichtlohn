@@ -1,0 +1,39 @@
+name: paketwerk
+# Paketwerk – Paketverfolgung aus Gmail, von Hand und aus dem Rechnungs-Modul, Meldungen über das Meldewerk.
+# Holt sich beim Start die neueste Fassung aus diesem Repo (Ordner paketwerk/). Ohne Internet bleibt der zuletzt geladene Stand.
+# Update = Stack neu starten. Alles Weitere (Gmail, Schlüssel, Meldewerk) stellst du in der Oberfläche ein.
+services:
+  paketwerk:
+    image: node:22-alpine
+    network_mode: bridge
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        for f in server.mjs index.html package.json; do
+          wget -q -T 20 -O /tmp/$$f https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/paketwerk/$$f && [ -s /tmp/$$f ] && cp /tmp/$$f /app/$$f
+        done
+        [ -f /app/server.mjs ] || { echo "Paketwerk: keine Programmdateien – Internet prüfen"; exit 1; }
+        if ! cmp -s package.json .pkg-stand || [ ! -d node_modules/imapflow ]; then
+          npm install --omit=dev --no-audit --no-fund && cp package.json .pkg-stand
+        fi
+        exec node server.mjs
+    ports:
+      - "${PW_PORT:-8097}:8088"
+    volumes:
+      - /opt/stacks/paketwerk/daten:/daten
+      - /opt/stacks/paketwerk/app:/app
+    environment:
+      - TZ=Europe/Berlin
+      - PORT=8088
+      - DATEN=/daten
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8088/gesund').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      start_period: 180s
+    init: true
+    stop_grace_period: 10s
+    mem_limit: 256m
+    restart: unless-stopped

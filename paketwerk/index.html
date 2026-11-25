@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b1b1d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Paketwerk</title>
+<link rel="icon" href="/logo.svg">
+<link rel="apple-touch-icon" href="/logo.svg">
+<style>
+:root{--bg:#232326;--fl:#2c2c30;--fl2:#38383d;--rand:#3c3c42;--txt:#e8e8ea;--txt2:#a7a7ae;--txt3:#7c7c84;--gruen:#00ae42;--gruen2:#19d36b;--gelb:#f2b84b;--rot:#ff6b5e;--blau:#6aa9ff}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;font:15px/1.45 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:#1b1b1d;border-bottom:1px solid var(--rand);position:sticky;top:0;z-index:5}
+header img{width:40px;height:40px;flex:none}
+header h1{font:700 26px/1.1 "Chakra Petch","Segoe UI",-apple-system,sans-serif;margin:0}
+header h1 small{display:block;font:500 11px/1 "IBM Plex Sans",-apple-system,sans-serif;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+.plus{margin-left:auto;width:40px;height:40px;border-radius:12px;border:1px solid var(--rand);background:var(--fl);color:var(--txt);font-size:24px;line-height:1;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:16px;padding-bottom:calc(90px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+main>section{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
+.karte{background:var(--fl);border:1px solid var(--rand);border-radius:18px;padding:16px}
+h2{font-size:16px;font-weight:700;margin:0 0 12px}
+.zahlen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.zahl{background:var(--fl);border:1px solid var(--rand);border-radius:14px;padding:12px 14px}
+.zahl span{color:var(--txt2);font-size:12px}.zahl b{display:block;font-size:26px;line-height:1.2;color:var(--c)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chips button{border:1px solid var(--rand);background:none;color:var(--txt2);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.chips button.an{background:var(--gruen);border-color:var(--gruen);color:#fff;font-weight:600}
+.stapel{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
+.verlauf,.hinweis{overflow-wrap:anywhere}
+.paket{min-width:0;background:var(--fl);border:1px solid var(--rand);border-radius:16px;padding:12px 14px;cursor:pointer}
+.paket.offen{border-color:#4a4a52}
+.kopf{display:flex;gap:12px;align-items:center}
+.av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none;color:var(--c);background:color-mix(in srgb,var(--c) 18%,transparent)}
+.tx{flex:1;min-width:0}.tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx span{display:block;color:var(--txt2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);white-space:nowrap;flex:none}
+.verlauf{margin:12px 0 2px 18px;border-left:2px solid var(--rand);padding-left:15px;font-size:13px}
+.ev{position:relative;margin-bottom:9px}.ev:last-child{margin-bottom:0}
+.ev::before{content:"";position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--txt3)}
+.ev:first-child::before{background:var(--gruen2)}.ev:first-child b{font-weight:600}
+.ev b{font-weight:400}.ev small{color:var(--txt3)}.ev div{color:var(--txt2);font-size:12px}
+.hinweis{font-size:12px;color:var(--gelb);margin-top:8px}
+.aktionen{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.aktionen button,.aktionen a{border:1px solid var(--rand);background:var(--fl2);color:var(--txt);border-radius:10px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none}
+.aktionen .rot{color:var(--rot)}
+.feld{display:block;width:100%;margin-bottom:8px;background:#1f1f22;border:1px solid var(--rand);border-radius:12px;padding:11px 12px;color:var(--txt);font:inherit;font-size:16px;outline:none;-webkit-appearance:none}
+.feld:focus{border-color:var(--gruen)}
+select.feld{padding:10px 12px}
+label.k{display:block;font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px}
+.knopf,.mehr{display:block;width:100%;margin-top:10px;border:0;border-radius:12px;padding:11px;font:600 14px "IBM Plex Sans",-apple-system,sans-serif;cursor:pointer}
+.knopf{background:var(--gruen);color:#fff}.mehr{background:var(--fl2);color:var(--txt)}
+.einst{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid var(--rand)}
+.einst:first-of-type{border-top:0}
+.einst .tx b{font-weight:500;white-space:normal}.einst .tx span{white-space:normal}
+.paar{display:flex;gap:8px;flex:none}
+.schalter{flex:none;width:52px;height:30px;border-radius:15px;border:0;background:var(--fl2);position:relative;cursor:pointer;transition:background .2s}
+.schalter i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.schalter.an{background:var(--gruen)}.schalter.an i{left:25px}
+.spalte{font-size:11px;color:var(--txt3);text-align:center;width:52px}
+.erkl{color:var(--txt3);font-size:13px;margin-top:6px}.erkl a{color:var(--blau)}
+.meld{font-size:13px;margin-top:8px}.meld:empty{display:none}
+.leer{color:var(--txt3);font-size:14px;text-align:center;padding:30px 10px}
+.fuss{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--txt2)}
+.fuss .av{--c:var(--txt3)}
+dialog{background:var(--fl);color:var(--txt);border:1px solid var(--rand);border-radius:18px;padding:18px;width:min(440px,92vw)}
+dialog::backdrop{background:#000a}
+nav.unten{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:#1b1b1d;border-top:1px solid var(--rand);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+nav.unten button{flex:1;background:none;border:0;color:var(--txt3);font:600 12px "IBM Plex Sans",-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;position:relative}
+nav.unten svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav.unten button.an{color:var(--gruen2)}
+nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--gruen2)}
+</style>
+</head>
+<body>
+<header>
+<img src="/logo.svg" alt="">
+<h1>Paketwerk<small id="unter">Sendungen</small></h1>
+<button class="plus" id="neuKnopf" aria-label="Paket hinzufügen">+</button>
+</header>
+<main>
+<section id="s-pakete">
+ <div class="zahlen">
+  <div class="zahl" style="--c:var(--gruen2)"><span>Kommt heute</span><b id="zHeute">–</b></div>
+  <div class="zahl" style="--c:var(--blau)"><span>Unterwegs</span><b id="zWeg">–</b></div>
+ </div>
+ <div class="chips" id="filter"></div>
+ <div id="liste" class="stapel"><div class="leer">Wird geladen …</div></div>
+ <div class="karte fuss"><div class="av">✉</div><div id="fuss" style="flex:1"></div><button id="jetzt" style="border:1px solid var(--rand);background:none;color:var(--txt2);border-radius:999px;padding:6px 12px;font:inherit;font-size:12px;cursor:pointer">Jetzt prüfen</button></div>
+</section>
+
+<section id="s-archiv" hidden>
+ <div id="archiv" class="stapel"></div>
+</section>
+
+<section id="s-einst" hidden>
+ <div class="karte">
+  <h2>Gmail</h2>
+  <div class="erkl" style="margin-top:0">Hier landen deine weitergeleiteten Bestellmails. Paketwerk liest nur, es ändert nichts im Postfach. Du brauchst ein <a href="https://myaccount.google.com/apppasswords" target="_blank">App-Passwort</a>.</div>
+  <label class="k">Adresse</label><input class="feld" id="imap_user" type="email" placeholder="name@gmail.com" autocomplete="off">
+  <label class="k">App-Passwort</label><input class="feld" id="imap_pass" type="password" placeholder="abcd efgh ijkl mnop" autocomplete="new-password">
+  <label class="k">Mails der letzten … Tage durchsuchen</label><input class="feld" id="mail_tage" type="number" min="1" max="60">
+ </div>
+ <div class="karte">
+  <h2>Sendungsstatus</h2>
+  <label class="k">DHL-Schlüssel</label><input class="feld" id="dhl_key" type="password" placeholder="API Key aus dem DHL-Entwicklerportal" autocomplete="off">
+  <div class="erkl" style="margin-top:0">Kostenlos auf <a href="https://developer.dhl.com" target="_blank">developer.dhl.com</a> – App anlegen, „Shipment Tracking – Unified“ auswählen. Bis zu 240 Abfragen am Tag.</div>
+  <label class="k">17TRACK-Schlüssel</label><input class="feld" id="t17_key" type="password" placeholder="Für Hermes, DPD, GLS, UPS, Amazon, AliExpress …" autocomplete="off">
+  <div class="erkl" style="margin-top:0">Kostenlos auf <a href="https://api.17track.net" target="_blank">api.17track.net</a> – im Grundtarif rund 100 neue Sendungen gratis.</div>
+  <label class="k">Alle … Minuten nachsehen</label><input class="feld" id="intervall_min" type="number" min="15" max="360">
+ </div>
+ <div class="karte">
+  <h2>Meldungen</h2>
+  <div class="einst"><div class="tx"></div><div class="paar"><div class="spalte">WhatsApp</div><div class="spalte">Alexa</div></div></div>
+  <div id="meldListe"></div>
+  <label class="k">Meldewerk-Adresse</label><input class="feld" id="mw_url" placeholder="http://192.168.1.30:8077">
+  <label class="k">Meldewerk-Schlüssel</label><input class="feld" id="mw_schluessel" type="password" placeholder="steht im Meldewerk unter Einstellungen" autocomplete="off">
+  <button class="mehr" id="testKnopf">Testmeldung senden</button>
+  <div class="meld" id="testMeld"></div>
+ </div>
+ <div class="karte">
+  <h2>Rechnungs-Modul</h2>
+  <div class="einst"><div class="tx"><b>Bestellungen übernehmen</b><span>Neue Bestellungen von Amazon, AliExpress und Bambu Lab aus SchichtLohn</span></div><button class="schalter" id="rechnungen"><i></i></button></div>
+  <label class="k">SchichtLohn-Adresse</label><input class="feld" id="sl_url" placeholder="http://192.168.1.30:8093">
+  <label class="k">SchichtLohn-Token (nur falls gesetzt)</label><input class="feld" id="sl_token" type="password" autocomplete="off">
+  <label class="k">Bestellungen der letzten … Tage</label><input class="feld" id="rechnung_tage" type="number" min="1" max="90">
+  <label class="k">Zugestellte nach … Tagen ins Archiv</label><input class="feld" id="archiv_tage" type="number" min="1" max="60">
+ </div>
+ <button class="knopf" id="speichern">Speichern</button>
+ <div class="meld" id="einstMeld" style="text-align:center"></div>
+</section>
+</main>
+
+<dialog id="neu">
+ <h2 id="neuTitel">Paket hinzufügen</h2>
+ <label class="k">Sendungsnummer</label><input class="feld" id="nNummer" autocapitalize="characters" autocomplete="off" placeholder="00340434…">
+ <label class="k">Bezeichnung</label><input class="feld" id="nTitel" placeholder="Was kommt?">
+ <label class="k">Versender</label><select class="feld" id="nTraeger"><option value="">automatisch erkennen</option></select>
+ <button class="knopf" id="nSpeichern">Hinzufügen</button>
+ <button class="mehr" id="nAbbruch">Abbrechen</button>
+ <div class="meld" id="nMeld"></div>
+</dialog>
+
+<nav class="unten">
+ <button data-s="pakete" class="an"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>Pakete</button>
+ <button data-s="archiv"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Archiv</button>
+ <button data-s="einst"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Einstellungen</button>
+</nav>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const FARBE = { dhl: '#f2b84b', post: '#f2b84b', hermes: '#6aa9ff', dpd: '#ff5e8a', gls: '#5b8cff', ups: '#c79a62', amazon: '#5ec8f2', cainiao: '#ff8a5e', sonst: '#a7a7ae' };
+const SHOPFARBE = { amazon: '#5ec8f2', aliexpress: '#ff6b5e', bambu: '#19d36b' };
+const KUERZEL = { dhl: 'DHL', post: 'Post', hermes: 'Her', dpd: 'DPD', gls: 'GLS', ups: 'UPS', amazon: 'Amz', cainiao: 'Cai', sonst: '?' };
+const STATUS = {
+  bestellt: ['bestellt', 'var(--txt3)'], angekuendigt: ['angekündigt', 'var(--txt2)'], unterwegs: ['unterwegs', 'var(--blau)'],
+  zoll: ['Zoll', 'var(--gelb)'], zustellung: ['heute', 'var(--gruen2)'], abholbereit: ['abholen', 'var(--gelb)'],
+  zugestellt: ['zugestellt', 'var(--gruen)'], problem: ['Problem', 'var(--rot)'],
+};
+const SHOPS = { alle: 'Alle', amazon: 'Amazon', aliexpress: 'AliExpress', bambu: 'Bambu', andere: 'Andere' };
+const MELD = [['unterwegs', 'Unterwegs', 'Versender hat das Paket'], ['zoll', 'Beim Zoll', 'meist bei AliExpress'], ['zustellung', 'Kommt heute', 'in Zustellung'], ['abholbereit', 'Zur Abholung', 'Filiale oder Packstation'], ['zugestellt', 'Zugestellt', ''], ['problem', 'Problem', 'nicht zugestellt, zurück an Absender …']];
+let S = null, filter = 'alle', offen = new Set(), bearbeiten = null;
+
+async function api(pfad, opt = {}) {
+  const r = await fetch(pfad, { ...opt, headers: { 'content-type': 'application/json' }, body: opt.body ? JSON.stringify(opt.body) : undefined });
+  return r.json().catch(() => ({ ok: false, text: 'Antwort unlesbar' }));
+}
+async function laden() { S = await api('/api/stand'); zeichnen(); }
+
+function wann(t) {
+  if (!t) return '';
+  const d = new Date(t); if (isNaN(d)) return String(t);
+  const heute = new Date(); const gestern = new Date(Date.now() - 864e5);
+  const uhr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === heute.toDateString()) return uhr;
+  if (d.toDateString() === gestern.toDateString()) return 'gestern ' + uhr;
+  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) + ' ' + uhr;
+}
+function vor(t) { if (!t) return 'noch nie'; const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'gerade eben' : m < 60 ? 'vor ' + m + ' Min' : 'vor ' + Math.round(m / 60) + ' Std'; }
+const shopVon = p => SHOPS[p.shop] ? p.shop : 'andere';
+
+function karte(p) {
+  const tr = p.traeger || (p.nummer ? 'sonst' : '');
+  const c = tr ? FARBE[tr] : (SHOPFARBE[p.shop] || 'var(--txt3)');
+  const kurz = tr ? KUERZEL[tr] : ({ amazon: 'Amz', aliexpress: 'Ali', bambu: 'BL' })[p.shop] || '–';
+  const [st, sc] = STATUS[p.status] || STATUS.bestellt;
+  const shopName = ({ amazon: 'Amazon', aliexpress: 'AliExpress', bambu: 'Bambu Lab' })[p.shop];
+  const unter = [shopName, p.traeger && p.traeger !== p.shop ? S.traeger[p.traeger] : '', p.nummer || (p.bestellung ? 'Bestellung ' + p.bestellung : '')].filter(Boolean).join(' · ');
+  const auf = offen.has(p.id);
+  let h = '<div class="paket' + (auf ? ' offen' : '') + '" data-id="' + p.id + '"><div class="kopf"><div class="av" style="--c:' + c + '">' + esc(kurz) + '</div>' +
+    '<div class="tx"><b>' + esc(p.titel || 'Paket ' + (p.nummer || p.bestellung)) + '</b><span>' + esc(unter) + '</span></div><span class="chip" style="--c:' + sc + '">' + st + '</span></div>';
+  if (auf) {
+    if (p.erwartet && p.status !== 'zugestellt') h += '<div class="hinweis" style="color:var(--txt2)">Erwartet: ' + esc(wann(p.erwartet)) + '</div>';
+    if (p.ereignisse?.length) h += '<div class="verlauf">' + p.ereignisse.slice(0, 8).map(e => '<div class="ev"><b>' + esc(e.text) + '</b> <small>· ' + esc(wann(e.zeit)) + '</small>' + (e.ort ? '<div>' + esc(e.ort) + '</div>' : '') + '</div>').join('') + '</div>';
+    else if (!p.nummer) h += '<div class="hinweis" style="color:var(--txt2)">Noch keine Sendungsnummer – kommt meist mit der Versandmail.</div>';
+    if (p.fehler) h += '<div class="hinweis">' + esc(p.fehler) + '</div>';
+    h += '<div class="aktionen">' + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + (p.nummer ? 'Beim Versender' : 'Bestellung') + '</a>' : '') +
+      (p.nummer ? '<button data-a="neu">Neu abfragen</button>' : '') +
+      '<button data-a="bearb">' + (p.nummer ? 'Bearbeiten' : 'Nummer eintragen') + '</button>' +
+      '<button data-a="archiv">' + (p.archiviert ? 'Zurückholen' : 'Archivieren') + '</button><button data-a="weg" class="rot">Löschen</button></div>';
+  }
+  return h + '</div>';
+}
+
+function zeichnen() {
+  if (!S) return;
+  const aktiv = S.pakete.filter(p => !p.archiviert);
+  $('zHeute').textContent = aktiv.filter(p => p.status === 'zustellung' || p.status === 'abholbereit').length;
+  $('zWeg').textContent = aktiv.filter(p => ['angekuendigt', 'unterwegs', 'zoll'].includes(p.status)).length;
+  $('unter').textContent = aktiv.length + (aktiv.length === 1 ? ' Sendung' : ' Sendungen');
+  $('filter').innerHTML = Object.entries(SHOPS).filter(([k]) => k === 'alle' || aktiv.some(p => shopVon(p) === k))
+    .map(([k, v]) => '<button data-f="' + k + '" class="' + (filter === k ? 'an' : '') + '">' + v + '</button>').join('');
+  const reihe = p => ({ zustellung: 0, abholbereit: 1, problem: 2, zoll: 3, unterwegs: 4, angekuendigt: 5, bestellt: 6, zugestellt: 7 })[p.status] ?? 9;
+  const sicht = aktiv.filter(p => filter === 'alle' || shopVon(p) === filter).sort((a, b) => reihe(a) - reihe(b) || b.geaendert - a.geaendert);
+  $('liste').innerHTML = sicht.map(karte).join('') || '<div class="leer">Gerade ist nichts unterwegs.<br>Neue Pakete kommen aus deinen Mails – oder über das Plus oben.</div>';
+  $('archiv').innerHTML = S.pakete.filter(p => p.archiviert).sort((a, b) => b.geaendert - a.geaendert).map(karte).join('') || '<div class="leer">Das Archiv ist leer.</div>';
+  const z = S.zustand, e = S.einstellungen;
+  const teile = [];
+  teile.push(e.imap_user ? (z.mail.fehler ? '<span style="color:var(--rot)">' + esc(z.mail.fehler) + '</span>' : 'Gmail geprüft ' + vor(z.mail.zeit)) : 'Gmail noch nicht eingerichtet');
+  if (e.rechnungen && z.rechnungen.fehler) teile.push('<span style="color:var(--rot)">Rechnungen: ' + esc(z.rechnungen.fehler) + '</span>');
+  const wege = [e.mw_schluessel ? 'WhatsApp an' : 'WhatsApp aus', Object.values(e.alexa).some(Boolean) && e.mw_schluessel ? 'Alexa an' : ''].filter(Boolean).join(' und ');
+  teile.push(wege);
+  if (!e.dhl_key && !e.t17_key) teile.push('<span style="color:var(--gelb)">Kein Status-Schlüssel – unter Einstellungen eintragen</span>');
+  $('fuss').innerHTML = teile.join(' · ');
+}
+
+function einstFuellen() {
+  const e = S.einstellungen;
+  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage']) $(k).value = e[k] ?? '';
+  $('rechnungen').classList.toggle('an', !!e.rechnungen);
+  $('meldListe').innerHTML = MELD.map(([k, t, d]) => '<div class="einst"><div class="tx"><b>' + t + '</b>' + (d ? '<span>' + d + '</span>' : '') + '</div><div class="paar">' +
+    '<button class="schalter' + (e.melden[k] ? ' an' : '') + '" data-m="melden" data-k="' + k + '" aria-label="' + t + ' per WhatsApp"><i></i></button>' +
+    '<button class="schalter' + (e.alexa[k] ? ' an' : '') + '" data-m="alexa" data-k="' + k + '" aria-label="' + t + ' per Alexa"><i></i></button></div></div>').join('');
+}
+
+document.body.addEventListener('click', async ev => {
+  const nav = ev.target.closest('nav.unten button');
+  if (nav) {
+    document.querySelectorAll('nav.unten button').forEach(b => b.classList.toggle('an', b === nav));
+    document.querySelectorAll('main>section').forEach(s => s.hidden = s.id !== 's-' + nav.dataset.s);
+    if (nav.dataset.s === 'einst') einstFuellen();
+    scrollTo(0, 0); return;
+  }
+  const f = ev.target.closest('[data-f]'); if (f) { filter = f.dataset.f; zeichnen(); return; }
+  const sch = ev.target.closest('.schalter'); if (sch) { sch.classList.toggle('an'); return; }
+  const paket = ev.target.closest('.paket');
+  if (!paket) return;
+  const id = paket.dataset.id, p = S.pakete.find(x => x.id === id), a = ev.target.closest('[data-a]')?.dataset.a;
+  if (ev.target.closest('a')) return;
+  if (!a) { offen.has(id) ? offen.delete(id) : offen.add(id); zeichnen(); return; }
+  if (a === 'neu') { ev.target.textContent = 'Frage nach …'; await api('/api/pakete/' + id + '/aktualisieren', { method: 'POST' }); return laden(); }
+  if (a === 'archiv') { await api('/api/pakete/' + id, { method: 'POST', body: { archiviert: !p.archiviert } }); return laden(); }
+  if (a === 'weg') { if (!confirm('„' + (p.titel || p.nummer) + '“ löschen? Es wird auch aus Mails nicht wieder angelegt.')) return; await api('/api/pakete/' + id, { method: 'DELETE' }); return laden(); }
+  if (a === 'bearb') dialogAuf(p);
+});
+
+function dialogAuf(p, vorgabe = {}) {
+  bearbeiten = p || null;
+  $('neuTitel').textContent = p ? 'Paket bearbeiten' : 'Paket hinzufügen';
+  $('nSpeichern').textContent = p ? 'Speichern' : 'Hinzufügen';
+  $('nNummer').value = p ? p.nummer : (vorgabe.nummer || '');
+  $('nTitel').value = p ? p.titel : (vorgabe.titel || '');
+  $('nTraeger').innerHTML = '<option value="">automatisch erkennen</option>' + Object.entries(S.traeger).filter(([k]) => k !== 'sonst').map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('');
+  $('nTraeger').value = p && p.nummer ? p.traeger : '';
+  $('nMeld').textContent = '';
+  $('neu').showModal();
+  if (!p || !p.nummer) $('nNummer').focus();
+}
+$('neuKnopf').onclick = () => dialogAuf(null);
+$('nAbbruch').onclick = () => $('neu').close();
+$('nNummer').oninput = () => { $('nMeld').textContent = ''; };
+$('nSpeichern').onclick = async () => {
+  const nummer = $('nNummer').value.replace(/\s/g, '');
+  if (!bearbeiten && !nummer) { $('nMeld').innerHTML = '<span style="color:var(--rot)">Trag zuerst eine Sendungsnummer ein.</span>'; return; }
+  $('nSpeichern').textContent = 'Frage nach …';
+  const body = { nummer, titel: $('nTitel').value, traeger: $('nTraeger').value || undefined };
+  const r = bearbeiten ? await api('/api/pakete/' + bearbeiten.id, { method: 'POST', body }) : await api('/api/pakete', { method: 'POST', body });
+  if (!r.ok) { $('nMeld').innerHTML = '<span style="color:var(--rot)">' + esc(r.text) + '</span>'; $('nSpeichern').textContent = bearbeiten ? 'Speichern' : 'Hinzufügen'; return; }
+  if (r.id) offen.add(r.id);
+  $('neu').close(); laden();
+};
+$('jetzt').onclick = async () => { $('jetzt').textContent = 'Prüfe …'; await api('/api/aktualisieren', { method: 'POST' }); $('jetzt').textContent = 'Jetzt prüfen'; laden(); };
+$('speichern').onclick = async () => {
+  const d = {};
+  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage']) d[k] = $(k).value;
+  d.rechnungen = $('rechnungen').classList.contains('an');
+  d.melden = {}; d.alexa = {};
+  document.querySelectorAll('#meldListe .schalter').forEach(b => d[b.dataset.m][b.dataset.k] = b.classList.contains('an'));
+  const r = await api('/api/einstellungen', { method: 'POST', body: d });
+  $('einstMeld').innerHTML = r.ok ? '<span style="color:var(--gruen2)">Gespeichert – Paketwerk sieht gleich nach.</span>' : '<span style="color:var(--rot)">' + esc(r.text) + '</span>';
+  if (r.ok) { S.einstellungen = r.einstellungen; setTimeout(laden, 4000); }
+};
+$('testKnopf').onclick = async () => {
+  $('testMeld').textContent = 'Sende …';
+  await $('speichern').onclick();
+  const r = await api('/api/test', { method: 'POST', body: { alexa: !!document.querySelector('#meldListe [data-m=alexa][data-k=zugestellt].an') } });
+  $('testMeld').innerHTML = r.ok ? '<span style="color:var(--gruen2)">Gesendet – schau auf dein iPhone.</span>' : '<span style="color:var(--rot)">' + esc(r.text) + '</span>';
+};
+
+laden().then(() => {
+  // Teilen vom iPhone: …/?nummer=XYZ&titel=… öffnet gleich das Hinzufügen
+  const q = new URLSearchParams(location.search);
+  if (q.get('nummer')) { dialogAuf(null, { nummer: q.get('nummer'), titel: q.get('titel') || '' }); history.replaceState(null, '', '/'); }
+});
+setInterval(() => { if (!document.hidden && !$('neu').open && document.querySelector('nav.unten button.an')?.dataset.s !== 'einst') laden(); }, 30000);
+</script>
+</body>
+</html>
