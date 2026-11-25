@@ -46,7 +46,7 @@ for (const [k, v] of [['t17_key', 'T17_KEY'], ['dhl_key', 'DHL_KEY'], ['imap_pas
 
 let DB = jsonLesen(PAKETE, null) || { pakete: [], ignoriert: [], mails: [], dhl_tag: '', dhl_anzahl: 0 };
 // Einmalig: Mail-Pakete ohne Sendungsnummer neu einlesen (behebt Dubletten und falsche Titel/Zeiten aus der ersten Fassung)
-if (!DB.v2) { DB.pakete = DB.pakete.filter(p => !(p.quelle === 'mail' && !p.nummer)); DB.mails = []; DB.v2 = true; }
+if (!DB.v3) { DB.pakete = DB.pakete.filter(p => !(p.quelle === 'mail' && !p.nummer)); DB.mails = []; DB.v2 = DB.v3 = true; }
 const ZUSTAND = { mail: { zeit: 0, fehler: '', neu: 0 }, rechnungen: { zeit: 0, fehler: '', neu: 0 }, abfrage: { zeit: 0, fehler: '' } };
 function speichern() {
   DB.mails = DB.mails.slice(-3000);
@@ -135,6 +135,19 @@ export function mailStatus(betreff, text) {
   if (/wurde versandt|wurde verschickt|ist unterwegs|has been shipped|has shipped/.test(t)) return 'unterwegs';
   return '';
 }
+// Wo liegt das Paket? (Nachbar, Packstation, Filiale, Ablageort) – aus Mailtext oder Sendungsverlauf
+export function ablageFinden(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  let m;
+  if ((m = t.match(/Nachbarn?\s+([^.,;]{2,40}?)\s+in\s+Hausnummer\s+([^.,;]{1,12}?)\s+entgegen/i))) return 'Bei Nachbar ' + m[1].trim() + ' · Hausnummer ' + m[2].trim();
+  if ((m = t.match(/(?:an|beim|bei)\s+(?:den |einen |dem |Ihren |deinen )?Nachbarn?\s+([A-ZÄÖÜ][^.,;]{1,40}?)(?:\s+(?:übergeben|zugestellt|abgegeben|entgegen)|[.,;]|$)/))) return 'Bei Nachbar ' + m[1].trim();
+  if ((m = t.match(/Empfänger oder Abgabeort:\s*([^.;]{2,60})/i))) return 'Abgabeort: ' + m[1].trim();
+  if ((m = t.match(/(Packstation\s*\d+[^.;]{0,40})/i))) return m[1].trim();
+  if ((m = t.match(/(?:Wunsch)?ablageort:?\s*([^.;]{2,50})/i))) return 'Abgelegt: ' + m[1].trim();
+  if ((m = t.match(/((?:Post)?[Ff]iliale\s+[^.;]{2,50}|Paketshop\s+[^.;]{2,50})/))) return m[1].trim();
+  if (/an (?:den |einen )?Nachbarn/i.test(t)) return 'Bei einem Nachbarn';
+  return '';
+}
 const RELEVANT = /versand|versendet|verschickt|unterwegs|zugestellt|zustellung|liefer|geliefert|sendung|paket|shipped|shipment|tracking|delivered|dispatched|abholbereit/i;
 
 // ---------- Pakete ----------
@@ -165,7 +178,8 @@ async function statusSetzen(p, neu, { stumm = false, info = '' } = {}) {
   if (neu !== 'zugestellt') p.archiviert = false;
   if (stumm || !EIN.melden[neu]) return;
   const versender = TRAEGER[p.traeger]?.name || ({ amazon: 'Amazon', aliexpress: 'AliExpress', bambu: 'Bambu Lab' })[p.shop] || 'Paket';
-  const text = '📦 ' + versender + ': ' + name(p) + (info ? '\n' + info : '');
+  const wo = (neu === 'zugestellt' || neu === 'abholbereit') && p.ablage ? p.ablage.replace(' · ', ', ') : '';
+  const text = '📦 ' + versender + ': ' + name(p) + (wo ? '\n' + wo : info ? '\n' + info : '');
   const titel = 'Paket ' + TEXT[neu];
   try { await melden(titel, text, !!EIN.alexa[neu]); }
   catch (e) { console.warn('Meldewerk:', e.message, '(vorher', alt + ')'); }
@@ -256,6 +270,7 @@ async function abfragen(p) {
   if (!erg) return;
   if (erg.ereignisse?.length) p.ereignisse = erg.ereignisse.filter(e => e.zeit || e.text).sort((a, b) => String(b.zeit).localeCompare(String(a.zeit))).slice(0, 40);
   if (erg.erwartet) p.erwartet = erg.erwartet;
+  if ((erg.status === 'zugestellt' || erg.status === 'abholbereit') && !p.ablage) p.ablage = ablageFinden(p.ereignisse.slice(0, 3).map(e => e.text + (e.ort ? ' ' + e.ort : '')).join('. '));
   const info = p.ereignisse[0]?.text && erg.status !== 'zugestellt' ? p.ereignisse[0].text : '';
   await statusSetzen(p, erg.status, { info });
 }
@@ -317,6 +332,7 @@ async function mailAuswerten(mail) {
   const generisch = !zitat && (/^\d+\s+artikel/i.test(rest) || rest.length < 3);
   const titel = zitat || (generisch ? ({ amazon: 'Amazon-Bestellung', aliexpress: 'AliExpress-Bestellung', bambu: 'Bambu-Lab-Bestellung' })[shop] || 'Bestellung' : rest.slice(0, 80));
   const mailZeit = mail.date ? +mail.date : Date.now();
+  const ablage = (st === 'zugestellt' || st === 'abholbereit') ? ablageFinden(text) : '';
   let neu = 0;
   if (!nummern.length && !(bestellung && st)) return 0;
   for (const { nummer, traeger } of nummern) {
@@ -328,6 +344,7 @@ async function mailAuswerten(mail) {
       else { p = neuesPaket({ nummer, traeger, titel, shop, bestellung, quelle: 'mail', status: 'angekuendigt', angelegt: mailZeit }); neu++; }
     }
     if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
+    if (ablage) p.ablage = ablage;
     if (st && RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
     if (!alt) p.abgefragt = 0; // gleich nachsehen
   }
@@ -338,6 +355,7 @@ async function mailAuswerten(mail) {
     }
     if (p) {
       if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
+      if (ablage) p.ablage = ablage;
       if (RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
     }
   }
