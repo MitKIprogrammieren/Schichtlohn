@@ -20,7 +20,7 @@ services:
         fi
         exec node server.mjs
     ports:
-      - "${PW_PORT:-8097}:8088"
+      - "${PW_PORT:-8079}:8088"
     volumes:
       - /opt/stacks/paketwerk/daten:/daten
       - /opt/stacks/paketwerk/app:/app

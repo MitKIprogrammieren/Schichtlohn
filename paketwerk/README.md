@@ -1,10 +1,10 @@
 # Paketwerk
 
-Paketverfolgung für alle Bestellungen – läuft als Stack auf dem Proxmox-NUC (Port 8097).
+Paketverfolgung für alle Bestellungen – läuft als Stack auf dem Proxmox-NUC (Port 8079).
 
 **Woher die Pakete kommen**
 - **Gmail:** Versandmails (Amazon, AliExpress, Bambu Lab, DHL, Hermes, DPD, GLS, UPS …) werden alle 10 Minuten gelesen. Paketwerk ändert nichts im Postfach.
-- **Von Hand:** über das Plus oben. Vom iPhone aus geht auch `http://192.168.1.30:8097/?nummer=XYZ&titel=…`, zum Beispiel aus einem Kurzbefehl.
+- **Von Hand:** über das Plus oben. Vom iPhone aus geht auch `http://192.168.1.30:8079/?nummer=XYZ&titel=…`, zum Beispiel aus einem Kurzbefehl.
 - **Rechnungs-Modul:** neue Bestellungen aus SchichtLohn erscheinen als „bestellt“. Sobald die Versandmail kommt, wird die Sendungsnummer automatisch dazugeschrieben.
 
 **Woher der Status kommt**
