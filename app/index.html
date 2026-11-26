@@ -5257,6 +5257,43 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgor .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .lgmore{padding:8px 16px 12px}
 .lgform{display:flex;flex-direction:column;gap:12px}
+.lfneu{gap:18px}
+.modal:has(.lfneu)>footer{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.modal:has(.lfneu)>footer>.sp{display:none}
+.modal:has(.lfneu)>footer>.btn{justify-content:center;height:42px;padding:0 6px;min-width:0;grid-column:span 2;font-size:14px;gap:6px;white-space:nowrap;overflow:hidden}.modal:has(.lfneu)>footer>.btn svg{flex:none;width:16px;height:16px}
+.modal:has(.lfneu)>footer>.btn[data-act=close],.modal:has(.lfneu)>footer>.btn[data-act=lgSave]{grid-column:span 3}
+.modal:has(.lfneu)>footer>.btn.ghost{background:var(--glass-2);border:1px solid var(--line)}
+.lfkopf{display:flex;align-items:center;gap:14px;padding:2px}
+.lfrolle .lgsw{width:54px;height:54px}
+.lfkt{display:flex;flex-direction:column;gap:2px;min-width:0}.lfkt b{font-size:17px;font-weight:700;line-height:1.2}
+.lfkt span{font-size:14px;color:var(--fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lfkt em{font-style:normal;font-size:12px;color:var(--fg-3)}
+.lfams{width:100%;justify-content:center}
+.lfab{display:flex;flex-direction:column;gap:8px;margin:0}
+.lfab h3{margin:0 0 2px 2px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);display:flex;align-items:baseline;gap:8px}
+.lfab h3 small{font-size:11.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--fg-3);opacity:.8}
+.lfgr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.lfgr3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (min-width:700px){.lfgr{grid-template-columns:repeat(4,minmax(0,1fr))}.lfgr3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.lfka{display:flex;flex-direction:column;justify-content:center;gap:2px;height:62px;padding:8px 12px;background:var(--glass-2);border:1px solid var(--line);border-radius:12px;min-width:0;cursor:text;box-sizing:border-box}
+.lfka:focus-within{border-color:var(--accent)}
+.lfka.lfbr{grid-column:1/-1}
+.lfka>span{font-size:11.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lfkw{display:flex;align-items:center;gap:6px;min-width:0}
+.lfka input[type=text],.lfka select{flex:1;min-width:0;width:100%;height:26px!important;min-height:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;outline:0;font-size:16px;font-weight:600;color:var(--fg);border-radius:0!important}
+.lfka select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:none!important}
+.lfka input::placeholder{color:var(--fg-3);font-weight:400}
+.lfka em{font-style:normal;font-size:12px;color:var(--fg-3);flex:none}
+.lfka input[type=color]{flex:none;width:26px;height:26px;padding:0;border:1px solid var(--line-2);border-radius:7px;background:none;cursor:pointer}
+.lfka input[type=color]::-webkit-color-swatch-wrapper{padding:0}.lfka input[type=color]::-webkit-color-swatch{border:0;border-radius:6px}
+.lfdots{display:grid!important;grid-template-columns:repeat(11,minmax(0,1fr));gap:6px}.lfdots button{width:auto!important;height:auto!important;aspect-ratio:1;border-radius:8px}
+.lfchips{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0!important}
+.lfchips .chip{justify-content:center;text-align:center;height:34px;padding:0 6px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lfgw{grid-template-columns:repeat(5,minmax(0,1fr))}
+.lgaus.lfseg{display:grid!important;grid-template-columns:1fr 1fr;gap:6px;margin:0!important}.lfseg .chip{justify-content:center;height:38px;font-size:14px}
+.lfgr3 .btn{justify-content:center;height:40px;font-size:13px;padding:0 6px}
+details.lfmehr>summary{list-style:none;cursor:pointer}details.lfmehr>summary::-webkit-details-marker{display:none}
+details.lfmehr>summary h3::after{content:"›";margin-left:auto;font-size:18px;line-height:1;color:var(--fg-3);transform:rotate(90deg);transition:transform .15s}
+details.lfmehr:not([open])>summary h3::after{transform:rotate(0)}details.lfmehr[open]>summary{margin-bottom:8px}
+@media (max-width:380px){.lfdots{grid-template-columns:repeat(8,minmax(0,1fr))}.lfgw{grid-template-columns:repeat(5,minmax(0,1fr))}.lfgw .chip{font-size:12px}}
 .lgform .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .lgform .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .lfk{grid-column:1/-1;display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.45;color:var(--fg-2);margin-top:-2px}.lfk svg{width:14px;height:14px;color:var(--fg-3);flex:none;margin-top:1px}.lfk b{color:var(--fg);font-weight:600}.lfk a{color:var(--accent);text-decoration:none}.lfk i{font-style:normal;color:var(--fg-3)}
@@ -6090,53 +6127,63 @@ function formModal(e,prefill){
   G.form=f;
   const mats=[...new Set([...MATERIALIEN,...known("material")])];const bes=[...new Set([...BESOND,...known("besonderheiten"),...f.besonderheiten])];
   const v=x=>x==null?"":esc(String(x));
-  modal(isNew?"Filament hinzufügen":"Filament bearbeiten",`<div class="lgform">
+  /* Einheitlicher Aufbau: Kopf mit Rolle, darunter Abschnitte aus gleich großen Kacheln (Bezeichnung oben, Wert unten) */
+  const kom=x=>x==null?"":String(x).replace(".",",");
+  const kin=(id,val,ein,ph,mode)=>`<input type="text" inputmode="${mode||"decimal"}" id="${id}" value="${val}"${ph?` placeholder="${esc(ph)}"`:""}>${ein?`<em>${ein}</em>`:""}`;
+  const txt=(id,val,ph)=>`<input type="text" id="${id}" value="${val}"${ph?` placeholder="${esc(ph)}"`:""} autocomplete="off">`;
+  const kachel=(t,inner,breit)=>`<label class="lfka${breit?" lfbr":""}"><span>${t}</span><div class="lfkw">${inner}</div></label>`;
+  const abschnitt=(t,inner,unter)=>`<section class="lfab"><h3>${t}${unter?`<small>${unter}</small>`:""}</h3>${inner}</section>`;
+  const raster=inner=>`<div class="lfgr">${inner}</div>`;
+  const sp=Number(f.spulen)||0,rf=Number(f.refills)||0;const art=sp>0&&rf>=sp?"refill":rf>0?"gemischt":"spule";
+  const L=leerInfo(f);
+  modal(isNew?"Filament hinzufügen":"Filament bearbeiten",`<div class="lgform lfneu">
     ${f.hinweis?`<div class="note">${esc(f.hinweis)}</div>`:""}
-    ${isNew&&!f.hinweis?`<div class="row"><button type="button" class="btn sm" data-act="lgAms">${SV.ams} Aus dem AMS übernehmen</button><span class="lghint">oder unten von Hand ausfüllen</span></div>`:""}
-    <div class="g2"><label class="field"><span>Hersteller</span><select id="lf_h">${herstOpts(f.hersteller)}</select><input type="text" id="lf_hx" class="lgother" placeholder="Hersteller eingeben" hidden></label>
-      <label class="field"><span>Material</span><select id="lf_m">${matOpts(f.hersteller,f.material)}</select><input type="text" id="lf_mx" class="lgother" placeholder="Material eingeben" hidden></label></div>
-    <label class="field"><span>Farbe</span><div class="lgcol"><input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_hx6" class="lghexin" value="${fHex(f.hex).toUpperCase()}" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Hex-Code" placeholder="#RRGGBB"><input type="text" id="lf_f" value="${v(f.farbe)}" placeholder="Farbname, z. B. Blue Gray"></div></label>
-    <div class="lgdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>
-    <div class="field"><span>Besonderheiten</span><div class="lgtg lgbesw" id="lf_bes">${bes.map(b=>{const x=besOf(b);const fs=/^(cf|gf)$/i.test(b)?" bxf bxf-"+b.toLowerCase():"";return `<button type="button" class="chip${x?" bx bx-"+x.k:""}${fs}${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`}).join("")}</div></div>
-    <div class="g3"><label class="field"><span>Gewicht je Rolle</span><div class="unit"><input type="text" inputmode="numeric" id="lf_g" value="${v(f.gewicht)}"><em>g</em></div></label>
-      <label class="field"><span>Anzahl Rollen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_s" value="${v(f.spulen)}"><em>Stk</em></div></label>
-      <label class="field"><span>Reste angebrochen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_r" value="${v((f.reste||[]).join(", "))}" placeholder="voll"><em>g</em></div></label></div>
-    <div class="lgaus" role="group" aria-label="Spule oder Refill">${(()=>{const sp=Number(f.spulen)||0,rf=Number(f.refills)||0;const art=sp>0&&rf>=sp?"refill":rf>0?"gemischt":"spule";
-      return [["spule","Mit Spule"],["refill","Refill (ohne Spule)"]].map(([k,t])=>`<button type="button" class="chip${art===k?" on":""}" data-act="lgAus" data-v="${k}">${t}</button>`).join("")+(art==="gemischt"?`<span class="lghint" style="align-self:center">gemischt: ${rf} von ${sp} Refill</span>`:"")})()}</div>
-    <div class="lggw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
-    <div class="lghint">Mehrere angebrochene Rollen mit Komma trennen, z. B. „300, 500“. Sie zählen bei „Anzahl Rollen“ mit.</div>
-    ${isNew?"":`<div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="lgMinus">− 1 Rolle verbraucht</button><button class="btn sm" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn ghost sm" data-act="lgCopy">${ICON.copy} Als Vorlage kopieren</button></div><div id="lf_ask"></div>`}
-    <details class="lgx"${(f.bambu_id||f.preis||f.duese_min||f.fcode||f.flow||f.mvs||f.k||f.sku)?" open":""}><summary>Technische Daten, Preis und Bambu-ID</summary><div class="lgform" style="margin-top:10px">
-      <div class="g3"><label class="field"><span>Bambu-ID (Abbuchung)</span><input type="text" id="lf_bid" value="${v(f.bambu_id)}" placeholder="GFG02"></label>
-        <label class="field"><span>Preis je kg</span><div class="unit"><input type="text" inputmode="decimal" id="lf_p" value="${f.preis==null?"":String(f.preis).replace(".",",")}" placeholder="19,99"><em>€</em></div></label>
-        <label class="field"><span>Davon Refill</span><div class="unit"><input type="text" inputmode="numeric" id="lf_rf" value="${v(f.refills)}"><em>Stk</em></div></label>${isNew?"":gekauftHTML(e)}</div>
-      ${(()=>{const L=leerInfo(f);return `<div class="g3"><label class="field"><span>Leere Spule</span><div class="unit"><input type="text" inputmode="numeric" id="lf_leer" value="${L.eigen?v(L.eigen):""}" placeholder="${esc(L.platz)}"><em>g</em></div></label></div>
-      <div class="hint" style="margin-top:-6px">Leer lassen = Wert vom Hersteller (Einstellungen → Lager). Ein eigener Wert geht vor, z. B. nach dem Wiegen einer leeren Spule.</div>`})()}
-      <div class="g4"><label class="field"><span>Druck von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d1" value="${v(f.duese_min)}"><em>°C</em></div></label>
-        <label class="field"><span>Druck bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_d2" value="${v(f.duese_max)}"><em>°C</em></div></label>
-        <label class="field"><span>Bett von</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b1" value="${v(f.bett_min)}"><em>°C</em></div></label>
-        <label class="field"><span>Bett bis</span><div class="unit"><input type="text" inputmode="numeric" id="lf_b2" value="${v(f.bett_max)}"><em>°C</em></div></label></div>
-      <div class="g4"><label class="field"><span>Trocknen</span><div class="unit"><input type="text" inputmode="numeric" id="lf_tc" value="${v(f.trocknen_c)}"><em>°C</em></div></label>
-        <label class="field"><span>Trocknen</span><div class="unit"><input type="text" inputmode="decimal" id="lf_th" value="${v(f.trocknen_h)}"><em>h</em></div></label>
-        <label class="field"><span>Durchmesser</span><select id="lf_dm">${[1.75,2.85].map(d=>`<option value="${d}"${Number(f.durchmesser)===d?" selected":""}>${String(d).replace(".",",")} mm</option>`).join("")}</select></label>
-        <label class="field"><span>Filament-Code</span><input type="text" id="lf_fc" value="${v(f.fcode)}"></label></div>
-      <div class="lghint" style="margin-top:4px">Druckprofil – für die Zeilen auf dem Etikett</div>
-      <div class="g4"><label class="field"><span>Flow-Ratio</span><input type="text" inputmode="decimal" id="lf_fl" value="${f.flow==null?"":String(f.flow).replace(".",",")}" placeholder="0,98"></label>
-        <label class="field"><span>Max. Volumenstrom</span><div class="unit"><input type="text" inputmode="decimal" id="lf_mvs" value="${v(f.mvs)}" placeholder="21"><em>mm³/s</em></div></label>
-        <label class="field"><span>K-Wert</span><input type="text" inputmode="decimal" id="lf_k" value="${f.k==null?"":String(f.k).replace(".",",")}" placeholder="0,018"></label>
-        <label class="field"><span>TD</span><input type="text" inputmode="decimal" id="lf_td" value="${f.td==null?"":String(f.td).replace(".",",")}" placeholder="4"></label></div>
-      <div class="g4"><label class="field"><span>Kammer</span><div class="unit"><input type="text" inputmode="numeric" id="lf_ka" value="${v(f.kammer)}"><em>°C</em></div></label>
-        <label class="field"><span>Schwund</span><div class="unit"><input type="text" inputmode="decimal" id="lf_sw" value="${f.schwund==null?"":String(f.schwund).replace(".",",")}"><em>%</em></div></label>
-        <label class="field"><span>Bügeln Tempo</span><div class="unit"><input type="text" inputmode="numeric" id="lf_bt" value="${v(f.buegeln_tempo)}"><em>mm/s</em></div></label>
-        <label class="field"><span>Bügeln Flow</span><div class="unit"><input type="text" inputmode="numeric" id="lf_bf" value="${v(f.buegeln_flow)}"><em>%</em></div></label></div>
-      <div class="g3"><label class="field"><span>AMS-tauglich</span><select id="lf_ams">${[["","unbekannt"],["ja","ja"],["nein","nein"]].map(([k,t])=>`<option value="${k}"${(f.ams===true?"ja":f.ams===false?"nein":"")===k?" selected":""}>${t}</option>`).join("")}</select></label>
-        <label class="field"><span>AMS-Modelle</span><input type="text" id="lf_amsm" value="${v(f.ams_modelle)}" placeholder="z. B. AMS, AMS 2 Pro"></label>
-        <label class="field"><span>Artikelnummer (SKU)</span><input type="text" id="lf_sku" value="${v(f.sku)}"></label></div>
+    <div class="lfkopf"><div class="lfrolle" id="lf_rolle">${spool(fHex(f.hex),"lgsw",f.besonderheiten,f)}</div>
+      <div class="lfkt"><b id="lf_kn">${esc([f.hersteller,f.material].filter(Boolean).join(" ")||"Neue Sorte")}</b><span id="lf_kf">${esc(f.farbe||"Farbe noch ohne Namen")}</span>
+      ${isNew?"":`<em>${sp} ${sp===1?"Rolle":"Rollen"}${art==="refill"?" · Refill":art==="gemischt"?` · ${rf} Refill`:""}${(f.reste||[]).length?` · ${f.reste.length} angebrochen`:""}</em>`}</div></div>
+    ${isNew&&!f.hinweis?`<button type="button" class="btn lfams" data-act="lgAms">${SV.ams} Aus dem AMS übernehmen</button>`:""}
+    ${abschnitt("Sorte",raster(`${kachel("Hersteller",`<select id="lf_h">${herstOpts(f.hersteller)}</select><input type="text" id="lf_hx" class="lgother" placeholder="Hersteller eingeben" hidden>`)}
+      ${kachel("Material",`<select id="lf_m">${matOpts(f.hersteller,f.material)}</select><input type="text" id="lf_mx" class="lgother" placeholder="Material eingeben" hidden>`)}`))}
+    ${abschnitt("Farbe",`${raster(`${kachel("Farbwert",`<input type="color" id="lf_hex" value="${fHex(f.hex)}" aria-label="Farbwert"><input type="text" id="lf_hx6" class="lghexin" value="${fHex(f.hex).toUpperCase()}" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#RRGGBB">`)}
+      ${kachel("Farbname",txt("lf_f",v(f.farbe),"z. B. Blue Gray"))}`)}
+      <div class="lgdots lfdots">${FARBEN.map(([n,x])=>`<button type="button" data-act="lgDot" data-n="${esc(n)}" data-x="${x}" title="${esc(n)}" style="background:${x}" class="${fHex(f.hex)===x?"on":""}"></button>`).join("")}</div>`)}
+    ${abschnitt("Besonderheiten",`<div class="lgtg lgbesw lfchips" id="lf_bes">${bes.map(b=>{const x=besOf(b);const fs=/^(cf|gf)$/i.test(b)?" bxf bxf-"+b.toLowerCase():"";return `<button type="button" class="chip${x?" bx bx-"+x.k:""}${fs}${f.besonderheiten.includes(b)?" on":""}" data-act="lgBes" data-b="${esc(b)}">${esc(b)}</button>`}).join("")}</div>`)}
+    ${abschnitt("Bestand",`<div class="lgaus lfseg" role="group" aria-label="Spule oder Refill">${[["spule","Mit Spule"],["refill","Refill"]].map(([k,t])=>`<button type="button" class="chip${art===k?" on":""}" data-act="lgAus" data-v="${k}">${t}</button>`).join("")}</div>${art==="gemischt"?`<div class="lghint">gemischt: ${rf} von ${sp} Rollen sind Refill</div>`:""}
+      ${raster(`${kachel("Anzahl Rollen",kin("lf_s",v(f.spulen),"Stk","","numeric"))}${kachel("Gewicht je Rolle",kin("lf_g",v(f.gewicht),"g","","numeric"))}`)}
+      <div class="lggw lfchips lfgw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
+      ${raster(kachel("Angebrochen (Rest je Rolle, mit Komma)",kin("lf_r",v((f.reste||[]).join(", ")),"g","alle voll"),1))}
+      ${(()=>{let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}const r0=f.raw||{};const name=r0.leer_spule||"";const auto=String(L.platz).replace(/^(\d+)\s*\((.*)\)$/,(m,g,w)=>g+" g"+(w==="Standard"?"":" · "+w));
+        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";
+        return raster(`${kachel("Leerspule",`<select id="lf_lsp"><option value=""${gew===""?" selected":""} title="${esc(auto)}">Automatisch</option>${SP.map(x=>`<option value="${esc(x.name)}" data-g="${Number(x.g)}"${gew===x.name?" selected":""}>${esc(x.name)}</option>`).join("")}<option value="__eigen__"${gew==="__eigen__"?" selected":""}>Eigenes Gewicht</option></select>`)}${kachel("Leergewicht",kin("lf_leer",L.eigen?v(L.eigen):"","g",String(L.platz).split(" ")[0],"numeric"))}`)})()}
+      ${isNew?"":`<div class="lfgr lfgr3"><button class="btn" data-act="lgMinus">− 1 Rolle</button><button class="btn" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn" data-act="lgCopy">${ICON.copy} Vorlage</button></div><div id="lf_ask"></div>`}`)}
+    ${abschnitt("Drucken",raster(`${kachel("Düse von",kin("lf_d1",v(f.duese_min),"°C","","numeric"))}${kachel("Düse bis",kin("lf_d2",v(f.duese_max),"°C","","numeric"))}
+      ${kachel("Bett von",kin("lf_b1",v(f.bett_min),"°C","","numeric"))}${kachel("Bett bis",kin("lf_b2",v(f.bett_max),"°C","","numeric"))}
+      ${kachel("Kammer",kin("lf_ka",v(f.kammer),"°C","","numeric"))}${kachel("Durchmesser",`<select id="lf_dm">${[1.75,2.85].map(d=>`<option value="${d}"${Number(f.durchmesser)===d?" selected":""}>${String(d).replace(".",",")} mm</option>`).join("")}</select>`)}
+      ${kachel("Trocknen",kin("lf_tc",v(f.trocknen_c),"°C","","numeric"))}${kachel("Trocknen",kin("lf_th",v(f.trocknen_h),"h"))}`))}
+    ${abschnitt("Druckprofil",raster(`${kachel("Flow-Ratio",kin("lf_fl",kom(f.flow),"","0,98"))}${kachel("Max. Volumenstrom",kin("lf_mvs",v(f.mvs),"mm³/s","21"))}
+      ${kachel("K-Wert",kin("lf_k",kom(f.k),"","0,018"))}${kachel("TD",kin("lf_td",kom(f.td),"","4"))}`),"steht so auf dem Etikett")}
+    <details class="lgx lfab lfmehr"${(f.bambu_id||f.preis||f.fcode||f.sku||f.schwund||f.buegeln_tempo||f.ams!=null)?" open":""}><summary><h3>Weitere Angaben<small>Bambu-ID, Preis, Leerspule, AMS</small></h3></summary>
+      ${raster(`${kachel("Bambu-ID",txt("lf_bid",v(f.bambu_id),"GFG02"))}${kachel("Preis je kg",kin("lf_p",f.preis==null?"":kom(f.preis),"€","19,99"))}
+      ${kachel("Davon Refill",kin("lf_rf",v(f.refills),"Stk","","numeric"))}
+      ${kachel("Filament-Code",txt("lf_fc",v(f.fcode)))}${kachel("Schwund",kin("lf_sw",kom(f.schwund),"%"))}
+      ${kachel("Bügeln Tempo",kin("lf_bt",v(f.buegeln_tempo),"mm/s","","numeric"))}${kachel("Bügeln Flow",kin("lf_bf",v(f.buegeln_flow),"%","","numeric"))}
+      ${kachel("AMS-tauglich",`<select id="lf_ams">${[["","unbekannt"],["ja","ja"],["nein","nein"]].map(([k,t])=>`<option value="${k}"${(f.ams===true?"ja":f.ams===false?"nein":"")===k?" selected":""}>${t}</option>`).join("")}</select>`)}${kachel("Artikelnummer",txt("lf_sku",v(f.sku)))}
+      ${kachel("AMS-Modelle",txt("lf_amsm",v(f.ams_modelle),"z. B. AMS, AMS 2 Pro"),1)}`)}
+      ${isNew?"":gekauftHTML(e)}
       ${f.codes.length?`<div class="field"><span>Strichcodes</span><div class="lgtg">${f.codes.map(c=>`<span class="chip">${esc(c)} · ${f.codes_refill.includes(c)?"Refill":"Spule"} <button type="button" class="btn icon ghost" style="width:20px;height:20px;padding:0" data-act="lgCode" data-c="${esc(c)}" aria-label="Code entfernen">${ICON.x}</button></span>`).join("")}</div></div>`:""}
-    </div></details>
+    </details>
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}${!isNew&&fnAn("etikett")?`<button class="btn ghost" data-act="lgEtikett" title="Etikett mit QR-Code für diese Rolle">${SV_ETIKETT} Etikett</button>`:""}${!isNew&&fnAn("einkauf")&&srv()?`<button class="btn ghost" data-act="ekMark" title="Auf die Einkaufsliste setzen oder davon nehmen">${SV_KORB} Nachkaufen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
 }
+/* Leerspule im Bearbeiten-Fenster: Auswahl trägt das Gewicht ein, eigenes Tippen schaltet auf „Eigenes Gewicht“ */
+document.addEventListener("change",e=>{const t=e.target;if(!t||t.id!=="lf_lsp")return;const g=document.getElementById("lf_leer");if(!g)return;const o=t.selectedOptions[0];
+  if(t.value===""){g.value=""}else if(t.value!=="__eigen__"&&o&&o.dataset.g){g.value=o.dataset.g}else{g.focus()}});
+document.addEventListener("input",e=>{const t=e.target;if(!t||t.id!=="lf_leer")return;const s=document.getElementById("lf_lsp");if(!s)return;const o=s.selectedOptions[0];
+  if(!t.value.trim())s.value="";else if(!(o&&o.dataset.g&&o.dataset.g===t.value.trim()))s.value="__eigen__"});
+/* Kopf im Bearbeiten-Fenster mitziehen: Name, Farbe, Rolle */
+document.addEventListener("input",e=>{const t=e.target;if(!t||!t.id||!/^lf_(f|hex|hx6)$/.test(t.id))return;const kf=document.getElementById("lf_kf");if(t.id==="lf_f"&&kf)kf.textContent=t.value.trim()||"Farbe noch ohne Namen";
+  if(/^lf_(hex|hx6)$/.test(t.id)){const h=String(t.value||"").trim();if(/^#[0-9a-f]{6}$/i.test(h)){const r=document.getElementById("lf_rolle");if(r&&G.form)r.innerHTML=spool(h,"lgsw",G.form.besonderheiten,G.form)}}});
+document.addEventListener("change",e=>{const t=e.target;if(!t||!/^lf_(h|m)$/.test(t.id||""))return;const k=document.getElementById("lf_kn");if(!k)return;const g=id=>{const s=document.getElementById(id);return s&&s.value!==ANDERE?s.value:""};k.textContent=[g("lf_h"),g("lf_m")].filter(Boolean).join(" ")||"Neue Sorte"});
 function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};
   set("hersteller","lf_h",x=>(x===ANDERE?(val("lf_hx")||""):x).trim());set("material","lf_m",x=>(x===ANDERE?(val("lf_mx")||""):x).trim());set("farbe","lf_f",x=>x.trim());set("hex","lf_hex");set("gewicht","lf_g",x=>fNum(x)||0);set("spulen","lf_s",x=>Math.max(0,Math.round(fNum(x)||0)));
@@ -6144,7 +6191,8 @@ function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=docu
   set("duese_min","lf_d1",fNum);set("duese_max","lf_d2",fNum);set("bett_min","lf_b1",fNum);set("bett_max","lf_b2",fNum);set("trocknen_c","lf_tc",fNum);set("trocknen_h","lf_th",fNum);set("durchmesser","lf_dm",fNum);set("fcode","lf_fc",x=>x.trim());
   set("flow","lf_fl",fNum);set("mvs","lf_mvs",fNum);set("k","lf_k",fNum);set("td","lf_td",fNum);set("kammer","lf_ka",fNum);set("schwund","lf_sw",fNum);
   {const x=val("lf_leer");if(x!==undefined){const r=Object.assign({},f.raw||{});const n=fNum(x);const L=leerInfo(f);
-    if(n>0&&n<1500){r.leer_g=Math.round(n);delete r.leer_auto}else if(L.eigen){delete r.leer_g;delete r.leer_auto}f.raw=r}}
+    if(n>0&&n<1500){r.leer_g=Math.round(n);delete r.leer_auto}else if(L.eigen){delete r.leer_g;delete r.leer_auto}
+    const ls=val("lf_lsp");if(ls!==undefined){if(ls&&ls!=="__eigen__"&&n>0)r.leer_spule=ls;else delete r.leer_spule}f.raw=r}}
   set("buegeln_tempo","lf_bt",fNum);set("buegeln_flow","lf_bf",fNum);set("ams","lf_ams",x=>x==="ja"?true:x==="nein"?false:null);set("ams_modelle","lf_amsm",x=>x.trim());set("sku","lf_sku",x=>x.trim());
   return f}
 const msg=t=>{const m=document.getElementById("lf_msg");if(m)m.textContent=t};

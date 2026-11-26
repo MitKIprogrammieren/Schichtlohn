@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.25.0 – 26.11.2026
+- „Filament bearbeiten“ neu aufgeräumt: oben die Rolle mit Name und Bestand, darunter Abschnitte (Sorte, Farbe, Besonderheiten, Bestand, Drucken, Druckprofil, Weitere Angaben). Jede Angabe ist eine gleich große Kachel, Auswahlknöpfe liegen in einem festen Raster.
+- Neu im Bestand: Leerspule aus der Liste wählen (z. B. Marswork, Bambu Lab, eSun Pappe) – das Leergewicht wird dabei eingetragen.
+
 ## 3.24.0 – 26.11.2026
 - Leere Spule je NFC-Chip: Wählst du an der Waage die Leerspule für eine Rolle mit Chip, merkt sich SchichtLohn das. Beim nächsten Auflegen nimmt die Waage automatisch die richtige Spule, und „Spule erkannt“ rechnet hier genauso. „Automatisch“ an der Waage hebt es wieder auf (braucht Waagen-Firmware 2.30.0).
 
