@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.24.0 – 26.11.2026
+- Leere Spule je NFC-Chip: Wählst du an der Waage die Leerspule für eine Rolle mit Chip, merkt sich SchichtLohn das. Beim nächsten Auflegen nimmt die Waage automatisch die richtige Spule, und „Spule erkannt“ rechnet hier genauso. „Automatisch“ an der Waage hebt es wieder auf (braucht Waagen-Firmware 2.30.0).
+
 ## 3.23.0 – 26.11.2026
 - Neu: Leere Spule beim Wiegen auswählen. Statt die Leerspule fest an eine Sorte zu binden, wählst du jetzt beim Wiegen, auf welcher Spule das Filament steckt – z. B. ein eSun-Refill mal auf der Marswork-, mal auf der Bambu-Spule.
 - Im Fach-Fenster („Von der Waage“) gibt es dafür die Auswahl „Leere Spule“; die Gramm werden sofort neu gerechnet.

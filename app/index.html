@@ -7965,7 +7965,9 @@ function gesamtModal(){
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
   einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join(""),spulen:leerspulenListe().map(x=>spulenZeile(x.name,x.g)).join("")}},
-  leerspulen(){return leerspulenListe()}};
+  leerspulen(){return leerspulenListe()},
+  /* an der Waage zu einem NFC-Chip gemerkte Leerspule ({name, g}) oder null */
+  leerspuleFuerTag(uid){const je=einGespeichert().leerspule_je_tag;const n=je&&typeof je==="object"?je[String(uid||"").toUpperCase()]:"";return n?leerspulenListe().find(x=>x.name===n)||null:null}};
 })();
 </script>
 <script>
@@ -9341,7 +9343,8 @@ window.slNfc=function(pre){nfcHolen(pre);const d=NFC.d[pre];if(!d)return null;
     if(!e&&b){const hx=b.farbe?"#"+String(b.farbe).slice(0,6):"";const mid=String(b.material_id||"");const k1=mid?SO.filter(x=>x.bambu_id===mid):[];
       const det=String(b.detail||b.typ||"").toLowerCase();e=nfcFarbe(k1.length?k1:SO.filter(x=>/bambu/i.test(x.hersteller)&&det&&det.startsWith(String(x.material||"").toLowerCase())),hx)}
     const lgS=e&&e.raw&&Number(e.raw.leer_g)>0?Number(e.raw.leer_g):0;
-    return {seite,uid,e,b,leer:lgS||(e?(/bambu/i.test(e.hersteller)?d.leer_bambu_g:d.leer_standard_g):b?d.leer_bambu_g:d.leer_standard_g)}}
+    let spT=null;try{spT=LGN.leerspuleFuerTag?LGN.leerspuleFuerTag(uid):null}catch(x){}
+    return {seite,uid,e,b,spule:spT&&spT.name,leer:spT?Number(spT.g):lgS||(e?(/bambu/i.test(e.hersteller)?d.leer_bambu_g:d.leer_standard_g):b?d.leer_bambu_g:d.leer_standard_g)}}
   return {seite:"",uid:"",e:null,b:null}};
 function waage(){const z=zst();const W=(window.slWaagen?slWaagen(z):[]).filter(w=>z["sensor."+w.pre+"_gewicht"]);if(!W.length)return null;
   const tr=Number((z["sensor.filamentwaage_trocknen_faellig"]||{}).state);

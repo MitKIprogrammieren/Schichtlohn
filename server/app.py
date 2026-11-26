@@ -16,7 +16,8 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   PUT  /api/daten/<schlüssel>         {"wert": ...}
   GET  /api/ereignisse                Live-Meldungen bei Änderungen (Server-Sent Events), auch Live-Gewicht der Waagen (typ waage_live)
   GET  /api/sorten                    Lager vereinfacht (für die Waage)
-  GET/POST /api/leerspulen            Leerspulen zur Auswahl beim Wiegen · {"neu": {name, g}} speichert eine
+  GET/POST /api/leerspulen            Leerspulen zur Auswahl beim Wiegen · {"neu": {name, g}} speichert eine,
+                                      {"tag": {uid, name}} merkt die Spule zu einem NFC-Chip (name "" = automatisch)
   GET  /api/sicherung                 alles als JSON (Backup)
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
@@ -83,7 +84,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.23.0"
+VERSION = "3.24.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1463,6 +1464,39 @@ def leerspulen_liste():
     return out
 
 
+def leerspulen_je_tag():
+    """Welche Leerspule zu welchem NFC-Chip gehört ({UID: Name}) – an der Waage gewählt, beim nächsten Auflegen automatisch."""
+    _, d = _einst_plus()
+    w = (d.get("werte") or {}).get("leerspule_je_tag")
+    return {str(k).upper(): str(v) for k, v in w.items() if k and v} if isinstance(w, dict) else {}
+
+
+def _werte_setzen(**neu_werte):
+    it, d = _einst_plus()
+    werte = dict(d.get("werte") or {}, **neu_werte)
+    neu = json.dumps({"typ": "einstellungen_plus", "v": 1, "werte": werte}, ensure_ascii=False)
+    if it:
+        liste_aendern(META, "update_item", {"item": it["uid"], "description": neu})
+    else:
+        liste_aendern(META, "add_item", {"item": "⚙ Einstellungen (Ernsthaft gelagert Plus)", "description": neu})
+    melden({"typ": "liste"})
+
+
+def leerspule_tag_merken(uid, name):
+    """Leerspule für einen Chip merken; leerer Name = wieder automatisch."""
+    uid = re.sub(r"[^0-9A-F]", "", str(uid or "").upper())[:32]
+    if not uid:
+        raise Fehler(400, "Chip-Nummer fehlt")
+    name = str(name or "").strip()[:40]
+    je = leerspulen_je_tag()
+    if name:
+        je[uid] = name
+    else:
+        je.pop(uid, None)
+    _werte_setzen(leerspule_je_tag=je)
+    return je
+
+
 def leerspule_merken(name, g):
     """Spule in die Liste aufnehmen bzw. ihr Gewicht ändern (z. B. an der Waage gewogen)."""
     name = str(name or "").strip()[:40]
@@ -1471,14 +1505,7 @@ def leerspule_merken(name, g):
         raise Fehler(400, "Name und Gewicht (1–1499 g) angeben")
     liste = [x for x in leerspulen_liste() if x["name"].lower() != name.lower()]
     liste.append({"name": name, "g": int(round(g))})
-    it, d = _einst_plus()
-    werte = dict(d.get("werte") or {}, leerspulen=liste)
-    neu = json.dumps({"typ": "einstellungen_plus", "v": 1, "werte": werte}, ensure_ascii=False)
-    if it:
-        liste_aendern(META, "update_item", {"item": it["uid"], "description": neu})
-    else:
-        liste_aendern(META, "add_item", {"item": "⚙ Einstellungen (Ernsthaft gelagert Plus)", "description": neu})
-    melden({"typ": "liste"})
+    _werte_setzen(leerspulen=liste)
     return liste
 
 
@@ -3923,8 +3950,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Fehler:
                     b = {}
             if isinstance(b, dict) and isinstance(b.get("neu"), dict):
-                return self._json(200, {"leerspulen": leerspule_merken(b["neu"].get("name"), b["neu"].get("g"))})
-            return self._json(200, {"leerspulen": leerspulen_liste()})
+                leerspule_merken(b["neu"].get("name"), b["neu"].get("g"))
+            if isinstance(b, dict) and isinstance(b.get("tag"), dict):
+                leerspule_tag_merken(b["tag"].get("uid"), b["tag"].get("name"))
+            return self._json(200, {"leerspulen": leerspulen_liste(), "je_tag": leerspulen_je_tag()})
         if teile == ["rollen"] and methode == "GET":
             return self._json(200, {"rollen": rollen_liste()})
         if teile == ["nachbuchen"] and methode == "POST":
