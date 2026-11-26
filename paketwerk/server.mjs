@@ -87,6 +87,7 @@ export function traegerRaten(n, text = '') {
 const URLS = [
   [/dhl\.[a-z.]+\/[^\s"'<>]*?(?:piececode|idc|tracking-id|trackingnumber|tracking-number)=([A-Z0-9]{10,39})/gi, 'dhl'],
   [/dpd\.[a-z.]+\/[^\s"'<>]*?parcel\/(\d{14})/gi, 'dpd'],
+  [/dpd\.[a-z.]+\/[^\s"'<>]*?parcelno=B2C(\d{14})/gi, 'dpd'],
   [/dpd\.[a-z.]+\/[^\s"'<>]*?(?:parcelNumber|parcelno|query)=(\d{14})/gi, 'dpd'],
   [/hermes[a-z.-]*\.[a-z]+\/[^\s"'<>]*?(?:#|=|\/)(H?\d{14,20})\b/gi, 'hermes'],
   [/gls-[a-z.-]+\/[^\s"'<>]*?(?:match|trackingNumber|trackingnumber)=(\d{11,14})/gi, 'gls'],
@@ -108,6 +109,7 @@ export function nummernFinden(text, html = '') {
   for (const [re, t] of URLS) for (const m of alles.matchAll(re)) dazu(m[1], t);
   for (const re of STARK) for (const m of text.matchAll(re)) dazu(m[0]);
   for (const m of text.matchAll(WORT)) dazu(m[1]);
+  if (/\bdpd\b/i.test(text)) for (const m of text.matchAll(/\b(0\d{13})\b/g)) dazu(m[1], 'dpd');
   return [...gefunden].map(([nummer, traeger]) => ({ nummer, traeger }));
 }
 export function shopErkennen(text, von = '') {
