@@ -16,6 +16,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   PUT  /api/daten/<schlüssel>         {"wert": ...}
   GET  /api/ereignisse                Live-Meldungen bei Änderungen (Server-Sent Events), auch Live-Gewicht der Waagen (typ waage_live)
   GET  /api/sorten                    Lager vereinfacht (für die Waage)
+  GET/POST /api/leerspulen            Leerspulen zur Auswahl beim Wiegen · {"neu": {name, g}} speichert eine
   GET  /api/sicherung                 alles als JSON (Backup)
   POST /lesen                         Rumpf = Bild; Etikett-Text und Barcodes
   GET  /app/                          die SchichtLohn-App (läuft so auch ohne Internet), /npm/ … Bibliotheken
@@ -82,7 +83,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.22.0"
+VERSION = "3.23.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1433,6 +1434,52 @@ def leer_schleife():
         except Exception as e:
             print("Leerspulen:", e, flush=True)
         LEER_NEU.clear()  # eigene Änderungen lösen keinen weiteren Lauf aus
+
+
+# ---------------------------------------------------------------- Leerspulen zur Auswahl
+# Beim Wiegen (Waage und App) wählt man die leere Spule aus einer Liste, statt sie fest an eine Sorte zu binden –
+# z. B. eSun-Refill mal auf der Marswork-, mal auf der Bambu-Spule. Liste in einstellungen_plus → leerspulen.
+LEERSPULEN_STANDARD = [{"name": "Bambu Lab Mehrwegspule", "g": 250}, {"name": "Bambu Lab HT-Spule (grau)", "g": 216},
+                       {"name": "Marswork Mehrwegspule", "g": 200}, {"name": "Polymaker Pappspule", "g": 140}]
+
+
+def _einst_plus():
+    for it in liste_lesen(META):
+        d = _desc(it)
+        if d.get("typ") == "einstellungen_plus":
+            return it, d
+    return None, {}
+
+
+def leerspulen_liste():
+    _, d = _einst_plus()
+    w = (d.get("werte") or {}).get("leerspulen")
+    if not isinstance(w, list):
+        return [dict(x) for x in LEERSPULEN_STANDARD]
+    out = []
+    for x in w:
+        if isinstance(x, dict) and str(x.get("name") or "").strip() and 0 < _zahl(x.get("g")) < 1500:
+            out.append({"name": str(x["name"]).strip()[:40], "g": int(round(_zahl(x["g"])))})
+    return out
+
+
+def leerspule_merken(name, g):
+    """Spule in die Liste aufnehmen bzw. ihr Gewicht ändern (z. B. an der Waage gewogen)."""
+    name = str(name or "").strip()[:40]
+    g = _zahl(g)
+    if not name or not 0 < g < 1500:
+        raise Fehler(400, "Name und Gewicht (1–1499 g) angeben")
+    liste = [x for x in leerspulen_liste() if x["name"].lower() != name.lower()]
+    liste.append({"name": name, "g": int(round(g))})
+    it, d = _einst_plus()
+    werte = dict(d.get("werte") or {}, leerspulen=liste)
+    neu = json.dumps({"typ": "einstellungen_plus", "v": 1, "werte": werte}, ensure_ascii=False)
+    if it:
+        liste_aendern(META, "update_item", {"item": it["uid"], "description": neu})
+    else:
+        liste_aendern(META, "add_item", {"item": "⚙ Einstellungen (Ernsthaft gelagert Plus)", "description": neu})
+    melden({"typ": "liste"})
+    return liste
 
 
 def nfc_auftrag_abbrechen():
@@ -3867,6 +3914,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._waagen_update(teile[1:])
         if teile and teile[0] == "radar":
             return self._radar(methode, teile[1:], q)
+        if teile == ["leerspulen"] and methode in ("GET", "POST"):
+            # POST ohne Inhalt liefert nur die Liste (die Waage schickt alles als POST), mit {"neu": {name, g}} wird gespeichert
+            b = {}
+            if methode == "POST":
+                try:
+                    b = self._json_rumpf() or {}
+                except Fehler:
+                    b = {}
+            if isinstance(b, dict) and isinstance(b.get("neu"), dict):
+                return self._json(200, {"leerspulen": leerspule_merken(b["neu"].get("name"), b["neu"].get("g"))})
+            return self._json(200, {"leerspulen": leerspulen_liste()})
         if teile == ["rollen"] and methode == "GET":
             return self._json(200, {"rollen": rollen_liste()})
         if teile == ["nachbuchen"] and methode == "POST":

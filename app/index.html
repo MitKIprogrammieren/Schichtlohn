@@ -1391,7 +1391,10 @@ function renderSettings(m){
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
           <span class="hint" id="lge_msg" style="color:var(--bad)"></span><button type="button" hidden data-act="lgEinSave"></button></section>
         `+kopf("Leere Spulen","Gewicht der leeren Spule je Hersteller – für Waage, Lager und „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.")+`
-          <div class="stack" id="lge_leerh" style="gap:6px">${I.leer||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div></section>`})()}
+          <div class="stack" id="lge_leerh" style="gap:6px">${I.leer||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div>
+          <div class="lgsh" style="margin-top:10px"><span>Zur Auswahl beim Wiegen</span></div>
+          <div class="hint">Diese Spulen wählst du beim Wiegen aus – an der Waage (Tippen auf „Leerspule“) und hier im Fach-Fenster. Praktisch für Refills, die mal auf der einen, mal auf der anderen Spule stecken. An der Waage kannst du eine leere Spule auch direkt wiegen und speichern.</div>
+          <div class="stack" id="lge_spulen" style="gap:6px">${I.spulen||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeSpPlus">+ Spule</button></div></section>`})()}
     ${window.etikettDruckerHTML?etikettDruckerHTML():""}
 
     ${designHTML()}
@@ -3038,9 +3041,11 @@ window.slWaagen=function(z){z=z||{};const out=[];for(const id of Object.keys(z))
 /* Gewicht, das gerade auf einer Waage liegt: von der Waage, deren Wert sich zuletzt geändert hat (mehr als 0 g) */
 window.slWaageBrutto=function(z){z=z||{};let best=null,bt=-1;for(const w of slWaagen(z)){const s=z["sensor."+w.pre+"_gewicht"];const v=s?Number(s.state):NaN;if(!(v>0))continue;const t=Date.parse(s.last_changed||s.last_updated||"")||0;if(t>bt){bt=t;best=v}}return best};
 /* Fenster für die Rolle eines Fachs: Gramm, Herkunft, was seither abgebucht wurde, neu wiegen oder eintragen */
-function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.split("|");
+function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.split("|");if(RL.spuleKey!==key){RL.spule="";RL.spuleKey=key}
   const zst=(window.SRV&&SRV.zst)||{};const brutto=slWaageBrutto(zst);
-  const leerG=(R&&R.leer_g)||250;const netto=brutto!=null?Math.max(0,Math.round(brutto-leerG)):null;const gw=(R&&R.gewicht)||1000;
+  const leerAuto=(R&&R.leer_g)||250;let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}
+  const spW=SP.find(x=>x.name===RL.spule)||null;const leerG=spW?Number(spW.g):leerAuto;
+  const netto=brutto!=null?Math.max(0,Math.round(brutto-leerG)):null;const gw=(R&&R.gewicht)||1000;
   const ro=R&&R.rolle;const seitT=ro&&ro.seit?Date.parse(ro.seit):0;const qn={voll:"volle Rolle",gramm:"von Hand",waage:"Waage"}[ro&&ro.quelle]||"";
   const zeile=(a,b)=>`<div class="dl-rz"><span>${a}</span><b>${b}</b></div>`;const g1=v=>(v<100?v.toLocaleString("de-DE",{maximumFractionDigits:1}):N0.format(Math.round(v)))+" g";
   /* Abbuchungen aus diesem Fach (seit die Rolle eingetragen wurde, sonst die letzten) */
@@ -3070,13 +3075,20 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
       ${ro?zeile("Eingetragen",esc([seitT?new Date(seitT).toLocaleDateString("de-DE"):"",qn].filter(Boolean).join(" · "))):""}
       ${(R.gleiche||[]).map(x=>zeile("Gleiche Sorte, "+esc(x.key.replace("|"," · ")),x.g!=null?N0.format(Math.round(x.g))+" g":"?")).join("")}
       ${abH}
-      <div class="dl-rbtn">${netto!=null?`<button class="btn pri" data-rla="waage" data-g="${netto}">Von der Waage: ${N0.format(netto)} g</button>`:""}<button class="btn" data-rla="voll">Volle Rolle (${N0.format(gw)} g)</button></div>
+      ${netto!=null?`<label class="dl-rlab" for="dl_rsp">Leere Spule</label>
+      <select id="dl_rsp" data-brutto="${esc(String(brutto))}" data-auto="${leerAuto}" aria-label="Leere Spule"><option value=""${spW?"":" selected"}>Automatisch – ${N0.format(leerAuto)} g${R.leer_g?"":" (Standard)"}</option>${SP.map(x=>`<option value="${esc(x.name)}" data-g="${Number(x.g)}"${spW&&spW.name===x.name?" selected":""}>${esc(x.name)} – ${N0.format(Number(x.g))} g</option>`).join("")}</select>`:""}
+      <div class="dl-rbtn">${netto!=null?`<button class="btn pri" data-rla="waage" id="dl_rwg" data-g="${netto}">Von der Waage: ${N0.format(netto)} g</button>`:""}<button class="btn" data-rla="voll">Volle Rolle (${N0.format(gw)} g)</button></div>
       <label class="dl-rlab" for="dl_rlg">Oder von Hand: Gramm auf der Rolle, ohne Spule</label>
       <div class="dl-rin"><span class="dl-rfeld"><input type="number" inputmode="decimal" min="0" max="${gw}" step="1" id="dl_rlg" placeholder="z. B. 640"><i>g</i></span><button class="btn" data-rla="gramm">Speichern</button></div>
-      ${netto!=null?`<div class="hint">Waage zeigt ${N0.format(brutto)} g, abzüglich ${N0.format(leerG)} g Leerspule${R.leer_g?"":" (Standardwert – bei der Sorte als Leergewicht eintragbar)"}.</div>`:`<div class="hint">Mit der Filamentwaage geht es schneller: Rolle auflegen, dann steht hier „Von der Waage“.</div>`}
+      ${netto!=null?`<div class="hint" id="dl_rwh">Waage zeigt ${N0.format(brutto)} g, abzüglich ${N0.format(leerG)} g Leerspule${spW?` (${esc(spW.name)})`:R.leer_g?"":" (Standardwert – bei der Sorte als Leergewicht eintragbar)"}.</div>`:`<div class="hint">Mit der Filamentwaage geht es schneller: Rolle auflegen, dann steht hier „Von der Waage“.</div>`}
       ${fachH}<div class="hint" id="dl_rlmsg" role="status"></div></div>`;
   modal(`${esc(dr)} · ${esc(ortText||ort)}`,body,`${ro?`<button class="btn ghost" data-rla="entfernen">Rolle entfernen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`);
   const m=document.getElementById("modal");if(m)m.dataset.rlkey=key}
+/* Leere Spule im Fach-Fenster gewählt: Gramm „Von der Waage“ neu rechnen; die Wahl gilt, bis das Fenster für eine andere Rolle aufgeht */
+document.addEventListener("change",e=>{const s=e.target;if(s.id!=="dl_rsp")return;const o=s.selectedOptions[0];RL.spule=s.value;
+  const brutto=Number(s.dataset.brutto),leer=s.value?Number(o.dataset.g):Number(s.dataset.auto);const netto=Math.max(0,Math.round(brutto-leer));
+  const b=document.getElementById("dl_rwg");if(b){b.dataset.g=String(netto);b.textContent="Von der Waage: "+N0.format(netto)+" g"}
+  const h=document.getElementById("dl_rwh");if(h)h.textContent=`Waage zeigt ${N0.format(brutto)} g, abzüglich ${N0.format(leer)} g Leerspule${s.value?" ("+s.value+")":""}.`});
 document.addEventListener("change",e=>{if(e.target.id!=="dl_fss")return;const o=e.target.selectedOptions[0];const f=document.getElementById("dl_fsf");if(f)f.style.background=o&&o.dataset.hex||"transparent";
   const b=document.getElementById("dl_fsb");if(b){b.disabled=!e.target.value;b.textContent="Ins Fach am Drucker schreiben"}});
 document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],[data-rla]");if(!t)return;
@@ -6704,6 +6716,10 @@ function leerInfo(f){const r=(f&&f.raw)||{};const lg=Number(r.leer_g),au=Number(
   const h=k?Number(t[k]):0;return {eigen,platz:h>0?`${h} (${k})`:au>0?String(au):"250 (Standard)"}}
 function leerZeile(h,g){const hs=[...new Set([...known("hersteller"),...(h?[h]:[])])];
   return `<div class="row lgeleer" style="gap:8px;align-items:center"><select class="lgeleer-h" style="flex:1;min-width:0">${hs.map(x=>`<option${x===h?" selected":""}>${esc(x)}</option>`).join("")}</select><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgeleer-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><button type="button" class="btn icon ghost" data-act="lgeLeerWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
+/* Leerspulen zur Auswahl beim Wiegen (Waage und Fach-Fenster) – gleiche Standardliste wie der Server */
+const LEERSPULEN_STD=[{name:"Bambu Lab Mehrwegspule",g:250},{name:"Bambu Lab HT-Spule (grau)",g:216},{name:"Marswork Mehrwegspule",g:200},{name:"Polymaker Pappspule",g:140}];
+function leerspulenListe(){const w=einGespeichert().leerspulen;return Array.isArray(w)?w.filter(x=>x&&x.name&&Number(x.g)>0):LEERSPULEN_STD}
+function spulenZeile(n,g){return `<div class="row lgesp" style="gap:8px;align-items:center"><input type="text" class="lgesp-n" value="${esc(n||"")}" placeholder="z. B. Sunlu Kunststoffspule" maxlength="40" style="flex:1;min-width:0"><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgesp-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><button type="button" class="btn icon ghost" data-act="lgeSpWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
 const einGespeichert=()=>{const it=einItem();const d=it?desc(it):{};return (d.werte&&typeof d.werte==="object")?d.werte:{}};
 function einVoll(){const g=einGespeichert(),e=Object.assign({},EIN_STD);Object.keys(EIN_STD).forEach(k=>{const v=g[k];if(v!==undefined&&v!==null&&v!=="")e[k]=typeof EIN_STD[k]==="number"?(fNum(v)??e[k]):v});return e}
 async function einSpeichern(neu){const it=einItem();const werte=Object.assign({},einGespeichert(),neu);const d=JSON.stringify({typ:"einstellungen_plus",v:1,werte});
@@ -6884,10 +6900,14 @@ document.addEventListener("click",async e=>{
     const gs=document.getElementById("lge_gruppe"),ls=document.getElementById("lge_leer");if(gs)g.gruppe=gs.value;if(ls)g.leer_zeigen=ls.value==="1";
     if(document.getElementById("lge_leerh")){const lt={};for(const z of document.querySelectorAll("#lge_leerh .lgeleer")){const h=z.querySelector(".lgeleer-h").value.trim();const raw=z.querySelector(".lgeleer-g").value.trim();if(!h||!raw)continue;const n=fNum(raw);
       if(!(n>0&&n<1500))return say(`Leere Spule ${h}: bitte Gramm von 1 bis 1499.`);lt[h]=Math.round(n)}g.leer_hersteller=lt}
+    if(document.getElementById("lge_spulen")){const ls=[],da=new Set();for(const z of document.querySelectorAll("#lge_spulen .lgesp")){const n=z.querySelector(".lgesp-n").value.trim().slice(0,40);const raw=z.querySelector(".lgesp-g").value.trim();if(!n&&!raw)continue;const x=fNum(raw);
+      if(!n)return say("Leere Spule: bitte einen Namen eingeben.");if(!(x>0&&x<1500))return say(`Leere Spule ${n}: bitte Gramm von 1 bis 1499.`);if(da.has(n.toLowerCase()))continue;da.add(n.toLowerCase());ls.push({name:n,g:Math.round(x)})}g.leerspulen=ls}
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
   if(a==="lgeLeerPlus"){const c=document.getElementById("lge_leerh");if(c){const da=new Set([...c.querySelectorAll(".lgeleer-h")].map(x=>x.value));const h=known("hersteller").find(x=>!da.has(x))||"";c.insertAdjacentHTML("beforeend",leerZeile(h,""))}return}
   if(a==="lgeLeerWeg"){const z=b.closest(".lgeleer");if(z)z.remove();return}
+  if(a==="lgeSpPlus"){const c=document.getElementById("lge_spulen");if(c){c.insertAdjacentHTML("beforeend",spulenZeile("",""));const n=c.lastElementChild&&c.lastElementChild.querySelector(".lgesp-n");if(n)n.focus()}return}
+  if(a==="lgeSpWeg"){const z=b.closest(".lgesp");if(z)z.remove();return}
   if(a==="lgSilTausch"){const f=amsFeuchte().find(x=>x.key===b.dataset.k);if(!f)return;
     confirmBox(`Silica im ${f.drucker} · ${f.name} getauscht? Gespeichert wird der Zeitpunkt${f.wert!=null?` und die aktuelle Feuchte (${f.wert} %) als Startwert`:""}. Den Tiefpunkt sucht SchichtLohn danach selbst.`,"Getauscht",async()=>{
       const w=Object.assign({},silica());w[f.key]={zeit:new Date().toISOString(),feuchte:f.wert,art:"tausch"};
@@ -7944,7 +7964,8 @@ function gesamtModal(){
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
-  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join("")}}};
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join(""),spulen:leerspulenListe().map(x=>spulenZeile(x.name,x.g)).join("")}},
+  leerspulen(){return leerspulenListe()}};
 })();
 </script>
 <script>
@@ -8409,8 +8430,8 @@ let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearT
 window.__einOrdnen=ordnen;ordnen()})();</script>
 <script>/* Lager-Einstellungen (Warnungen, Leere Spulen, Sortierung) speichern sich selbst – kein „Übernehmen“ mehr */
 (()=>{let t=0;const los=()=>{clearTimeout(t);t=setTimeout(()=>{const b=document.querySelector("[data-act=lgEinSave]");if(b&&document.querySelector("[data-lge]"))b.click()},500)};
-document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g"))los()});
-document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-act=lgeLeerWeg]"))los()})})();</script>
+document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g,.lgesp-n,.lgesp-g"))los()});
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-act=lgeLeerWeg],[data-act=lgeSpWeg]"))los()})})();</script>
 <style>
 .dsfein{border-top:1px solid var(--line);padding-top:12px}
 .dsfein>summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;font-weight:600;font-size:14px;color:var(--fg)}

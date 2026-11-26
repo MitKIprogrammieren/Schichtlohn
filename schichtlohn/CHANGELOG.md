@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.23.0 – 26.11.2026
+- Neu: Leere Spule beim Wiegen auswählen. Statt die Leerspule fest an eine Sorte zu binden, wählst du jetzt beim Wiegen, auf welcher Spule das Filament steckt – z. B. ein eSun-Refill mal auf der Marswork-, mal auf der Bambu-Spule.
+- Im Fach-Fenster („Von der Waage“) gibt es dafür die Auswahl „Leere Spule“; die Gramm werden sofort neu gerechnet.
+- Die Liste pflegst du unter Einstellungen → Lager & Filament → Leere Spulen → „Zur Auswahl beim Wiegen“. Vorbelegt: Bambu Lab Mehrwegspule (250 g), Bambu Lab HT-Spule (216 g), Marswork Mehrwegspule (200 g), Polymaker Pappspule (140 g).
+- Die Waage holt sich dieselbe Liste und kann eine aufgelegte leere Spule direkt wiegen und hier speichern (braucht Waagen-Firmware 2.29.0).
+
 ## 3.22.0 – 24.11.2026
 - Rechnungen: Der Server holt neue Bestellmails (Bambu Lab, Amazon, AliExpress) und Erstattungen jetzt selbst alle 5 Minuten aus Home Assistant ab – auch wenn die Rechnungen-Karte nicht geöffnet ist und SchichtLohn nicht mehr in Home Assistant läuft.
 
