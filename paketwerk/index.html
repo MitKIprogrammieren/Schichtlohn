@@ -42,6 +42,7 @@ h2{font-size:16px;font-weight:700;margin:0 0 12px}
 .ev::before{content:"";position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--txt3)}
 .ev:first-child::before{background:var(--gruen2)}.ev:first-child b{font-weight:600}
 .ev b{font-weight:400}.ev small{color:var(--txt3)}.ev div{color:var(--txt2);font-size:12px}
+.chips2{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chips2 span{background:var(--fl2);border-radius:8px;padding:4px 9px;font-size:12px}
 .ablage{display:flex;gap:8px;align-items:center;margin-top:10px;background:rgba(242,184,75,.12);color:var(--gelb);border-radius:10px;padding:8px 10px;font-size:13px}
 .hinweis{font-size:12px;color:var(--gelb);margin-top:8px}
 .aktionen{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
@@ -183,18 +184,20 @@ function wann(t) {
 function vor(t) { if (!t) return 'noch nie'; const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'gerade eben' : m < 60 ? 'vor ' + m + ' Min' : 'vor ' + Math.round(m / 60) + ' Std'; }
 const shopVon = p => SHOPS[p.shop] ? p.shop : 'andere';
 
+const kgText = p => p.gewicht ? String(p.gewicht).replace('.', ',') + ' kg' : '';
 function karte(p) {
   const tr = p.traeger || (p.nummer ? 'sonst' : '');
   const c = tr ? FARBE[tr] : (SHOPFARBE[p.shop] || 'var(--txt3)');
   const kurz = tr ? KUERZEL[tr] : ({ amazon: 'Amz', aliexpress: 'Ali', bambu: 'BL' })[p.shop] || '–';
   const [st, sc] = STATUS[p.status] || STATUS.bestellt;
   const shopName = ({ amazon: 'Amazon', aliexpress: 'AliExpress', bambu: 'Bambu Lab' })[p.shop];
-  const unter = [shopName, p.traeger && p.traeger !== p.shop ? S.traeger[p.traeger] : '', p.nummer || (p.bestellung ? 'Bestellung ' + p.bestellung : '')].filter(Boolean).join(' · ');
+  const unter = [shopName, p.traeger && p.traeger !== p.shop ? S.traeger[p.traeger] : '', p.nummer || (p.bestellung ? 'Bestellung ' + p.bestellung : ''), kgText(p)].filter(Boolean).join(' · ');
   const auf = offen.has(p.id);
   let h = '<div class="paket' + (auf ? ' offen' : '') + '" data-id="' + p.id + '"><div class="kopf"><div class="av" style="--c:' + c + '">' + esc(kurz) + '</div>' +
     '<div class="tx"><b>' + esc(p.titel || 'Paket ' + (p.nummer || p.bestellung)) + '</b><span>' + esc(unter) + '</span></div><span class="chip" style="--c:' + sc + '">' + st + '</span></div>';
   if (p.ablage && (p.status === 'zugestellt' || p.status === 'abholbereit')) h += '<div class="ablage">⌂ ' + esc(p.ablage) + '</div>';
   if (auf) {
+    if (p.gewicht || p.stueck > 1) h += '<div class="chips2">' + (p.gewicht ? '<span>⚖ ' + kgText(p) + '</span>' : '') + (p.stueck > 1 ? '<span>' + p.stueck + ' Packstücke</span>' : '') + '</div>';
     if (p.erwartet && p.status !== 'zugestellt') h += '<div class="hinweis" style="color:var(--txt2)">Erwartet: ' + esc(wann(p.erwartet)) + '</div>';
     if (p.ereignisse?.length) h += '<div class="verlauf">' + p.ereignisse.slice(0, 8).map(e => '<div class="ev"><b>' + esc(e.text) + '</b> <small>· ' + esc(wann(e.zeit)) + '</small>' + (e.ort ? '<div>' + esc(e.ort) + '</div>' : '') + '</div>').join('') + '</div>';
     else if (p.traeger === 'amazon') h += '<div class="hinweis" style="color:var(--txt2)">Amazon-Pakete verfolgt Paketwerk über die Amazon-Mails.</div>';

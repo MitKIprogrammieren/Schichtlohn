@@ -150,6 +150,14 @@ export function ablageFinden(text) {
   if (/an (?:den |einen )?Nachbarn/i.test(t)) return 'Bei einem Nachbarn';
   return '';
 }
+// Gewicht und Anzahl Packstücke aus Mailtext (z. B. DPD: „Gewicht: 2,4 kg“)
+export function gewichtFinden(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  const m = t.match(/(?:Gewicht|Paketgewicht|Sendungsgewicht|Weight)\s*[:|]?\s*(\d{1,3}(?:[.,]\d{1,3})?)\s*(kg|g)\b/i);
+  const kg = m ? parseFloat(m[1].replace(',', '.')) / (m[2].toLowerCase() === 'g' ? 1000 : 1) : 0;
+  const st = t.match(/(?:Anzahl (?:der )?(?:Pakete|Packstücke)|Packstücke|Pieces)\s*[:|]?\s*(\d{1,2})\b/i);
+  return { kg: kg > 0 && kg < 1000 ? Math.round(kg * 100) / 100 : 0, stueck: st ? Number(st[1]) : 0 };
+}
 const RELEVANT = /versand|versendet|verschickt|unterwegs|zugestellt|zustellung|liefer|geliefert|sendung|paket|shipped|shipment|tracking|delivered|dispatched|abholbereit/i;
 
 // ---------- Pakete ----------
@@ -217,8 +225,10 @@ async function dhlAbfragen(p) {
   if (!r.ok) throw new Error('DHL antwortet ' + r.status);
   const s = (await r.json()).shipments?.[0];
   if (!s) return null;
+  const w = s.details?.weight;
+  const dkg = w?.value ? Number(w.value) / (/^g/i.test(w.unitText || '') ? 1000 : 1) : 0;
   return {
-    status: dhlStatus(s),
+    status: dhlStatus(s), gewicht: dkg > 0 ? Math.round(dkg * 100) / 100 : 0, stueck: Number(s.details?.totalNumberOfPieces) || 0,
     erwartet: s.estimatedTimeOfDelivery || s.estimatedDeliveryTimeFrame?.estimatedFrom || '',
     ereignisse: (s.events || []).map(e => ({ zeit: e.timestamp, text: kurz(e.description || e.status), ort: kurz(e.location?.address?.addressLocality) })),
   };
@@ -247,8 +257,10 @@ async function t17Abfragen(p, carrier) {
   let status = T17[ls.status] || 'angekuendigt';
   if (status === 'unterwegs' && /Customs/i.test(ls.sub_status || '')) status = 'zoll';
   const ev = (t.tracking?.providers || []).flatMap(pr => pr.events || []);
+  const mi = t.misc_info || {};
+  const kg = Number(mi.weight_kg) || gewichtFinden('Gewicht ' + (mi.weight_raw || '')).kg;
   return {
-    status,
+    status, gewicht: kg > 0 ? Math.round(kg * 100) / 100 : 0, stueck: Number(mi.pieces) || 0,
     erwartet: t.time_metrics?.estimated_delivery_date?.from || '',
     ereignisse: ev.map(e => ({ zeit: e.time_iso || e.time_utc, text: kurz(e.description), ort: kurz(e.location) })),
   };
@@ -273,6 +285,8 @@ async function abfragen(p) {
   if (!erg) return;
   if (erg.ereignisse?.length) p.ereignisse = erg.ereignisse.filter(e => e.zeit || e.text).sort((a, b) => String(b.zeit).localeCompare(String(a.zeit))).slice(0, 40);
   if (erg.erwartet) p.erwartet = erg.erwartet;
+  if (erg.gewicht) p.gewicht = erg.gewicht;
+  if (erg.stueck) p.stueck = erg.stueck;
   if ((erg.status === 'zugestellt' || erg.status === 'abholbereit') && !p.ablage) p.ablage = ablageFinden(p.ereignisse.slice(0, 3).map(e => e.text + (e.ort ? ' ' + e.ort : '')).join('. '));
   const info = p.ereignisse[0]?.text && erg.status !== 'zugestellt' ? p.ereignisse[0].text : '';
   await statusSetzen(p, erg.status, { info });
@@ -336,6 +350,7 @@ async function mailAuswerten(mail) {
   const titel = zitat || (generisch ? ({ amazon: 'Amazon-Bestellung', aliexpress: 'AliExpress-Bestellung', bambu: 'Bambu-Lab-Bestellung' })[shop] || 'Bestellung' : rest.slice(0, 80));
   const mailZeit = mail.date ? +mail.date : Date.now();
   const ablage = (st === 'zugestellt' || st === 'abholbereit') ? ablageFinden(text) : '';
+  const gw = gewichtFinden(text);
   let neu = 0;
   if (!nummern.length && !(bestellung && st)) return 0;
   for (const { nummer, traeger } of nummern) {
@@ -348,6 +363,8 @@ async function mailAuswerten(mail) {
     }
     if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
     if (ablage) p.ablage = ablage;
+    if (gw.kg && nummern.length === 1) p.gewicht = gw.kg;
+    if (gw.stueck && nummern.length === 1) p.stueck = gw.stueck;
     // Schickt DHL/Post selbst Mails zu dieser Sendung, reicht das – kein 17TRACK-Kontingent nötig
     if ((traeger === 'dhl' || traeger === 'post') && /dhl|deutschepost|deutsche post/i.test(von)) p.perMail = true;
     if (st && RANG[st] > RANG[p.status]) { await statusSetzen(p, st, { stumm: alt }); if (alt) p.geaendert = mailZeit; }
