@@ -32,7 +32,7 @@ const STANDARD = {
   dhl_key: '', t17_key: '', intervall_min: 45,
   mw_url: process.env.MW_URL || 'http://192.168.1.30:8077', mw_schluessel: '',
   sl_url: process.env.SL_URL || 'http://192.168.1.30:8093', sl_token: '', rechnungen: true, rechnung_tage: 14,
-  archiv_tage: 3,
+  archiv_tage: 3, plz: process.env.PLZ || '',
   melden: { unterwegs: false, zoll: true, zustellung: true, abholbereit: true, zugestellt: true, problem: true },
   alexa: { zustellung: true, zugestellt: true, abholbereit: false, problem: false },
 };
@@ -157,6 +157,16 @@ export function gewichtFinden(text) {
   const kg = m ? parseFloat(m[1].replace(',', '.')) / (m[2].toLowerCase() === 'g' ? 1000 : 1) : 0;
   const st = t.match(/(?:Anzahl (?:der )?(?:Pakete|Packstücke)|Packstücke|Pieces)\s*[:|]?\s*(\d{1,2})\b/i);
   return { kg: kg > 0 && kg < 1000 ? Math.round(kg * 100) / 100 : 0, stueck: st ? Number(st[1]) : 0 };
+}
+// Persönlicher Sendungslink aus der Versender-Mail (z. B. DPD my.dpd.de/redirect … parcelno=B2C<Nummer>)
+export function versenderLink(roh, nummer) {
+  const t = String(roh || '').replace(/&amp;/g, '&');
+  for (const m of t.matchAll(/https?:\/\/[^\s"'<>()]+/g)) {
+    const u = m[0];
+    if (!/(dpd|dhl|gls-pakete|gls-group|myhermes|hermesworld|ups)\.[a-z]/i.test(u)) continue;
+    if (u.includes(nummer) && !/unsubscribe|abmelden|datenschutz/i.test(u)) return u;
+  }
+  return '';
 }
 const RELEVANT = /versand|versendet|verschickt|unterwegs|zugestellt|zustellung|liefer|geliefert|sendung|paket|shipped|shipment|tracking|delivered|dispatched|abholbereit/i;
 
@@ -364,6 +374,8 @@ async function mailAuswerten(mail) {
     }
     if (titelGenerisch(p.titel) && !generisch) p.titel = titel;
     if (ablage) p.ablage = ablage;
+    const vl = versenderLink(text + ' ' + html, nummer);
+    if (vl) p.vlink = vl;
     if (gw.kg && nummern.length === 1) p.gewicht = gw.kg;
     if (gw.stueck && nummern.length === 1) p.stueck = gw.stueck;
     // Schickt DHL/Post selbst Mails zu dieser Sendung, reicht das – kein 17TRACK-Kontingent nötig
@@ -469,7 +481,7 @@ function bestellLink(p) {
 }
 function stand() {
   return {
-    pakete: DB.pakete.map(p => ({ ...p, link: p.nummer ? (TRAEGER[p.traeger] || TRAEGER.sonst).link(p.nummer) : bestellLink(p) })),
+    pakete: DB.pakete.map(p => ({ ...p, link: p.vlink || (p.nummer ? (TRAEGER[p.traeger] || TRAEGER.sonst).link(p.nummer) : bestellLink(p)) })),
     einstellungen: oeffentlich(), zustand: ZUSTAND, dhl_heute: DB.dhl_tag === new Date().toISOString().slice(0, 10) ? DB.dhl_anzahl : 0,
     traeger: Object.fromEntries(Object.entries(TRAEGER).map(([k, v]) => [k, v.name])),
   };
@@ -511,6 +523,7 @@ http.createServer(async (req, res) => {
         const d = await lesen(req);
         if (typeof d.titel === 'string') pk.titel = kurz(d.titel).slice(0, 80);
         if (typeof d.archiviert === 'boolean') pk.archiviert = d.archiviert;
+        if (d.gewicht !== undefined) { const g = parseFloat(String(d.gewicht).replace(',', '.')); pk.gewicht = g > 0 && g < 1000 ? Math.round(g * 100) / 100 : 0; }
         if (d.traeger && TRAEGER[d.traeger]) { pk.traeger = d.traeger; pk.t17 = false; }
         if (typeof d.nummer === 'string') {
           const n = d.nummer.replace(/\s/g, '').toUpperCase();

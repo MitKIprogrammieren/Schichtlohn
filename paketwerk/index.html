@@ -111,6 +111,8 @@ nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right
   <div class="erkl" style="margin-top:0">Kostenlos auf <a href="https://developer.dhl.com" target="_blank">developer.dhl.com</a> – App anlegen, „Shipment Tracking – Unified“ auswählen. Bis zu 240 Abfragen am Tag.</div>
   <label class="k">17TRACK-Schlüssel</label><input class="feld" id="t17_key" type="password" placeholder="Für Hermes, DPD, GLS, UPS, Amazon, AliExpress …" autocomplete="off">
   <div class="erkl" style="margin-top:0">Kostenlos auf <a href="https://api.17track.net" target="_blank">api.17track.net</a> – im Grundtarif rund 100 neue Sendungen gratis.</div>
+  <label class="k">Deine Postleitzahl</label><input class="feld" id="plz" inputmode="numeric" placeholder="12345">
+  <div class="erkl" style="margin-top:0">Für den Knopf „PLZ kopieren“ – DPD und DHL fragen danach, wenn du die Details im Browser öffnest.</div>
   <label class="k">Alle … Minuten nachsehen</label><input class="feld" id="intervall_min" type="number" min="15" max="360">
  </div>
  <div class="karte">
@@ -139,6 +141,7 @@ nav.unten button.an::before{content:"";position:absolute;top:-7px;left:30%;right
  <h2 id="neuTitel">Paket hinzufügen</h2>
  <label class="k">Sendungsnummer</label><input class="feld" id="nNummer" autocapitalize="characters" autocomplete="off" placeholder="00340434…">
  <label class="k">Bezeichnung</label><input class="feld" id="nTitel" placeholder="Was kommt?">
+ <label class="k">Gewicht in kg (optional)</label><input class="feld" id="nGewicht" inputmode="decimal" placeholder="2,5">
  <label class="k">Versender</label><select class="feld" id="nTraeger"><option value="">automatisch erkennen</option></select>
  <button class="knopf" id="nSpeichern">Hinzufügen</button>
  <button class="mehr" id="nAbbruch">Abbrechen</button>
@@ -215,6 +218,7 @@ function karte(p) {
     else if (!p.nummer) h += '<div class="hinweis" style="color:var(--txt2)">Noch keine Sendungsnummer – kommt meist mit der Versandmail.</div>';
     if (p.fehler) h += '<div class="hinweis">' + esc(p.fehler) + '</div>';
     h += '<div class="aktionen">' + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + (p.nummer ? 'Beim Versender' : 'Bestellung') + '</a>' : '') +
+      (p.nummer && S.einstellungen.plz && ['dpd', 'dhl', 'post', 'gls', 'hermes', 'ups'].includes(p.traeger) ? '<button data-a="plz">⧉ PLZ ' + esc(S.einstellungen.plz) + '</button>' : '') +
       (p.nummer && p.traeger !== 'amazon' && !p.perMail ? '<button data-a="neu">Neu abfragen</button>' : '') +
       '<button data-a="bearb">' + (p.nummer ? 'Bearbeiten' : 'Nummer eintragen') + '</button>' +
       '<button data-a="archiv">' + (p.archiviert ? 'Zurückholen' : 'Archivieren') + '</button><button data-a="weg" class="rot">Löschen</button></div>';
@@ -246,7 +250,7 @@ function zeichnen() {
 
 function einstFuellen() {
   const e = S.einstellungen;
-  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage']) $(k).value = e[k] ?? '';
+  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage', 'plz']) $(k).value = e[k] ?? '';
   $('rechnungen').classList.toggle('an', !!e.rechnungen);
   $('meldListe').innerHTML = MELD.map(([k, t, d]) => '<div class="einst"><div class="tx"><b>' + t + '</b>' + (d ? '<span>' + d + '</span>' : '') + '</div><div class="paar">' +
     '<button class="schalter' + (e.melden[k] ? ' an' : '') + '" data-m="melden" data-k="' + k + '" aria-label="' + t + ' per WhatsApp"><i></i></button>' +
@@ -272,14 +276,21 @@ document.body.addEventListener('click', async ev => {
   if (a === 'archiv') { await api('/api/pakete/' + id, { method: 'POST', body: { archiviert: !p.archiviert } }); return laden(); }
   if (a === 'weg') { if (!confirm('„' + (p.titel || p.nummer) + '“ löschen? Es wird auch aus Mails nicht wieder angelegt.')) return; await api('/api/pakete/' + id, { method: 'DELETE' }); return laden(); }
   if (a === 'bearb') dialogAuf(p);
+  if (a === 'plz') { const b = ev.target.closest('[data-a]'); kopieren(S.einstellungen.plz); b.textContent = '✓ kopiert'; setTimeout(zeichnen, 1500); }
 });
 
+function kopieren(text) {
+  try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text); } catch {}
+  const f = document.createElement('textarea'); f.value = text; f.setAttribute('readonly', ''); f.style.position = 'absolute'; f.style.left = '-9999px';
+  document.body.appendChild(f); f.select(); f.setSelectionRange(0, 99); try { document.execCommand('copy'); } catch {} f.remove();
+}
 function dialogAuf(p, vorgabe = {}) {
   bearbeiten = p || null;
   $('neuTitel').textContent = p ? 'Paket bearbeiten' : 'Paket hinzufügen';
   $('nSpeichern').textContent = p ? 'Speichern' : 'Hinzufügen';
   $('nNummer').value = p ? p.nummer : (vorgabe.nummer || '');
   $('nTitel').value = p ? p.titel : (vorgabe.titel || '');
+  $('nGewicht').value = p && p.gewicht ? String(p.gewicht).replace('.', ',') : '';
   $('nTraeger').innerHTML = '<option value="">automatisch erkennen</option>' + Object.entries(S.traeger).filter(([k]) => k !== 'sonst').map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('');
   $('nTraeger').value = p && p.nummer ? p.traeger : '';
   $('nMeld').textContent = '';
@@ -293,7 +304,7 @@ $('nSpeichern').onclick = async () => {
   const nummer = $('nNummer').value.replace(/\s/g, '');
   if (!bearbeiten && !nummer) { $('nMeld').innerHTML = '<span style="color:var(--rot)">Trag zuerst eine Sendungsnummer ein.</span>'; return; }
   $('nSpeichern').textContent = 'Frage nach …';
-  const body = { nummer, titel: $('nTitel').value, traeger: $('nTraeger').value || undefined };
+  const body = { nummer, titel: $('nTitel').value, traeger: $('nTraeger').value || undefined, gewicht: $('nGewicht').value };
   const r = bearbeiten ? await api('/api/pakete/' + bearbeiten.id, { method: 'POST', body }) : await api('/api/pakete', { method: 'POST', body });
   if (!r.ok) { $('nMeld').innerHTML = '<span style="color:var(--rot)">' + esc(r.text) + '</span>'; $('nSpeichern').textContent = bearbeiten ? 'Speichern' : 'Hinzufügen'; return; }
   if (r.id) offen.add(r.id);
@@ -302,7 +313,7 @@ $('nSpeichern').onclick = async () => {
 $('jetzt').onclick = async () => { $('jetzt').textContent = 'Prüfe …'; await api('/api/aktualisieren', { method: 'POST' }); $('jetzt').textContent = 'Jetzt prüfen'; laden(); };
 $('speichern').onclick = async () => {
   const d = {};
-  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage']) d[k] = $(k).value;
+  for (const k of ['imap_user', 'imap_pass', 'mail_tage', 'dhl_key', 't17_key', 'intervall_min', 'mw_url', 'mw_schluessel', 'sl_url', 'sl_token', 'rechnung_tage', 'archiv_tage', 'plz']) d[k] = $(k).value;
   d.rechnungen = $('rechnungen').classList.contains('an');
   d.melden = {}; d.alexa = {};
   document.querySelectorAll('#meldListe .schalter').forEach(b => d[b.dataset.m][b.dataset.k] = b.classList.contains('an'));
