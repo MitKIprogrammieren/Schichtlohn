@@ -11,8 +11,9 @@ services:
       - sh
       - -c
       - |
+        t=$$(date +%s)
         for f in server.mjs index.html package.json; do
-          wget -q -T 20 -O /tmp/$$f https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/paketwerk/$$f && [ -s /tmp/$$f ] && cp /tmp/$$f /app/$$f
+          wget -q -T 20 -O /tmp/$$f "https://raw.githubusercontent.com/MitKIprogrammieren/Schichtlohn/main/paketwerk/$$f?t=$$t" && [ -s /tmp/$$f ] && cp /tmp/$$f /app/$$f
         done
         [ -f /app/server.mjs ] || { echo "Paketwerk: keine Programmdateien – Internet prüfen"; exit 1; }
         if ! cmp -s package.json .pkg-stand || [ ! -d node_modules/imapflow ]; then
