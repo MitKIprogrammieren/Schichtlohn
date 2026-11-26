@@ -3,7 +3,9 @@ mod export;
 mod werk;
 mod mesh;
 mod prep;
+mod schnitt;
 mod section;
+mod teilen_api;
 
 use axum::{
     Json, Router,
@@ -20,6 +22,8 @@ fn data_dir() -> PathBuf {
 }
 
 static INDEX: &str = include_str!("../static/index.html");
+static TEILEN: &str = include_str!("../static/teilen.html");
+static TEILEN_APP: &str = include_str!("../static/teilen_app.js");
 static DRUCK: &str = include_str!("../static/druck.html");
 static DRUCK_APP: &str = include_str!("../static/druck_app.js");
 static DRUCK_GEST: &str = include_str!("../static/druck_gestalten.js");
@@ -36,7 +40,18 @@ async fn main() {
     let _ = std::fs::create_dir_all(data_dir().join("jobs"));
     let app = Router::new()
         .route("/", get(|| async { Html(DRUCK) }))
-        .route("/teilen", get(|| async { Html(INDEX) }))
+        .route("/teilen", get(|| async { Html(TEILEN) }))
+        .route("/teilen/klassisch", get(|| async { Html(INDEX) }))
+        .route("/api/teilen/laden", post(teilen_api::laden))
+        .route("/api/teilen/{sid}/stand", get(teilen_api::stand))
+        .route("/api/teilen/{sid}/teil/{nr}", get(teilen_api::teil_bin))
+        .route("/api/teilen/{sid}/ring", post(teilen_api::ring))
+        .route("/api/teilen/{sid}/schneiden", post(teilen_api::schneiden))
+        .route("/api/teilen/{sid}/mehrfach", post(teilen_api::mehrfach))
+        .route("/api/teilen/{sid}/auto", post(teilen_api::auto))
+        .route("/api/teilen/{sid}/umbenennen", post(teilen_api::umbenennen))
+        .route("/api/teilen/{sid}/zurueck", post(teilen_api::zurueck))
+        .route("/api/teilen/{sid}/export", post(teilen_api::export))
         .route("/api/prep/load", post(prep_load))
         .route("/api/prep/{sid}/{id}/bin", get(prep_bin))
         .route("/api/prep/{sid}/export", post(prep_export))
@@ -75,6 +90,7 @@ async fn js(Path(name): Path<String>) -> Response {
     let body = match name.as_str() {
         "druck_app.js" => DRUCK_APP,
         "druck_gestalten.js" => DRUCK_GEST,
+        "teilen_app.js" => TEILEN_APP,
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], body).into_response()

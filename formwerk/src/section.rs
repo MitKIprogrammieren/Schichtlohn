@@ -22,7 +22,7 @@ pub fn to3(p: P2, axis: usize, val: f64) -> V3 {
 }
 
 /// Schnittpunkt einer Kante mit der Ebene – kanonisch, damit Nachbardreiecke exakt denselben Punkt bekommen.
-fn edge_point(a: V3, b: V3, axis: usize, val: f64) -> V3 {
+pub fn edge_point(a: V3, b: V3, axis: usize, val: f64) -> V3 {
     let (a, b) = if (a[0], a[1], a[2]) <= (b[0], b[1], b[2]) { (a, b) } else { (b, a) };
     let t = (val - a[axis]) / (b[axis] - a[axis]);
     let mut p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -386,7 +386,7 @@ pub fn ring_for(c: P2, r: f64, square: bool) -> Vec<P2> {
 }
 
 /// Tasche oder Zapfen an einen Ring in der Ebene anbauen. `s` = Richtung entlang der Achse (+1/-1).
-fn feature(m: &mut Mesh, ring: &[P2], center: P2, axis: usize, val: f64, s: f64, len: f64, end_scale: f64, plug: bool) {
+pub fn feature(m: &mut Mesh, ring: &[P2], center: P2, axis: usize, val: f64, s: f64, len: f64, end_scale: f64, plug: bool) {
     let end = val + s * len;
     let mut axv = [0.0; 3];
     axv[axis] = 1.0;

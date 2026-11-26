@@ -10,11 +10,29 @@
 3. **Drucken** – Druck-Check (beste Drucklage, Stützen, Rand, Farbwechsel, zu groß …), Schätzung von Zeit und Filament,
    Download als Bambu-3MF (Platten, Filament je Teil, Bemalung, Einstellungen je Objekt) oder STL je Platte
 
-Die bisherige Desktop-Oberfläche zum Teilen großer Modelle liegt unter `/teilen`.
+## Teilen (`/teilen`) – nach dem Vorbild von ModelSplitter
+
+Modelle frei zerteilen, mit Verbindern und eingravierten Nummern (Desktop/Tablet, läuft auf dem Server):
+
+- **Schnittwerkzeuge:** Band (auf ein Glied klicken – Formwerk sucht die schmalste Stelle quer herum, kippen/verschieben),
+  Bemalen (Stück anmalen, der Pinsel wirkt durch das ganze Glied), Linie (in Blickrichtung, nur was die Linie überquert),
+  Ebene (X/Y/Z, Lage, zwei Kippwinkel), Mehrfach (gleichmäßig je Achse), Auto (möglichst wenige Stücke fürs Druckbett)
+- Band, Bemalen und Linie trennen nur die getroffene Stelle ab – der Rest des Modells bleibt ganz.
+  Überlappende Körper (Figuren aus mehreren Teilen) bleiben bei dem Stück, mit dem sie sich überlappen.
+- **Verbinder:** fester Zapfen, loser Zapfen (als eigenes Druckteil), Magnet (Ø × Höhe), Steckzapfen, keiner;
+  Formen rund, Vierkant, Kegel-Vierkant, Kreuz, Stern, Sechskant; Spiel, Durchmesser und Anzahl einstellbar.
+  Zapfen werden nur gesetzt, wo das Teil dick genug ist.
+- **Nummern:** Fugennummer in beide Schnittflächen eingraviert (oben gespiegelt, damit von außen lesbar)
+- Rückgängig (30 Schritte), Teile umbenennen, Explosionsansicht, Nummern in der Ansicht
+- **Export:** Bambu-3MF mit Platten (Teile mit Schnittfläche nach unten), STL je Teil als ZIP,
+  Montage-PDF (Übersicht + ein Bild je Fuge), Projekt als 3MF (lässt sich mit allen Fugen wieder öffnen)
+- STEP wird noch nicht gelesen (bitte als STL/3MF speichern)
+
+Die frühere Oberfläche liegt unter `/teilen/klassisch`.
 
 ---
 
-## Großformat teilen (`/teilen`)
+## Großformat teilen (`/teilen/klassisch`)
 
 Zerlegt große 3D-Modelle so, dass jedes Teil auf das Druckbett passt – im Bambu-Studio-Look,
 angelehnt an „Mesh → Cut“ aus LuBan 3D. Läuft als Web-App (z. B. auf dem Proxmox-NUC) und im
@@ -42,7 +60,10 @@ Ergebnisse liegen 24 Stunden unter `data/jobs/` und werden danach gelöscht.
 
 - `src/mesh.rs` – Dreiecksnetz, Laden von STL/OBJ/3MF, STL schreiben
 - `src/section.rs` – Ebenenschnitte, geschlossene Schnittflächen, Taschen und Zapfen
-- `src/werk.rs` – Teilen, Verbinder, Druckerzuteilung, Montagereihenfolge
+- `src/werk.rs` – Teilen, Verbinder, Druckerzuteilung, Montagereihenfolge (klassisch)
+- `src/schnitt.rs` – freie und örtliche Schnitte, Verbinderformen, Nummern, Sitzungen mit Rückgängig
+- `src/teilen_api.rs` – Schnittstelle der Teilen-Seite
+- `static/teilen.html`, `static/teilen_app.js` – Teilen-Oberfläche inkl. Montage-PDF
 - `src/export.rs` – Platten packen, Bambu-3MF, ZIP
 - `src/prep.rs` – Druckvorbereitung: Laden mit Farben, Drucklagen, Bambu-3MF/STL-Ausgabe
 - `src/main.rs` – Web-Server (axum)
