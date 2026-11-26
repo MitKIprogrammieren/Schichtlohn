@@ -84,7 +84,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.25.0"
+VERSION = "3.26.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1460,7 +1460,10 @@ def leerspulen_liste():
     out = []
     for x in w:
         if isinstance(x, dict) and str(x.get("name") or "").strip() and 0 < _zahl(x.get("g")) < 1500:
-            out.append({"name": str(x["name"]).strip()[:40], "g": int(round(_zahl(x["g"])))})
+            e = {"name": str(x["name"]).strip()[:40], "g": int(round(_zahl(x["g"])))}
+            if isinstance(x.get("art"), str) and re.fullmatch(r"[a-z]{3,20}", x["art"]):
+                e["art"] = x["art"]  # wie die Spule im Lager gezeichnet wird
+            out.append(e)
     return out
 
 
@@ -1503,8 +1506,13 @@ def leerspule_merken(name, g):
     g = _zahl(g)
     if not name or not 0 < g < 1500:
         raise Fehler(400, "Name und Gewicht (1–1499 g) angeben")
-    liste = [x for x in leerspulen_liste() if x["name"].lower() != name.lower()]
-    liste.append({"name": name, "g": int(round(g))})
+    alt = leerspulen_liste()
+    vorher = next((x for x in alt if x["name"].lower() == name.lower()), {})
+    liste = [x for x in alt if x["name"].lower() != name.lower()]
+    neu = {"name": name, "g": int(round(g))}
+    if vorher.get("art"):
+        neu["art"] = vorher["art"]
+    liste.append(neu)
     _werte_setzen(leerspulen=liste)
     return liste
 

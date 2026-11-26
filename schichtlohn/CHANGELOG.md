@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.26.0 – 26.11.2026
+- Leerspule als Bildkacheln: Im Fenster „Filament bearbeiten“ wählst du die Spule, auf der das Filament steckt, mit Bild. Die Rolle oben zeigt sofort die gewählte Spule.
+- Im Lager wird jede Sorte jetzt auf der Spule gezeichnet, auf der sie wirklich steckt (z. B. Refill auf der Marswork-Spule).
+- Neue Spulen-Grafik „Marswork“ (hell, gelocht, sechs Schlitze).
+- In den Einstellungen (Lager → Leere Spulen → Zur Auswahl beim Wiegen) kannst du je Spule wählen, wie sie gezeichnet wird.
+
 ## 3.25.0 – 26.11.2026
 - „Filament bearbeiten“ neu aufgeräumt: oben die Rolle mit Name und Bestand, darunter Abschnitte (Sorte, Farbe, Besonderheiten, Bestand, Drucken, Druckprofil, Weitere Angaben). Jede Angabe ist eine gleich große Kachel, Auswahlknöpfe liegen in einem festen Raster.
 - Neu im Bestand: Leerspule aus der Liste wählen (z. B. Marswork, Bambu Lab, eSun Pappe) – das Leergewicht wird dabei eingetragen.

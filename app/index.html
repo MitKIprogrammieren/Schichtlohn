@@ -1393,7 +1393,7 @@ function renderSettings(m){
         `+kopf("Leere Spulen","Gewicht der leeren Spule je Hersteller – für Waage, Lager und „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.")+`
           <div class="stack" id="lge_leerh" style="gap:6px">${I.leer||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div>
           <div class="lgsh" style="margin-top:10px"><span>Zur Auswahl beim Wiegen</span></div>
-          <div class="hint">Diese Spulen wählst du beim Wiegen aus – an der Waage (Tippen auf „Leerspule“) und hier im Fach-Fenster. Praktisch für Refills, die mal auf der einen, mal auf der anderen Spule stecken. An der Waage kannst du eine leere Spule auch direkt wiegen und speichern.</div>
+          <div class="hint">Rechts wählst du, wie die Spule im Lager gezeichnet wird. Diese Spulen wählst du beim Wiegen aus – an der Waage (Tippen auf „Leerspule“) und hier im Fach-Fenster. Praktisch für Refills, die mal auf der einen, mal auf der anderen Spule stecken. An der Waage kannst du eine leere Spule auch direkt wiegen und speichern.</div>
           <div class="stack" id="lge_spulen" style="gap:6px">${I.spulen||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeSpPlus">+ Spule</button></div></section>`})()}
     ${window.etikettDruckerHTML?etikettDruckerHTML():""}
 
@@ -5258,6 +5258,13 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgmore{padding:8px 16px 12px}
 .lgform{display:flex;flex-direction:column;gap:12px}
 .lfneu{gap:18px}
+.lfsub{font-size:13px;color:var(--fg-2);margin:2px 2px -2px}
+.lfspw{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.lfsp{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;height:120px;padding:10px 6px 8px;background:var(--glass-2);border:1px solid var(--line);border-radius:12px;cursor:pointer;color:var(--fg);font:inherit;min-width:0}
+.lfsp .lgsw{width:52px;height:52px;flex:none;margin-bottom:2px}
+.lfsp b{font-size:12.5px;font-weight:600;line-height:1.2;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lfsp small{font-size:11px;color:var(--fg-3)}
+.lfsp.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:color-mix(in srgb,var(--accent) 12%,var(--glass-2))}
 .modal:has(.lfneu)>footer{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .modal:has(.lfneu)>footer>.sp{display:none}
 .modal:has(.lfneu)>footer>.btn{justify-content:center;height:42px;padding:0 6px;min-width:0;grid-column:span 2;font-size:14px;gap:6px;white-space:nowrap;overflow:hidden}.modal:has(.lfneu)>footer>.btn svg{flex:none;width:16px;height:16px}
@@ -5684,13 +5691,15 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const gw=e.gewicht>0?e.gewicht:1000,sp=Number(e.spulen)||0;const r=Array.isArray(e.reste)?e.reste.filter(x=>x>0):[];
   const pct=sp<=0?0:r.length?Math.max(.05,Math.min(1,Math.min(...r)/gw)):1;
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
-  const art=refill?"refill":spMarkeArt(e.hersteller);
+  const ls=e.raw&&e.raw.leer_spule;let lsArt="";if(ls&&typeof leerspuleArt==="function"){try{lsArt=leerspuleArt(ls)}catch(x){}}
+  const art=lsArt||(refill?"refill":spMarkeArt(e.hersteller));
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
-const SP_TYPEN=[["klar","Klar"],["milchig","Bambu Spule"],["rippen","FD3D"],["dunkel","JAYO"],["lochplatte","Sunlu/JAYO"],["schlitz","TINMORRY"],["zweifarbig","FILAXIX"],["pappe","Polymaker"]];
+const SP_TYPEN=[["klar","Klar"],["milchig","Bambu Spule"],["rippen","FD3D"],["dunkel","JAYO"],["lochplatte","Sunlu/JAYO"],["schlitz","TINMORRY"],["zweifarbig","FILAXIX"],["pappe","Polymaker"],["marswork","Marswork"]];
 const SP_FARBE={dunkel:{fl:"url(#lgNFl)",flp:[44,48,54],st:"#aab2bd",stp:[139,147,158],lo:"#000",bk:'fill="#202328" stroke="#6f7782"',bkp:[32,35,40],nb:"#3d424a",nbp:[75,80,88],nr:"#8b939e",in:"#101215",bar:"#454a52"},
   pappe:{fl:"#c49a6c",flp:[196,154,108],st:"#a57a4c",stp:[150,112,72],lo:"#5a3d1c",bk:'fill="#b08758" stroke="#a57a4c"',bkp:[176,135,88],nb:"#c49a6c",nbp:[196,154,108],nr:"#a57a4c",in:"#2a1d10",bar:"#9c7244",karton:1},
   lochplatte:{fl:"#202226",flp:[32,34,38],st:"#5d636c",stp:[93,99,108],lo:"#000",bk:'fill="#18191c" stroke="#4b5058"',bkp:[24,25,28],nb:"#202226",nbp:[32,34,38],nr:"#5d636c",in:"#0b0c0e",bar:"#2a2d32",perf:1,glanz:1},
   schlitz:{fl:"#1d1e21",flp:[29,30,33],st:"#4a4e55",stp:[90,95,104],lo:"#000",bk:'fill="#17181a" stroke="#3f434a"',bkp:[23,24,26],nb:"#1d1e21",nbp:[29,30,33],nr:"#4a4e55",in:"#0b0c0e",bar:"#26282c",glanz:1,schlitz:1},
+  marswork:{fl:"#e3e5e8",flp:[227,229,232],st:"#b9bdc3",stp:[185,189,195],lo:"#000",bk:'fill="#cfd2d6" stroke="#a9adb3"',bkp:[207,210,214],nb:"#eceef0",nbp:[236,238,240],nr:"#b9bdc3",in:"#3a3d42",bar:"#d5d8dc",perf:1,glanz:1},
   zweifarbig:{fl:"#e9e7e2",flp:[233,231,226],st:"#bdbab3",stp:[120,120,120],lo:"#000",bk:'fill="#2a2b2e" stroke="#6f7782"',bkp:[42,43,46],nb:"#e9e7e2",nbp:[233,231,226],nr:"#9a968e",in:"#0b0c0e",bar:"#c9c5bd",halb:"#2b2c2f"}};
 /* Löcher im Flansch in Kreis-Koordinaten (Radius 17.4·d) */
 function spLoecher(art,d){const pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Math.sin(t)).toFixed(2)}`;
@@ -5700,6 +5709,7 @@ function spLoecher(art,d){const pt=(r,t)=>`${(r*Math.cos(t)).toFixed(2)} ${(r*Ma
   if(art==="schlitz"){let h="";[0,90,180,270].forEach(g=>{const t=g*D,c=Math.cos(t),s2=Math.sin(t),q=(r,w)=>`${(r*c-w*s2).toFixed(2)} ${(r*s2+w*c).toFixed(2)}`;
     [[8.5,10.9],[11.3,13.7],[14.1,16.2]].forEach(([a,b])=>{const w=1.05*d;h+=`M${q(a*d,-w)}L${q(b*d,-w)}L${q(b*d,w)}L${q(a*d,w)}Z`})});return h}
   if(art==="lochplatte")return [0,1,2,3,4,5].map(i=>sek(15.4*d,7.6*d,(i*60+30)*D,10*D)).join("");
+  if(art==="marswork")return [0,1,2,3,4,5].map(i=>sek(15.6*d,8.6*d,(i*60)*D,4.2*D)).join("");
   if(art==="zweifarbig")return sek(14.6*d,11.2*d,-62*D,9*D)+sek(14.2*d,11.4*d,8*D,10*D)+sek(13.6*d,10.4*d,152*D,10*D)+sek(16.3*d,15.5*d,-42*D,22*D);
   if(art==="pappe")return [...Array(8)].map((_,i)=>krs(16*d,(i*45+22.5)*D,.55*d)).join("")+krs(7.9*d,95*D,.6*d)+sek(12.6*d,10.9*d,205*D,6*D);
   return [0,1,2,3].map(i=>sek(15.1*d,7.6*d,(45+i*90)*D,31*D)).join("")}
@@ -6152,9 +6162,11 @@ function formModal(e,prefill){
       ${raster(`${kachel("Anzahl Rollen",kin("lf_s",v(f.spulen),"Stk","","numeric"))}${kachel("Gewicht je Rolle",kin("lf_g",v(f.gewicht),"g","","numeric"))}`)}
       <div class="lggw lfchips lfgw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
       ${raster(kachel("Angebrochen (Rest je Rolle, mit Komma)",kin("lf_r",v((f.reste||[]).join(", ")),"g","alle voll"),1))}
-      ${(()=>{let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}const r0=f.raw||{};const name=r0.leer_spule||"";const auto=String(L.platz).replace(/^(\d+)\s*\((.*)\)$/,(m,g,w)=>g+" g"+(w==="Standard"?"":" · "+w));
-        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";
-        return raster(`${kachel("Leerspule",`<select id="lf_lsp"><option value=""${gew===""?" selected":""} title="${esc(auto)}">Automatisch</option>${SP.map(x=>`<option value="${esc(x.name)}" data-g="${Number(x.g)}"${gew===x.name?" selected":""}>${esc(x.name)}</option>`).join("")}<option value="__eigen__"${gew==="__eigen__"?" selected":""}>Eigenes Gewicht</option></select>`)}${kachel("Leergewicht",kin("lf_leer",L.eigen?v(L.eigen):"","g",String(L.platz).split(" ")[0],"numeric"))}`)})()}
+      ${(()=>{let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}const r0=f.raw||{};const name=r0.leer_spule||"";
+        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";const bild=n=>spool(fHex(f.hex),"lgsw",f.besonderheiten,Object.assign({},f,{raw:Object.assign({},r0,{leer_spule:n})}));
+        const kach=(val,t,g,n)=>`<button type="button" class="lfsp${gew===val?" on":""}" data-act="lfSpule" data-v="${esc(val)}"${g?` data-g="${g}"`:""}>${bild(n)}<b>${esc(t)}</b><small>${g?g+" g":val==="__eigen__"?"selbst eintragen":"wie Hersteller"}</small></button>`;
+        return `<div class="lfsub">Auf welcher Spule steckt das Filament?</div><input type="hidden" id="lf_lsp" value="${esc(gew)}"><div class="lfspw">${kach("","Automatisch",0,"")}${SP.map(x=>kach(x.name,x.name,Number(x.g),x.name)).join("")}${kach("__eigen__","Eigene",0,"")}</div>
+        ${raster(kachel("Leergewicht",kin("lf_leer",L.eigen?v(L.eigen):"","g",String(L.platz).split(" ")[0],"numeric"),1))}`})()}
       ${isNew?"":`<div class="lfgr lfgr3"><button class="btn" data-act="lgMinus">− 1 Rolle</button><button class="btn" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn" data-act="lgCopy">${ICON.copy} Vorlage</button></div><div id="lf_ask"></div>`}`)}
     ${abschnitt("Drucken",raster(`${kachel("Düse von",kin("lf_d1",v(f.duese_min),"°C","","numeric"))}${kachel("Düse bis",kin("lf_d2",v(f.duese_max),"°C","","numeric"))}
       ${kachel("Bett von",kin("lf_b1",v(f.bett_min),"°C","","numeric"))}${kachel("Bett bis",kin("lf_b2",v(f.bett_max),"°C","","numeric"))}
@@ -6175,14 +6187,17 @@ function formModal(e,prefill){
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}${!isNew&&fnAn("etikett")?`<button class="btn ghost" data-act="lgEtikett" title="Etikett mit QR-Code für diese Rolle">${SV_ETIKETT} Etikett</button>`:""}${!isNew&&fnAn("einkauf")&&srv()?`<button class="btn ghost" data-act="ekMark" title="Auf die Einkaufsliste setzen oder davon nehmen">${SV_KORB} Nachkaufen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
 }
-/* Leerspule im Bearbeiten-Fenster: Auswahl trägt das Gewicht ein, eigenes Tippen schaltet auf „Eigenes Gewicht“ */
-document.addEventListener("change",e=>{const t=e.target;if(!t||t.id!=="lf_lsp")return;const g=document.getElementById("lf_leer");if(!g)return;const o=t.selectedOptions[0];
-  if(t.value===""){g.value=""}else if(t.value!=="__eigen__"&&o&&o.dataset.g){g.value=o.dataset.g}else{g.focus()}});
-document.addEventListener("input",e=>{const t=e.target;if(!t||t.id!=="lf_leer")return;const s=document.getElementById("lf_lsp");if(!s)return;const o=s.selectedOptions[0];
-  if(!t.value.trim())s.value="";else if(!(o&&o.dataset.g&&o.dataset.g===t.value.trim()))s.value="__eigen__"});
+/* Leerspule im Bearbeiten-Fenster: Kachel wählen trägt das Gewicht ein und zeigt die Spule im Kopf; eigenes Tippen schaltet auf „Eigene“ */
+function lfSpuleSetzen(val,g){const h=document.getElementById("lf_lsp"),l=document.getElementById("lf_leer");if(!h)return;h.value=val;
+  document.querySelectorAll(".lfsp").forEach(b=>b.classList.toggle("on",b.dataset.v===val));
+  if(l){if(val==="")l.value="";else if(g)l.value=String(g);else if(val==="__eigen__")l.focus()}
+  const r=document.getElementById("lf_rolle"),f=G.form;if(r&&f){const hx=(document.getElementById("lf_hex")||{}).value||f.hex;r.innerHTML=spool(fHex(hx),"lgsw",f.besonderheiten,Object.assign({},f,{raw:Object.assign({},f.raw||{},{leer_spule:val==="__eigen__"?"":val})}))}}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-act=lfSpule]");if(!b)return;e.preventDefault();e.stopPropagation();lfSpuleSetzen(b.dataset.v,Number(b.dataset.g)||0)},true);
+document.addEventListener("input",e=>{const t=e.target;if(!t||t.id!=="lf_leer")return;const h=document.getElementById("lf_lsp");if(!h)return;const on=document.querySelector(".lfsp.on");
+  if(!t.value.trim()){if(h.value==="__eigen__")lfSpuleSetzen("",0)}else if(!(on&&on.dataset.g&&on.dataset.g===t.value.trim())&&h.value!=="__eigen__")lfSpuleSetzen("__eigen__",0)});
 /* Kopf im Bearbeiten-Fenster mitziehen: Name, Farbe, Rolle */
 document.addEventListener("input",e=>{const t=e.target;if(!t||!t.id||!/^lf_(f|hex|hx6)$/.test(t.id))return;const kf=document.getElementById("lf_kf");if(t.id==="lf_f"&&kf)kf.textContent=t.value.trim()||"Farbe noch ohne Namen";
-  if(/^lf_(hex|hx6)$/.test(t.id)){const h=String(t.value||"").trim();if(/^#[0-9a-f]{6}$/i.test(h)){const r=document.getElementById("lf_rolle");if(r&&G.form)r.innerHTML=spool(h,"lgsw",G.form.besonderheiten,G.form)}}});
+  if(/^lf_(hex|hx6)$/.test(t.id)){const h=String(t.value||"").trim();if(/^#[0-9a-f]{6}$/i.test(h)){const r=document.getElementById("lf_rolle");const sv=(document.getElementById("lf_lsp")||{}).value;if(r&&G.form)r.innerHTML=spool(h,"lgsw",G.form.besonderheiten,sv===undefined?G.form:Object.assign({},G.form,{raw:Object.assign({},G.form.raw||{},{leer_spule:sv==="__eigen__"?"":sv})}))}}});
 document.addEventListener("change",e=>{const t=e.target;if(!t||!/^lf_(h|m)$/.test(t.id||""))return;const k=document.getElementById("lf_kn");if(!k)return;const g=id=>{const s=document.getElementById(id);return s&&s.value!==ANDERE?s.value:""};k.textContent=[g("lf_h"),g("lf_m")].filter(Boolean).join(" ")||"Neue Sorte"});
 function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};
@@ -6767,7 +6782,13 @@ function leerZeile(h,g){const hs=[...new Set([...known("hersteller"),...(h?[h]:[
 /* Leerspulen zur Auswahl beim Wiegen (Waage und Fach-Fenster) – gleiche Standardliste wie der Server */
 const LEERSPULEN_STD=[{name:"Bambu Lab Mehrwegspule",g:250},{name:"Bambu Lab HT-Spule (grau)",g:216},{name:"Marswork Mehrwegspule",g:200},{name:"Polymaker Pappspule",g:140}];
 function leerspulenListe(){const w=einGespeichert().leerspulen;return Array.isArray(w)?w.filter(x=>x&&x.name&&Number(x.g)>0):LEERSPULEN_STD}
-function spulenZeile(n,g){return `<div class="row lgesp" style="gap:8px;align-items:center"><input type="text" class="lgesp-n" value="${esc(n||"")}" placeholder="z. B. Sunlu Kunststoffspule" maxlength="40" style="flex:1;min-width:0"><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgesp-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><button type="button" class="btn icon ghost" data-act="lgeSpWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
+/* Welche Spulen-Grafik zu einer Leerspule gehört: eigene Wahl in der Liste, sonst nach dem Namen geraten */
+function leerspuleArt(name){const n=String(name||"").trim();if(!n)return "";const x=leerspulenListe().find(y=>y.name===n);
+  const T=(typeof SP_TYPEN!=="undefined"?SP_TYPEN:window.SP_TYPEN)||[];if(x&&x.art&&T.some(t=>t[0]===x.art))return x.art;const m=n.toLowerCase();
+  if(/papp|karton|cardboard/.test(m))return "pappe";if(/bambu/.test(m))return /ht|grau/.test(m)?"dunkel":((S.cfg||{}).spuleBambu||"klar");
+  if(/marswork/.test(m))return "marswork";if(/sunlu/.test(m))return "lochplatte";if(/tinmorry/.test(m))return "schlitz";if(/filaxix/.test(m))return "zweifarbig";if(/fd ?3d/.test(m))return "rippen";return (S.cfg||{}).spuleFremd||"dunkel"}
+window.leerspuleArt=leerspuleArt;
+function spulenZeile(n,g,art){const T=(typeof SP_TYPEN!=="undefined"?SP_TYPEN:window.SP_TYPEN)||[];const a=art||(n?leerspuleArt(n):"");return `<div class="row lgesp" style="gap:8px;align-items:center;flex-wrap:wrap"><input type="text" class="lgesp-n" value="${esc(n||"")}" placeholder="z. B. Sunlu Kunststoffspule" maxlength="40" style="flex:1 1 160px;min-width:0"><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgesp-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><select class="lgesp-a" aria-label="Aussehen der Spule" style="width:140px">${T.map(([v,t])=>`<option value="${v}"${a===v?" selected":""}>${esc(t)}</option>`).join("")}</select><button type="button" class="btn icon ghost" data-act="lgeSpWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
 const einGespeichert=()=>{const it=einItem();const d=it?desc(it):{};return (d.werte&&typeof d.werte==="object")?d.werte:{}};
 function einVoll(){const g=einGespeichert(),e=Object.assign({},EIN_STD);Object.keys(EIN_STD).forEach(k=>{const v=g[k];if(v!==undefined&&v!==null&&v!=="")e[k]=typeof EIN_STD[k]==="number"?(fNum(v)??e[k]):v});return e}
 async function einSpeichern(neu){const it=einItem();const werte=Object.assign({},einGespeichert(),neu);const d=JSON.stringify({typ:"einstellungen_plus",v:1,werte});
@@ -6949,7 +6970,7 @@ document.addEventListener("click",async e=>{
     if(document.getElementById("lge_leerh")){const lt={};for(const z of document.querySelectorAll("#lge_leerh .lgeleer")){const h=z.querySelector(".lgeleer-h").value.trim();const raw=z.querySelector(".lgeleer-g").value.trim();if(!h||!raw)continue;const n=fNum(raw);
       if(!(n>0&&n<1500))return say(`Leere Spule ${h}: bitte Gramm von 1 bis 1499.`);lt[h]=Math.round(n)}g.leer_hersteller=lt}
     if(document.getElementById("lge_spulen")){const ls=[],da=new Set();for(const z of document.querySelectorAll("#lge_spulen .lgesp")){const n=z.querySelector(".lgesp-n").value.trim().slice(0,40);const raw=z.querySelector(".lgesp-g").value.trim();if(!n&&!raw)continue;const x=fNum(raw);
-      if(!n)return say("Leere Spule: bitte einen Namen eingeben.");if(!(x>0&&x<1500))return say(`Leere Spule ${n}: bitte Gramm von 1 bis 1499.`);if(da.has(n.toLowerCase()))continue;da.add(n.toLowerCase());ls.push({name:n,g:Math.round(x)})}g.leerspulen=ls}
+      if(!n)return say("Leere Spule: bitte einen Namen eingeben.");if(!(x>0&&x<1500))return say(`Leere Spule ${n}: bitte Gramm von 1 bis 1499.`);if(da.has(n.toLowerCase()))continue;da.add(n.toLowerCase());const a=z.querySelector(".lgesp-a");ls.push(Object.assign({name:n,g:Math.round(x)},a&&a.value?{art:a.value}:{}))}g.leerspulen=ls}
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
   if(a==="lgeLeerPlus"){const c=document.getElementById("lge_leerh");if(c){const da=new Set([...c.querySelectorAll(".lgeleer-h")].map(x=>x.value));const h=known("hersteller").find(x=>!da.has(x))||"";c.insertAdjacentHTML("beforeend",leerZeile(h,""))}return}
@@ -8012,7 +8033,7 @@ function gesamtModal(){
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
-  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join(""),spulen:leerspulenListe().map(x=>spulenZeile(x.name,x.g)).join("")}},
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join(""),spulen:leerspulenListe().map(x=>spulenZeile(x.name,x.g,x.art)).join("")}},
   leerspulen(){return leerspulenListe()},
   /* an der Waage zu einem NFC-Chip gemerkte Leerspule ({name, g}) oder null */
   leerspuleFuerTag(uid){const je=einGespeichert().leerspule_je_tag;const n=je&&typeof je==="object"?je[String(uid||"").toUpperCase()]:"";return n?leerspulenListe().find(x=>x.name===n)||null:null}};
@@ -8480,7 +8501,7 @@ let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearT
 window.__einOrdnen=ordnen;ordnen()})();</script>
 <script>/* Lager-Einstellungen (Warnungen, Leere Spulen, Sortierung) speichern sich selbst – kein „Übernehmen“ mehr */
 (()=>{let t=0;const los=()=>{clearTimeout(t);t=setTimeout(()=>{const b=document.querySelector("[data-act=lgEinSave]");if(b&&document.querySelector("[data-lge]"))b.click()},500)};
-document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g,.lgesp-n,.lgesp-g"))los()});
+document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g,.lgesp-n,.lgesp-g,.lgesp-a"))los()});
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-act=lgeLeerWeg],[data-act=lgeSpWeg]"))los()})})();</script>
 <style>
 .dsfein{border-top:1px solid var(--line);padding-top:12px}
