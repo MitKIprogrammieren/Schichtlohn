@@ -46,6 +46,8 @@
   .srvwerte span{color:var(--mute)}.srvwerte b{font-weight:500}
   .balken{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-top:5px}.balken i{display:block;height:100%;background:var(--acc);border-radius:3px}
   .knopf:disabled{opacity:.5;cursor:default}
+  a.portz{color:inherit;text-decoration:none}a.portz:hover{background:var(--panel2)}
+  .portnr{font:600 14px ui-monospace,Menlo,monospace!important;color:#19d36b;min-width:52px}
   .star{position:absolute;bottom:8px;right:10px;background:none;border:0;color:#4c4c53;font-size:16px;cursor:pointer;padding:2px}
   .star.on{color:var(--warn)}
   .pikopf{display:flex;align-items:center;gap:10px;margin:22px 2px 12px;flex-wrap:wrap}
@@ -525,7 +527,7 @@ function srvZeichnen(){
   const cpu = Math.round(100*(h.cpu||0));
   const gaeste = (h.gaeste||[]).map(g=>`<span class="marke ${g.zustand==="running"?"on":"off"}">${esc(g.art)} ${g.id} · ${esc(g.name)}</span>`).join("");
   srvBox.innerHTML = `<div class="pikopf"><h2>Server</h2><span class="d">${laufen} von ${alle.length} Containern laufen</span><div class="grow"></div>
-      <button class="knopf" data-a="stacks">Stacks</button></div>
+      <button class="knopf" data-a="ports">Ports</button><button class="knopf" data-a="stacks">Stacks</button></div>
     ${q?"":`<div class="pi srvkopf">
       <div class="pizeile"><span class="t">NUC „${esc(h.knoten||"pxx")}“</span><span class="d">${h.laufzeit?"läuft seit "+dauer(h.laufzeit):""}</span></div>
       <div class="srvwerte">
@@ -688,6 +690,7 @@ async function srvStackEdit(name){
 srvBox.addEventListener("click", e=>{
   const a = e.target.closest("[data-a]")?.dataset.a;
   if(a==="stacks") return srvStacks();
+  if(a==="ports") return srvPorts();
   if(a==="anmelden") return srvAnmeldenJetzt();
   const k = e.target.closest("[data-c]"); if(!k) return;
   const c = srvDaten?.container.find(x=>x.name===k.dataset.c); if(c) srvFenster(c);
@@ -695,6 +698,55 @@ srvBox.addEventListener("click", e=>{
 srvBox.addEventListener("keydown", e=>{ if(e.key==="Enter" && e.target.matches("[data-c]")) e.target.click(); });
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) srvLaden(); });
 setInterval(()=>{ if(!document.hidden && schicht.hidden && !srvAnmelden) srvLaden(); },15000);
+
+// Ports: alle belegten Ports (Container, Werke-Kacheln, feste Dienste) – klickbar
+const NUC_IP = "192.168.1.30";
+const PORT_EXTRA = [
+  {host:NUC_IP, port:"8085", name:"Piwerk", art:"Dienst"},
+  {host:"192.168.1.21", port:"32400", name:"Plex", art:"Dienst", pfad:"/web"},
+  {host:"192.168.1.37", port:"5800", name:"JDownloader", art:"Dienst"},
+  {host:"192.168.1.250", port:"80", name:"Pi-hole", art:"Dienst", pfad:"/admin"},
+];
+function portListe(){
+  const out = [], alle = srvDaten?.container||[];
+  alle.forEach(c=>(c.ports||[]).forEach(port=>out.push({host:NUC_IP, port:String(port), name:srvName(c,alle), art:"Container",
+    zustand:c.zustand==="running"?"on":"off", pfad:c.pfad||"/"})));
+  const hat = (h,p)=>out.some(x=>x.host===h && x.port===p);
+  WERKE.forEach(w=>{ try{ const u=new URL(w.lan); const port=u.port||(u.protocol==="https:"?"443":"80");
+    if(!hat(u.hostname,port)) out.push({host:u.hostname, port, name:w.n, art:"Werk", pfad:u.pathname+u.search, https:u.protocol==="https:"}); }catch(e){} });
+  PORT_EXTRA.forEach(x=>{ if(!hat(x.host,x.port)) out.push({...x}); });
+  out.forEach(x=>{ x.doppelt = out.filter(y=>y.host===x.host && y.port===x.port).length>1; });
+  return out.sort((a,b)=>(b.host===NUC_IP)-(a.host===NUC_IP) || a.host.localeCompare(b.host,undefined,{numeric:true}) || (+a.port)-(+b.port));
+}
+function portLink(x){
+  const host = x.host===NUC_IP && netz==="ts" ? "nuc-schichtlohn.tail293912.ts.net" : x.host;
+  const schema = x.https || x.port==="443" || x.port==="8006" || x.port==="8443" ? "https" : "http";
+  const std = (schema==="https"&&x.port==="443")||(schema==="http"&&x.port==="80");
+  return `${schema}://${host}${std?"":":"+x.port}${x.pfad||"/"}`;
+}
+function srvPorts(){
+  fensterEl.onclick = null;
+  const liste = portListe();
+  oeffne(`<div class="fkopf"><b>Ports</b><span class="d">${liste.length} belegt</span><span class="grow"></span><button class="knopf" data-zu>✕</button></div>
+    <input id="p_such" placeholder="Port, Name oder IP suchen …" style="margin-bottom:10px" inputmode="search">
+    <div class="pliste" id="p_liste"></div>
+    <div class="d" style="margin-top:8px">Tippen öffnet den Dienst${netz==="ts"?" über Tailscale":""}. Gelb = Port doppelt vergeben.</div>`);
+  const zeichneP = ()=>{
+    const q = document.getElementById("p_such").value.trim().toLowerCase();
+    const gef = liste.filter(x=>!q || (x.port+" "+x.name+" "+x.host+" "+x.art).toLowerCase().includes(q));
+    let letzter = "";
+    document.getElementById("p_liste").innerHTML = gef.map(x=>{
+      const kopf = x.host!==letzter ? `<div class="bkopf" style="margin:0;padding:8px 11px 4px;border-bottom:1px solid var(--line)">${esc(x.host)}${x.host===NUC_IP?" · NUC":""}</div>` : "";
+      letzter = x.host;
+      return kopf + `<a class="bz portz" href="${esc(portLink(x))}" target="_blank" rel="noopener">
+        <code class="portnr">${esc(x.port)}</code>
+        <div><div style="font-weight:500">${esc(x.name)}</div><div class="v">${esc(x.art)}</div></div>
+        ${x.doppelt?'<span class="marke warn">doppelt</span>':""}${x.zustand?`<span class="marke ${x.zustand}">${x.zustand==="on"?"läuft":"gestoppt"}</span>`:""}<span class="d">↗</span></a>`;
+    }).join("") || `<p class="leer">Nichts gefunden.</p>`;
+  };
+  document.getElementById("p_such").addEventListener("input", zeichneP);
+  zeichneP();
+}
 
 zeichne();
 piLaden();
