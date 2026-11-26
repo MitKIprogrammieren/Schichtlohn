@@ -47,11 +47,6 @@ for (const [k, v] of [['t17_key', 'T17_KEY'], ['dhl_key', 'DHL_KEY'], ['imap_pas
 let DB = jsonLesen(PAKETE, null) || { pakete: [], ignoriert: [], mails: [], dhl_tag: '', dhl_anzahl: 0 };
 // Einmalig: Mail-Pakete ohne Sendungsnummer neu einlesen (behebt Dubletten und falsche Titel/Zeiten aus der ersten Fassung)
 if (!DB.v3) { DB.pakete = DB.pakete.filter(p => !(p.quelle === 'mail' && !p.nummer)); DB.mails = []; DB.v2 = DB.v3 = true; }
-if (!DB.v4) {
-  for (const p of DB.pakete) if (/paket ist unterwegs|ist unterwegs|kommt bald|paket ist da|bald ist ihr/i.test(p.titel || '')) p.titel = (TRAEGER[p.traeger] || TRAEGER.sonst).name + '-Paket';
-  for (const p of DB.pakete) if (p.fehler && /Carrier cannot be detected/i.test(p.fehler)) { p.fehler = ''; p.t17 = false; p.abgefragt = 0; }
-  DB.v4 = true;
-}
 const ZUSTAND = { mail: { zeit: 0, fehler: '', neu: 0 }, rechnungen: { zeit: 0, fehler: '', neu: 0 }, abfrage: { zeit: 0, fehler: '' } };
 function speichern() {
   DB.mails = DB.mails.slice(-3000);
@@ -442,6 +437,11 @@ async function runde() {
     speichern();
   } catch (e) { console.warn('Runde:', e.message); }
   finally { laeuft = false; }
+}
+if (!DB.v4) {
+  for (const p of DB.pakete) if (/paket ist unterwegs|ist unterwegs|kommt bald|paket ist da|bald ist ihr/i.test(p.titel || '')) p.titel = (TRAEGER[p.traeger] || TRAEGER.sonst).name + '-Paket';
+  for (const p of DB.pakete) if (p.fehler && /Carrier cannot be detected/i.test(p.fehler)) { p.fehler = ''; p.t17 = false; p.abgefragt = 0; }
+  DB.v4 = true;
 }
 setInterval(runde, 60000);
 setTimeout(runde, 3000);
