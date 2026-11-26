@@ -47,6 +47,11 @@ for (const [k, v] of [['t17_key', 'T17_KEY'], ['dhl_key', 'DHL_KEY'], ['imap_pas
 let DB = jsonLesen(PAKETE, null) || { pakete: [], ignoriert: [], mails: [], dhl_tag: '', dhl_anzahl: 0 };
 // Einmalig: Mail-Pakete ohne Sendungsnummer neu einlesen (behebt Dubletten und falsche Titel/Zeiten aus der ersten Fassung)
 if (!DB.v3) { DB.pakete = DB.pakete.filter(p => !(p.quelle === 'mail' && !p.nummer)); DB.mails = []; DB.v2 = DB.v3 = true; }
+if (!DB.v4) {
+  for (const p of DB.pakete) if (/paket ist unterwegs|ist unterwegs|kommt bald|paket ist da|bald ist ihr/i.test(p.titel || '')) p.titel = (TRAEGER[p.traeger] || TRAEGER.sonst).name + '-Paket';
+  for (const p of DB.pakete) if (p.fehler && /Carrier cannot be detected/i.test(p.fehler)) { p.fehler = ''; p.t17 = false; p.abgefragt = 0; }
+  DB.v4 = true;
+}
 const ZUSTAND = { mail: { zeit: 0, fehler: '', neu: 0 }, rechnungen: { zeit: 0, fehler: '', neu: 0 }, abfrage: { zeit: 0, fehler: '' } };
 function speichern() {
   DB.mails = DB.mails.slice(-3000);
@@ -243,7 +248,7 @@ async function t17(pfad, body) {
   if (j.code !== 0) throw new Error('17TRACK: ' + (j.data?.errors?.[0]?.message || 'Fehler ' + j.code));
   return j.data || {};
 }
-const T17_CODE = { dhl: 7041, post: 7041 };
+const T17_CODE = { dhl: 7041, post: 7041, gls: 100005 };
 async function t17Abfragen(p, carrier) {
   if (!p.t17) {
     const d = await t17('register', [{ number: p.nummer, lang: 'de', ...(carrier ? { carrier } : {}) }]);
@@ -343,11 +348,12 @@ async function mailAuswerten(mail) {
   const nummern = nummernFinden(text, html).filter(n => n.nummer !== bestellung.replace(/-/g, ''));
   const st = mailStatus(betreff, text);
   const alt = Date.now() - (mail.date ? +mail.date : Date.now()) > 12 * 3600000; // ältere Mails melden nicht
-  const titelGenerisch = t => !t || /bestellung$/i.test(t) || /^\d+\s+artikel/i.test(t) || /^(versendet|versandt|in zustellung|geliefert|zugestellt)/i.test(t);
+  const titelGenerisch = t => !t || /-paket$/i.test(t) || /bestellung$/i.test(t) || /^\d+\s+artikel/i.test(t) || /^(versendet|versandt|in zustellung|geliefert|zugestellt)/i.test(t);
   const zitat = kurz((betreff.match(/[„"»](.{3,80}?)[“"«]/) || [])[1] || '');
   const rest = kurz(betreff.replace(/^(fwd?|wg|aw|re):\s*/i, '').replace(/^(versendet|versandt|in zustellung|geliefert|zugestellt|bestellt|shipped|delivered)\s*:\s*/i, ''));
-  const generisch = !zitat && (/^\d+\s+artikel/i.test(rest) || rest.length < 3);
-  const titel = zitat || (generisch ? ({ amazon: 'Amazon-Bestellung', aliexpress: 'AliExpress-Bestellung', bambu: 'Bambu-Lab-Bestellung' })[shop] || 'Bestellung' : rest.slice(0, 80));
+  const vonVersender = /dhl|deutschepost|hermes|dpd|gls|ups\.com|cainiao/i.test(von);
+  const generisch = !zitat && (vonVersender || /^\d+\s+artikel/i.test(rest) || rest.length < 3);
+  const titel = zitat || (generisch ? ({ amazon: 'Amazon-Bestellung', aliexpress: 'AliExpress-Bestellung', bambu: 'Bambu-Lab-Bestellung' })[shop] || (nummern[0] ? (TRAEGER[nummern[0].traeger] || TRAEGER.sonst).name + '-Paket' : 'Bestellung') : rest.slice(0, 80));
   const mailZeit = mail.date ? +mail.date : Date.now();
   const ablage = (st === 'zugestellt' || st === 'abholbereit') ? ablageFinden(text) : '';
   const gw = gewichtFinden(text);

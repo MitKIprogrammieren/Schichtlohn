@@ -181,6 +181,16 @@ function wann(t) {
   if (d.toDateString() === gestern.toDateString()) return 'gestern ' + uhr;
   return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) + ' ' + uhr;
 }
+function tag(t) {
+  const d = new Date(t); if (isNaN(d)) return String(t);
+  const h = new Date(); h.setHours(0, 0, 0, 0);
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const diff = Math.round((x - h) / 864e5);
+  const zeit = d.getHours() || d.getMinutes() ? ' ab ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+  if (diff === 0) return 'heute' + zeit;
+  if (diff === 1) return 'morgen' + zeit;
+  return d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }) + zeit;
+}
 function vor(t) { if (!t) return 'noch nie'; const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'gerade eben' : m < 60 ? 'vor ' + m + ' Min' : 'vor ' + Math.round(m / 60) + ' Std'; }
 const shopVon = p => SHOPS[p.shop] ? p.shop : 'andere';
 
@@ -198,7 +208,7 @@ function karte(p) {
   if (p.ablage && (p.status === 'zugestellt' || p.status === 'abholbereit')) h += '<div class="ablage">⌂ ' + esc(p.ablage) + '</div>';
   if (auf) {
     if (p.gewicht || p.stueck > 1) h += '<div class="chips2">' + (p.gewicht ? '<span>⚖ ' + kgText(p) + '</span>' : '') + (p.stueck > 1 ? '<span>' + p.stueck + ' Packstücke</span>' : '') + '</div>';
-    if (p.erwartet && p.status !== 'zugestellt') h += '<div class="hinweis" style="color:var(--txt2)">Erwartet: ' + esc(wann(p.erwartet)) + '</div>';
+    if (p.erwartet && p.status !== 'zugestellt') h += '<div class="hinweis" style="color:var(--txt2)">Erwartet: ' + esc(tag(p.erwartet)) + '</div>';
     if (p.ereignisse?.length) h += '<div class="verlauf">' + p.ereignisse.slice(0, 8).map(e => '<div class="ev"><b>' + esc(e.text) + '</b> <small>· ' + esc(wann(e.zeit)) + '</small>' + (e.ort ? '<div>' + esc(e.ort) + '</div>' : '') + '</div>').join('') + '</div>';
     else if (p.traeger === 'amazon') h += '<div class="hinweis" style="color:var(--txt2)">Amazon-Pakete verfolgt Paketwerk über die Amazon-Mails.</div>';
     else if (p.perMail) h += '<div class="hinweis" style="color:var(--txt2)">Verfolgt über die Paketankündigung von DHL – ohne 17TRACK.</div>';
