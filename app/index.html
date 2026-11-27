@@ -4850,12 +4850,16 @@ function logoUrls(name){const out=[];const sl=logoSlug(name);let base=haLocal();
   /* keine Favicons mehr: ohne echtes Logo bleibt der Markenname stehen */
   return out.filter(x=>!logoMiss.has(x.u))}
 /* Scroll-Schutz: springt die Seite ohne eigenes Scrollen (z. B. wenn die Karte neu zeichnet), zurück an die alte Stelle */
-let lastY=0,userT=0,guardUntil=0;
-["wheel","touchmove","touchstart","keydown","mousedown"].forEach(t=>addEventListener(t,()=>{userT=Date.now()},{passive:true,capture:true}));
-addEventListener("scroll",()=>{if(S.tab!=="lager")return;if(Date.now()<guardUntil&&Date.now()-userT>700)return;lastY=scrollY},{passive:true});
+/* Auf dem Handy rollt die Seite nach dem Loslassen noch weiter (Schwung) – ohne Touch-Ereignisse. Das zählt auch als eigenes
+   Scrollen: sonst hält ein Live-Update (Waage, Drucker, Feuchte) die alte Stelle fest und die Seite springt zurück. */
+let lastY=0,userT=0,guardUntil=0,scrollT=0;
+["wheel","touchmove","touchstart","touchend","keydown","mousedown"].forEach(t=>addEventListener(t,()=>{userT=Date.now()},{passive:true,capture:true}));
+const selbstScroll=()=>Date.now()-userT<700||(Date.now()-userT<5000&&Date.now()-scrollT<250);
+addEventListener("scroll",()=>{const schwung=Date.now()-userT<5000;if(schwung)scrollT=Date.now();if(S.tab!=="lager")return;if(Date.now()<guardUntil&&!selbstScroll())return;lastY=scrollY},{passive:true});
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-tab]"))lastY=0},true);
-function guard(){if(S.tab!=="lager")return;const want=lastY;if(want<60||Date.now()-userT<700)return;guardUntil=Date.now()+900;
-  const fix=()=>{if(S.tab==="lager"&&Date.now()-userT>700&&Math.abs(scrollY-want)>40)scrollTo(0,want)};
+window.slSelbstScroll=selbstScroll;
+function guard(){if(S.tab!=="lager")return;const want=lastY;if(want<60||selbstScroll())return;guardUntil=Date.now()+900;
+  const fix=()=>{if(S.tab==="lager"&&!selbstScroll()&&Math.abs(scrollY-want)>40)scrollTo(0,want)};
   requestAnimationFrame(()=>{fix();requestAnimationFrame(fix);setTimeout(fix,250)})}
 {const m=document.getElementById("main");if(m)new MutationObserver(()=>{if(S.tab==="lager")guard()}).observe(m,{childList:true,subtree:true})}
 /* Material-Abzeichen in den Gruppenköpfen (wenn nach Material sortiert): Farbe und Symbol je Filamentart */
@@ -6162,7 +6166,7 @@ function draw(ms=40){if(window.WACHE)WACHE.Z.draw++;const due=Date.now()+ms;if(d
   {const af=document.activeElement;if(af&&af.tagName==="SELECT"&&box.contains(af)){draw(1500);return}}
   const y=scrollY,ae=document.activeElement,keep=ae&&ae.id==="lgq",pos=keep?ae.selectionStart:0;lastHTML=h;if(box.firstChild)window.slMorph(box,h,{keep:n=>n.classList.contains("hlogo")||n.classList.contains("hmat")||n.classList.contains("hname-weg"),keepClass:["deco"],skipAttr:(el,at)=>at==="style"&&el.tagName==="IMG"});else box.innerHTML=h;decorate();
   if(keep){const n=$("#lgq");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
-  if(Math.abs(scrollY-y)>2)scrollTo(0,y)},40)}
+  if(Math.abs(scrollY-y)>2&&!(window.slSelbstScroll&&slSelbstScroll()))scrollTo(0,y)},40)}
 /* Nach einer Auswahl im Lager-Kopf das Feld wieder freigeben, damit der Kopf (Zähler, Schildchen) gleich nachzieht */
 document.addEventListener("change",e=>{const s=e.target;if(s&&s.tagName==="SELECT"&&s.closest&&s.closest("#lgHead"))setTimeout(()=>{try{s.blur()}catch(x){}draw(60)},0)});
 function fitTop(){const t=document.getElementById("lgTop");if(t)t.dataset.n=String(t.querySelectorAll(".dcard").length)}
