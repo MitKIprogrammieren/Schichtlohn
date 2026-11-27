@@ -452,7 +452,7 @@ const SRV=window.SRV=(()=>{
   /* Einstellungen */
   /* Einstellungen */
   const SVG=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const IC={tg:SVG('<path d="M21 4 3 11l6 2.5L18 7l-6.5 7.5L17 20z"/><path d="m9 13.5.5 5.5 2.5-3"/>'),wa:SVG('<path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-6l-4.5 3.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z"/><path d="M8 9.5h8M8 13h5"/>'),srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+  const IC={tg:SVG('<path d="M21 4 3 11l6 2.5L18 7l-6.5 7.5L17 20z"/><path d="m9 13.5.5 5.5 2.5-3"/>'),al:SVG('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),wa:SVG('<path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-6l-4.5 3.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z"/><path d="M8 9.5h8M8 13h5"/>'),srv:SVG('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
     dr:SVG('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/>'),
     ha:SVG('<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>'),
     wg:SVG('<path d="M12 3v3M5 9h14"/><path d="M5 9l-3 7a3 3 0 0 0 6 0zM19 9l-3 7a3 3 0 0 0 6 0z"/><path d="M12 6v14M8 20h8"/>'),
@@ -483,6 +483,7 @@ const SRV=window.SRV=(()=>{
         ${karte(IC.ha,"Meldung aufs Handy","",`<p>${I.ha_app?"Home Assistant ist automatisch verbunden. Nach jeder Abbuchung kommt eine Meldung an alle angekreuzten Geräte:":"Für Meldungen nach der Abbuchung und damit die Waage ihre Werte auch an Home Assistant schickt."}</p><div id="srv_haform"></div>`)}
         ${karte(IC.tg,"Telegram","",`<div id="srv_tg"></div>`)}
         ${karte(IC.wa,"WhatsApp","",`<div id="srv_wa"></div>`)}
+        ${karte(IC.al,"Alexa-Ansagen","",`<div id="srv_al"></div>`)}
         ${karte(IC.zg,"Zugang",`<span class="chip" id="srv_zgchip">…</span>`,`<div id="srv_zugang"><p>wird geprüft …</p></div>`)}
         ${karte(IC.cl,"Claude",`<span class="chip" id="srv_mcpchip">…</span>`,`<div id="srv_mcp"><p>wird geprüft …</p></div>`)}
         ${karte(IC.wg,"Waage","",`<p>In der Waage als Home-Assistant-Adresse eintragen, Token beliebig${t?" (bzw. den Server-Schlüssel)":""}, Liste <code>todo.filament</code>:</p><div class="srvcopy"><code id="srv_waage">${waageAdr}</code><button class="btn sm ghost" data-act="srvKopie" data-ziel="srv_waage">Kopieren</button></div>`)}
@@ -584,7 +585,7 @@ const SRV=window.SRV=(()=>{
       <label class="field"><span>Token (langlebig)</span><input type="password" id="srv_hatok" value="${esc(h.token||"")}" placeholder="aus deinem HA-Profil → Sicherheit" autocomplete="off"></label></div>
       <div id="srv_handys"></div>
       <div class="srvcopy"><input type="text" id="srv_hanot" value="${esc(Array.isArray(h.notify)?h.notify.join(", "):(h.notify||""))}" placeholder="notify.mobile_app_iphone_17_pro_max" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="srvHaSpeichern">Speichern</button><button class="btn sm ghost" data-act="srvHaTest" title="Speichert die Auswahl und schickt eine Testmeldung an jedes angekreuzte Gerät">Test senden</button></div>`;
-    handysLaden();telegramForm();whatsappForm()}
+    handysLaden();telegramForm();whatsappForm();alexaForm()}
   /* Telegram: Meldungen aufs Handy auch ohne Home Assistant */
   function telegramForm(){const box=document.getElementById("srv_tg");if(!box)return;const t=E.telegram||{};
     box.innerHTML=t.token&&t.chat?`<p>Meldungen gehen an <b>${esc(t.chat_name||t.chat)}</b> – zusätzlich zu Home Assistant.</p>
@@ -613,6 +614,43 @@ const SRV=window.SRV=(()=>{
     :`<p>Meldungen als WhatsApp, verschickt von deinem <b>Meldewerk</b>. Adresse und Schlüssel stehen dort unter Einstellungen → Schnittstelle.</p>
       <label class="field"><span>Adresse</span><input type="text" id="srv_waurl" value="${esc(w.url||"")}" placeholder="http://192.168.1.30:8077" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <div class="srvcopy"><input type="password" id="srv_waschl" value="" placeholder="Schlüssel aus dem Meldewerk" autocomplete="off"><button class="btn sm" data-act="srvWaVerb">Verbinden</button></div>`}
+  /* Alexa-Ansagen über das Meldewerk: wann, was und nur wenn jemand daheim ist */
+  const AL_EV=[["start","startet","startet"],["vorende","gleich fertig ist","gleich fertig"],["pause","pausiert","pausiert"],["fertig","fertig ist","fertig"],["abbruch","abgebrochen wird","abgebrochen"],["fehler","einen Fehler hat","Fehler"],["stand","Fortschritt","Fortschritt"]];
+  const AL_STD={start:"{drucker} hat angefangen: {datei}. Fertig gegen {ende} Uhr.",vorende:"{drucker} ist in {rest} fertig.",pause:"{drucker} wartet. Vielleicht ist das Filament leer.",fertig:"{drucker} ist fertig mit {datei}.",abbruch:"Der Druck auf {drucker} wurde abgebrochen.",fehler:"Achtung, {drucker} meldet einen Fehler.",stand:"{drucker} hat {prozent} Prozent geschafft."};
+  const AL_AUS={stand:true};let alPers=null;
+  function alexaForm(){const box=document.getElementById("srv_al");if(!box)return;const w=E.whatsapp||{};
+    if(!(w.url&&w.schluessel)){box.innerHTML=`<p>Alexa sagt deine Drucke über das <b>Meldewerk</b> an. Verbinde zuerst oben WhatsApp mit dem Meldewerk.</p>`;return}
+    const a=E.alexa||{},ev=a.ereignisse||{},tx=a.texte||{},an=k=>k in ev?ev[k]!==false:!AL_AUS[k];const aus=!!a.aus;const dh=Array.isArray(a.daheim)?a.daheim:[];
+    const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
+    const st=Array.isArray(a.stufen)?a.stufen:[50],vor=Number(a.vor_ende)||5;
+    box.innerHTML=`<p>Die Echos sagen Drucke über das <b>Meldewerk</b> an – unabhängig davon, was per WhatsApp kommt. Welche Echos und die Nachtruhe stellst du im Meldewerk ein.</p>
+      <div class="tgs alx"><div class="tgr">${ch('data-alaus="0"',"Ansagen an",!aus)}${ch('data-alaus="1"',"aus",aus)}</div>
+      ${aus?"":`<div class="tgs-k">Ansagen, wenn ein Druck …</div><div class="tgr">${AL_EV.map(([k,n])=>ch(`data-alev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
+      ${an("vorende")?`<div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[5,10,15,30].map(v=>ch(`data-alvor="${v}"`,v+" min vorher",vor===v)).join("")}</div>`:""}
+      ${an("stand")?`<div class="tgs-k">Fortschritt ansagen bei</div><div class="tgr tgp">${[25,50,75,90].map(x=>ch(`data-alst="${x}"`,x+" %",st.includes(x))).join("")}</div>`:""}
+      <div class="tgs-k">Nur ansagen, wenn jemand daheim ist</div><div class="tgr" id="al_pers">${alPers?alPersHtml(dh):'<span class="alx-h">Personen werden aus Home Assistant geladen …</span>'}</div>
+      <div class="tgs-k">Das sagt Alexa</div><div class="alx-z">${AL_EV.map(([k,,n])=>`<b class="${an(k)?"":"aus"}">${n}</b><input type="text" data-altx="${k}" value="${esc(tx[k]||"")}" placeholder="${esc(AL_STD[k])}" class="${an(k)?"":"aus"}" autocomplete="off" spellcheck="false">`).join("")}</div>
+      <div class="alx-h">Platzhalter: <code>{drucker}</code> <code>{datei}</code> <code>{prozent}</code> <code>{rest}</code> <code>{ende}</code> · leeres Feld = Standardtext</div>
+      <div class="alx-r"><button class="btn sm" data-act="alProbe">Probe-Ansage</button><select id="al_probeart" class="alx-sel">${AL_EV.map(([k,,n])=>`<option value="${k}"${k==="fertig"?" selected":""}>${n}</option>`).join("")}</select>${Object.keys(tx).length?'<button class="btn sm ghost" data-act="alStd">Standardtexte</button>':""}</div>
+      <div class="alx-h" id="al_msg"></div>`}</div>`;
+    if(!aus&&!alPers)alPersLaden()}
+  function alPersHtml(dh){if(!alPers.length)return'<span class="alx-h">Keine Personen in Home Assistant gefunden – Alexa sagt immer an.</span>';
+    const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
+    return ch('data-alda=""',"egal – immer",!dh.length)+alPers.map(p=>ch(`data-alda="${esc(p.id)}"`,(dh.includes(p.id)?"✓ ":"")+esc(p.name)+(p.state==="home"?" 🏠":""),dh.includes(p.id))).join("")+(dh.length?'<span class="alx-h" style="flex-basis:100%">Alexa sagt an, sobald eine der gewählten Personen daheim ist.</span>':"")}
+  async function alPersLaden(){try{const r=await req("GET","/api/alexa/personen");alPers=r.personen||[];if(r.fehler&&!alPers.length){const b=document.getElementById("al_pers");if(b)b.innerHTML='<span class="alx-h">Home Assistant nicht erreichbar – Alexa sagt immer an.</span>';return}}catch(x){alPers=[]}
+    const b=document.getElementById("al_pers");if(b)b.innerHTML=alPersHtml(((E.alexa||{}).daheim)||[])}
+  async function alSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{alexa:neu});alexaForm();if(text)toast(text)}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
+  document.addEventListener("click",async ev=>{const b=ev.target.closest&&ev.target.closest(".alx [data-alaus],.alx [data-alev],.alx [data-alvor],.alx [data-alst],.alx [data-alda],[data-act=alProbe],[data-act=alStd]");if(!b)return;
+    const a=E.alexa||{};
+    if(b.dataset.alaus!=null)return alSpeichern({aus:b.dataset.alaus==="1"},b.dataset.alaus==="1"?"Alexa-Ansagen aus":"Alexa-Ansagen an");
+    if(b.dataset.alev){const k=b.dataset.alev,e2=Object.assign({},a.ereignisse||{});const jetzt=k in e2?e2[k]!==false:!AL_AUS[k];e2[k]=!jetzt;return alSpeichern({ereignisse:e2})}
+    if(b.dataset.alvor)return alSpeichern({vor_ende:Number(b.dataset.alvor)});
+    if(b.dataset.alst){const x=Number(b.dataset.alst),s2=new Set(Array.isArray(a.stufen)?a.stufen:[50]);s2.has(x)?s2.delete(x):s2.add(x);if(!s2.size)return toast("Mindestens eine Stufe – sonst Fortschritt ausschalten");return alSpeichern({stufen:[...s2].sort((p,q)=>p-q)})}
+    if(b.dataset.alda!=null){const id=b.dataset.alda;let dh=Array.isArray(a.daheim)?[...a.daheim]:[];dh=!id?[]:dh.includes(id)?dh.filter(x=>x!==id):[...dh,id];return alSpeichern({daheim:dh})}
+    if(b.dataset.act==="alStd"){if(!confirm("Alle eigenen Ansagetexte auf den Standard zurücksetzen?"))return;return alSpeichern({texte:{}},"Standardtexte wiederhergestellt")}
+    if(b.dataset.act==="alProbe"){const m=document.getElementById("al_msg"),art=(document.getElementById("al_probeart")||{}).value||"fertig";if(m)m.textContent="Alexa spricht …";
+      try{const r=await req("POST","/api/alexa/probe",{art});if(m)m.innerHTML=r.ok?`✓ „${esc(r.text)}“`:`<span style="color:var(--bad)">Nicht angesagt: ${esc(r.grund||"unbekannt")}</span><br>„${esc(r.text)}“`}catch(x){if(m)m.innerHTML=`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`}}});
+  document.addEventListener("change",ev=>{const i=ev.target;if(!i||!i.dataset||!i.dataset.altx)return;const tx=Object.assign({},(E.alexa||{}).texte||{});const v=i.value.trim();if(v&&v!==AL_STD[i.dataset.altx])tx[i.dataset.altx]=v;else delete tx[i.dataset.altx];alSpeichern({texte:tx},"Ansagetext gespeichert")});
   async function tgSpeichern(neu,text,kanal){try{E=await req("PUT","/api/einstellungen",{[kanal||"telegram"]:neu});telegramForm();whatsappForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
   document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest(".tgs[data-kanal] [data-tgst],.tgs[data-kanal] [data-tgx],.tgs[data-kanal] [data-tgvor],.tgs[data-kanal] [data-tgev]");if(!b)return;
     const k=b.closest("[data-kanal]").dataset.kanal,t=kanalCfg(k),sp=(neu,text)=>tgSpeichern(neu,text,k);
@@ -9248,6 +9286,11 @@ window.DMGR={ICON,auf,inline};
 .tgc{padding:6px 11px;border-radius:999px;border:1px solid var(--line-2);background:none;color:var(--fg-2);font:inherit;font-size:13px;cursor:pointer}
 .tgc.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff);font-weight:600}
 .tgf{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:6px}
+.alx-z{display:grid;grid-template-columns:1fr;gap:3px}.alx-z b{font-size:12.5px;font-weight:600;margin-top:6px}.alx-z b.aus{color:var(--fg-3);text-decoration:line-through}
+.alx-z input{width:100%;box-sizing:border-box;background:var(--sunken);border:1px solid var(--line-2);border-radius:10px;color:var(--fg);padding:8px 10px;font:inherit;font-size:13px}.alx-z input.aus{opacity:.45}
+.alx-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}#srvsec .alx-r>*{width:auto}
+.alx-h{font-size:12px;color:var(--fg-3);line-height:1.6;margin-top:4px}.alx-h code{font-size:11.5px}
+#srvsec .alx-sel,.alx-sel{width:auto;flex:0 0 auto;background:var(--sunken);border:1px solid var(--line-2);border-radius:10px;color:var(--fg);padding:6px 8px;font:inherit;font-size:13px}
 .dl-fs{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .dl-fsz{display:flex;gap:8px;align-items:center}.dl-fsz select{flex:1;min-width:0}
 .dl-fsf{width:22px;height:22px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.3)}

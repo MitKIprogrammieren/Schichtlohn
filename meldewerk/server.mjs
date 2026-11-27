@@ -159,13 +159,15 @@ async function warteschlange() {
 }
 setInterval(warteschlange, 60000);
 
-async function melden({ text, quelle, bild, titel, alexa }) {
+async function melden({ text, quelle, bild, titel, alexa, ansage, nur_alexa }) {
+  if (nur_alexa === true || nur_alexa === 'true' || nur_alexa === '1') return nurAnsage(String(ansage || text || ''), quelle, alexa === 'probe');
   text = String(text || '').trim();
   titel = String(titel || '').trim();
   if (titel) text = '*' + titel + '*' + (text ? '\n' + text : '');
   if (!text && !bild) throw Object.assign(new Error('Text fehlt'), { code: 400 });
   const e = { id: crypto.randomUUID(), zeit: Date.now(), quelle: String(quelle || 'sonstige').slice(0, 24).toLowerCase(), text: text.slice(0, 4000), status: 'wartet', fehler: '' };
   if (alexa === false || alexa === 'false' || alexa === '0') e.ohne_alexa = true; // Absender will keine Ansage
+  if (ansage && String(ansage).trim()) e.ansage = String(ansage).trim().slice(0, 600); // eigener Ansagetext statt der Nachricht
   if (bild) {
     try { const b = await bildHolen(bild); if (b?.length) { e.bild = e.id + '.jpg'; fs.writeFileSync(path.join(BILDER, e.bild), b); } }
     catch (err) { e.fehler = 'Bild: ' + err.message; }
@@ -226,15 +228,33 @@ function stimme(text) {
   const t = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return /^(Hans|Marlene|Vicki)$/.test(name) ? '<speak><voice name="' + name + '">' + t + '</voice></speak>' : t;
 }
-async function alexaAnsagen(e) {
+// Gibt '' zurück, wenn angesagt wurde – sonst den Grund, warum nicht
+async function alexaAnsagen(e, probe) {
   const a = EIN.alexa || {};
   const ziele = Object.entries(a.geraete || {}).filter(([, an]) => an).map(([id]) => id);
-  if (e.ohne_alexa || !ziele.length || !HA.verbunden || (a.quellen || {})[e.quelle] === false || e.quelle === 'test' && !e.alexa_test || nachtruhe()) return;
+  if (e.ohne_alexa) return 'ohne Ansage gewünscht';
+  if (!HA.verbunden) return 'Home Assistant ist im Meldewerk nicht verbunden';
+  if (!ziele.length) return 'im Meldewerk ist kein Echo eingeschaltet';
+  if (!probe && (a.quellen || {})[e.quelle] === false) return 'Ansagen für diese Quelle sind im Meldewerk aus';
+  if (e.quelle === 'test' && !e.alexa_test) return 'Test ohne Ansage';
+  if (!probe && nachtruhe()) return 'Nachtruhe';
   await alexaLaden();
-  if (!ALEXA.mediaplayer) return;
-  const text = e.text.replace(/\*([^*\n]+)\*/g, '$1').replace(/\n+/g, '. ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, '').trim();
-  try { await haApi('/api/services/notify/alexa_media', { message: stimme(text), target: ziele, data: { type: 'tts' } }); e.alexa = true; }
-  catch (err) { console.warn('Alexa-Ansage:', err.message); }
+  if (!ALEXA.mediaplayer) return 'Alexa Media Player fehlt in Home Assistant';
+  const text = (e.ansage || e.text).replace(/\*([^*\n]+)\*/g, '$1').replace(/\n+/g, '. ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, '').trim();
+  if (!text) return 'kein Text';
+  try { await haApi('/api/services/notify/alexa_media', { message: stimme(text), target: ziele, data: { type: 'tts' } }); e.alexa = true; return ''; }
+  catch (err) { console.warn('Alexa-Ansage:', err.message); return 'Ansage ging nicht: ' + err.message; }
+}
+// Nur ansagen, keine WhatsApp (z. B. SchichtLohn mit eigenen Ansagetexten)
+async function nurAnsage(text, quelle, probe) {
+  text = text.trim().slice(0, 600);
+  if (!text) throw Object.assign(new Error('Ansagetext fehlt'), { code: 400 });
+  const e = { id: crypto.randomUUID(), zeit: Date.now(), quelle: String(quelle || 'sonstige').slice(0, 24).toLowerCase(), text: '🔊 ' + text, ansage: text, nur_alexa: true, status: 'gesendet', fehler: '' };
+  const grund = await alexaAnsagen(e, probe);
+  if (grund) e.fehler = 'nicht angesagt: ' + grund;
+  e.gesendet = Date.now();
+  VERL.push(e); verlaufSchreiben();
+  return e;
 }
 
 async function haBild(d) {
@@ -338,8 +358,8 @@ http.createServer(async (req, res) => {
     if (p === '/api/senden') {
       const d = req.method === 'POST' ? await lesen(req) : Object.fromEntries(u.searchParams);
       if (!schluesselOk(req, u, d)) return senden(res, 401, { ok: false, text: 'Schlüssel fehlt oder falsch' });
-      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, bild: d.bild || d.bild_url || d.image, alexa: d.alexa });
-      return senden(res, e.status === 'fehler' ? 500 : 200, { ok: e.status !== 'fehler', status: e.status, id: e.id, fehler: e.fehler });
+      const e = await melden({ text: d.text ?? d.message, titel: d.titel ?? d.title, quelle: d.quelle, bild: d.bild || d.bild_url || d.image, alexa: d.alexa, ansage: d.ansage, nur_alexa: d.nur_alexa });
+      return senden(res, e.status === 'fehler' ? 500 : 200, { ok: e.status !== 'fehler', status: e.status, id: e.id, fehler: e.fehler, angesagt: !!e.alexa });
     }
     // Ab hier nur die eigene Oberfläche
     if (req.method === 'POST' && p === '/api/test') {

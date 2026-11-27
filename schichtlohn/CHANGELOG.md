@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.27.0 – 27.11.2026
+- Neue Karte „Alexa-Ansagen“ unter WhatsApp: Du stellst selbst ein, wann Alexa einen Druck ansagt (Start, gleich fertig, Pause, fertig, Abbruch, Fehler, Fortschritt) – unabhängig von den WhatsApp-Meldungen.
+- Jeden Ansagetext kannst du selbst schreiben, mit Platzhaltern für Drucker, Datei, Prozent, Restzeit und Uhrzeit. Mit „Probe-Ansage“ hörst du ihn gleich auf dem Echo.
+- „Nur ansagen, wenn jemand daheim ist“: Personen aus Home Assistant wählen – ist keiner zu Hause, bleibt Alexa still.
+
 ## 3.26.2 – 27.11.2026
 - Neue Kachel „+ Leer Spule“ im Fenster „Filament bearbeiten“: Name, Leergewicht und Aussehen eingeben, speichern – die Spule steht sofort in der Liste und ist gleich ausgewählt.
 

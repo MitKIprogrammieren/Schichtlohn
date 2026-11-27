@@ -24,6 +24,8 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   GET  /api/einstellungen, PUT        Drucker, Bambu-Cloud, Home Assistant (Schlüssel maskiert)
   POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
   POST /api/whatsapp/test             WhatsApp über das Meldewerk: Testmeldung
+  GET  /api/alexa/personen            Personen aus Home Assistant (für „nur ansagen, wenn jemand daheim ist“)
+  POST /api/alexa/probe               Probe-Ansage {art} mit dem laufenden Druck (sonst Beispielwerten)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
   GET  /api/waage/drucker             Etikettendrucker, die die Waage in Home Assistant hat (M20 Pro, M110 …)
@@ -84,7 +86,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.26.2"
+VERSION = "3.27.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -649,6 +651,7 @@ def einstellungen():
     w.setdefault("ha", {})
     w.setdefault("telegram", {})
     w.setdefault("whatsapp", {})
+    w.setdefault("alexa", {})
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
     w.setdefault("fach_meldung", True)
@@ -709,7 +712,7 @@ def einstellungen_setzen(neu):
                     d["modell"] = drucker_mod.modell_aus_serie(d["serial"])
             liste.append(d)
         e["drucker"] = liste
-    for k in ("cloud", "ha", "telegram", "whatsapp"):
+    for k in ("cloud", "ha", "telegram", "whatsapp", "alexa"):
         if isinstance(neu.get(k), dict):
             x = dict(alt[k])
             for kk, v in neu[k].items():
@@ -739,7 +742,7 @@ def einstellungen_setzen(neu):
         e["fach_meldung"] = bool(neu["fach_meldung"])
     if "fach_link" in neu:
         e["fach_link"] = str(neu["fach_link"] or "").strip()[:200] or "/schichtlohn-app"
-    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram", "whatsapp"}
+    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram", "whatsapp", "alexa"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
@@ -1872,7 +1875,7 @@ def whatsapp_bereit():
     return bool(w.get("url") and w.get("schluessel") and not w.get("aus"))
 
 
-def whatsapp_senden(titel, text, bild="", foto=None):
+def whatsapp_senden(titel, text, bild="", foto=None, alexa=None):
     import base64
     import urllib.request
     import urllib.error
@@ -1880,6 +1883,8 @@ def whatsapp_senden(titel, text, bild="", foto=None):
     if not (w.get("url") and w.get("schluessel")) or w.get("aus"):
         return False
     daten = {"quelle": "sl", "titel": titel, "text": text}
+    if alexa is False:
+        daten["alexa"] = False  # Ansagen kommen getrennt (Karte „Alexa-Ansagen“)
     if foto:
         art = "image/png" if foto[:4] == b"\x89PNG" else "image/jpeg"
         daten["bild"] = "data:%s;base64,%s" % (art, base64.b64encode(foto).decode())
@@ -2309,8 +2314,37 @@ TG_EREIGNISSE = ("start", "stand", "vorende", "pause", "fertig", "abbruch", "feh
 KANAL_WAHL = ("stufen", "vor_ende", "ereignisse", "foto", "druckverlauf")
 
 
+ALEXA_EREIGNISSE = {"start": True, "vorende": True, "pause": True, "fertig": True, "abbruch": True, "fehler": True, "stand": False}
+ALEXA_TEXTE = {
+    "start": "{drucker} hat angefangen: {datei}. Fertig gegen {ende} Uhr.",
+    "vorende": "{drucker} ist in {rest} fertig.",
+    "pause": "{drucker} wartet. Vielleicht ist das Filament leer.",
+    "fertig": "{drucker} ist fertig mit {datei}.",
+    "abbruch": "Der Druck auf {drucker} wurde abgebrochen.",
+    "fehler": "Achtung, {drucker} meldet einen Fehler.",
+    "stand": "{drucker} hat {prozent} Prozent geschafft.",
+}
+
+
+def alexa_cfg():
+    """Alexa-Ansagen über das Meldewerk: Ereignisse, Texte, Anwesenheit – mit Vorgaben aufgefüllt."""
+    a = dict(einstellungen().get("alexa") or {})
+    ev = dict(ALEXA_EREIGNISSE)
+    ev.update({k: bool(v) for k, v in (a.get("ereignisse") or {}).items() if k in ev})
+    a["ereignisse"] = ev
+    a["texte"] = {k: str(v) for k, v in (a.get("texte") or {}).items() if k in ALEXA_TEXTE and str(v).strip()}
+    a["daheim"] = [x for x in (a.get("daheim") or []) if isinstance(x, str) and x.startswith(("person.", "device_tracker.", "binary_sensor.", "input_boolean.", "zone."))]
+    return a
+
+
 def kanal_cfg(k):
-    """Auswahl eines Meldewegs (telegram/whatsapp). WhatsApp übernimmt, was es selbst nicht eingestellt hat, von Telegram."""
+    """Auswahl eines Meldewegs (telegram/whatsapp/alexa). WhatsApp übernimmt, was es selbst nicht eingestellt hat, von Telegram."""
+    if k == "alexa":
+        a = alexa_cfg()
+        ev = a["ereignisse"]
+        st = a.get("stufen") if isinstance(a.get("stufen"), list) else [50]
+        return {"ereignisse": ev, "vor_ende": int(a.get("vor_ende") or 5) if ev["vorende"] else 0,
+                "stufen": st if ev["stand"] else [], "foto": False}
     e = einstellungen()
     c = dict(e.get(k) or {})
     if k == "whatsapp":
@@ -2321,6 +2355,8 @@ def kanal_cfg(k):
 
 
 def kanal_bereit(k):
+    if k == "alexa":
+        return kanal_bereit("whatsapp") and not alexa_cfg().get("aus")
     c = einstellungen().get(k) or {}
     if c.get("aus"):
         return False
@@ -2329,6 +2365,8 @@ def kanal_bereit(k):
 
 def kanal_senden(k, titel, text, bild="", foto=None):
     try:
+        if k == "whatsapp" and kanal_bereit("alexa"):
+            return whatsapp_senden(titel, text, bild, foto, alexa=False)  # Alexa sagt eigene Texte an
         return (telegram_senden if k == "telegram" else whatsapp_senden)(titel, text, bild, foto)
     except Exception as ex:
         print(("Telegram" if k == "telegram" else "WhatsApp") + ":", ex, flush=True)
@@ -2354,7 +2392,7 @@ def druck_beobachten(dr):
     alt = DRUCK_STAND.get(dr.serial)
     if alt is None:  # erster Blick nach dem Serverstart: nur merken, nichts nachmelden
         DRUCK_STAND[dr.serial] = {"job": job, "st": st, "stufen": {x for x in range(101) if pct >= x}, "hms": hms,
-                                  "frei": st not in drucker_mod.LAUFEND, "vorende": True, "vorende_wa": True}
+                                  "frei": st not in drucker_mod.LAUFEND, "vorende": True, "vorende_wa": True, "vorende_al": True}
         return
     meldungen = []
     codes = sorted(hms - alt["hms"])
@@ -2363,10 +2401,10 @@ def druck_beobachten(dr):
     elif job != alt["job"] and alt["st"] in ("FINISH", "FAILED", "IDLE"):
         alt["frei"] = True
     alt["job"] = job
-    wege = [k for k in ("telegram", "whatsapp") if kanal_bereit(k) and kanal_cfg(k).get("druckverlauf") is not False]
+    wege = [k for k in ("telegram", "whatsapp", "alexa") if kanal_bereit(k) and kanal_cfg(k).get("druckverlauf") is not False]
     je = {k: [] for k in wege}  # Meldungen je Meldeweg – jeder hat seine eigene Auswahl
     if st == "RUNNING" and alt["frei"]:
-        alt.update(frei=False, stufen={x for x in range(101) if pct >= x}, vorende=False, vorende_wa=False)
+        alt.update(frei=False, stufen={x for x in range(101) if pct >= x}, vorende=False, vorende_wa=False, vorende_al=False)
         meldungen.append("start")
     if st == "RUNNING":
         neu = {x for x in range(1, 100) if pct >= x and x not in alt["stufen"]}
@@ -2376,7 +2414,7 @@ def druck_beobachten(dr):
             if pct < 100 and neu & set(tg_stufen(k)):
                 je[k].append("stand")
             vor = drucker_mod._int(kanal_cfg(k).get("vor_ende"), 0)
-            merk = "vorende" if k == "telegram" else "vorende_wa"
+            merk = {"telegram": "vorende", "whatsapp": "vorende_wa"}.get(k, "vorende_al")
             if vor > 0 and not alt.get(merk) and 0 < rest <= vor and pct >= 5:
                 alt[merk] = True
                 je[k].append("vorende")
@@ -2425,7 +2463,78 @@ def tg_foto(k="telegram"):
     return kanal_cfg(k).get("foto", True) is not False
 
 
+def _sprech_dauer(minuten):
+    h, m = divmod(max(0, int(minuten)), 60)
+    teile = ([("einer Stunde" if h == 1 else "%d Stunden" % h)] if h else []) + ([("einer Minute" if m == 1 else "%d Minuten" % m)] if m or not h else [])
+    return " und ".join(teile)
+
+
+def alexa_text(art, werte):
+    vorlage = alexa_cfg()["texte"].get(art) or ALEXA_TEXTE.get(art, "")
+    return re.sub(r"\{(\w+)\}", lambda m: str(werte.get(m.group(1), m.group(0))), vorlage).strip()
+
+
+def alexa_werte(name, aufgabe, pct, p=None):
+    p = p or {}
+    rest = drucker_mod._int(p.get("mc_remaining_time"), 0)
+    datei = re.sub(r"(\.gcode)?(\.3mf|\.stl|\.step|\.obj)+$", "", str(aufgabe or ""), flags=re.I).strip() or "Druckauftrag"
+    return {"drucker": name, "datei": datei, "prozent": pct, "rest": _sprech_dauer(rest) if rest else "wenigen Minuten",
+            "ende": uhrzeit(time.time() + rest * 60) if rest else "gleich"}
+
+
+def jemand_daheim():
+    """Ist eine der gewählten Personen daheim? Ohne Auswahl oder wenn HA nicht antwortet: ja (lieber einmal zu viel ansagen)."""
+    ids = alexa_cfg()["daheim"]
+    if not ids:
+        return True
+    try:
+        for eid in ids:
+            st = str((ha_anfrage("/api/states/" + eid, timeout=5) or {}).get("state") or "").lower()
+            if st in ("home", "on", "zuhause", "daheim") or (eid.startswith("zone.") and st not in ("0", "unknown", "unavailable", "")):
+                return True
+        return False
+    except Exception as ex:
+        print("Alexa: Anwesenheit nicht lesbar:", ex, flush=True)
+        return True
+
+
+def alexa_sagen(text, probe=False):
+    """Ansage über das Meldewerk (ohne WhatsApp). Gibt (angesagt, grund) zurück."""
+    import urllib.request
+    w = einstellungen()["whatsapp"]
+    if not (w.get("url") and w.get("schluessel")):
+        return False, "Meldewerk ist nicht verbunden"
+    if not probe and not jemand_daheim():
+        print("Alexa: niemand daheim – keine Ansage:", text, flush=True)
+        return False, "niemand daheim"
+    url = str(w["url"]).rstrip("/")
+    if not re.match(r"^https?://", url):
+        url = "http://" + url
+    daten = {"quelle": "sl", "nur_alexa": True, "ansage": text}
+    if probe:
+        daten["alexa"] = "probe"
+    req = urllib.request.Request(url + "/api/senden", method="POST", data=json.dumps(daten).encode(),
+                                 headers={"Content-Type": "application/json", "X-Schluessel": str(w["schluessel"])})
+    try:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            d = json.loads(r.read().decode("utf-8") or "{}")
+    except Exception as ex:
+        return False, "Meldewerk nicht erreichbar: %s" % ex
+    if d.get("angesagt"):
+        return True, ""
+    return False, str(d.get("fehler") or "Das Meldewerk hat nicht angesagt – ist es auf dem neuesten Stand?").replace("nicht angesagt: ", "")
+
+
 def druck_telegram(art, name, pre, aufgabe, pct, zeit, codes, serial, task, dr=None, kanal="telegram"):
+    if kanal == "alexa":
+        if art == "start":
+            time.sleep(25)  # Name und Restzeit stehen erst kurz nach dem Start fest
+        p = dr.p if dr is not None else {}
+        aufgabe = str(p.get("subtask_name") or "").strip() or aufgabe
+        text = alexa_text(art, alexa_werte(name, aufgabe, pct, p))
+        if text:
+            alexa_sagen(text)
+        return
     def melde_senden(titel, text, bild="", foto=None):  # nur an diesen Meldeweg
         return kanal_senden(kanal, titel, text, bild, foto)
 
@@ -2556,6 +2665,10 @@ def fertig_melden(druckername, erg, kurz):
         if c.get("foto", True) is not False and erg.get("praefix") and bild is None:
             bild = kamera_foto(erg["praefix"]) or b""
         im_hintergrund(kanal_senden, k, titel, text, erg.get("bild") or "", (bild or None) if c.get("foto", True) is not False else None)
+    if kanal_bereit("alexa") and alexa_cfg()["ereignisse"].get(art):
+        sag = alexa_text(art, alexa_werte(druckername, aufgabe, 100 if art == "fertig" else round(erg.get("anteil", 1) * 100)))
+        if sag:
+            im_hintergrund(alexa_sagen, sag)
     handy_meldung(titel, text, erg.get("bild") or "", None, telegram=False)
 
 
@@ -4285,6 +4398,28 @@ class Handler(BaseHTTPRequestHandler):
                                    + (" Das Bild kommt aus der Druckerkamera." if foto else ""), "", foto):
                 raise Fehler(400, "Telegram ist noch nicht vollständig eingerichtet (Token und Chat fehlen)")
             return self._json(200, {"ok": True})
+        if teile == ["alexa", "personen"]:
+            try:
+                st = ha_anfrage("/api/states", timeout=10) or []
+            except Exception as ex:
+                return self._json(200, {"personen": [], "fehler": str(ex)})
+            pers = [{"id": x["entity_id"], "name": (x.get("attributes") or {}).get("friendly_name") or x["entity_id"], "state": x.get("state")}
+                    for x in st if str(x.get("entity_id", "")).startswith("person.")]
+            return self._json(200, {"personen": sorted(pers, key=lambda x: x["name"].lower()), "daheim": jemand_daheim()})
+        if teile == ["alexa", "probe"] and methode == "POST":
+            b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
+            art = str((b or {}).get("art") or "fertig")
+            if art not in ALEXA_TEXTE:
+                raise Fehler(400, "unbekannte Ansage")
+            dr = next((d for d in eigene_drucker() if str(d.p.get("gcode_state") or "").upper() in drucker_mod.LAUFEND), None)
+            if dr is not None:
+                name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
+                werte = alexa_werte(name, dr.p.get("subtask_name"), drucker_mod._int(dr.p.get("mc_percent"), 0), dr.p)
+            else:
+                werte = alexa_werte("H2S", "Probedruck", 50, {"mc_remaining_time": 83})
+            text = alexa_text(art, werte)
+            ok, grund = alexa_sagen(text, probe=True)
+            return self._json(200, {"ok": ok, "text": text, "grund": grund})
         if teile == ["whatsapp", "test"] and methode == "POST":
             b = self._json_rumpf() if int(self.headers.get("Content-Length") or 0) else {}
             if isinstance(b, dict) and (b.get("url") or b.get("schluessel")):
