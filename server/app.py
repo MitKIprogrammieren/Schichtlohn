@@ -86,7 +86,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.27.0"
+VERSION = "3.27.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1279,8 +1279,7 @@ def bambu_fm_soll(modus):
         if not info:
             continue
         basis, d, gw = info
-        reste = [float(r) for r in (d.get("reste") or []) if isinstance(r, (int, float))]
-        g = reste[0] if len(reste) == 1 else gw
+        g = float(x["schaetzung"]) if x.get("schaetzung") is not None else gw
         # dieselbe Rolle nicht zusätzlich als Regal-Rolle führen („Ganzes Lager“)
         weg = next((i for i, r in enumerate(out) if r["key"].startswith(x["uid"] + "#") and abs(r["g"] - g) < 0.5), None)
         if weg is not None:
@@ -2199,11 +2198,54 @@ def rollen_liste():
             r = (d.get("faecher") or {}).get(x["key"]) if isinstance(d.get("faecher"), dict) else None
             gw_ = _zahl(d.get("gewicht"), 1000) or 1000
             reste_ = [float(v) for v in (d.get("reste") or []) if isinstance(v, (int, float))]
-            x["schaetzung"] = reste_[0] if len(reste_) == 1 else gw_  # wie beim Filament Manager: ein Rest → dieser, sonst volle Rolle
+            x["schaetzung"] = reste_[0] if len(reste_) == 1 else gw_  # vorläufig, wird unten über alle Fächer verteilt
+            x["_eid"] = eid
             x.update({"uid": it["uid"], "sorte": it["summary"], "gewicht": _zahl(d.get("gewicht"), 1000) or 1000, "leer_g": _zahl(d.get("leer_g")) or None,
                       "rolle": r, "gleiche": [{"key": k, "g": v.get("g")} for k, v in (d.get("faecher") or {}).items() if k != x["key"] and isinstance(v, dict)]})
         out.append(x)
+    _schaetzungen_verteilen(out, sorten)
+    for x in out:
+        x.pop("_eid", None)
     return out
+
+
+def _schaetzungen_verteilen(liste, sorten):
+    """Fächer ohne eingetragene Rolle schätzen, ohne eine Rolle doppelt zu vergeben: Rollen, die schon in einem
+    anderen Fach stecken (eingetragen oder geschätzt), stehen nicht mehr zur Wahl. Die zuerst eingelegte Rolle
+    bekommt den angebrochenen Rest, eine neu eingelegte eine volle Rolle (solange es noch volle gibt)."""
+    offen = {}
+    for x in liste:
+        if x.get("uid") and (x.get("rolle") or {}).get("g") is None:
+            offen.setdefault(x["uid"], []).append(x)
+    for uid, xs in offen.items():
+        if uid not in sorten:
+            continue
+        d = sorten[uid][1]
+        reste, gw = _reste_liste(d)
+        pool = [float(r) for r in reste]
+        voll_im_fach = 0
+        for v in (d.get("faecher") or {}).values() if isinstance(d.get("faecher"), dict) else []:
+            if not isinstance(v, dict) or v.get("g") is None:
+                continue
+            g = float(v["g"])
+            if g >= gw:
+                voll_im_fach += 1
+            elif pool:
+                pool.pop(min(range(len(pool)), key=lambda i: abs(pool[i] - g)))
+        voll_frei = int(_zahl(d.get("spulen"), 1)) - len(reste) - voll_im_fach
+        xs.sort(key=lambda x: ((FACH_STAND.get(x.get("_eid")) or {}).get("seit", float("inf")), x["key"]))
+        for x in xs:
+            if len(pool) == 1:
+                g = pool.pop()
+            elif voll_frei > 0:
+                g, voll_frei = gw, voll_frei - 1
+            elif pool:
+                pool.sort()
+                g = pool.pop()
+            else:
+                g = gw
+            x["schaetzung"] = g
+
 
 def _gram(g):
     return ("%.1f" % g).replace(".", ",")
