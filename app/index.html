@@ -5264,6 +5264,8 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lfsp .lgsw{width:52px;height:52px;flex:none;margin-bottom:2px}
 .lfsp b{font-size:12.5px;font-weight:600;line-height:1.2;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .lfsp small{font-size:11px;color:var(--fg-3)}
+.lfspplus{border-style:dashed}.lfplus{width:52px;height:52px;flex:none;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);margin-bottom:2px}.lfplus svg{width:24px;height:24px}
+.lfspneu{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--accent);border-radius:14px}.lfspneu .lfgr .btn{justify-content:center;height:40px}
 .lfsp.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:color-mix(in srgb,var(--accent) 12%,var(--glass-2))}
 .modal:has(.lfneu)>footer{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .modal:has(.lfneu)>footer>.sp{display:none}
@@ -6163,10 +6165,10 @@ function formModal(e,prefill){
       ${raster(`${kachel("Anzahl Rollen",kin("lf_s",v(f.spulen),"Stk","","numeric"))}${kachel("Gewicht je Rolle",kin("lf_g",v(f.gewicht),"g","","numeric"))}`)}
       <div class="lggw lfchips lfgw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
       ${raster(kachel("Angebrochen (Rest je Rolle, mit Komma)",kin("lf_r",v((f.reste||[]).join(", ")),"g","alle voll"),1))}
-      ${(()=>{let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}const r0=f.raw||{};const name=r0.leer_spule||"";
-        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";const bild=n=>spool(fHex(f.hex),"lgsw",f.besonderheiten,Object.assign({},f,{_spuleZeigen:!!n,raw:Object.assign({},r0,{leer_spule:n})}));
-        const kach=(val,t,g,n)=>`<button type="button" class="lfsp${gew===val?" on":""}" data-act="lfSpule" data-v="${esc(val)}"${g?` data-g="${g}"`:""}>${bild(n)}<b>${esc(t)}</b><small>${g?g+" g":val==="__eigen__"?"selbst eintragen":"wie Hersteller"}</small></button>`;
-        return `<div class="lfsub">Auf welcher Spule steckt die angebrochene Rolle?<small>Volle Refills bleiben im Lager als Refill.</small></div><input type="hidden" id="lf_lsp" value="${esc(gew)}"><div class="lfspw">${kach("","Automatisch",0,"")}${SP.map(x=>kach(x.name,x.name,Number(x.g),x.name)).join("")}${kach("__eigen__","Eigene",0,"")}</div>
+      ${(()=>{const SP=lfSpListe();const name=(f.raw||{}).leer_spule||"";const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";
+        return `<div class="lfsub">Auf welcher Spule steckt die angebrochene Rolle?<small>Volle Refills bleiben im Lager als Refill.</small></div><input type="hidden" id="lf_lsp" value="${esc(gew)}"><div class="lfspw" id="lf_spw">${lfSpKacheln(f,gew,SP)}</div>
+        <div class="lfspneu" id="lf_spneu" hidden>${raster(`${kachel("Name der Spule",`<input type="text" id="lf_spn" maxlength="40" placeholder="z. B. Sunlu Kunststoff" autocomplete="off">`,1)}${kachel("Gewicht leer",kin("lf_spg","","g","200","numeric"))}${kachel("Aussehen",`<select id="lf_spa">${SP_TYPEN.map(([v2,t])=>`<option value="${v2}">${esc(t)}</option>`).join("")}</select>`)}`)}
+          <div class="lfgr"><button type="button" class="btn" data-act="lfSpNeuZu">Abbrechen</button><button type="button" class="btn pri" data-act="lfSpNeuSave">Spule speichern</button></div><div class="lghint" id="lf_spmsg"></div></div>
         ${raster(kachel("Leergewicht",kin("lf_leer",L.eigen?v(L.eigen):"","g",String(L.platz).split(" ")[0],"numeric"),1))}`})()}
       ${isNew?"":`<div class="lfgr lfgr3"><button class="btn" data-act="lgMinus">− 1 Rolle</button><button class="btn" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn" data-act="lgCopy">${ICON.copy} Vorlage</button></div><div id="lf_ask"></div>`}`)}
     ${abschnitt("Drucken",raster(`${kachel("Düse von",kin("lf_d1",v(f.duese_min),"°C","","numeric"))}${kachel("Düse bis",kin("lf_d2",v(f.duese_max),"°C","","numeric"))}
@@ -6188,6 +6190,22 @@ function formModal(e,prefill){
     <div class="hint" id="lf_msg" style="color:var(--bad)"></div></div>`,
     `${isNew?"":`<button class="btn danger" data-act="lgDel">${ICON.trash} Löschen</button>`}${!isNew&&fnAn("etikett")?`<button class="btn ghost" data-act="lgEtikett" title="Etikett mit QR-Code für diese Rolle">${SV_ETIKETT} Etikett</button>`:""}${!isNew&&fnAn("einkauf")&&srv()?`<button class="btn ghost" data-act="ekMark" title="Auf die Einkaufsliste setzen oder davon nehmen">${SV_KORB} Nachkaufen</button>`:""}<span class="sp"></span><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn pri" data-act="lgSave">Speichern</button>`);
 }
+/* Leerspulen-Kacheln (auch nach „+ Leer Spule“ neu gezeichnet) */
+function lfSpListe(){try{if(typeof leerspulenListe==="function")return leerspulenListe();return window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){return []}}
+function lfSpKacheln(f,gew,SP){const r0=f.raw||{};const bild=n=>spool(fHex(f.hex),"lgsw",f.besonderheiten,Object.assign({},f,{_spuleZeigen:!!n,raw:Object.assign({},r0,{leer_spule:n})}));
+  const kach=(val,t,g,n)=>`<button type="button" class="lfsp${gew===val?" on":""}" data-act="lfSpule" data-v="${esc(val)}"${g?` data-g="${g}"`:""}>${bild(n)}<b>${esc(t)}</b><small>${g?g+" g":val==="__eigen__"?"selbst eintragen":"wie Hersteller"}</small></button>`;
+  return kach("","Automatisch",0,"")+SP.map(x=>kach(x.name,x.name,Number(x.g),x.name)).join("")+kach("__eigen__","Eigene",0,"")+
+    `<button type="button" class="lfsp lfspplus" data-act="lfSpNeu"><span class="lfplus">${ICON.plus}</span><b>+ Leer Spule</b><small>neu anlegen</small></button>`}
+document.addEventListener("click",async e=>{const b=e.target.closest&&e.target.closest("[data-act=lfSpNeu],[data-act=lfSpNeuZu],[data-act=lfSpNeuSave]");if(!b)return;e.preventDefault();e.stopPropagation();
+  const box=document.getElementById("lf_spneu");if(!box)return;const a=b.dataset.act;
+  if(a==="lfSpNeu"){box.hidden=false;const n=document.getElementById("lf_spn");if(n){n.focus();n.scrollIntoView({block:"center",behavior:"smooth"})}return}
+  if(a==="lfSpNeuZu"){box.hidden=true;return}
+  const msg=document.getElementById("lf_spmsg"),say=t=>{if(msg)msg.textContent=t};const name=(document.getElementById("lf_spn").value||"").trim().slice(0,40);const g=fNum(document.getElementById("lf_spg").value);const art=document.getElementById("lf_spa").value;
+  if(!name)return say("Bitte einen Namen eingeben.");if(!(g>0&&g<1500))return say("Bitte das Leergewicht in Gramm eingeben (1–1499).");
+  const liste=lfSpListe().filter(x=>x.name.toLowerCase()!==name.toLowerCase()).map(x=>Object.assign({},x));liste.push({name,g:Math.round(g),art});
+  b.disabled=true;say("Speichere …");try{await einSpeichern({leerspulen:liste})}catch(err){b.disabled=false;return say("Speichern fehlgeschlagen: "+(err.message||err))}
+  const w=document.getElementById("lf_spw");if(w&&G.form)w.innerHTML=lfSpKacheln(G.form,name,liste);box.hidden=true;b.disabled=false;say("");
+  ["lf_spn","lf_spg"].forEach(id=>{const i=document.getElementById(id);if(i)i.value=""});lfSpuleSetzen(name,Math.round(g));toast(`„${name}“ angelegt`)},true);
 /* Leerspule im Bearbeiten-Fenster: Kachel wählen trägt das Gewicht ein und zeigt die Spule im Kopf; eigenes Tippen schaltet auf „Eigene“ */
 function lfSpuleSetzen(val,g){const h=document.getElementById("lf_lsp"),l=document.getElementById("lf_leer");if(!h)return;h.value=val;
   document.querySelectorAll(".lfsp").forEach(b=>b.classList.toggle("on",b.dataset.v===val));

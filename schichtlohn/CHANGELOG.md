@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.26.2 – 27.11.2026
+- Neue Kachel „+ Leer Spule“ im Fenster „Filament bearbeiten“: Name, Leergewicht und Aussehen eingeben, speichern – die Spule steht sofort in der Liste und ist gleich ausgewählt.
+
 ## 3.26.1 – 27.11.2026
 - Die gewählte Leerspule gilt nur noch für die angebrochene Rolle: Volle Refills werden im Lager weiter als Refill gezeichnet, erst eine angebrochene Rolle erscheint auf ihrer Spule (z. B. Marswork).
 
