@@ -308,8 +308,8 @@ def ams_einheiten(p):
     return out
 
 
-def zustaende(d, p, online):
-    """Meldung → HA-ähnliche Zustände {entity_id: (state, attributes)}"""
+def zustaende(d, p, online, module=None):
+    """Meldung → HA-ähnliche Zustände {entity_id: (state, attributes)}. module = ams_module_map (für den AMS-Typ je Fach)"""
     pre = praefix(d)
     name = d.get("name") or MODELL_NAMEN.get(d.get("modell") or modell_aus_serie(d.get("serial")), "Drucker")
     st = str(p.get("gcode_state") or "unknown").lower() if online else "offline"
@@ -347,6 +347,9 @@ def zustaende(d, p, online):
             "name": f["name"], "color": farbe, "type": f["typ"], "remain": f["rest"], "filament_id": f["fid"],
             "empty": f["leer"], "active": f["global"] == tray_now, "tag_uid": f["tag"], "tray_weight": f["gewicht"],
             "friendly_name": f"{name} {f['ort']}"})
+        typ = ((module or {}).get(f["ams"]) or {}).get("typ") if f["ams"] is not None else None
+        if typ:
+            z[eid][1]["ams_typ"] = typ
     return z
 
 
@@ -1129,6 +1132,12 @@ class Drucker:
         threading.Timer(2.0, self._pushall).start()
         return befehl["print"]
 
+    def _module_map(self):
+        try:
+            return ams_module_map(self)
+        except Exception:
+            return {}
+
     def licht(self, an):
         """Innenraumlicht an/aus (wie der Knopf in Bambu Studio)."""
         if not (self.client and self.online):
@@ -1170,7 +1179,7 @@ class Drucker:
     def _offline(self):
         if self.online:
             self.online = False
-            self.wirt.zustaende(self, zustaende(self.d, self.p, False))
+            self.wirt.zustaende(self, zustaende(self.d, self.p, False, self._module_map()))
 
     def _nachricht(self, client, userdata, msg):
         try:
@@ -1231,7 +1240,7 @@ class Drucker:
             t = temperaturen(self.p, modell_von(self.d))
             du = t["duesen"] + [{"temp": None}] * 2
             self.verlauf.append((int(self._verlauf_t), t.get("bett"), du[0]["temp"], du[1]["temp"], t.get("kammer")))
-        self.wirt.zustaende(self, zustaende(self.d, self.p, True))
+        self.wirt.zustaende(self, zustaende(self.d, self.p, True, self._module_map()))
 
     def _skip_merken(self, a):
         """Am Drucker übersprungene Teile (s_obj) mit Schicht und Fortschritt zum Zeitpunkt des Überspringens merken."""

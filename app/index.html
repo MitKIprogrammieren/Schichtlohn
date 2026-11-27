@@ -3052,9 +3052,24 @@ function amsDaten(pre){const Z=zustaende(),re=new RegExp("^sensor\\."+pre.replac
     /* AMS HT (je ein Fach) zusammen in einer Kachel, in der Reihenfolge HT 1, 2, 3 */
     const g=ext?"Extern":ams>=128?"AMS HT":"AMS "+ams;const o=ext?999:ams>=128?500:ams;
     const sort=ext?(fach>1?"Externe Spule "+fach:"Externe Spule"):ams>=128?"AMS HT "+(ams-127):"AMS "+ams+" Fach "+fach;
-    (gr[g]=gr[g]||{o,l:[]}).l.push({fach:ams>=128?ams-127:fach,ht:ams>=128,a,sort});if(!a.empty)n++}
+    (gr[g]=gr[g]||{o,l:[]}).l.push({fach:ams>=128?ams-127:fach,ht:ams>=128,a,sort});if(!gr[g].typ&&a.ams_typ)gr[g].typ=Number(a.ams_typ);if(!a.empty)n++}
   const namen=Object.keys(gr).sort((x,y)=>gr[x].o-gr[y].o);namen.forEach(g=>gr[g].l.sort((x,y)=>x.fach-y.fach));
+  const mod0=String(pre).split("_")[0],lite=/^a1/i.test(mod0),kopfU1=/^u1/i.test(mod0);namen.forEach(g=>{if(!gr[g].typ)gr[g].typ=kopfU1||g==="Extern"?-1:g==="AMS HT"?4:lite?2:0});
   namen.forEach(g=>{const m=g.match(/^AMS (\d+)$/);if(!m)return;const h=Z["sensor."+pre+"_ams_"+m[1]+"_luftfeuchtigkeit"];const v=h?Number(h.state):NaN;if(v>0&&v<=100)gr[g].hum=Math.round(v)});return {gr,namen,n}}
+/* Bild je AMS-Modell: Originalfoto aus dem Bambu-Store (lädt der eigene Server und hält es vor), sonst eine Zeichnung */
+const AMS_MOD={1:"AMS",2:"AMS lite",3:"AMS 2 Pro",4:"AMS HT"};
+const AMS_SVG={
+  1:'<svg viewBox="0 0 84 56"><rect x="3" y="16" width="78" height="36" rx="5" fill="#2a2f35" stroke="#4a5058"/><path d="M6 16 Q42 2 78 16" fill="#22272c" stroke="#4a5058"/><rect x="10" y="26" width="64" height="18" rx="3" fill="#111418" stroke="#3a4047"/><g fill="#6b7177"><circle cx="19" cy="35" r="6"/><circle cx="34" cy="35" r="6"/><circle cx="49" cy="35" r="6"/><circle cx="64" cy="35" r="6"/></g></svg>',
+  2:'<svg viewBox="0 0 84 56"><rect x="38" y="30" width="8" height="22" rx="2" fill="#353b42"/><rect x="22" y="48" width="40" height="5" rx="2.5" fill="#353b42"/><path d="M24 14 L42 26 L60 14 M24 38 L42 26 L60 38" stroke="#4a5058" stroke-width="2" fill="none"/><circle cx="42" cy="26" r="5" fill="#4a5058"/><g fill="#6b7177" stroke="#2a2f35" stroke-width="2"><circle cx="24" cy="14" r="9"/><circle cx="60" cy="14" r="9"/><circle cx="24" cy="38" r="9"/><circle cx="60" cy="38" r="9"/></g></svg>',
+  3:'<svg viewBox="0 0 84 56"><rect x="3" y="12" width="78" height="40" rx="7" fill="#2a2f35" stroke="#4a5058"/><rect x="3" y="12" width="78" height="10" rx="5" fill="#353b42"/><rect x="10" y="26" width="64" height="18" rx="4" fill="#111418" stroke="#3a4047"/><g fill="#6b7177"><circle cx="19" cy="35" r="6"/><circle cx="34" cy="35" r="6"/><circle cx="49" cy="35" r="6"/><circle cx="64" cy="35" r="6"/></g><rect x="60" y="15" width="14" height="4" rx="2" fill="#3ccf73"/></svg>',
+  4:'<svg viewBox="0 0 84 56"><rect x="24" y="6" width="36" height="46" rx="7" fill="#2a2f35" stroke="#4a5058"/><rect x="24" y="6" width="36" height="9" rx="5" fill="#353b42"/><rect x="30" y="19" width="24" height="27" rx="4" fill="#111418" stroke="#3a4047"/><circle cx="42" cy="32.5" r="9" fill="#6b7177"/><circle cx="42" cy="32.5" r="3" fill="#111418"/><rect x="47" y="9" width="9" height="3" rx="1.5" fill="#3ccf73"/></svg>'};
+const AMS_FEHL=new Set();
+window.amsBildFehl=(t,img)=>{AMS_FEHL.add(String(t));const b=img&&img.parentNode;if(b)b.classList.add("ohne")};
+function amsBild(typ,klein){if(Number(typ)<0)return "";const t=Number(typ)||1,name=AMS_MOD[t]||"AMS";
+  const foto=S.srv&&window.SRV&&SRV.url()&&!AMS_FEHL.has(String(t));
+  const src=foto?SRV.url()+"/api/produktbild?quelle=bambu&n="+encodeURIComponent(name)+(SRV.token()?"&token="+encodeURIComponent(SRV.token()):""):"";
+  return `<span class="dl-amsb${klein?" k":""}${foto?"":" ohne"}" title="${esc(name)}">${foto?`<img src="${esc(src)}" alt="${esc(name)}" loading="lazy" decoding="async" onerror="amsBildFehl(${t},this)">`:""}${AMS_SVG[t]||AMS_SVG[1]}</span>`}
+function amsTitel(g,typ){const m=g.match(/^AMS (\d+)$/);const mod=AMS_MOD[typ];return g==="Extern"?"Externe Spule":g==="AMS HT"?"AMS HT":mod&&m?`${mod} · ${m[1]}`:g}
 /* Rolle je Fach (Server): Gramm der Rolle, die gerade im Fach steckt */
 const RL={m:{},zeit:0,laeuft:false};
 function rollenHolen(){if(!(S.srv&&window.SRV)||RL.laeuft||Date.now()-RL.zeit<20000)return;RL.laeuft=true;
@@ -3163,14 +3178,15 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],
   t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",body);closeModal();toast(aktion==="entfernen"?"Rolle entfernt":`${d.sorte}: Rolle ${N0.format(Math.round(d.rolle.g))} g`);RL.zeit=0;rollenHolen()}
   catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}});
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.rl){e.preventDefault();e.target.click()}});
+function amsZaehlen(A){const m=new Map();A.namen.forEach(g=>{if(g==="Extern"||A.gr[g].typ<0)return;const t=A.gr[g].typ||1;m.set(t,(m.get(t)||0)+(g==="AMS HT"?A.gr[g].l.length:1))});return [...m]}
 function unten(d,lauf){rollenHolen();const A=amsDaten(d.pre),kam=OFFEN.has(d.key);if(!A.namen.length&&!kam)return "";
   const zu=(ZU.has(zk(d))||ZU.has(d.key))&&A.namen.length>0;
   const kamH=kam?`<div class="dl-kam" data-kam="${esc(d.key)}" data-pre="${esc(d.pre)}"><img alt="Kamera ${esc(d.name)}" data-dkv="${esc(d.key)}"><span class="dl-klade">Kamera wird verbunden …</span><span class="dl-live">${modus()==="live"?"Live":"alle "+modus()+" s"}</span><button type="button" class="dl-kvoll" data-dkv="${esc(d.key)}" aria-label="Kamera ${esc(d.name)} im Vollbild" title="Vollbild">${ICON_VOLL}</button></div>`:"";
   const kamW=kam&&S.srv&&window.SRV&&PL[d.pre]?`<div class="dl-kw">${kamH}${plLeiste(d.pre)}</div>`:kamH;
   const einh=A.namen.reduce((s,g)=>s+(g==="AMS HT"?A.gr[g].l.length:1),0)-(A.gr.Extern?1:0);
-  const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(zk(d))}" data-dzalt="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b><span>${einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
-  const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${esc(g)}${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:A.gr[g].hum?`<span class="dl-hum" title="Luftfeuchte im AMS">${A.gr[g].hum} %</span>`:""}</div><div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div></div>`}).join("")}</div>`;
-  return `<div class="dl-unten">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamW}</div></div>`}
+  const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(zk(d))}" data-dzalt="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b>${zu?`<span class="dl-amsm">${amsZaehlen(A).map(([t,c])=>amsBild(t,true)+(c>1?`<small>×${c}</small>`:"")).join("")}</span>`:""}<span class="dl-anz">${!zu&&einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
+  const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${amsBild(A.gr[g].typ)}<span class="dl-amst">${esc(amsTitel(g,A.gr[g].typ))}</span>${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:A.gr[g].hum?`<span class="dl-hum" title="Luftfeuchte im AMS">${A.gr[g].hum} %</span>`:""}</div><div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div></div>`}).join("")}</div>`;
+  return `<div class="dl-unten${zu?" zu":""}">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamW}</div></div>`}
 const ICON_VOLL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 const ICON_LICHT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>';
 const ICON_KAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>';
@@ -3407,6 +3423,32 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 @media (max-width:760px){.dc .dl-z{padding:14px;gap:12px}.dl-bw{border-radius:15px}.dc .dl-bild{width:48px;height:48px;border-radius:12px}.dc .dl-name{font-size:16px}
   .dl-zl{flex-wrap:wrap}.dc .dl-akt{gap:6px}.dc .dl-akt .btn.icon{width:38px;height:38px;border-radius:11px}
   .dl-fort{padding:0 14px 14px}.dc .dl-unten{padding:0 12px 14px}.dc .dl-ub.mitkam{grid-template-columns:minmax(0,1fr)}.dc .dl-amsl{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- Aufgeräumt (3.29): kompaktere Karten, ruhigere Knöpfe, AMS-Modellbilder ---- */
+.dc .dl-z{padding:12px 14px;gap:12px}
+.dc .dl-bild{width:48px;height:48px;border-radius:12px}.dl-bw{border-radius:15px}
+.dc .dl-name{font-size:16px}
+.dl-zl{margin-top:4px;flex-wrap:wrap;row-gap:4px}
+.dc .dl-st,.dc .dl-pls{font-size:12px;padding:2px 9px}
+.dl-akt{gap:6px}.dc .dl-akt .btn.icon{width:36px;height:36px;border-radius:10px}.dc .dl-akt .btn.icon svg{width:17px;height:17px}
+.dc .dl-nabtn:not(.lauf){color:var(--fg-3);border-color:var(--line-2);opacity:1}
+.dl-fort{padding:0 14px 12px}.dl-fz b{font-size:14px}
+.dc .dl-unten{padding:0 14px 12px}.dc .dl-unten.zu{padding-bottom:2px}
+.dc .dl-auf{padding:10px 0;gap:8px;white-space:nowrap;min-width:0}
+.dl-anz{white-space:nowrap;flex:none}
+.dl-dots{flex-wrap:nowrap;overflow:hidden;flex:1 1 auto;min-width:0;padding:2px}
+.dl-dots i{flex:none}
+.dl-amsm{display:flex;align-items:center;gap:4px;flex:none}.dl-amsm small{font-size:11.5px;color:var(--fg-3);margin:0 4px 0 -1px}
+.dl-amsb{flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;height:32px;border-radius:8px;background:#f2f3f4;overflow:hidden}
+.dl-amsb img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;padding:2px;box-sizing:border-box}
+.dl-amsb svg{display:none;width:100%;height:100%}
+.dl-amsb.ohne{background:none}.dl-amsb.ohne img{display:none}.dl-amsb.ohne svg{display:block}
+.dl-amsb.k{width:26px;height:20px;border-radius:5px}
+.dc .dl-amsn{display:flex;align-items:center;gap:9px;justify-content:flex-start;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--fg);margin:0 2px 8px}
+.dc .dl-amsn .dl-amst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc .dl-amsn>span:last-child:not(.dl-amst){font-size:12px;font-weight:500;color:var(--fg-3)}
+.dc .dl-sl{padding:8px 4px 7px}.dc .dl-sl .dl-sp{width:38px;height:38px;margin:0 0 5px}
+@media (max-width:760px){.dl-aufr{display:none}.dc .dl-akt .btn.icon{width:34px;height:34px}.dl-fort{padding:0 14px 12px}}
 </style>
 <style>
 .jhead{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}.jhead>label.chip{font-size:inherit;padding:0 12px;border-radius:var(--r-s);gap:8px;color:var(--fg)}.jhead>.btn,.jhead>.sp{align-self:center}

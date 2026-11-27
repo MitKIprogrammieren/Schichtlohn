@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.29.0 – 27.11.2026
+- Druckerübersicht aufgeräumt: kompaktere Karten, kleinere Knöpfe, der Fortschrittsbalken geht über die ganze Breite. Der Notaus-Knopf ist nur noch rot, während gedruckt wird.
+- Jede AMS-Einheit zeigt jetzt ihr Bild (AMS, AMS lite, AMS 2 Pro, AMS HT) – das Originalfoto aus dem Bambu-Store, sonst eine Zeichnung. Zugeklappt siehst du die Modelle klein nebeneinander, z. B. „AMS 2 Pro ×4“.
+
 ## 3.28.0 – 27.11.2026
 - Alexa-Ansagen: neue Ruhezeit. Du trägst selbst ein, von wann bis wann Alexa nichts sagt (auch über Mitternacht), und wählst die Tage. WhatsApp-Meldungen kommen trotzdem, Probe-Ansagen gehen immer.
 
