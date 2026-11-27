@@ -5258,7 +5258,7 @@ const m=document.getElementById("main");if(m)new MutationObserver(()=>apply()).o
 .lgmore{padding:8px 16px 12px}
 .lgform{display:flex;flex-direction:column;gap:12px}
 .lfneu{gap:18px}
-.lfsub{font-size:13px;color:var(--fg-2);margin:2px 2px -2px}
+.lfsub{font-size:13px;color:var(--fg-2);margin:2px 2px -2px;display:flex;flex-direction:column;gap:1px}.lfsub small{font-size:11.5px;color:var(--fg-3)}
 .lfspw{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .lfsp{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;height:120px;padding:10px 6px 8px;background:var(--glass-2);border:1px solid var(--line);border-radius:12px;cursor:pointer;color:var(--fg);font:inherit;min-width:0}
 .lfsp .lgsw{width:52px;height:52px;flex:none;margin-bottom:2px}
@@ -5691,7 +5691,8 @@ function spoolInfo(e){if(!e||typeof e!=="object")return {pct:1,art:"dunkel",gewi
   const gw=e.gewicht>0?e.gewicht:1000,sp=Number(e.spulen)||0;const r=Array.isArray(e.reste)?e.reste.filter(x=>x>0):[];
   const pct=sp<=0?0:r.length?Math.max(.05,Math.min(1,Math.min(...r)/gw)):1;
   const refill=(e.raw&&e.raw.ausfuehrung==="refill")||(e.refills>0&&e.refills>=sp);
-  const ls=e.raw&&e.raw.leer_spule;let lsArt="";if(ls&&typeof leerspuleArt==="function"){try{lsArt=leerspuleArt(ls)}catch(x){}}
+  /* Leerspule gilt nur für die angebrochene Rolle: volle Refills bleiben Refill (e._spuleZeigen = Vorschau im Bearbeiten-Fenster) */
+  const ls=e.raw&&e.raw.leer_spule;let lsArt="";if(ls&&(r.length||e._spuleZeigen)&&typeof leerspuleArt==="function"){try{lsArt=leerspuleArt(ls)}catch(x){}}
   const art=lsArt||(refill?"refill":spMarkeArt(e.hersteller));
   return {pct,art,gewicht:gw,aktiv:!!e.uid&&spoolAktiv().has(e.uid)}}
 const SP_TYPEN=[["klar","Klar"],["milchig","Bambu Spule"],["rippen","FD3D"],["dunkel","JAYO"],["lochplatte","Sunlu/JAYO"],["schlitz","TINMORRY"],["zweifarbig","FILAXIX"],["pappe","Polymaker"],["marswork","Marswork"]];
@@ -6163,9 +6164,9 @@ function formModal(e,prefill){
       <div class="lggw lfchips lfgw" role="group" aria-label="Gewicht je Rolle schnell wählen">${[[250,"250 g"],[500,"500 g"],[750,"750 g"],[800,"800 g"],[1000,"1 kg"],[1100,"1,1 kg"],[2000,"2 kg"],[3000,"3 kg"],[5000,"5 kg"],[10000,"10 kg"]].map(([w,t])=>`<button type="button" class="chip${Number(f.gewicht)===w?" on":""}" data-act="lgGw" data-w="${w}">${t}</button>`).join("")}</div>
       ${raster(kachel("Angebrochen (Rest je Rolle, mit Komma)",kin("lf_r",v((f.reste||[]).join(", ")),"g","alle voll"),1))}
       ${(()=>{let SP=[];try{SP=window.LGN&&LGN.leerspulen?LGN.leerspulen():[]}catch(x){}const r0=f.raw||{};const name=r0.leer_spule||"";
-        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";const bild=n=>spool(fHex(f.hex),"lgsw",f.besonderheiten,Object.assign({},f,{raw:Object.assign({},r0,{leer_spule:n})}));
+        const gew=name&&SP.find(x=>x.name===name)?name:L.eigen?"__eigen__":"";const bild=n=>spool(fHex(f.hex),"lgsw",f.besonderheiten,Object.assign({},f,{_spuleZeigen:!!n,raw:Object.assign({},r0,{leer_spule:n})}));
         const kach=(val,t,g,n)=>`<button type="button" class="lfsp${gew===val?" on":""}" data-act="lfSpule" data-v="${esc(val)}"${g?` data-g="${g}"`:""}>${bild(n)}<b>${esc(t)}</b><small>${g?g+" g":val==="__eigen__"?"selbst eintragen":"wie Hersteller"}</small></button>`;
-        return `<div class="lfsub">Auf welcher Spule steckt das Filament?</div><input type="hidden" id="lf_lsp" value="${esc(gew)}"><div class="lfspw">${kach("","Automatisch",0,"")}${SP.map(x=>kach(x.name,x.name,Number(x.g),x.name)).join("")}${kach("__eigen__","Eigene",0,"")}</div>
+        return `<div class="lfsub">Auf welcher Spule steckt die angebrochene Rolle?<small>Volle Refills bleiben im Lager als Refill.</small></div><input type="hidden" id="lf_lsp" value="${esc(gew)}"><div class="lfspw">${kach("","Automatisch",0,"")}${SP.map(x=>kach(x.name,x.name,Number(x.g),x.name)).join("")}${kach("__eigen__","Eigene",0,"")}</div>
         ${raster(kachel("Leergewicht",kin("lf_leer",L.eigen?v(L.eigen):"","g",String(L.platz).split(" ")[0],"numeric"),1))}`})()}
       ${isNew?"":`<div class="lfgr lfgr3"><button class="btn" data-act="lgMinus">− 1 Rolle</button><button class="btn" data-act="lgPlus">${ICON.plus} 1 Rolle</button><button class="btn" data-act="lgCopy">${ICON.copy} Vorlage</button></div><div id="lf_ask"></div>`}`)}
     ${abschnitt("Drucken",raster(`${kachel("Düse von",kin("lf_d1",v(f.duese_min),"°C","","numeric"))}${kachel("Düse bis",kin("lf_d2",v(f.duese_max),"°C","","numeric"))}
@@ -6191,13 +6192,13 @@ function formModal(e,prefill){
 function lfSpuleSetzen(val,g){const h=document.getElementById("lf_lsp"),l=document.getElementById("lf_leer");if(!h)return;h.value=val;
   document.querySelectorAll(".lfsp").forEach(b=>b.classList.toggle("on",b.dataset.v===val));
   if(l){if(val==="")l.value="";else if(g)l.value=String(g);else if(val==="__eigen__")l.focus()}
-  const r=document.getElementById("lf_rolle"),f=G.form;if(r&&f){const hx=(document.getElementById("lf_hex")||{}).value||f.hex;r.innerHTML=spool(fHex(hx),"lgsw",f.besonderheiten,Object.assign({},f,{raw:Object.assign({},f.raw||{},{leer_spule:val==="__eigen__"?"":val})}))}}
+  const r=document.getElementById("lf_rolle"),f=G.form;if(r&&f){const hx=(document.getElementById("lf_hex")||{}).value||f.hex;r.innerHTML=spool(fHex(hx),"lgsw",f.besonderheiten,Object.assign({},f,{_spuleZeigen:!!val&&val!=="__eigen__",raw:Object.assign({},f.raw||{},{leer_spule:val==="__eigen__"?"":val})}))}}
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-act=lfSpule]");if(!b)return;e.preventDefault();e.stopPropagation();lfSpuleSetzen(b.dataset.v,Number(b.dataset.g)||0)},true);
 document.addEventListener("input",e=>{const t=e.target;if(!t||t.id!=="lf_leer")return;const h=document.getElementById("lf_lsp");if(!h)return;const on=document.querySelector(".lfsp.on");
   if(!t.value.trim()){if(h.value==="__eigen__")lfSpuleSetzen("",0)}else if(!(on&&on.dataset.g&&on.dataset.g===t.value.trim())&&h.value!=="__eigen__")lfSpuleSetzen("__eigen__",0)});
 /* Kopf im Bearbeiten-Fenster mitziehen: Name, Farbe, Rolle */
 document.addEventListener("input",e=>{const t=e.target;if(!t||!t.id||!/^lf_(f|hex|hx6)$/.test(t.id))return;const kf=document.getElementById("lf_kf");if(t.id==="lf_f"&&kf)kf.textContent=t.value.trim()||"Farbe noch ohne Namen";
-  if(/^lf_(hex|hx6)$/.test(t.id)){const h=String(t.value||"").trim();if(/^#[0-9a-f]{6}$/i.test(h)){const r=document.getElementById("lf_rolle");const sv=(document.getElementById("lf_lsp")||{}).value;if(r&&G.form)r.innerHTML=spool(h,"lgsw",G.form.besonderheiten,sv===undefined?G.form:Object.assign({},G.form,{raw:Object.assign({},G.form.raw||{},{leer_spule:sv==="__eigen__"?"":sv})}))}}});
+  if(/^lf_(hex|hx6)$/.test(t.id)){const h=String(t.value||"").trim();if(/^#[0-9a-f]{6}$/i.test(h)){const r=document.getElementById("lf_rolle");const sv=(document.getElementById("lf_lsp")||{}).value;if(r&&G.form)r.innerHTML=spool(h,"lgsw",G.form.besonderheiten,sv===undefined?G.form:Object.assign({},G.form,{_spuleZeigen:!!sv&&sv!=="__eigen__",raw:Object.assign({},G.form.raw||{},{leer_spule:sv==="__eigen__"?"":sv})}))}}});
 document.addEventListener("change",e=>{const t=e.target;if(!t||!/^lf_(h|m)$/.test(t.id||""))return;const k=document.getElementById("lf_kn");if(!k)return;const g=id=>{const s=document.getElementById(id);return s&&s.value!==ANDERE?s.value:""};k.textContent=[g("lf_h"),g("lf_m")].filter(Boolean).join(" ")||"Neue Sorte"});
 function collect(){const f=G.form;if(!f)return null;const val=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   const set=(k,id,fn)=>{const x=val(id);if(x!==undefined)f[k]=fn?fn(x):x};

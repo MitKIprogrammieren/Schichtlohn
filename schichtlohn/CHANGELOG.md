@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.26.1 – 27.11.2026
+- Die gewählte Leerspule gilt nur noch für die angebrochene Rolle: Volle Refills werden im Lager weiter als Refill gezeichnet, erst eine angebrochene Rolle erscheint auf ihrer Spule (z. B. Marswork).
+
 ## 3.26.0 – 26.11.2026
 - Leerspule als Bildkacheln: Im Fenster „Filament bearbeiten“ wählst du die Spule, auf der das Filament steckt, mit Bild. Die Rolle oben zeigt sofort die gewählte Spule.
 - Im Lager wird jede Sorte jetzt auf der Spule gezeichnet, auf der sie wirklich steckt (z. B. Refill auf der Marswork-Spule).
