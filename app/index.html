@@ -626,33 +626,44 @@ const SRV=window.SRV=(()=>{
     const a=E.alexa||{},ev=a.ereignisse||{},tx=a.texte||{},an=k=>k in ev?ev[k]!==false:!AL_AUS[k];const aus=!!a.aus;const dh=Array.isArray(a.daheim)?a.daheim:[];
     const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
     const st=Array.isArray(a.stufen)?a.stufen:[50],vor=Number(a.vor_ende)||5;
-    box.innerHTML=`<p>Die Echos sagen Drucke über das <b>Meldewerk</b> an – unabhängig davon, was per WhatsApp kommt. Welche Echos und die Nachtruhe stellst du im Meldewerk ein.</p>
+    box.innerHTML=`<p>Die Echos sagen Drucke über das <b>Meldewerk</b> an – unabhängig davon, was per WhatsApp kommt. Welche Echos sagen und eine feste Nachtruhe stellst du im Meldewerk ein.</p>
       <div class="tgs alx"><div class="tgr">${ch('data-alaus="0"',"Ansagen an",!aus)}${ch('data-alaus="1"',"aus",aus)}</div>
       ${aus?"":`<div class="tgs-k">Ansagen, wenn ein Druck …</div><div class="tgr">${AL_EV.map(([k,n])=>ch(`data-alev="${k}"`,(an(k)?"✓ ":"")+n,an(k))).join("")}</div>
       ${an("vorende")?`<div class="tgs-k">„Gleich fertig“</div><div class="tgr">${[5,10,15,30].map(v=>ch(`data-alvor="${v}"`,v+" min vorher",vor===v)).join("")}</div>`:""}
       ${an("stand")?`<div class="tgs-k">Fortschritt ansagen bei</div><div class="tgr tgp">${[25,50,75,90].map(x=>ch(`data-alst="${x}"`,x+" %",st.includes(x))).join("")}</div>`:""}
       <div class="tgs-k">Nur ansagen, wenn jemand daheim ist</div><div class="tgr" id="al_pers">${alPers?alPersHtml(dh):'<span class="alx-h">Personen werden aus Home Assistant geladen …</span>'}</div>
+      ${alRuheHtml(a.ruhe)}
       <div class="tgs-k">Das sagt Alexa</div><div class="alx-z">${AL_EV.map(([k,,n])=>`<b class="${an(k)?"":"aus"}">${n}</b><input type="text" data-altx="${k}" value="${esc(tx[k]||"")}" placeholder="${esc(AL_STD[k])}" class="${an(k)?"":"aus"}" autocomplete="off" spellcheck="false">`).join("")}</div>
       <div class="alx-h">Platzhalter: <code>{drucker}</code> <code>{datei}</code> <code>{prozent}</code> <code>{rest}</code> <code>{ende}</code> · leeres Feld = Standardtext</div>
       <div class="alx-r"><button class="btn sm" data-act="alProbe">Probe-Ansage</button><select id="al_probeart" class="alx-sel">${AL_EV.map(([k,,n])=>`<option value="${k}"${k==="fertig"?" selected":""}>${n}</option>`).join("")}</select>${Object.keys(tx).length?'<button class="btn sm ghost" data-act="alStd">Standardtexte</button>':""}</div>
       <div class="alx-h" id="al_msg"></div>`}</div>`;
     if(!aus&&!alPers)alPersLaden()}
+  const AL_TAGE=["Mo","Di","Mi","Do","Fr","Sa","So"];
+  function alRuhe(){const r=(E.alexa||{}).ruhe||{};return{an:!!r.an,von:r.von||"22:00",bis:r.bis||"07:00",tage:Array.isArray(r.tage)?r.tage:[0,1,2,3,4,5,6]}}
+  function alRuheHtml(){const r=alRuhe(),ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
+    return `<div class="tgs-k">Ruhezeit – Alexa sagt nichts</div><div class="tgr">${ch('data-alru="0"',"aus",!r.an)}${ch('data-alru="1"',(r.an?"✓ ":"")+"an",r.an)}</div>
+      ${r.an?`<div class="alx-rz"><span>von</span><input type="time" data-alrz="von" value="${esc(r.von)}"><span>bis</span><input type="time" data-alrz="bis" value="${esc(r.bis)}"></div>
+      <div class="tgr alx-tage"><span class="alx-h">Tage:</span>${AL_TAGE.map((n,i)=>ch(`data-alrt="${i}"`,n,r.tage.includes(i))).join("")}</div>
+      <div class="alx-h">Zwischen ${esc(r.von)} und ${esc(r.bis)} Uhr bleibt Alexa still – WhatsApp kommt trotzdem. Probe-Ansagen gehen immer.${r.von>r.bis?" Die Tage zählen ab dem Abend, an dem die Ruhezeit beginnt.":""}</div>`:""}`}
   function alPersHtml(dh){if(!alPers.length)return'<span class="alx-h">Keine Personen in Home Assistant gefunden – Alexa sagt immer an.</span>';
     const ch=(attr,t2,on)=>`<button type="button" class="tgc${on?" on":""}" ${attr}>${t2}</button>`;
     return ch('data-alda=""',"egal – immer",!dh.length)+alPers.map(p=>ch(`data-alda="${esc(p.id)}"`,(dh.includes(p.id)?"✓ ":"")+esc(p.name)+(p.state==="home"?" 🏠":""),dh.includes(p.id))).join("")+(dh.length?'<span class="alx-h" style="flex-basis:100%">Alexa sagt an, sobald eine der gewählten Personen daheim ist.</span>':"")}
   async function alPersLaden(){try{const r=await req("GET","/api/alexa/personen");alPers=r.personen||[];if(r.fehler&&!alPers.length){const b=document.getElementById("al_pers");if(b)b.innerHTML='<span class="alx-h">Home Assistant nicht erreichbar – Alexa sagt immer an.</span>';return}}catch(x){alPers=[]}
     const b=document.getElementById("al_pers");if(b)b.innerHTML=alPersHtml(((E.alexa||{}).daheim)||[])}
   async function alSpeichern(neu,text){try{E=await req("PUT","/api/einstellungen",{alexa:neu});alexaForm();if(text)toast(text)}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
-  document.addEventListener("click",async ev=>{const b=ev.target.closest&&ev.target.closest(".alx [data-alaus],.alx [data-alev],.alx [data-alvor],.alx [data-alst],.alx [data-alda],[data-act=alProbe],[data-act=alStd]");if(!b)return;
+  document.addEventListener("click",async ev=>{const b=ev.target.closest&&ev.target.closest(".alx [data-alaus],.alx [data-alev],.alx [data-alvor],.alx [data-alst],.alx [data-alda],.alx [data-alru],.alx [data-alrt],[data-act=alProbe],[data-act=alStd]");if(!b)return;
     const a=E.alexa||{};
     if(b.dataset.alaus!=null)return alSpeichern({aus:b.dataset.alaus==="1"},b.dataset.alaus==="1"?"Alexa-Ansagen aus":"Alexa-Ansagen an");
     if(b.dataset.alev){const k=b.dataset.alev,e2=Object.assign({},a.ereignisse||{});const jetzt=k in e2?e2[k]!==false:!AL_AUS[k];e2[k]=!jetzt;return alSpeichern({ereignisse:e2})}
     if(b.dataset.alvor)return alSpeichern({vor_ende:Number(b.dataset.alvor)});
     if(b.dataset.alst){const x=Number(b.dataset.alst),s2=new Set(Array.isArray(a.stufen)?a.stufen:[50]);s2.has(x)?s2.delete(x):s2.add(x);if(!s2.size)return toast("Mindestens eine Stufe – sonst Fortschritt ausschalten");return alSpeichern({stufen:[...s2].sort((p,q)=>p-q)})}
     if(b.dataset.alda!=null){const id=b.dataset.alda;let dh=Array.isArray(a.daheim)?[...a.daheim]:[];dh=!id?[]:dh.includes(id)?dh.filter(x=>x!==id):[...dh,id];return alSpeichern({daheim:dh})}
+    if(b.dataset.alru!=null){const r=alRuhe();r.an=b.dataset.alru==="1";return alSpeichern({ruhe:r},r.an?"Ruhezeit an":"Ruhezeit aus")}
+    if(b.dataset.alrt!=null){const r=alRuhe(),i=Number(b.dataset.alrt);r.tage=r.tage.includes(i)?r.tage.filter(x=>x!==i):[...r.tage,i].sort((p,q)=>p-q);if(!r.tage.length)return toast("Mindestens ein Tag – sonst Ruhezeit ausschalten");return alSpeichern({ruhe:r})}
     if(b.dataset.act==="alStd"){if(!confirm("Alle eigenen Ansagetexte auf den Standard zurücksetzen?"))return;return alSpeichern({texte:{}},"Standardtexte wiederhergestellt")}
     if(b.dataset.act==="alProbe"){const m=document.getElementById("al_msg"),art=(document.getElementById("al_probeart")||{}).value||"fertig";if(m)m.textContent="Alexa spricht …";
       try{const r=await req("POST","/api/alexa/probe",{art});if(m)m.innerHTML=r.ok?`✓ „${esc(r.text)}“`:`<span style="color:var(--bad)">Nicht angesagt: ${esc(r.grund||"unbekannt")}</span><br>„${esc(r.text)}“`}catch(x){if(m)m.innerHTML=`<span style="color:var(--bad)">${esc(x.message||String(x))}</span>`}}});
+  document.addEventListener("change",ev=>{const i=ev.target;if(!i||!i.dataset||!i.dataset.alrz||!/^\d{2}:\d{2}$/.test(i.value))return;const r=alRuhe();r[i.dataset.alrz]=i.value;alSpeichern({ruhe:r},"Ruhezeit gespeichert")});
   document.addEventListener("change",ev=>{const i=ev.target;if(!i||!i.dataset||!i.dataset.altx)return;const tx=Object.assign({},(E.alexa||{}).texte||{});const v=i.value.trim();if(v&&v!==AL_STD[i.dataset.altx])tx[i.dataset.altx]=v;else delete tx[i.dataset.altx];alSpeichern({texte:tx},"Ansagetext gespeichert")});
   async function tgSpeichern(neu,text,kanal){try{E=await req("PUT","/api/einstellungen",{[kanal||"telegram"]:neu});telegramForm();whatsappForm();toast(text||"Gespeichert")}catch(x){toast("Speichern ging nicht: "+(x.message||x))}}
   document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest(".tgs[data-kanal] [data-tgst],.tgs[data-kanal] [data-tgx],.tgs[data-kanal] [data-tgvor],.tgs[data-kanal] [data-tgev]");if(!b)return;
@@ -9292,6 +9303,8 @@ window.DMGR={ICON,auf,inline};
 .alx-z{display:grid;grid-template-columns:1fr;gap:3px}.alx-z b{font-size:12.5px;font-weight:600;margin-top:6px}.alx-z b.aus{color:var(--fg-3);text-decoration:line-through}
 .alx-z input{width:100%;box-sizing:border-box;background:var(--sunken);border:1px solid var(--line-2);border-radius:10px;color:var(--fg);padding:8px 10px;font:inherit;font-size:13px}.alx-z input.aus{opacity:.45}
 .alx-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}#srvsec .alx-r>*{width:auto}
+.alx-rz{display:flex;align-items:center;gap:10px;margin:6px 0 8px}.alx-rz span{font-size:13px;color:var(--fg-3)}.alx-rz input{background:var(--sunken);border:1px solid var(--line-2);border-radius:10px;color:var(--fg);padding:7px 10px;font:inherit;font-size:15px;color-scheme:dark}
+.alx-tage{align-items:center}.alx-tage .alx-h{margin:0 2px 0 0}
 .alx-h{font-size:12px;color:var(--fg-3);line-height:1.6;margin-top:4px}.alx-h code{font-size:11.5px}
 #srvsec .alx-sel,.alx-sel{width:auto;flex:0 0 auto;background:var(--sunken);border:1px solid var(--line-2);border-radius:10px;color:var(--fg);padding:6px 8px;font:inherit;font-size:13px}
 .dl-fs{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}

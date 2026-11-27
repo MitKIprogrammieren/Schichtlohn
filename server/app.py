@@ -86,7 +86,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.27.1"
+VERSION = "3.28.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2540,12 +2540,42 @@ def jemand_daheim():
         return True
 
 
+def _hhmm(v, std):
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})", str(v or "").strip())
+    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
+        m = re.fullmatch(r"(\d{1,2}):(\d{2})", std)
+    return int(m.group(1)) * 60 + int(m.group(2))
+
+
+def alexa_ruhezeit(jetzt=None):
+    """Liegt jetzt in der eigenen Ruhezeit der Alexa-Ansagen? Tage = Tag, an dem die Ruhezeit beginnt (0 = Montag)."""
+    r = alexa_cfg().get("ruhe")
+    if not isinstance(r, dict) or not r.get("an"):
+        return False
+    von, bis = _hhmm(r.get("von"), "22:00"), _hhmm(r.get("bis"), "07:00")
+    if von == bis:
+        return False
+    t = time.localtime(jetzt)
+    minute, tag = t.tm_hour * 60 + t.tm_min, t.tm_wday
+    tage = [int(x) for x in (r.get("tage") if isinstance(r.get("tage"), list) else range(7)) if str(x).isdigit() and 0 <= int(x) <= 6]
+    if von < bis:
+        return von <= minute < bis and tag in tage
+    if minute >= von:
+        return tag in tage
+    if minute < bis:
+        return (tag - 1) % 7 in tage
+    return False
+
+
 def alexa_sagen(text, probe=False):
     """Ansage über das Meldewerk (ohne WhatsApp). Gibt (angesagt, grund) zurück."""
     import urllib.request
     w = einstellungen()["whatsapp"]
     if not (w.get("url") and w.get("schluessel")):
         return False, "Meldewerk ist nicht verbunden"
+    if not probe and alexa_ruhezeit():
+        print("Alexa: Ruhezeit – keine Ansage:", text, flush=True)
+        return False, "Ruhezeit"
     if not probe and not jemand_daheim():
         print("Alexa: niemand daheim – keine Ansage:", text, flush=True)
         return False, "niemand daheim"

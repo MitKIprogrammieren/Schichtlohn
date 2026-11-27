@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.28.0 – 27.11.2026
+- Alexa-Ansagen: neue Ruhezeit. Du trägst selbst ein, von wann bis wann Alexa nichts sagt (auch über Mitternacht), und wählst die Tage. WhatsApp-Meldungen kommen trotzdem, Probe-Ansagen gehen immer.
+
 ## 3.27.1 – 27.11.2026
 - Steckt dieselbe Sorte in zwei Druckern, bekommt die neu eingelegte Rolle nicht mehr den angebrochenen Rest der anderen Rolle angezeigt: Die zuerst eingelegte Rolle behält den Rest, die neue zählt als volle Rolle.
 
