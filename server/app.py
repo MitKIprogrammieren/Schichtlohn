@@ -25,6 +25,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
   POST /api/whatsapp/test             WhatsApp über das Meldewerk: Testmeldung
   GET  /api/alexa/personen            Personen aus Home Assistant (für „nur ansagen, wenn jemand daheim ist“)
+  GET  /api/druck/vorschau?pre=…     Vorschaubild des laufenden Drucks (Bambu-Cloud)
   POST /api/alexa/probe               Probe-Ansage {art} mit dem laufenden Druck (sonst Beispielwerten)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
@@ -87,7 +88,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.30.0"
+VERSION = "3.30.1"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2660,6 +2661,37 @@ def eigene_drucker():
     return list(BAMBU.drucker.values())
 
 
+_VORSCHAU = {}  # (Seriennummer, Auftrag) → Vorschaubild aus der Bambu-Cloud
+
+
+def druck_vorschau(pre):
+    """Vorschaubild des Drucks, der gerade läuft (aus der Bambu-Cloud, je Auftrag einmal geholt)."""
+    dr = eigener_drucker(pre)
+    if dr is None:
+        return {"bild": ""}
+    p = dr.p or {}
+    task, name = str(p.get("task_id") or ""), str(p.get("subtask_name") or "").strip()
+    if not (task or name):
+        return {"bild": ""}
+    k = (dr.serial, task, name)
+    alt = _VORSCHAU.get(k)
+    if alt and (alt["bild"] or time.time() - alt["zeit"] < 120):  # ohne Bild nach 2 min nochmal fragen (Cloud braucht kurz)
+        return {"bild": alt["bild"], "auftrag": name}
+    c = einstellungen()["cloud"]
+    bild = ""
+    if c.get("token"):
+        try:
+            h = drucker_mod.cloud_aufgabe(c["token"], c.get("region", "global"), dr.serial, task, name) or {}
+            if (task and str(h.get("id")) == task) or (name and name in (h.get("title") or "", h.get("designTitle") or "")):
+                bild = str(h.get("cover") or "")
+        except Exception as ex:
+            print("Druckvorschau:", ex, flush=True)
+    if len(_VORSCHAU) > 50:
+        _VORSCHAU.clear()
+    _VORSCHAU[k] = {"bild": bild, "zeit": time.time()}
+    return {"bild": bild, "auftrag": name}
+
+
 def eigener_drucker(pre):
     """Drucker mit eigener Verbindung zum Präfix „h2c_31b8bk631200165“ – None, wenn SchichtLohn ihn nicht selbst verbindet."""
     pre = str(pre or "").lower()
@@ -4520,6 +4552,8 @@ class Handler(BaseHTTPRequestHandler):
                                    + (" Das Bild kommt aus der Druckerkamera." if foto else ""), "", foto):
                 raise Fehler(400, "Telegram ist noch nicht vollständig eingerichtet (Token und Chat fehlen)")
             return self._json(200, {"ok": True})
+        if teile == ["druck", "vorschau"] and methode == "GET":
+            return self._json(200, druck_vorschau((q.get("pre") or [""])[0]))
         if teile == ["alexa", "personen"]:
             try:
                 st = ha_anfrage("/api/states", timeout=10) or []

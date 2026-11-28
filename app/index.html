@@ -3274,7 +3274,11 @@ function after(){LAUF.forEach(b=>{if(!b.isConnected)kStop(b)});document.querySel
   else if(window.JOBS&&JOBS.coverFor)document.querySelectorAll("#dlive [data-lc]").forEach(async el=>{if(el.dataset.done)return;el.dataset.done=1;
     const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;
     /* Vorschau des letzten Drucks nur, während er läuft – sonst bleibt das Foto des Druckers stehen */
-    if(druckerBild(d)&&!["druckt","pause"].includes(art(d))){delete el.dataset.done;return}try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
+    if(druckerBild(d)&&!["druckt","pause"].includes(art(d))){delete el.dataset.done;return}try{let u="";
+      /* das, was gerade gedruckt wird: Vorschau des laufenden Auftrags vom eigenen Server; sonst die letzte aus der Cloud-Liste */
+      if(S.srv&&window.SRV&&SRV.url()&&d.pre){try{const r=await SRV.req("GET","/api/druck/vorschau?pre="+encodeURIComponent(d.pre));u=(r&&r.bild)||""}catch(x){}
+        if(!u){setTimeout(()=>{if(el.isConnected)delete el.dataset.done},120000)}}
+      if(!u&&!S.srv)u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
 /* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */
 let tm=null,letzt="";
 function neu(){if(S.tab!=="drucke"){document.querySelectorAll("#dlive .dl-kam").forEach(kStop);return}const alt=document.getElementById("dlive");if(!alt)return;
@@ -3492,7 +3496,7 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dc .dl-amsk:has(.dl-ag){background:rgba(255,255,255,.02);padding:10px 10px 8px}
 .dc .dl-amsl:has(.dl-ag){grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
 @media (max-width:760px){.dc .dl-amsl:has(.dl-ag){grid-template-columns:minmax(0,1fr)}}
-.dl-bild.foto{background:#3a4047;padding:3px;overflow:hidden}.dl-bild.foto img{width:100%;height:100%;object-fit:contain}
+.dl-bild.foto{background:#3a4047;padding:3px;overflow:hidden}.dl-bild[style*="background-image"]{background-size:contain!important;background-color:#15181c!important}.dl-bild.foto img{width:100%;height:100%;object-fit:contain}
 @media (max-width:760px){.dl-aufr{display:none}.dc .dl-akt .btn.icon{width:34px;height:34px}.dl-fort{padding:0 14px 12px}}
 </style>
 <style>

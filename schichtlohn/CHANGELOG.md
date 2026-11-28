@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.30.1 – 28.11.2026
+- Druckerkarte: Während eines Drucks zeigt das Bild links das, was gerade gedruckt wird (Vorschau des laufenden Auftrags aus der Bambu-Cloud), nicht mehr das Bild eines früheren Drucks. Ohne Druck steht dort das Foto des Druckers.
+
 ## 3.30.0 – 28.11.2026
 - Neu: Schichtfotos. Bei jedem Schichtwechsel macht SchichtLohn ein Bild aus der Druckerkamera – der Drucker hält dafür nicht an und der Druckkopf fährt nicht weg. Nach dem Druck wird aus den Bildern ein Zeitraffer-Video.
 - Ein- und ausschalten unter Einstellungen → Zusatzfunktionen („Schichtfotos“). Bilder und Videos landen auf der NAS (Ordner „Schichtfotos“) und bleiben alle erhalten. Ist die NAS mal nicht erreichbar, speichert der Server sie zwischen und schiebt sie später rüber.
