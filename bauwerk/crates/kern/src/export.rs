@@ -1,4 +1,4 @@
-//! Export als STL (binär), 3MF und STEP (facettierter Volumenkörper).
+//! Export als STL (binär), 3MF und STEP (echte Flächen über den Mesh2STEP-Kern, sonst facettiert).
 use crate::netz::{kreuz, Netz};
 
 pub fn stl(n: &Netz, name: &str) -> Vec<u8> {
@@ -123,4 +123,29 @@ pub fn step(n: &Netz, name: &str) -> Vec<u8> {
     kopf.push_str(&s);
     kopf.push_str("ENDSEC;\nEND-ISO-10303-21;\n");
     kopf.into_bytes()
+}
+
+// ---------- Anschluss für echte STEP-Flächen ----------
+// Der Mesh2STEP-Kern liegt in einem privaten Repo und wird deshalb nicht hier eingebunden,
+// sondern von außen angesteckt (Crate `bauwerk-echt`, genutzt von Mac-App und Mac-Kommandozeile).
+
+/// Wandelt ein geschlossenes Netz in eine STEP-Datei mit echten Flächen um.
+pub type StepEcht = fn(&Netz, &str) -> Result<Vec<u8>, String>;
+static STEP_ECHT: std::sync::OnceLock<StepEcht> = std::sync::OnceLock::new();
+
+/// Echte STEP-Umwandlung anmelden (einmal beim Programmstart).
+pub fn step_echt_anmelden(f: StepEcht) { let _ = STEP_ECHT.set(f); }
+
+/// Ist die echte STEP-Umwandlung verfügbar?
+pub fn step_echt_aktiv() -> bool { STEP_ECHT.get().is_some() }
+
+/// STEP mit echten Flächen, wenn angemeldet – sonst (oder bei Fehler) facettiert.
+pub fn step_beste(n: &Netz, name: &str) -> Vec<u8> {
+    if let Some(f) = STEP_ECHT.get() {
+        match f(n, name) {
+            Ok(b) => return b,
+            Err(e) => eprintln!("Echte STEP-Flächen fehlgeschlagen ({}), schreibe facettiert", e),
+        }
+    }
+    step(n, name)
 }

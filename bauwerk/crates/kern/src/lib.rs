@@ -187,7 +187,7 @@ pub fn exportieren(e: &Ergebnis, format: &str) -> Result<Vec<u8>, String> {
     match format.to_lowercase().as_str() {
         "stl" => Ok(export::stl(&e.netz, name)),
         "3mf" => Ok(export::dreimf(&e.netz, name)),
-        "step" | "stp" => Ok(export::step(&e.netz, name)),
+        "step" | "stp" => Ok(export::step_beste(&e.netz, name)),
         f => Err(format!("Unbekanntes Format {}", f)),
     }
 }

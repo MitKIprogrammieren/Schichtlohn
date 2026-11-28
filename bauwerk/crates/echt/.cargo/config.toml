@@ -1,0 +1,3 @@
+# Privates mesh2step-Repo über das normale git holen (nutzt die gespeicherten GitHub-Zugangsdaten)
+[net]
+git-fetch-with-cli = true

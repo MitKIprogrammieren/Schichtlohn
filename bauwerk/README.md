@@ -9,13 +9,16 @@ ein Kern für **Mac-App**, **Browser (NUC)** und **MCP/Kommandozeile**.
 - **Parameter & Ausdrücke**: jedes Maß kann `breite/2 + wand` sein.
 - **Zeitleiste** mit Zurückrollen, Features Extrudieren (Verbinden/Ausschneiden/Schnittmenge, Außenecken runden/fasen),
   Drehen, Bohrung (Durchgang, Einschmelzmutter, Senkkopf, Zylinderkopf).
-- **Export** STL, 3MF, STEP (facettiert – echte Flächen über Mesh2STEP).
+- **Export** STL, 3MF, STEP – in Mac-App und Mac-Kommandozeile mit **echten Flächen** (Ebenen, Zylinder, Kegel,
+  Kugeln, Tori) über den Mesh2STEP-Kern; der NUC-Stack schreibt vorerst facettiert.
 - Leichte Grafik: flache Flächen mit Kanten, gerendert wird nur bei Änderungen.
 
 ## Aufbau
 ```
 crates/kern   Rust-Kern: Modell, Ausdrücke, Skizzen-Löser, Profile, Netze (boolmesh), Export
 crates/cli    bauwerk: Server (Oberfläche + API + /mcp), MCP über stdio, run/pruefen
+crates/echt   bauwerk-echt: steckt den Mesh2STEP-Kern (privates Repo mesh2step) für echte STEP-Flächen an
+              – eigener Workspace, damit der öffentliche NUC-Bau das private Repo nicht braucht
 web/          Oberfläche (eine Seite, three.js lokal mitgeliefert)
 app/          Mac-App (natives Fenster mit WebKit, Kern im selben Prozess)
 ```

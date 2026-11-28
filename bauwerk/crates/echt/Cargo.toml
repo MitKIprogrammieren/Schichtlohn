@@ -1,0 +1,29 @@
+# Bauwerk mit echten STEP-Flächen: steckt den Mesh2STEP-Kern (privates Repo) an Bauwerk an.
+# Eigener Workspace, damit der öffentliche Bau (NUC-Docker) das private Repo nicht braucht.
+[package]
+name = "bauwerk-echt"
+version = "2.1.0"
+edition = "2021"
+license = "MIT"
+description = "Bauwerk + Mesh2STEP-Kern: STEP-Export mit echten Ebenen, Zylindern, Kegeln, Kugeln und Tori"
+
+[lib]
+name = "bauwerk_echt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bauwerk"
+path = "src/main.rs"
+
+[dependencies]
+bauwerk = { path = "../cli" }
+bauwerk-kern = { path = "../kern" }
+mesh2step-core = { git = "https://github.com/MitKIprogrammieren/mesh2step", branch = "main" }
+
+[workspace]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

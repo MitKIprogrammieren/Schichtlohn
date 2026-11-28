@@ -18,13 +18,14 @@ fi
 echo "▶ Teste den Kern …"
 cargo test --release -q -p bauwerk-kern
 
-echo "▶ Baue Kommandozeile (bauwerk) …"
-cargo build --release -p bauwerk
+echo "▶ Baue Kommandozeile (bauwerk, mit echten STEP-Flächen aus Mesh2STEP) …"
+# immer den neuesten Mesh2STEP-Kern aus dem privaten Repo holen
+(cd crates/echt && cargo update -q -p mesh2step-core && cargo test --release -q && cargo build --release)
 mkdir -p "$HOME/.local/bin"
-cp target/release/bauwerk "$HOME/.local/bin/bauwerk"
+cp crates/echt/target/release/bauwerk "$HOME/.local/bin/bauwerk"
 
 echo "▶ Baue Mac-App …"
-(cd app && cargo build --release)
+(cd app && cargo update -q -p mesh2step-core && cargo build --release)
 
 echo "▶ Packe Bauwerk.app …"
 APP="$WURZEL/target/Bauwerk.app"

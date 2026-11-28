@@ -240,7 +240,7 @@ function bandZeigen() {
       gruppe('Bemaßung', bk('bemassung', 'bemass', 'Bemaßung', { aus: !s, titel: 'Bemaßung für die Auswahl (D)' }) + bk('hilfs', 'hilfs', 'Hilfslinie', { aus: !s, titel: 'Auswahl zu Hilfslinie umschalten (X)' }) + bk('loeschen', 'loeschen', 'Löschen', { aus: !s, titel: 'Auswahl löschen (Entf)' })) +
       gruppe('Fertig', bk('skizze_ende', 'fertig', 'Skizze beenden', { cls: 'fertig' }));
   } else if (reiter === 'pruefen') {
-    b.innerHTML = gruppe('Export', bk('export:stl', 'export', 'STL') + bk('export:3mf', 'export', '3MF') + bk('export:step', 'export', 'STEP', { titel: 'STEP (facettiert) – echte Flächen über Mesh2STEP' })) +
+    b.innerHTML = gruppe('Export', bk('export:stl', 'export', 'STL') + bk('export:3mf', 'export', '3MF') + bk('export:step', 'export', 'STEP', { titel: 'STEP mit echten Flächen (Mesh2STEP-Kern) – auf dem NUC noch facettiert' })) +
       gruppe('Ansicht', bk('ansicht:iso', 'koerper', 'Iso') + bk('ansicht:alles', 'auge', 'Alles zeigen')) +
       gruppe('Daten', bk('parameter', 'param', 'Parameter') + bk('datei', 'oeffnen', 'Datei'));
   } else {

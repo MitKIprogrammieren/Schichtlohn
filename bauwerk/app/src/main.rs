@@ -10,6 +10,8 @@ use wry::WebViewBuilder;
 fn home() -> PathBuf { PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())) }
 
 fn main() {
+    // STEP-Export mit echten Flächen (Mesh2STEP-Kern)
+    bauwerk_echt::anmelden();
     let daten = std::env::var("BAUWERK_DATEN").map(PathBuf::from).unwrap_or_else(|_| home().join("Bauwerk"));
     let ablage = Ablage::neu(&daten);
     // Server starten

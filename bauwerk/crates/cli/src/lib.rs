@@ -2,3 +2,4 @@
 pub mod mcp;
 pub mod projekte;
 pub mod server;
+pub mod kommandozeile;
