@@ -3481,8 +3481,9 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dl-gg,.dl-gm{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-style:normal;font-weight:700;color:#fff;background:rgba(0,0,0,.62);border-radius:5px;pointer-events:none;font-variant-numeric:tabular-nums;line-height:1.35}
 .dl-gg{bottom:4%;font-size:clamp(9px,3.3cqw,14px);padding:0 .35em}.dl-gg.q{color:#ffd27a}.dl-gg.n{color:#cfcfcf}
 .dl-gm{top:calc(100% + 32%);font-size:clamp(8.5px,3cqw,13px);padding:0 .35em;max-width:170%;overflow:hidden;text-overflow:ellipsis}
-.dl-aght{display:flex;gap:8px;flex-wrap:wrap}
-.dl-aghe{display:flex;flex-direction:column;align-items:center;gap:2px;width:calc((100% - 16px)/3);max-width:130px;min-width:78px}.dl-aghe>span{font-size:11px;color:var(--fg-3)}
+/* AMS HT so hoch wie ein AMS 2 Pro daneben: Bildhöhe = Breite/1,944 → HT-Breite = 0,475 × das (≈ 24,4 % der Kachel) */
+.dl-aght{display:flex;gap:2.5cqw;flex-wrap:wrap;container-type:inline-size;justify-content:flex-start}
+.dl-aghe{display:flex;flex-direction:column;align-items:center;gap:2px;width:23cqw}.dl-aghe>span{font-size:11px;color:var(--fg-3)}
 .dl-ag.ht .dl-gg{font-size:clamp(9px,11cqw,14px)}.dl-ag.ht .dl-gm{top:calc(100% + 55%);font-size:clamp(8.5px,10cqw,13px)}
 .dc .dl-amsk:has(.dl-ag){background:rgba(255,255,255,.02);padding:10px 10px 8px}
 .dc .dl-amsl:has(.dl-ag){grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
