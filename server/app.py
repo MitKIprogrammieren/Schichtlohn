@@ -89,7 +89,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.30.2"
+VERSION = "3.31.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -3808,10 +3808,56 @@ def _meldung_weg(eid):
         im_hintergrund(ha_anfrage, "/api/services/persistent_notification/dismiss", {"notification_id": "filament_" + eid[7:]})
 
 
+# Umgesteckte Rollen: Rolle verlässt ein Fach → hier „geparkt“; taucht dieselbe Sorte binnen ROLLE_PARKEN_S in einem
+# anderen Fach ohne eingetragene Rolle auf, wandert die Rolle (mit ihrem Gewicht) dorthin mit.
+ROLLE_PARKEN_S = 3 * 3600
+GEPARKT = {}  # Sorten-uid → [{"g", "von", "zeit"}]
+
+
+def _sorte_daten(uid):
+    for it in liste_lesen(ENT):
+        if it["uid"] == uid:
+            return it, _desc(it)
+    return None, None
+
+
+def rolle_umstecken(eid, alt_sig, neu_sig, drucker, jetzt):
+    """Fach eid hat gewechselt (alt_sig → neu_sig). Rolle der alten Sorte parken, eine geparkte Rolle der neuen Sorte übernehmen."""
+    key = fach_key(drucker, fach_ort(eid))
+    if alt_sig:
+        tr, _ = sorte_fuer(alt_sig[0], alt_sig[1], key)
+        if tr:
+            it, d = tr
+            f = (d.get("faecher") or {}).get(key) if isinstance(d.get("faecher"), dict) else None
+            if f and f.get("g") is not None:
+                d2 = dict(d, faecher={k: v for k, v in d["faecher"].items() if k != key})
+                liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(d2, ensure_ascii=False)})
+                GEPARKT.setdefault(it["uid"], []).append({"g": f["g"], "von": key, "zeit": jetzt})
+                print(f"Rolle: {it['summary']} ({f['g']} g) aus {key} genommen – wartet auf ein neues Fach", flush=True)
+    if neu_sig:
+        tr, _ = sorte_fuer(neu_sig[0], neu_sig[1], key)
+        if not tr:
+            return
+        it, d = tr
+        liste = [x for x in GEPARKT.get(it["uid"], []) if jetzt - x["zeit"] < ROLLE_PARKEN_S]
+        GEPARKT[it["uid"]] = liste
+        if not liste or (isinstance(d.get("faecher"), dict) and key in d["faecher"]):
+            return
+        x = liste.pop()  # die zuletzt herausgenommene Rolle
+        it, d = _sorte_daten(it["uid"])
+        if not it:
+            return
+        fa = dict(d.get("faecher") or {}) if isinstance(d.get("faecher"), dict) else {}
+        fa[key] = {"g": x["g"], "seit": time.strftime("%Y-%m-%dT%H:%M:%S"), "quelle": "umgesteckt von " + x["von"]}
+        liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(dict(d, faecher=fa), ensure_ascii=False)})
+        print(f"Rolle: {it['summary']} ({x['g']} g) von {x['von']} nach {key} umgesteckt", flush=True)
+
+
 def faecher_durchlauf(jetzt=None):
     jetzt = time.time() if jetzt is None else jetzt
     an = einstellungen().get("fach_meldung", True)
     faecher = faecher_sammeln()
+    wechsel = []
     for eid, f in faecher.items():
         nutzbar = f["fid"] and not f["leer"] and str(f["state"]) not in ("unavailable", "unknown", "")
         if str(f["state"]) in ("unavailable", "unknown"):
@@ -3829,6 +3875,7 @@ def faecher_durchlauf(jetzt=None):
             continue
         if jetzt - st["seit"] < FACH_RUHE:
             continue
+        wechsel.append((eid, st["sig"], sig, f["drucker"]))
         st["sig"], st["neu"] = sig, None
         if eid in FACH_GEMELDET:
             _meldung_weg(eid)
@@ -3837,6 +3884,17 @@ def faecher_durchlauf(jetzt=None):
                 fach_pruefen(eid, f)
             except Exception as ex:
                 print("Fach prüfen:", eid, ex, flush=True)
+    # erst alle herausgenommenen Rollen parken, dann die neu eingesteckten zuordnen (Reihenfolge der Fächer egal)
+    for eid, alt, neu_, dname in sorted(wechsel, key=lambda w: w[2] is not None):
+        try:
+            rolle_umstecken(eid, alt, None, dname, jetzt)
+        except Exception as ex:
+            print("Rolle umstecken:", eid, ex, flush=True)
+    for eid, alt, neu_, dname in wechsel:
+        try:
+            rolle_umstecken(eid, None, neu_, dname, jetzt)
+        except Exception as ex:
+            print("Rolle umstecken:", eid, ex, flush=True)
     # offene Meldungen aufräumen, sobald das Fach im Lager zugeordnet ist (z. B. über den Knopf)
     for eid in list(FACH_GEMELDET):
         f = faecher.get(eid)

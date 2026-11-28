@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.31.0 – 28.11.2026
+- Umgesteckte Rollen: Nimmst du eine Rolle aus einem Fach und steckst dieselbe Sorte innerhalb von 3 Stunden in ein anderes Fach (auch an einem anderen Drucker), nimmt SchichtLohn das eingetragene Gewicht mit.
+- Lager: ein Füllstands-Balken je Rolle, Rollen im Drucker mit Ort (z. B. „H2C B1“).
+- Drucker: zugeklappte AMS-Zeile mit einem Balken je Rolle, nach Einheit gruppiert.
+
 ## 3.30.2 – 28.11.2026
 - Schichtfotos funktionieren jetzt wirklich: Ein Fehler („'Drucker' object has no attribute 'get'“) hat bisher jedes Foto verhindert.
 - Die Druckvorschau auf der Druckerkarte verschwindet nicht mehr nach einer Weile: Der Server holt das Bild einmal und hält es selbst vor, statt den nur kurz gültigen Cloud-Link weiterzugeben.
