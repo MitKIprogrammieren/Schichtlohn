@@ -1096,6 +1096,10 @@ pub struct Teil {
     pub mesh: Arc<Mesh>,
     /// Außennormalen der Schnittflächen (zum Hinlegen beim Export)
     pub flaechen: Vec<V3>,
+    /// Filament (1-basiert), 0 = keine Angabe
+    pub farbe: u32,
+    /// > 0: gehört mit allen Teilen gleicher Gruppe zu einem Objekt (passgenau, AMS)
+    pub gruppe: u32,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1119,6 +1123,10 @@ pub struct Stand {
     pub lose: Vec<Arc<Mesh>>,
     pub next_teil: u32,
     pub next_fuge: u32,
+    /// Bemalung aus der geladenen 3MF (nur solange das Teil unverändert ist)
+    pub bemalung: Vec<Arc<crate::farben::Bemalung>>,
+    /// Filamentfarben aus der Datei (#RRGGBB)
+    pub filamente: Vec<String>,
 }
 
 struct Sitzung {
@@ -1178,9 +1186,50 @@ pub fn stand_aus_objekten(objs: Vec<(String, Mesh)>) -> Stand {
     for (name, m) in objs {
         let nr = st.next_teil;
         st.next_teil += 1;
-        st.teile.push(Teil { nr, name: if viele { name } else { format!("Teil {nr}") }, mesh: Arc::new(m), flaechen: vec![] });
+        st.teile.push(Teil { nr, name: if viele { name } else { format!("Teil {nr}") }, mesh: Arc::new(m), flaechen: vec![], farbe: 0, gruppe: 0 });
     }
     st
+}
+
+/// Gemalte Farben eines Teils zu eigenen Teilen machen (Grundkörper bekommt Taschen)
+pub fn farben_herausloesen(st: &mut Stand, nr: u32, o: &crate::farben::Optionen, hinweise: &mut Vec<String>) -> Result<()> {
+    let Some(pos) = st.teile.iter().position(|t| t.nr == nr) else { bail!("Teil {nr} gibt es nicht mehr.") };
+    let Some(bem) = st.bemalung.iter().find(|b| b.teil == nr).cloned() else {
+        bail!("Dieses Teil hat keine Bemalung (mehr). Farben bitte vor dem Schneiden herauslösen – oder eine bemalte 3MF aus Bambu Studio öffnen.")
+    };
+    let e = crate::farben::herausloesen(&bem, o)?;
+    let alt = st.teile.remove(pos);
+    st.bemalung.retain(|b| b.teil != nr);
+    let basis_name = if alt.name.starts_with("Teil ") { "Grundkörper".to_string() } else { alt.name.clone() };
+    let gruppe = if o.stecken { 0 } else { st.next_teil };
+    let mut neue = Vec::new();
+    let mut nimm = |st: &mut Stand, name: String, mesh: Mesh, farbe: u32, flaechen: Vec<V3>| {
+        let tnr = st.next_teil;
+        st.next_teil += 1;
+        neue.push(Teil { nr: tnr, name, mesh: Arc::new(mesh), flaechen, farbe, gruppe });
+    };
+    nimm(st, basis_name, e.koerper, e.basis, alt.flaechen.clone());
+    let mut zaehler: HashMap<u32, usize> = HashMap::new();
+    for t in e.teile {
+        let k = zaehler.entry(t.farbe).or_default();
+        *k += 1;
+        let name = if t.bereiche > 1 { format!("Filament {} · {} Bereiche", t.farbe, t.bereiche) } else { format!("Filament {} · {}", t.farbe, k) };
+        // Sichtseite nach unten aufs Bett (glatte Oberfläche)
+        nimm(st, name, t.mesh, t.farbe, vec![t.normale]);
+    }
+    for (n, m, f) in &bem.koerper {
+        nimm(st, if n.is_empty() { format!("Filament {f}") } else { n.clone() }, m.clone(), *f, vec![]);
+    }
+    let anzahl = neue.len() - 1;
+    st.teile.splice(pos..pos, neue);
+    hinweise.push(format!("{anzahl} Farbteile herausgelöst."));
+    if e.weggelassen > 0 {
+        hinweise.push(format!("{} kleine Flecken unter der Mindestfläche bleiben im Grundkörper.", e.weggelassen));
+    }
+    if e.flacher > 0 {
+        hinweise.push("An dünnen Stellen sind die Farbteile flacher, damit die Wand nicht durchbricht.".into());
+    }
+    Ok(())
 }
 
 /// Liegt eine Fuge (noch) auf diesem Netz?
@@ -1218,7 +1267,7 @@ pub fn teil_schneiden(st: &mut Stand, nr: u32, punkt: V3, normale: V3, ort: &str
             fl.push(if ist_hi { mul(n, -1.0) } else { n });
             let basis = alt.name.split(" · ").next().unwrap_or("Teil");
             let name = if basis.starts_with("Teil ") { format!("Teil {tnr}") } else { format!("{basis} · {tnr}") };
-            neue.push(Teil { nr: tnr, name, mesh: Arc::new(m.clone()), flaechen: fl });
+            neue.push(Teil { nr: tnr, name, mesh: Arc::new(m.clone()), flaechen: fl, farbe: alt.farbe, gruppe: 0 });
             if ist_hi { hi_nr.push(tnr) } else { lo_nr.push(tnr) }
         }
     }
@@ -1414,15 +1463,99 @@ pub struct Drucker {
 }
 
 pub fn export_teile(st: &Stand, dr: &Drucker) -> Vec<(String, Mesh)> {
+    einheiten(st, dr).into_iter().flat_map(|(_, teile)| teile.into_iter().map(|(n, m, _)| (n, m))).collect()
+}
+
+/// Export-Einheit: Name und Teile (Name, Netz, Filament). Teile einer Gruppe bleiben an Ort und Stelle zueinander.
+type Einheit = (String, Vec<(String, Mesh, u32)>);
+
+fn einheiten(st: &Stand, dr: &Drucker) -> Vec<Einheit> {
     let bett = [dr.x, dr.y, dr.z];
-    let mut out: Vec<(String, Mesh)> = st.teile.iter().map(|t| (t.name.clone(), hinlegen(&t.mesh, &t.flaechen, bett))).collect();
+    let mut out: Vec<Einheit> = Vec::new();
+    let mut gruppen: Vec<(u32, usize)> = Vec::new();
+    for t in &st.teile {
+        if t.gruppe == 0 {
+            out.push((t.name.clone(), vec![(t.name.clone(), hinlegen(&t.mesh, &t.flaechen, bett), t.farbe)]));
+            continue;
+        }
+        match gruppen.iter().find(|g| g.0 == t.gruppe) {
+            Some(&(_, i)) => out[i].1.push((t.name.clone(), (*t.mesh).clone(), t.farbe)),
+            None => {
+                gruppen.push((t.gruppe, out.len()));
+                out.push((t.name.clone(), vec![(t.name.clone(), (*t.mesh).clone(), t.farbe)]));
+            }
+        }
+    }
     for (i, z) in st.lose.iter().enumerate() {
-        out.push((format!("Zapfen {}", i + 1), (**z).clone()));
+        let n = format!("Zapfen {}", i + 1);
+        out.push((n.clone(), vec![(n, (**z).clone(), 0)]));
     }
     out
 }
 
+/// Einheiten auf Platten verteilen; liefert (Platte, Einheit) mit Netzen in Plattenkoordinaten
+fn platzieren(einh: Vec<Einheit>, bed: [f64; 2], gap: f64) -> Vec<(usize, Einheit)> {
+    let mut einh = einh;
+    let box_von = |t: &Vec<(String, Mesh, u32)>| {
+        let mut m = Mesh::new();
+        for (_, x, _) in t {
+            m.extend(x);
+        }
+        m.bbox()
+    };
+    for (_, t) in einh.iter_mut() {
+        let b = box_von(t);
+        for (_, m, _) in t.iter_mut() {
+            m.translate([-b.min[0], -b.min[1], -b.min[2]]);
+        }
+    }
+    let sizes: Vec<(f64, f64)> = einh.iter().map(|(_, t)| {
+        let s = box_von(t).size();
+        (s[0], s[1])
+    }).collect();
+    let pl = export::shelf_pack(&sizes, bed[0] - 2.0 * gap, bed[1] - 2.0 * gap, gap);
+    einh.into_iter()
+        .zip(pl)
+        .map(|((n, mut t), (plate, x, y, r))| {
+            if r {
+                for (_, m, _) in t.iter_mut() {
+                    m.map(|p| [p[1], -p[0], p[2]]);
+                }
+                let b = box_von(&t);
+                for (_, m, _) in t.iter_mut() {
+                    m.translate([-b.min[0], -b.min[1], -b.min[2]]);
+                }
+            }
+            for (_, m, _) in t.iter_mut() {
+                m.translate([x + gap, y + gap, 0.0]);
+            }
+            (plate, (n, t))
+        })
+        .collect()
+}
+
 pub fn bambu(st: &Stand, dr: &Drucker, rand: f64) -> Vec<u8> {
+    let farbig = st.teile.iter().any(|t| t.farbe > 0 || t.gruppe > 0);
+    if farbig {
+        let objs: Vec<crate::prep::Obj> = platzieren(einheiten(st, dr), [dr.x, dr.y], rand.max(2.0))
+            .into_iter()
+            .map(|(plate, (name, teile))| crate::prep::Obj {
+                name,
+                plate,
+                x: 0.0,
+                y: 0.0,
+                stuetzen: None,
+                rand: None,
+                teile: teile.into_iter().map(|(n, m, f)| {
+                    let k = m.tris.len();
+                    (n, f.max(1), m.tris, vec![None; k], vec![None; k])
+                }).collect(),
+            })
+            .collect();
+        if let Ok(b) = crate::prep::bambu_objekte(&objs, [dr.x, dr.y], &dr.name, "Formwerk") {
+            return b;
+        }
+    }
     let teile = export_teile(st, dr);
     let pp: Vec<PlatePart> = export::arrange_on_plates(teile, [dr.x, dr.y], rand.max(2.0), 0);
     let n = pp.iter().map(|p| p.plate + 1).max().unwrap_or(1);
@@ -1430,14 +1563,25 @@ pub fn bambu(st: &Stand, dr: &Drucker, rand: f64) -> Vec<u8> {
 }
 
 pub fn stl_zip(st: &Stand, dr: &Drucker) -> Vec<u8> {
-    let files: Vec<(String, Vec<u8>)> = export_teile(st, dr)
-        .into_iter()
-        .map(|(n, mut m)| {
-            m.place_on_origin();
-            let safe: String = n.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
-            (format!("{}.stl", safe.trim()), m.to_stl(&n))
-        })
-        .collect();
+    let sicher = |n: &str| -> String { n.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect::<String>().trim().to_string() };
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    for (name, teile) in einheiten(st, dr) {
+        let mehr = teile.len() > 1;
+        // Teile einer Gruppe behalten ihre Lage zueinander (gemeinsamer Nullpunkt)
+        let mut ges = Mesh::new();
+        for (_, m, _) in &teile {
+            ges.extend(m);
+        }
+        let b = ges.bbox();
+        for (n, mut m, f) in teile {
+            m.translate([-b.min[0], -b.min[1], -b.min[2]]);
+            let mut datei = if mehr { format!("{} - {}", sicher(&name), sicher(&n)) } else { sicher(&n) };
+            if f > 0 {
+                datei.push_str(&format!(" (Filament {f})"));
+            }
+            files.push((format!("{datei}.stl"), m.to_stl(&n)));
+        }
+    }
     export::zip_files(&files)
 }
 
@@ -1477,10 +1621,11 @@ pub fn projekt(st: &Stand) -> Vec<u8> {
     }
     model.push_str(" </build>\n</model>\n");
     let meta = serde_json::json!({
-        "teile": st.teile.iter().map(|t| serde_json::json!({"nr": t.nr, "name": t.name, "flaechen": t.flaechen})).collect::<Vec<_>>(),
+        "teile": st.teile.iter().map(|t| serde_json::json!({"nr": t.nr, "name": t.name, "flaechen": t.flaechen, "farbe": t.farbe, "gruppe": t.gruppe})).collect::<Vec<_>>(),
         "fugen": st.fugen,
         "next_teil": st.next_teil,
         "next_fuge": st.next_fuge,
+        "filamente": st.filamente,
     });
     let files = vec![
         ("[Content_Types].xml".to_string(), br#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/><Default Extension="json" ContentType="application/json"/></Types>"#.to_vec()),
@@ -1510,6 +1655,7 @@ pub fn projekt_laden(bytes: &[u8], objs: Vec<(String, Mesh)>) -> Stand {
         next_teil: meta["next_teil"].as_u64().unwrap_or(1) as u32,
         next_fuge: meta["next_fuge"].as_u64().unwrap_or(1) as u32,
         fugen: serde_json::from_value(meta["fugen"].clone()).unwrap_or_default(),
+        filamente: serde_json::from_value(meta["filamente"].clone()).unwrap_or_default(),
         ..Default::default()
     };
     for (t, (_, m)) in teile.iter().zip(objs) {
@@ -1518,6 +1664,8 @@ pub fn projekt_laden(bytes: &[u8], objs: Vec<(String, Mesh)>) -> Stand {
             name: t["name"].as_str().unwrap_or("Teil").to_string(),
             mesh: Arc::new(m),
             flaechen: serde_json::from_value(t["flaechen"].clone()).unwrap_or_default(),
+            farbe: t["farbe"].as_u64().unwrap_or(0) as u32,
+            gruppe: t["gruppe"].as_u64().unwrap_or(0) as u32,
         });
     }
     st

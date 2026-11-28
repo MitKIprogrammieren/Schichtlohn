@@ -26,6 +26,12 @@ Modelle frei zerteilen, mit Verbindern und eingravierten Nummern (Desktop/Tablet
 - Rückgängig (30 Schritte), Teile umbenennen, Explosionsansicht, Nummern in der Ansicht
 - **Export:** Bambu-3MF mit Platten (Teile mit Schnittfläche nach unten), STL je Teil als ZIP,
   Montage-PDF (Übersicht + ein Bild je Fuge), Projekt als 3MF (lässt sich mit allen Fugen wieder öffnen)
+- **Farben:** bemalte 3MF aus Bambu Studio, Orca oder PrusaSlicer öffnen – jede gemalte Fläche wird ein festes Teil
+  mit einstellbarer Tiefe, der Grundkörper bekommt passende Taschen. Zwei Arten:
+  *Zum Einstecken* (jedes Teil einfarbig einzeln drucken, mit Spiel, Sichtseite unten) oder
+  *Im Objekt (AMS)* (ein Objekt mit passgenauen Teilen je Filament). Kleine Flecken lassen sich weglassen,
+  gleiche Farben zu einem Teil zusammenfassen. An dünnen Wänden werden die Farbteile automatisch flacher.
+  Mehrteilige 3MF: unbemalte Teile in anderer Farbe werden direkt eigene Teile.
 - STEP wird noch nicht gelesen (bitte als STL/3MF speichern)
 
 Die frühere Oberfläche liegt unter `/teilen/klassisch`.
@@ -62,6 +68,7 @@ Ergebnisse liegen 24 Stunden unter `data/jobs/` und werden danach gelöscht.
 - `src/section.rs` – Ebenenschnitte, geschlossene Schnittflächen, Taschen und Zapfen
 - `src/werk.rs` – Teilen, Verbinder, Druckerzuteilung, Montagereihenfolge (klassisch)
 - `src/schnitt.rs` – freie und örtliche Schnitte, Verbinderformen, Nummern, Sitzungen mit Rückgängig
+- `src/farben.rs` – Bemalung lesen (TriangleSelector-Format), Farbflächen zu Teilen mit Taschen
 - `src/teilen_api.rs` – Schnittstelle der Teilen-Seite
 - `static/teilen.html`, `static/teilen_app.js` – Teilen-Oberfläche inkl. Montage-PDF
 - `src/export.rs` – Platten packen, Bambu-3MF, ZIP

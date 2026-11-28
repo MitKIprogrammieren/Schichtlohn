@@ -18,6 +18,8 @@ pub struct Teil {
     /// Stützen-Bemalung je Dreieck
     pub sup: Vec<Option<String>>,
     pub extruder: u32,
+    /// Objekt war gespiegelt (Eckenreihenfolge vertauscht – wichtig fürs Lesen der Bemalung)
+    pub gespiegelt: bool,
 }
 
 pub struct Modell {
@@ -28,7 +30,7 @@ pub struct Modell {
 impl Modell {
     pub fn einfach(name: String, mesh: Mesh, extruder: u32) -> Self {
         let n = mesh.tris.len();
-        Modell { name: name.clone(), teile: vec![Teil { name, mesh, paint: vec![None; n], sup: vec![None; n], extruder }] }
+        Modell { name: name.clone(), teile: vec![Teil { name, mesh, paint: vec![None; n], sup: vec![None; n], extruder, gespiegelt: false }] }
     }
     pub fn alles(&self) -> Mesh {
         let mut m = Mesh::new();
@@ -347,7 +349,7 @@ fn laden_3mf(b: &[u8]) -> Result<Vec<Modell>> {
                     sup.push(o.sup[i].clone());
                 }
                 if !m.tris.is_empty() {
-                    teile.push(Teil { name: tname, mesh: m, paint, sup, extruder: ext });
+                    teile.push(Teil { name: tname, mesh: m, paint, sup, extruder: ext, gespiegelt: spiegel });
                 }
             }
             for (cp, cid, ct) in &o.comps {
@@ -637,14 +639,32 @@ pub fn mal_code(state: u32) -> Option<String> {
     }
 }
 
-struct Obj {
-    name: String,
-    plate: usize,
-    x: f64,
-    y: f64,
-    stuetzen: Option<bool>,
-    rand: Option<bool>,
-    teile: Vec<(String, u32, Vec<[V3; 3]>, Vec<Option<String>>, Vec<Option<String>>)>,
+pub(crate) struct Obj {
+    pub name: String,
+    pub plate: usize,
+    pub x: f64,
+    pub y: f64,
+    pub stuetzen: Option<bool>,
+    pub rand: Option<bool>,
+    pub teile: Vec<(String, u32, Vec<[V3; 3]>, Vec<Option<String>>, Vec<Option<String>>)>,
+}
+
+/// Bambu-3MF aus fertig platzierten Objekten (Netze in Plattenkoordinaten), Teile mit eigenem Filament
+pub(crate) fn bambu_objekte(objs: &[Obj], bett: [f64; 2], drucker: &str, titel: &str) -> Result<Vec<u8>> {
+    let a: Auftrag = serde_json::from_value(json!({ "format": "3mf", "drucker": drucker, "bett": bett, "platten": [], "titel": titel }))?;
+    bambu_3mf(objs, &a)
+}
+
+/// Filamentfarben aus einer Bambu/Orca-3MF (project_settings.config), z. B. ["#FFFFFF", "#E53935"]
+pub fn filamentfarben(b: &[u8]) -> Vec<String> {
+    let Ok(mut zip) = zip::ZipArchive::new(Cursor::new(b)) else { return vec![] };
+    let Some(n) = (0..zip.len()).filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string())).find(|n| n.to_lowercase().ends_with("project_settings.config")) else { return vec![] };
+    let mut s = String::new();
+    if zip.by_name(&n).ok().and_then(|mut f| f.read_to_string(&mut s).ok()).is_none() {
+        return vec![];
+    }
+    let v: Value = serde_json::from_str(&s).unwrap_or_default();
+    v["filament_colour"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.chars().take(7).collect())).collect()).unwrap_or_default()
 }
 
 fn rot_apply(r: &[f64; 9], p: V3) -> V3 {

@@ -20,11 +20,19 @@ fn stand_json(sid: &str, name: &str, st: &Stand, zurueck: bool, hinweise: &[Stri
             let b = t.mesh.bbox();
             json!({
                 "nr": t.nr, "name": t.name, "min": b.min, "max": b.max, "groesse": b.size(),
-                "dreiecke": t.mesh.tris.len(), "volumen": t.mesh.volume().abs() / 1000.0
+                "dreiecke": t.mesh.tris.len(), "volumen": t.mesh.volume().abs() / 1000.0,
+                "farbe": t.farbe, "gruppe": t.gruppe
             })
         })
         .collect();
-    json!({ "sid": sid, "name": name, "teile": teile, "fugen": st.fugen, "lose": st.lose.len(), "zurueck": zurueck, "hinweise": hinweise })
+    let bemalung: Vec<Value> = st
+        .bemalung
+        .iter()
+        .filter(|b| st.teile.iter().any(|t| t.nr == b.teil))
+        .map(|b| json!({ "teil": b.teil, "basis": b.basis, "farben": b.bereiche.iter().map(|(f, a)| json!({"f": f, "bereiche": a})).collect::<Vec<_>>() }))
+        .collect();
+    json!({ "sid": sid, "name": name, "teile": teile, "fugen": st.fugen, "lose": st.lose.len(), "zurueck": zurueck, "hinweise": hinweise,
+            "bemalung": bemalung, "filamente": st.filamente })
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> anyhow::Result<T> + Send + 'static) -> Result<T, Response> {
@@ -57,6 +65,11 @@ pub async fn laden(mut mp: Multipart) -> Response {
         });
     }
     let st = match blocking(move || {
+        if lower.ends_with(".3mf") {
+            if let Some(st) = bemalt_laden(&bytes) {
+                return Ok(st);
+            }
+        }
         let objs = mesh::load(&bytes, &fname)?;
         Ok(if lower.ends_with(".3mf") { schnitt::projekt_laden(&bytes, objs) } else { schnitt::stand_aus_objekten(objs) })
     })
@@ -69,6 +82,76 @@ pub async fn laden(mut mp: Multipart) -> Response {
     Json(stand_json(&sid, &name, &st, false, &[])).into_response()
 }
 
+/// Bemalte oder mehrfarbige 3MF (Bambu Studio / Orca / PrusaSlicer) mit Farben laden.
+/// `None`, wenn die Datei keine Farben hat oder ein Formwerk-Projekt ist – dann wie bisher.
+fn bemalt_laden(bytes: &[u8]) -> Option<Stand> {
+    use crate::farben;
+    use std::sync::Arc;
+    let projekt = zip::ZipArchive::new(std::io::Cursor::new(bytes)).ok()?.by_name("Metadata/formwerk_teilen.json").is_ok();
+    if projekt {
+        return None;
+    }
+    let modelle = crate::prep::laden(bytes, "x.3mf").ok()?;
+    let farbig = modelle.iter().any(|m| {
+        let mut e: Vec<u32> = m.teile.iter().map(|t| t.extruder).collect();
+        e.dedup();
+        m.teile.iter().any(|t| t.paint.iter().any(|p| p.is_some())) || e.len() > 1
+    });
+    if !farbig {
+        return None;
+    }
+    let mut st = Stand { next_teil: 1, next_fuge: 1, filamente: crate::prep::filamentfarben(bytes), ..Default::default() };
+    let viele = modelle.len() > 1;
+    for m in &modelle {
+        let nr = st.next_teil;
+        st.next_teil += 1;
+        // Grundfarbe des Objekts: Filament des größten Teils
+        let groesstes = m.teile.iter().max_by(|a, b| a.mesh.volume().abs().partial_cmp(&b.mesh.volume().abs()).unwrap()).map(|t| t.extruder).unwrap_or(1);
+        let mut tris = Vec::new();
+        let mut koerper = Vec::new();
+        for t in &m.teile {
+            let bemalt = t.paint.iter().any(|p| p.is_some());
+            if !bemalt && t.extruder != groesstes {
+                koerper.push((t.name.clone(), t.mesh.clone(), t.extruder));
+                continue;
+            }
+            for (i, tri) in t.mesh.tris.iter().enumerate() {
+                farben::dekodieren(*tri, t.paint.get(i).and_then(|p| p.as_deref()), t.extruder, t.gespiegelt, &mut tris);
+            }
+        }
+        let bem = farben::vorbereiten(nr, tris, koerper);
+        let hat = bem.bereiche.iter().any(|b| !b.1.is_empty()) || !bem.koerper.is_empty();
+        let name = if viele { m.name.clone() } else { format!("Teil {nr}") };
+        st.teile.push(schnitt::Teil { nr, name, mesh: Arc::new(m.alles()), flaechen: vec![], farbe: if hat { 0 } else { bem.basis }, gruppe: 0 });
+        if hat {
+            st.bemalung.push(Arc::new(bem));
+        }
+    }
+    Some(st)
+}
+
+#[derive(Deserialize)]
+pub struct FarbAnfrage {
+    teil: u32,
+    #[serde(default)]
+    stecken: bool,
+    tiefe: f64,
+    #[serde(default)]
+    spiel: f64,
+    #[serde(default)]
+    min_flaeche: f64,
+    #[serde(default)]
+    zusammen: bool,
+}
+
+pub async fn farben(Path(sid): Path<String>, Json(a): Json<FarbAnfrage>) -> Response {
+    aendern(sid, move |st, h| {
+        let o = crate::farben::Optionen { stecken: a.stecken, tiefe: a.tiefe, spiel: a.spiel, min_flaeche: a.min_flaeche, zusammen: a.zusammen };
+        schnitt::farben_herausloesen(st, a.teil, &o, h)
+    })
+    .await
+}
+
 fn abgelaufen() -> Response {
     err("Die Sitzung ist abgelaufen – bitte das Modell neu laden.")
 }
@@ -76,6 +159,32 @@ fn abgelaufen() -> Response {
 pub async fn stand(Path(sid): Path<String>) -> Response {
     let Some((name, st, z)) = schnitt::aktuell(&sid) else { return abgelaufen() };
     Json(stand_json(&sid, &name, &st, z, &[])).into_response()
+}
+
+/// Bemalte Oberfläche eines Teils: u32 Dreiecke, dann je Dreieck 9 × f32, danach je Dreieck 1 Byte Filament
+pub async fn bemalung_bin(Path((sid, nr)): Path<(String, u32)>) -> Response {
+    let Some((_, st, _)) = schnitt::aktuell(&sid) else { return (StatusCode::NOT_FOUND, "abgelaufen").into_response() };
+    let Some(b) = st.bemalung.iter().find(|b| b.teil == nr).cloned() else { return (StatusCode::NOT_FOUND, "keine Bemalung").into_response() };
+    let v = tokio::task::spawn_blocking(move || {
+        let mut tris: Vec<([V3; 3], u32)> = b.tris.clone();
+        for (_, m, f) in &b.koerper {
+            tris.extend(m.tris.iter().map(|t| (*t, *f)));
+        }
+        let mut v = Vec::with_capacity(4 + tris.len() * 37);
+        v.extend_from_slice(&(tris.len() as u32).to_le_bytes());
+        for (t, _) in &tris {
+            for p in t {
+                for c in p {
+                    v.extend_from_slice(&(*c as f32).to_le_bytes());
+                }
+            }
+        }
+        v.extend(tris.iter().map(|(_, f)| (*f).min(255) as u8));
+        v
+    })
+    .await
+    .unwrap_or_default();
+    ([(header::CONTENT_TYPE, "application/octet-stream"), (header::CACHE_CONTROL, "private, max-age=3600")], v).into_response()
 }
 
 /// Dreiecke eines Teils als Float32 (9 Werte je Dreieck)

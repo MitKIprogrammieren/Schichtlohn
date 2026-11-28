@@ -1,5 +1,6 @@
 //! Formwerk – große Modelle aufs Druckbett zerlegen, im Bambu-Studio-Look (nach LuBan „Mesh → Cut“)
 mod export;
+mod farben;
 mod werk;
 mod mesh;
 mod prep;
@@ -50,6 +51,8 @@ async fn main() {
         .route("/api/teilen/{sid}/mehrfach", post(teilen_api::mehrfach))
         .route("/api/teilen/{sid}/auto", post(teilen_api::auto))
         .route("/api/teilen/{sid}/umbenennen", post(teilen_api::umbenennen))
+        .route("/api/teilen/{sid}/farben", post(teilen_api::farben))
+        .route("/api/teilen/{sid}/bemalung/{nr}", get(teilen_api::bemalung_bin))
         .route("/api/teilen/{sid}/zurueck", post(teilen_api::zurueck))
         .route("/api/teilen/{sid}/export", post(teilen_api::export))
         .route("/api/prep/load", post(prep_load))

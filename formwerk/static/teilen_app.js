@@ -16,13 +16,20 @@ const DRUCKER = [
   { name: 'Creality K2 Plus', x: 350, y: 350, z: 350 },
 ];
 const GRAU = 0x9a9ea3, AUSGEWAEHLT = 0xf08a3c, GRUEN = 0x00ae42;
+// Ersatzfarben, falls die 3MF keine Filamentfarben mitbringt
+const PALETTE = ['#F4F4F4', '#E53935', '#1E88E5', '#FDD835', '#43A047', '#8E24AA', '#FB8C00', '#212121', '#00ACC1', '#6D4C41', '#EC407A', '#9E9E9E'];
+function filFarbe(f) {
+  const l = stand?.filamente || [];
+  return (l[f - 1] && /^#[0-9a-f]{6}$/i.test(l[f - 1])) ? l[f - 1] : PALETTE[(f - 1) % PALETTE.length];
+}
+const bemalung = nr => stand?.bemalung?.find(b => b.teil === nr);
 
 // ───────── Zustand ─────────
 let sid = null, stand = null, werkzeug = 'band', auswahl = null, plan = null, band = null;
 let letzteDauer = null;
 const teilObj = new Map();        // nr → THREE.Mesh
 const geoCache = new Map();       // nr → Geometrie (je Sitzung)
-const einst = Object.assign({ art: 'fest', form: 'rund', d: '', spiel: 0.15, anz: '', md: 6, mh: 3, nummern: true, labels: true, explo: false,
+const einst = Object.assign({ fbStecken: true, fbTiefe: 1.2, fbSpiel: 0.15, fbMin: 4, fbZusammen: false, art: 'fest', form: 'rund', d: '', spiel: 0.15, anz: '', md: 6, mh: 3, nummern: true, labels: true, explo: false,
   drucker: 0, rand: 5, ebAchse: 2, ebKippA: 0, ebKippB: 0, mf: [1, 1, 2], pinselPx: 28, kipp: 0, schub: 0 },
   JSON.parse(localStorage.getItem('fw_teilen') || '{}'));
 const merken = () => localStorage.setItem('fw_teilen', JSON.stringify(einst));
@@ -51,7 +58,7 @@ new ResizeObserver(groesse).observe(view); groesse();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { scene.background = hgFarbe(); });
 
 function maus() {
-  const links = ['band', 'ebene', 'mehrfach', 'auto'].includes(werkzeug) ? THREE.MOUSE.ROTATE : null;
+  const links = ['band', 'ebene', 'mehrfach', 'auto', 'farben'].includes(werkzeug) ? THREE.MOUSE.ROTATE : null;
   ctl.mouseButtons = { LEFT: links, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
 }
 
@@ -111,10 +118,11 @@ async function laden(datei) {
     const r = await fetch('/api/teilen/laden', { method: 'POST', body: fd });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Fehler');
-    sid = j.sid; geoCache.clear(); for (const m of teilObj.values()) teileGrp.remove(m); teilObj.clear();
+    sid = j.sid; geoCache.clear(); malGeo.clear(); for (const m of teilObj.values()) teileGrp.remove(m); teilObj.clear();
     auswahl = null; nahtWeg();
     await zeigen(j, true);
     meldung([]);
+    if (j.bemalung?.length && werkzeug !== 'farben') $('#tools .t[data-t="farben"]').click();
   } catch (e) { meldung([e.message], true); } finally { busy(false); }
 }
 
@@ -140,7 +148,7 @@ async function zeigen(st, kamera = false) {
     if (teilObj.has(t.nr)) return;
     const g = await geometrie(t.nr);
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: GRAU, roughness: 0.72, metalness: 0.04 }));
-    m.userData.nr = t.nr;
+    m.userData.nr = t.nr; m.userData.geo = g;
     teilObj.set(t.nr, m); teileGrp.add(m);
   }));
   if (!auswahl || !teilInfo(auswahl)) {
@@ -157,11 +165,35 @@ async function zeigen(st, kamera = false) {
   if (st.hinweise?.length) meldung(st.hinweise);
 }
 
+const malGeo = new Map(); // nr → bemalte Vorschau-Geometrie
+async function bemaltHolen(nr) {
+  if (malGeo.has(nr)) return malGeo.get(nr);
+  malGeo.set(nr, null);
+  const r = await fetch(`/api/teilen/${sid}/bemalung/${nr}`);
+  if (!r.ok) return null;
+  const buf = await r.arrayBuffer(), n = new Uint32Array(buf, 0, 1)[0];
+  const pos = new Float32Array(buf, 4, n * 9), fil = new Uint8Array(buf, 4 + n * 36, n);
+  const col = new Float32Array(n * 9), c = new THREE.Color();
+  for (let i = 0; i < n; i++) { c.set(filFarbe(fil[i] || 1)).convertSRGBToLinear(); for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], i * 9 + k * 3); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+  malGeo.set(nr, g); faerben();
+  return g;
+}
 function faerben() {
   for (const [nr, m] of teilObj) {
-    const malt = werkzeug === 'malen' && m.geometry.getAttribute('color') && nr === auswahl;
+    const t = teilInfo(nr);
+    const bunt = werkzeug === 'farben' && bemalung(nr);
+    const mg = bunt ? malGeo.get(nr) : null;
+    if (bunt && !malGeo.has(nr)) bemaltHolen(nr);
+    const soll = mg || m.userData.geo;
+    if (soll && m.geometry !== soll) m.geometry = soll;
+    const malt = (werkzeug === 'malen' && m.geometry.getAttribute('color') && nr === auswahl) || !!mg;
     m.material.vertexColors = !!malt;
-    m.material.color.set(malt ? 0xffffff : nr === auswahl ? AUSGEWAEHLT : GRAU);
+    const fil = t?.farbe > 0;
+    m.material.color.set(malt ? 0xffffff : fil ? filFarbe(t.farbe) : nr === auswahl ? AUSGEWAEHLT : GRAU);
+    m.material.emissive.set(nr === auswahl && fil && !mg ? 0x3a1c00 : 0x000000);
     m.material.needsUpdate = true;
   }
 }
@@ -211,7 +243,7 @@ function liste() {
     const g = t.groesse.map(x => Math.round(x)).join('×');
     const ok = passt(t.groesse);
     return `<div class="obj ${t.nr === auswahl ? 'on' : ''}" data-nr="${t.nr}" title="Doppelklick zum Umbenennen">
-      <i style="background:${t.nr === auswahl ? '#f08a3c' : '#9a9ea3'}"></i><span class="n">${t.nr} · ${esc(t.name)}</span>
+      <i style="background:${t.farbe > 0 ? filFarbe(t.farbe) : t.nr === auswahl ? '#f08a3c' : '#9a9ea3'};${t.farbe > 0 ? 'border:1px solid rgba(0,0,0,.2)' : ''}${t.nr === auswahl && t.farbe > 0 ? ';outline:2px solid #f08a3c' : ''}"></i><span class="n">${t.nr} · ${esc(t.name)}${t.gruppe ? ' <span style="color:var(--muted)">⛓</span>' : ''}</span>
       <span class="s">${g}</span><span class="${ok ? 'ok' : 'x'}">${ok ? '✓' : '✗'}</span></div>`;
   }).join('');
   $$('#teile .obj').forEach(el => {
@@ -285,6 +317,7 @@ const HINWEIS = {
   ebene: 'Teil anklicken, Achse und Lage wählen · Ziehen dreht',
   mehrfach: 'Teil anklicken, Anzahl je Richtung wählen · Ziehen dreht',
   auto: 'Teil anklicken – Formwerk teilt es in möglichst wenige Stücke, die aufs Bett passen',
+  farben: 'Bemaltes Teil anklicken – jede gemalte Farbe wird ein eigenes, druckbares Teil',
 };
 $$('#tools .t[data-t]').forEach(el => {
   el.classList.toggle('on', el.dataset.t === werkzeug);
@@ -329,6 +362,8 @@ function werkzeugOptionen() {
       '<div class="help">Teilt das ausgewählte Teil gleichmäßig in jede Richtung.</div>';
     [0, 1, 2].forEach(i => $('#mf' + i).oninput = e => { einst.mf[i] = Math.max(1, Math.min(12, +e.target.value || 1)); merken(); mehrfachVorschau(); });
     mehrfachVorschau();
+  } else if (werkzeug === 'farben') {
+    farbOptionen(o, t);
   } else if (werkzeug === 'auto') {
     const d = drucker();
     o.innerHTML = `<div class="help">Druckbett: <b>${d.name}</b> (${d.x}×${d.y}×${d.z} mm, ${einst.rand} mm Rand) – rechts unter „Messwerte“ änderbar.<br>` +
@@ -336,6 +371,49 @@ function werkzeugOptionen() {
     hilfGrp.clear();
   }
   knoepfe();
+}
+
+function farbOptionen(o, t) {
+  hilfGrp.clear();
+  const b = t ? bemalung(t.nr) : null;
+  const alle = stand?.bemalung || [];
+  if (!b) {
+    const fertig = stand?.teile.some(x => x.farbe > 0) && !alle.length;
+    if (fertig) {
+      o.innerHTML = '<div class="help"><span class="ok">Farben sind herausgelöst.</span> Die Farbteile stehen rechts in der Liste.<br><br>Ist der Grundkörper zu groß fürs Druckbett, jetzt mit Band, Ebene oder Auto schneiden – die Verbinder kommen wie gewohnt dazu.<br><br>Export: <b>Bambu-3MF</b> legt jedes Teil mit seinem Filament an.</div>';
+      return;
+    }
+    o.innerHTML = `<div class="help">${alle.length ? 'Das ausgewählte Teil hat keine Bemalung (mehr). Bemaltes Teil anklicken' + (alle.length ? ` – z. B. Teil ${alle.map(x => x.teil).join(', ')}` : '') + '.' :
+      'Gemalte Farben aus Bambu Studio, Orca oder PrusaSlicer werden zu festen Teilen – jede Farbe ein eigenes, druckbares Stück.<br><br>Dafür eine <b>bemalte 3MF</b> öffnen. Farben am besten <b>vor dem Schneiden</b> herauslösen.'}</div>`;
+    return;
+  }
+  const min = +einst.fbMin || 0;
+  const zeilen = [`<div class="fl"><i style="background:${filFarbe(b.basis)}"></i><span class="n"><b>Filament ${b.basis}</b> · Grundkörper</span><span class="s">bleibt</span></div>`];
+  for (const f of b.farben) {
+    if (f.f === b.basis) continue;
+    const gross = f.bereiche.filter(a => a >= min).length, klein = f.bereiche.length - gross;
+    const text = f.bereiche.length ? `${gross} ${gross === 1 ? 'Bereich' : 'Bereiche'}${klein ? ` <span style="color:var(--muted)">(+${klein} zu klein)</span>` : ''}` : 'eigener Körper';
+    zeilen.push(`<div class="fl"><i style="background:${filFarbe(f.f)}"></i><span class="n"><b>Filament ${f.f}</b> · ${text}</span><span class="s">wird Teil</span></div>`);
+  }
+  o.innerHTML = '<div class="help">Gemalte Farben werden zu festen Teilen – jede Farbe ein eigenes, druckbares Stück.</div>' + zeilen.join('') +
+    '<div style="margin-top:8px;color:var(--muted);font-size:12px">Ergebnis</div>' +
+    `<div class="seg" id="fbModus"><span data-v="ams" class="${einst.fbStecken ? '' : 'on'}">Im Objekt (AMS)</span><span data-v="stecken" class="${einst.fbStecken ? 'on' : ''}">Zum Einstecken</span></div>` +
+    `<div class="help" style="margin-top:0">${einst.fbStecken ? 'Jedes Farbteil einzeln und einfarbig drucken, dann in die Tasche im Grundkörper stecken (ggf. kleben). Sichtseite liegt beim Druck unten.' : 'Alles bleibt ein Objekt mit passgenauen Teilen je Filament – mit AMS in einem Rutsch drucken.'}</div>` +
+    zeile('Tiefe der Farbteile', `<input type="number" id="fbTiefe" min="0.4" max="10" step="0.1" value="${einst.fbTiefe}"><span class="u">mm</span>`) +
+    (einst.fbStecken ? zeile('Spiel', `<input type="number" id="fbSpiel" min="0" max="0.6" step="0.05" value="${einst.fbSpiel}"><span class="u">mm</span>`) : '') +
+    zeile('Kleine Flecken weglassen unter', `<input type="number" id="fbMin" min="0" step="1" value="${einst.fbMin}"><span class="u">mm²</span>`) +
+    zeile('Gleiche Farbe zu einem Teil', '<div class="sw" id="swFbZus"></div>') +
+    '<button class="btn p" id="fbLos" style="width:100%;margin-top:6px">Farben herauslösen</button>';
+  $$('#fbModus span').forEach(s => s.onclick = () => { einst.fbStecken = s.dataset.v === 'stecken'; merken(); werkzeugOptionen(); });
+  for (const k of ['fbTiefe', 'fbSpiel', 'fbMin']) if ($('#' + k)) $('#' + k).onchange = e => { einst[k] = +e.target.value; merken(); if (k === 'fbMin') werkzeugOptionen(); };
+  sw('#swFbZus', 'fbZusammen');
+  $('#fbLos').onclick = async () => {
+    try {
+      const r = await api(`${sid}/farben`, { teil: t.nr, stecken: !!einst.fbStecken, tiefe: +einst.fbTiefe || 1.2, spiel: +einst.fbSpiel || 0, min_flaeche: +einst.fbMin || 0, zusammen: !!einst.fbZusammen }, 'Löse Farben heraus …');
+      auswahl = null; await zeigen(r);
+      if (!einst.explo) { einst.explo = true; $('#swExp').classList.add('on'); merken(); explosion(); }
+    } catch (e) { meldung([e.message], true); }
+  };
 }
 
 // ───────── Vorschau-Ringe ─────────
@@ -380,7 +458,7 @@ function ringHolen(anfrage, alsPlan) {
 function nahtWeg() {
   plan = null; band = null; ringDaten = null; ebenenVorschau = null; linie = null;
   $('#overlay').innerHTML = '';
-  for (const m of teilObj.values()) if (m.geometry.getAttribute('color')) { m.geometry.deleteAttribute('color'); m.userData.gemalt = null; }
+  for (const m of teilObj.values()) if (m.userData.geo?.getAttribute('color')) { m.userData.geo.deleteAttribute('color'); m.userData.gemalt = null; }
   faerben(); ringeZeigen(); knoepfe();
 }
 $('#nahtWeg').onclick = () => { nahtWeg(); if (werkzeug === 'ebene') ebenePlanen(); };
@@ -484,7 +562,7 @@ cv.addEventListener('pointerup', e => {
   const h = treffer(e);
   if (!h) return;
   if (werkzeug === 'band') { if (h.nr !== auswahl) waehlen(h.nr); bandSetzen(h.nr, h.punkt, h.sn); }
-  else if (['ebene', 'mehrfach', 'auto'].includes(werkzeug)) { waehlen(h.nr); werkzeugOptionen(); }
+  else if (['ebene', 'mehrfach', 'auto', 'farben'].includes(werkzeug)) { waehlen(h.nr); werkzeugOptionen(); }
 });
 
 // Bemalen
