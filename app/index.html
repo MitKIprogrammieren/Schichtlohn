@@ -3014,6 +3014,9 @@ const nk=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 const LICHT_SOLL={};
 function lichtZustand(Z,pre){const li=Z["light."+pre+"_druckraumbeleuchtung"];if(!li||AUS.has(String(li.state)))return null;
   const w=LICHT_SOLL[pre];if(w&&Date.now()<w.bis){if((li.state==="on")===w.an)delete LICHT_SOLL[pre];else return w.an}return li.state==="on"}
+const DB_FEHL=new Set();window.druckerBildFehl=(m,img)=>{DB_FEHL.add(m);const b=img&&img.parentNode;if(b){b.classList.remove("foto");b.innerHTML=ICON.cube}};
+function druckerBild(d){const m=String(d.pre||"").split("_")[0].toLowerCase(),f=DRUCKER_BILD[m];if(!f||DB_FEHL.has(m))return "";
+  return `<img src="${HABL+f}.webp" alt="" decoding="async" onerror="druckerBildFehl('${m}',this)">`}
 function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause",Z=zustaende();
   const f=lauf?fertig(d):null;
   const sch=num((Z["sensor."+d.pre+"_aktuelle_schicht"]||{}).state),schG=num((Z["sensor."+d.pre+"_gesamtzahl_der_schichten"]||{}).state);
@@ -3023,7 +3026,7 @@ function zeile(d){const k=art(d),lauf=k==="druckt"||k==="pause",Z=zustaende();
   const fort=lauf?`<div class="dl-fort"><div class="dl-bar"><i style="width:${Math.max(0,Math.min(100,d.progress))}%"></i></div>
     <div class="dl-fz"><span><b class="num">${N0.format(d.progress)} %</b>${d.remaining>0?" · noch "+dur(d.remaining):""}${f?" · fertig "+f.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}):""}</span>${d.weight>0?`<span><b class="num">${gr(d.weight*d.progress/100)}</b> / ${gr(d.weight)}${d.laenge>0?" · "+m1(d.laenge):""}</span>`:""}</div></div>`:"";
   return `<section class="dc dl-${k}" data-key="dc:${esc(d.key)}"><div class="dl-z">
-    <div class="dl-bw" style="--p:${lauf?Math.max(0,Math.min(100,d.progress)):0}"><div class="dl-bild" data-lc="${esc(d.key)}">${k==="aus"?ICON_AUS:ICON.cube}</div></div>
+    <div class="dl-bw" style="--p:${lauf?Math.max(0,Math.min(100,d.progress)):0}"><div class="dl-bild${druckerBild(d)?" foto":""}" data-lc="${esc(d.key)}">${k==="aus"?ICON_AUS:druckerBild(d)||ICON.cube}</div></div>
     <div class="dl-mitte"><div class="dl-name">${esc(d.name)}${badge}</div>
       <div class="dl-zl"><span class="dl-st">${TXT[k]}</span>${!lauf&&k!=="aus"?plSchild(d.pre):""}${info?`<span class="dl-info" title="${esc(info)}">${esc(info)}</span>`:""}</div></div>
     <div class="dl-akt">${licht!=null?`<button type="button" class="btn icon dl-lbtn${licht?" an":""}" data-dli="${esc(d.pre)}" data-an="${licht?0:1}" aria-pressed="${licht}" aria-label="Licht ${esc(d.name)} ${licht?"ausschalten":"einschalten"}" title="Licht ${licht?"aus":"an"}">${ICON_LICHT}</button>`:""}
@@ -3064,11 +3067,16 @@ const AMS_SVG={
   3:'<svg viewBox="0 0 84 56"><rect x="3" y="12" width="78" height="40" rx="7" fill="#2a2f35" stroke="#4a5058"/><rect x="3" y="12" width="78" height="10" rx="5" fill="#353b42"/><rect x="10" y="26" width="64" height="18" rx="4" fill="#111418" stroke="#3a4047"/><g fill="#6b7177"><circle cx="19" cy="35" r="6"/><circle cx="34" cy="35" r="6"/><circle cx="49" cy="35" r="6"/><circle cx="64" cy="35" r="6"/></g><rect x="60" y="15" width="14" height="4" rx="2" fill="#3ccf73"/></svg>',
   4:'<svg viewBox="0 0 84 56"><rect x="24" y="6" width="36" height="46" rx="7" fill="#2a2f35" stroke="#4a5058"/><rect x="24" y="6" width="36" height="9" rx="5" fill="#353b42"/><rect x="30" y="19" width="24" height="27" rx="4" fill="#111418" stroke="#3a4047"/><circle cx="42" cy="32.5" r="9" fill="#6b7177"/><circle cx="42" cy="32.5" r="3" fill="#111418"/><rect x="47" y="9" width="9" height="3" rx="1.5" fill="#3ccf73"/></svg>'};
 const AMS_FEHL=new Set();
+/* Bilder aus dem Projekt ha-bambulab-cards (greghesp, ISC-Lizenz), fest auf einen Stand gepinnt; ohne Netz die Zeichnung */
+const HABL="https://cdn.jsdelivr.net/gh/greghesp/ha-bambulab-cards@132cd90f706dd931fcaaba2cb946951fa19facd6/src/images/";
+const AMS_GEO={1:{f:"ams.webp",ar:700/360,x:[21,40.3,59.7,79.5],w:11,top:7,h:47},2:{f:"amslite.svg",ar:700/360,x:[21.4,40.5,59.5,78.6],w:11,top:6,h:48},
+  3:{f:"ams2.webp",ar:1400/720,x:[21,40.3,59.4,78.5],w:11,top:6,h:50},4:{f:"amsht.webp",ar:171/360,x:[51],w:44,top:7,h:34}};
+const DRUCKER_BILD={a1mini:"A1Mini",a1:"A1",p1s:"P1S",p1p:"P1P",p2s:"P2S",x1c:"X1C",x1e:"X1E",h2d:"H2D",h2dpro:"H2DPRO",h2c:"H2C",h2s:"H2S",x2d:"X2D"};
 window.amsBildFehl=(t,img)=>{AMS_FEHL.add(String(t));const b=img&&img.parentNode;if(b)b.classList.add("ohne")};
-function amsBild(typ,klein){if(Number(typ)<0)return "";const t=Number(typ)||1,name=AMS_MOD[t]||"AMS";
-  const foto=S.srv&&window.SRV&&SRV.url()&&!AMS_FEHL.has(String(t));
-  const src=foto?SRV.url()+"/api/produktbild?quelle=bambu&n="+encodeURIComponent(name)+(SRV.token()?"&token="+encodeURIComponent(SRV.token()):""):"";
-  return `<span class="dl-amsb${klein?" k":""}${foto?"":" ohne"}" title="${esc(name)}">${foto?`<img src="${esc(src)}" alt="${esc(name)}" loading="lazy" decoding="async" onerror="amsBildFehl(${t},this)">`:""}${AMS_SVG[t]||AMS_SVG[1]}</span>`}
+window.amsGrafikFehl=t=>{if(AMS_FEHL.has(String(t)))return;AMS_FEHL.add(String(t));try{letzt="";neu()}catch(x){}};
+function amsBild(typ,klein){if(Number(typ)<0)return "";const t=Number(typ)||1,name=AMS_MOD[t]||"AMS",G=AMS_GEO[t];
+  const foto=!!G&&!AMS_FEHL.has(String(t));
+  return `<span class="dl-amsb${klein?" k":""}${foto?"":" ohne"}" title="${esc(name)}">${foto?`<img src="${HABL+G.f}" alt="${esc(name)}" loading="lazy" decoding="async" onerror="amsBildFehl(${t},this)">`:""}${AMS_SVG[t]||AMS_SVG[1]}</span>`}
 function amsTitel(g,typ){const m=g.match(/^AMS (\d+)$/);const mod=AMS_MOD[typ];return g==="Extern"?"Externe Spule":g==="AMS HT"?"AMS HT":mod&&m?`${mod} · ${m[1]}`:g}
 /* Rolle je Fach (Server): Gramm der Rolle, die gerade im Fach steckt */
 const RL={m:{},zeit:0,laeuft:false};
@@ -3076,7 +3084,7 @@ function rollenHolen(){if(!(S.srv&&window.SRV)||RL.laeuft||Date.now()-RL.zeit<20
   SRV.req("GET","/api/rollen").then(d=>{const m={};(d.rollen||[]).forEach(x=>{m[x.key]=x});const neuG=JSON.stringify(m)!==JSON.stringify(RL.m);RL.m=m;RL.zeit=Date.now();if(neuG){letzt="";neu()}})
     .catch(()=>{RL.zeit=Date.now()}).finally(()=>{RL.laeuft=false})}
 function balkenFarbe(h){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return (0.2126*r+0.7152*g+0.0722*b)<70?"#8a93ab":h}
-function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book;const leer=!!a.empty,an=!!a.active&&!leer;const hx=String(a.color||"").slice(0,7);const hex=/^#[0-9a-f]{6}$/i.test(hx)?hx:"#9e9e9e";
+function fachInfo(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book;const leer=!!a.empty,an=!!a.active&&!leer;const hx=String(a.color||"").slice(0,7);const hex=/^#[0-9a-f]{6}$/i.test(hx)?hx:"#9e9e9e";
   const typ=a.type&&a.type!=="?"?a.type:"";let e=null;try{e=!leer&&B&&B.finde?B.finde(typ,hex):null}catch(x){}
   const sp=leer?'<span class="dl-sleer"></span>':(window.LGN&&LGN.spool?LGN.spool(hex,"dl-sp",e?e.besonderheiten:[],e||{uid:"",gewicht:1000,spulen:1,reste:[]}):`<span class="dl-sleer" style="background:${hex};border:0"></span>`);
   const rest=a.remain>=0&&a.remain_enabled!==false&&!leer?Math.max(0,Math.min(100,+a.remain)):null;
@@ -3090,7 +3098,10 @@ function fachHtml(g,{fach,ht,a,sort},lauf,drucker){const B=window.LGN&&LGN._book
   const sch=ro==null&&!(rest!=null&&chip)&&R&&R.schaetzung!=null?Math.round(R.schaetzung):null;
   const gT=leer?"":ro!=null?N0.format(ro)+" g":rest!=null&&chip?"≈ "+N0.format(Math.round(rest/100*gw))+" g":sch!=null?"≈ "+N0.format(sch)+" g":S.srv?"? g":"";
   const gK=ro!=null?"":gT.startsWith("≈")?" q":" n";const rb=ro!=null?Math.max(0,Math.min(100,ro/gw*100)):sch!=null?Math.max(0,Math.min(100,sch/gw*100)):rest;const kl=S.srv&&!leer;
-  return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null&&chip?" · "+rest+" %":sch!=null?" · geschätzt aus dem Lager – tippen zum Wiegen oder Eintragen":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):""))}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%;background:${balkenFarbe(hex)}"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
+  return {leer,an,hex,sp,mat,sub,voll,ort,key,ro,rest,chip,sch,gT,gK,rb,kl,
+    title:ort+" · "+voll+(ro!=null?" · Rolle "+ro+" g":rest!=null&&chip?" · "+rest+" %":sch!=null?" · geschätzt aus dem Lager – tippen zum Wiegen oder Eintragen":"")+(an?(lauf?" · druckt gerade":" · ausgewählt"):"")}}
+function fachHtml(g,x,lauf,drucker){const {leer,an,hex,sp,mat,sub,ort,key,ro,rest,chip,sch,gT,gK,rb,kl,title}=fachInfo(g,x,lauf,drucker);
+  return `<span class="dl-sl${an?" an":""}${an&&lauf?" lauf":""}${leer?" leer":""}${kl?" klick":""}"${kl?` role="button" tabindex="0" data-rl="${esc(key)}" data-rlo="${esc(ort)}"`:""} title="${esc(title)}">${sp}<b>${esc(mat)}</b><small>${esc(sub||"\u00a0")}</small><i class="dl-rest"${rb==null?' style="visibility:hidden"':""}><i style="width:${rb||0}%;background:${balkenFarbe(hex)}"></i></i>${gT?`<em class="dl-g${gK}">${esc(gT)}</em>`:""}</span>`}
 /* Live-Gewicht: der Server reicht bis zu 10 Werte/s von jeder Waage durch ({typ:"waage_live"}). Ersetzt werden nur die markierten
    Zahlen (data-wl = Waage, data-wlk = netto → abzüglich data-wll, data-wlf = g|kg1|kg2, data-wlv = Balken mit Sollgewicht) – ohne neu zu zeichnen. */
 window.slWaageLiveAnwenden=function(pre,g){const f=(v,a)=>(a==="kg1"||a==="kg2")&&v>=1000?new Intl.NumberFormat("de-DE",{maximumFractionDigits:a==="kg1"?1:2}).format(v/1000)+" kg":Math.round(v).toLocaleString("de-DE")+" g";
@@ -3178,6 +3189,16 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],
   t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",body);closeModal();toast(aktion==="entfernen"?"Rolle entfernt":`${d.sorte}: Rolle ${N0.format(Math.round(d.rolle.g))} g`);RL.zeit=0;rollenHolen()}
   catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}});
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.rl){e.preventDefault();e.target.click()}});
+/* Ein Fach als Balken über dem AMS-Bild: Füllhöhe = Gramm der Rolle, Farbe = Filament */
+function fachBalken(g,x,lauf,drucker,G,i){const f=fachInfo(g,x,lauf,drucker);
+  const hoch=f.leer?0:f.rb!=null?Math.max(3,f.rb):100,unsicher=!f.leer&&f.rb==null;
+  const gTxt=f.gT.replace("≈ ","");
+  return `<span class="dl-gs${f.an?" an":""}${f.an&&lauf?" lauf":""}${f.leer?" leer":""}${f.kl?" klick":""}" style="left:${G.x[i]-G.w/2}%;width:${G.w}%;top:${G.top}%;height:${G.h}%"${f.kl?` role="button" tabindex="0" data-rl="${esc(f.key)}" data-rlo="${esc(f.ort)}"`:""} title="${esc(f.title)}">
+    <i class="dl-gf${unsicher?" u":""}" style="height:${hoch}%;background-color:${f.hex}"></i>${f.leer?"":`<em class="dl-gg${f.gK}">${esc(gTxt)}</em><b class="dl-gm">${esc(f.mat)}</b>`}</span>`}
+function amsGrafik(g,A,lauf,drucker){const t=A.gr[g].typ,G=AMS_GEO[t];if(!G||AMS_FEHL.has(String(t)))return "";const l=A.gr[g].l;
+  const bild=(teile,cls)=>`<div class="dl-ag${cls||""}" style="aspect-ratio:${G.ar}"><img src="${HABL+G.f}" alt="${esc(AMS_MOD[t])}" decoding="async" onerror="amsGrafikFehl(${t})">${teile}</div>`;
+  if(t===4)return `<div class="dl-aght">${l.map(x=>`<div class="dl-aghe">${bild(fachBalken(g,x,lauf,drucker,G,0)," ht")}<span>HT ${x.fach}</span></div>`).join("")}</div>`;
+  return bild(l.slice(0,4).map((x,i)=>fachBalken(g,x,lauf,drucker,G,Math.min(3,x.fach-1))).join(""))}
 function amsZaehlen(A){const m=new Map();A.namen.forEach(g=>{if(g==="Extern"||A.gr[g].typ<0)return;const t=A.gr[g].typ||1;m.set(t,(m.get(t)||0)+(g==="AMS HT"?A.gr[g].l.length:1))});return [...m]}
 function unten(d,lauf){rollenHolen();const A=amsDaten(d.pre),kam=OFFEN.has(d.key);if(!A.namen.length&&!kam)return "";
   const zu=(ZU.has(zk(d))||ZU.has(d.key))&&A.namen.length>0;
@@ -3185,7 +3206,7 @@ function unten(d,lauf){rollenHolen();const A=amsDaten(d.pre),kam=OFFEN.has(d.key
   const kamW=kam&&S.srv&&window.SRV&&PL[d.pre]?`<div class="dl-kw">${kamH}${plLeiste(d.pre)}</div>`:kamH;
   const einh=A.namen.reduce((s,g)=>s+(g==="AMS HT"?A.gr[g].l.length:1),0)-(A.gr.Extern?1:0);
   const kopf=A.namen.length?`<button type="button" class="dl-auf" data-dz="${esc(zk(d))}" data-dzalt="${esc(d.key)}" aria-expanded="${!zu}">${PFEIL}<b>AMS</b>${zu?`<span class="dl-amsm">${amsZaehlen(A).map(([t,c])=>amsBild(t,true)+(c>1?`<small>×${c}</small>`:"")).join("")}</span>`:""}<span class="dl-anz">${!zu&&einh>0?`${einh} ${einh===1?"Einheit":"Einheiten"} · `:""}${A.n} ${A.n===1?"Spule":"Spulen"}</span>${zu?`<span class="dl-dots">${A.namen.flatMap(g=>A.gr[g].l).filter(x=>!x.a.empty).slice(0,32).map(x=>{const h=String(x.a.color||"").slice(0,7);return `<i class="${x.a.active?"an":""}" style="background:${/^#[0-9a-f]{6}$/i.test(h)?h:"#9e9e9e"}"></i>`}).join("")}</span>`:""}<span class="dl-aufr">${zu?"Aufklappen":"Einklappen"}</span></button>`:"";
-  const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${amsBild(A.gr[g].typ)}<span class="dl-amst">${esc(amsTitel(g,A.gr[g].typ))}</span>${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:A.gr[g].hum?`<span class="dl-hum" title="Luftfeuchte im AMS">${A.gr[g].hum} %</span>`:""}</div><div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div></div>`}).join("")}</div>`;
+  const kacheln=zu?"":`<div class="dl-amsl">${A.namen.map(g=>{const l=A.gr[g].l;return `<div class="dl-amsk"><div class="dl-amsn">${AMS_GEO[A.gr[g].typ]&&!AMS_FEHL.has(String(A.gr[g].typ))?"":amsBild(A.gr[g].typ)}<span class="dl-amst">${esc(amsTitel(g,A.gr[g].typ))}</span>${g==="AMS HT"&&l.length>1?`<span>${l.map(x=>x.fach).join(" · ")}</span>`:A.gr[g].hum?`<span class="dl-hum" title="Luftfeuchte im AMS">${A.gr[g].hum} %</span>`:""}</div>${amsGrafik(g,A,lauf,d.name)||`<div class="dl-sls" style="--n:${Math.min(4,l.length)}">${l.map(x=>fachHtml(g,x,lauf,d.name)).join("")}</div>`}</div>`}).join("")}</div>`;
   return `<div class="dl-unten${zu?" zu":""}">${kopf}<div class="dl-ub${kam&&!zu?" mitkam":""}">${kacheln}${kamW}</div></div>`}
 const ICON_VOLL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 const ICON_LICHT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>';
@@ -3448,6 +3469,24 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .dc .dl-amsn .dl-amst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dc .dl-amsn>span:last-child:not(.dl-amst){font-size:12px;font-weight:500;color:var(--fg-3)}
 .dc .dl-sl{padding:8px 4px 7px}.dc .dl-sl .dl-sp{width:38px;height:38px;margin:0 0 5px}
+/* ---- AMS als Bild mit Füllstand je Fach (Bilder: ha-bambulab-cards, ISC) ---- */
+.dl-amsb{background:none}.dl-amsb img{mix-blend-mode:normal;padding:0}
+.dl-ag{position:relative;width:100%;max-width:460px;margin:0 auto}.dl-ag>img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}
+.dl-gs{position:absolute;box-sizing:border-box;border-left:2px solid rgba(255,255,255,.22);border-right:2px solid rgba(255,255,255,.22);cursor:default}
+.dl-gs.klick{cursor:pointer}.dl-gs.klick:hover{border-color:rgba(255,255,255,.5)}
+.dl-gs.an{border-color:var(--fg-2)}.dl-gs.lauf{border-color:var(--good);box-shadow:0 0 0 1px var(--good),0 0 14px color-mix(in srgb,var(--good) 40%,transparent)}
+.dl-gf{position:absolute;left:3px;right:3px;bottom:0;border-radius:2px 2px 0 0;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.2) 0 2px,transparent 2px 5px);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.dl-gf.u{opacity:.45}
+.dl-gs.leer{border-style:dashed;border-color:rgba(255,255,255,.14)}
+.dl-gg,.dl-gm{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-style:normal;font-size:11.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.6);padding:1px 6px;border-radius:6px;pointer-events:none;font-variant-numeric:tabular-nums}
+.dl-gg{bottom:6%}.dl-gg.q{color:#ffd27a}.dl-gg.n{color:#bbb}
+.dl-gm{top:calc(100% + 30%);font-size:11px;max-width:150%;overflow:hidden;text-overflow:ellipsis}
+.dl-aght{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-start}
+.dl-aghe{display:flex;flex-direction:column;align-items:center;gap:2px;width:92px}.dl-aghe>span{font-size:11px;color:var(--fg-3)}
+.dl-ag.ht{max-width:92px}.dl-ag.ht .dl-gm{top:calc(100% + 50%)}
+.dc .dl-amsk:has(.dl-aght){max-width:none}
+.dc .dl-amsk:has(.dl-ag){background:rgba(255,255,255,.02)}
+.dl-bild.foto{background:#0e1013;padding:2px;overflow:hidden}.dl-bild.foto img{width:100%;height:100%;object-fit:contain}
 @media (max-width:760px){.dl-aufr{display:none}.dc .dl-akt .btn.icon{width:34px;height:34px}.dl-fort{padding:0 14px 12px}}
 </style>
 <style>
@@ -8445,7 +8484,7 @@ const B=[
   {k:"drucker",t:"Drucker",ic:"dr",abschnitte:["Drucker","Bambu-Cloud","Creality-Cloud","#karten","Verpasste Drucke","Drucker aus Home Assistant","Filamentpreis je AMS-Fach"],karten:["Bambu-Drucker","Bambu Studio · Filament Manager","Druckprotokoll"]},
   {k:"lager",t:"Lager & Filament",ic:"la",abschnitte:["Anzeige im Lager","Warnungen","Leere Spulen","Spulen-Etiketten","#karten"],karten:["Waage","Filament-Datenbank"]},
   {k:"kalk",t:"Kalkulation",ic:"ka",abschnitte:["Kosten und Preis","Materialien","Verkaufskanäle","Zahlungsarten","Absender für Angebote"],karten:[]},
-  {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram","WhatsApp"]},
+  {k:"meld",t:"Meldungen",ic:"me",abschnitte:[],karten:["Meldung aufs Handy","Telegram","WhatsApp","Alexa-Ansagen"]},
   {k:"aus",t:"Aussehen",ic:"au",abschnitte:["Design","Reiter & Zusatzfunktionen"],karten:[]},
   /* Zugänge: alles, was der Server zum Arbeiten braucht (Konten, Schlüssel, Adressen) an einer Stelle */
   {k:"zug",t:"Zugänge",ic:"zg",abschnitte:["#karten","Preisvergleich"],karten:["Zugang","Claude"]},
@@ -8459,7 +8498,7 @@ function status(b){const c=S.cfg||{},E=window.SLF&&SLF.e||{};const n=v=>new Intl
     case "drucker":{const l=(window.__einDR||[]);if(!S.srv)return (c.printers||[]).length+" Drucker im Rechner";if(!l.length)return "wird geprüft …";const on=l.filter(d=>d.online).length;return `${on} verbunden${l.length>on?` · ${l.length-on} offline`:""}`}
     case "lager":return "Waage, Datenbank, Preise";
     case "kalk":return `Strom ${n(c.kwh||0)} €/kWh · ${n(c.rate||0)} €/h`;
-    case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":"",E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel?"WhatsApp":""].filter(Boolean).join(" · ")||"Handy · Telegram · WhatsApp";
+    case "meld":return [E.ha&&E.ha.notify?"Handy":"",E.telegram&&E.telegram.chat?"Telegram":"",E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel?"WhatsApp":"",E.alexa&&!E.alexa.aus&&E.whatsapp&&E.whatsapp.url?"Alexa":""].filter(Boolean).join(" · ")||"Handy · Telegram · WhatsApp · Alexa";
     case "aus":return "Design, Reiter, Zusatzfunktionen";
     case "sys":return S.srv?"Server verbunden":S.backend==="ha"?"Home Assistant":"nur dieser Browser"}}catch(e){}return ""}
 /* Listen-Übersicht: Untertitel = was drin ist, Status rechts als Punkt */
@@ -8515,7 +8554,7 @@ function uebersicht(sichtbar){const c=S.cfg||{};const n=v=>new Intl.NumberFormat
     gr("Server & Updates",[da("sys")&&z("sy","Server",srvZ.t,"sys",srvZ.p),
       S.srv&&da("sys")&&z("ap","App",appZ.t,"sys",appZ.p),
       S.srv&&da("sys")&&z("pr","Preise & Datenbank",prT,"sys",prT?{ok:true}:null)])+
-    gr("Allgemein",[da("meld")&&(()=>{const E=window.SLF&&SLF.e||{};const an=[E.ha&&E.ha.notify,E.telegram&&E.telegram.chat,E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel].filter(Boolean).length;return z("me","Meldungen",an?`${an} aktiv`:"aus","meld")})(),
+    gr("Allgemein",[da("meld")&&(()=>{const E=window.SLF&&SLF.e||{};const an=[E.ha&&E.ha.notify,E.telegram&&E.telegram.chat,E.whatsapp&&E.whatsapp.url&&E.whatsapp.schluessel,E.alexa&&!E.alexa.aus&&E.whatsapp&&E.whatsapp.url].filter(Boolean).length;return z("me","Meldungen",an?`${an} aktiv`:"aus","meld")})(),
       da("zug")&&z("zg","Zugänge",zp?zp.t:"","zug",zp),
       da("aus")&&z("au","Aussehen",modus,"aus")])+
     gr("Werkstatt",[da("drucker")&&z("dr","Drucker",dp?dp.t:status(B_("drucker")),"drucker",dp),
