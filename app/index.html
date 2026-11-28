@@ -3276,7 +3276,7 @@ function after(){LAUF.forEach(b=>{if(!b.isConnected)kStop(b)});document.querySel
     /* Vorschau des letzten Drucks nur, während er läuft – sonst bleibt das Foto des Druckers stehen */
     if(druckerBild(d)&&!["druckt","pause"].includes(art(d))){delete el.dataset.done;return}try{let u="";
       /* das, was gerade gedruckt wird: Vorschau des laufenden Auftrags vom eigenen Server; sonst die letzte aus der Cloud-Liste */
-      if(S.srv&&window.SRV&&SRV.url()&&d.pre){try{const r=await SRV.req("GET","/api/druck/vorschau?pre="+encodeURIComponent(d.pre));u=(r&&r.bild)||""}catch(x){}
+      if(S.srv&&window.SRV&&SRV.url()&&d.pre){try{const r=await SRV.req("GET","/api/druck/vorschau?pre="+encodeURIComponent(d.pre));u=r&&r.bild?SRV.url()+r.bild+(SRV.token()?"&token="+encodeURIComponent(SRV.token()):""):""}catch(x){}
         if(!u){setTimeout(()=>{if(el.isConnected)delete el.dataset.done},120000)}}
       if(!u&&!S.srv)u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
 /* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */

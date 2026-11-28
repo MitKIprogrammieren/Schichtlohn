@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.30.2 – 28.11.2026
+- Schichtfotos funktionieren jetzt wirklich: Ein Fehler („'Drucker' object has no attribute 'get'“) hat bisher jedes Foto verhindert.
+- Die Druckvorschau auf der Druckerkarte verschwindet nicht mehr nach einer Weile: Der Server holt das Bild einmal und hält es selbst vor, statt den nur kurz gültigen Cloud-Link weiterzugeben.
+
 ## 3.30.1 – 28.11.2026
 - Druckerkarte: Während eines Drucks zeigt das Bild links das, was gerade gedruckt wird (Vorschau des laufenden Auftrags aus der Bambu-Cloud), nicht mehr das Bild eines früheren Drucks. Ohne Druck steht dort das Foto des Druckers.
 

@@ -25,7 +25,8 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
   POST /api/whatsapp/test             WhatsApp über das Meldewerk: Testmeldung
   GET  /api/alexa/personen            Personen aus Home Assistant (für „nur ansagen, wenn jemand daheim ist“)
-  GET  /api/druck/vorschau?pre=…     Vorschaubild des laufenden Drucks (Bambu-Cloud)
+  GET  /api/druck/vorschau?pre=…     Vorschaubild des laufenden Drucks (Bambu-Cloud) → Adresse fürs Bild
+  GET  /api/druck/vorschaubild?pre=… das Bild selbst (vom Server vorgehalten)
   POST /api/alexa/probe               Probe-Ansage {art} mit dem laufenden Druck (sonst Beispielwerten)
   POST /api/waage/drucken             Etikett (1-Bit-Raster) an die Filamentwaage weiterreichen
   POST /api/werte_ergaenzen           leere Druckwerte (Düse, Bett, Flow, K, Vol.) aus Slicerprofilen ergänzen
@@ -88,7 +89,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.30.1"
+VERSION = "3.30.2"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2664,32 +2665,38 @@ def eigene_drucker():
 _VORSCHAU = {}  # (Seriennummer, Auftrag) → Vorschaubild aus der Bambu-Cloud
 
 
-def druck_vorschau(pre):
-    """Vorschaubild des Drucks, der gerade läuft (aus der Bambu-Cloud, je Auftrag einmal geholt)."""
+def druck_vorschau(pre, nur_bild=False):
+    """Vorschaubild des Drucks, der gerade läuft. Holt es einmal je Auftrag aus der Bambu-Cloud und hält die Bytes
+    selbst vor – die Cloud-Links sind nur kurz gültig, danach bliebe das Bild leer."""
     dr = eigener_drucker(pre)
     if dr is None:
-        return {"bild": ""}
+        return None if nur_bild else {"bild": ""}
     p = dr.p or {}
     task, name = str(p.get("task_id") or ""), str(p.get("subtask_name") or "").strip()
     if not (task or name):
-        return {"bild": ""}
+        return None if nur_bild else {"bild": ""}
     k = (dr.serial, task, name)
     alt = _VORSCHAU.get(k)
-    if alt and (alt["bild"] or time.time() - alt["zeit"] < 120):  # ohne Bild nach 2 min nochmal fragen (Cloud braucht kurz)
-        return {"bild": alt["bild"], "auftrag": name}
-    c = einstellungen()["cloud"]
-    bild = ""
-    if c.get("token"):
-        try:
-            h = drucker_mod.cloud_aufgabe(c["token"], c.get("region", "global"), dr.serial, task, name) or {}
-            if (task and str(h.get("id")) == task) or (name and name in (h.get("title") or "", h.get("designTitle") or "")):
-                bild = str(h.get("cover") or "")
-        except Exception as ex:
-            print("Druckvorschau:", ex, flush=True)
-    if len(_VORSCHAU) > 50:
-        _VORSCHAU.clear()
-    _VORSCHAU[k] = {"bild": bild, "zeit": time.time()}
-    return {"bild": bild, "auftrag": name}
+    if not (alt and (alt["daten"] or time.time() - alt["zeit"] < 120)):  # ohne Bild nach 2 min nochmal fragen
+        c = einstellungen()["cloud"]
+        daten, typ = b"", "image/png"
+        if c.get("token"):
+            try:
+                h = drucker_mod.cloud_aufgabe(c["token"], c.get("region", "global"), dr.serial, task, name) or {}
+                if (task and str(h.get("id")) == task) or (name and name in (h.get("title") or "", h.get("designTitle") or "")):
+                    url = str(h.get("cover") or "")
+                    if url:
+                        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "SchichtLohn"}), timeout=20) as r:
+                            daten, typ = r.read(5_000_000), (r.headers.get("Content-Type") or "image/png").split(";")[0]
+            except Exception as ex:
+                print("Druckvorschau:", ex, flush=True)
+        if len(_VORSCHAU) > 30:
+            _VORSCHAU.clear()
+        alt = _VORSCHAU[k] = {"daten": daten, "typ": typ, "zeit": time.time()}
+    if nur_bild:
+        return (alt["daten"], alt["typ"]) if alt["daten"] else None
+    v = hashlib.md5(("%s|%s" % (task, name)).encode()).hexdigest()[:10]
+    return {"bild": ("/api/druck/vorschaubild?pre=%s&v=%s" % (quote(pre), v)) if alt["daten"] else "", "auftrag": name}
 
 
 def eigener_drucker(pre):
@@ -3602,7 +3609,8 @@ PLATTE = platte_mod.Platte(os.path.join(os.path.dirname(DB_PFAD) or ".", "platte
 # Schichtfotos: mit SCHICHTFOTOS_ORDNER (z. B. NAS-Ordner) bleibt alles erhalten, sonst die letzten 30 Drucke je Drucker
 _SF_LOKAL = os.path.join(os.path.dirname(DB_PFAD) or ".", "schichtfotos")
 _SF_ORDNER = os.environ.get("SCHICHTFOTOS_ORDNER", "").strip()
-SCHICHTFOTOS = schichtfotos_mod.Schichtfotos(_SF_ORDNER or _SF_LOKAL, drucker_kamera, drucker_mod.praefix,
+SCHICHTFOTOS = schichtfotos_mod.Schichtfotos(_SF_ORDNER or _SF_LOKAL, drucker_kamera,
+                                             lambda dr: dr.d.get("praefix") or drucker_mod.praefix(dr.d),
                                              lambda t: print(t, flush=True), ersatz=_SF_LOKAL if _SF_ORDNER else None,
                                              aufheben=int(os.environ.get("SCHICHTFOTOS_AUFHEBEN") or (0 if _SF_ORDNER else 30)))
 PLATTE_ALLE_S = 180
@@ -4554,6 +4562,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if teile == ["druck", "vorschau"] and methode == "GET":
             return self._json(200, druck_vorschau((q.get("pre") or [""])[0]))
+        if teile == ["druck", "vorschaubild"] and methode == "GET":
+            r = druck_vorschau((q.get("pre") or [""])[0], nur_bild=True)
+            if not r:
+                return self._senden(404, b"", "image/png", "no-store")
+            return self._senden(200, r[0], r[1], "private, max-age=86400")
         if teile == ["alexa", "personen"]:
             try:
                 st = ha_anfrage("/api/states", timeout=10) or []
