@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.32.0 – 28.11.2026
+- Herausgenommene Rollen merkt sich SchichtLohn jetzt dauerhaft (auch nach einem Neustart), ohne Zeitgrenze. Steckt dieselbe Sorte wieder in einem Fach und ist genau eine Rolle gemerkt, wandert sie automatisch mit. Bei mehreren wählst du im Fach-Fenster unter „Herausgenommene Rollen dieser Sorte“, welche drinsteckt – oder lässt eine mit ✕ vergessen.
+
 ## 3.31.0 – 28.11.2026
 - Umgesteckte Rollen: Nimmst du eine Rolle aus einem Fach und steckst dieselbe Sorte innerhalb von 3 Stunden in ein anderes Fach (auch an einem anderen Drucker), nimmt SchichtLohn das eingetragene Gewicht mit.
 - Lager: ein Füllstands-Balken je Rolle, Rollen im Drucker mit Ort (z. B. „H2C B1“).

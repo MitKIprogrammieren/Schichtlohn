@@ -25,6 +25,7 @@ Listen haben dasselbe Format wie die To-do-Listen in Home Assistant
   POST /api/telegram/chat, …/test     Telegram-Bot: Chat-ID finden, Testmeldung
   POST /api/whatsapp/test             WhatsApp über das Meldewerk: Testmeldung
   GET  /api/alexa/personen            Personen aus Home Assistant (für „nur ansagen, wenn jemand daheim ist“)
+  POST /api/rolle/vergessen {uid,id}  gemerkte (herausgenommene) Rolle vergessen
   GET  /api/druck/vorschau?pre=…     Vorschaubild des laufenden Drucks (Bambu-Cloud) → Adresse fürs Bild
   GET  /api/druck/vorschaubild?pre=… das Bild selbst (vom Server vorgehalten)
   POST /api/alexa/probe               Probe-Ansage {art} mit dem laufenden Druck (sonst Beispielwerten)
@@ -89,7 +90,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.31.0"
+VERSION = "3.32.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -2210,6 +2211,10 @@ def rollen_liste():
                       "rolle": r, "gleiche": [{"key": k, "g": v.get("g")} for k, v in (d.get("faecher") or {}).items() if k != x["key"] and isinstance(v, dict)]})
         out.append(x)
     _schaetzungen_verteilen(out, sorten)
+    gp = geparkt_lesen()
+    for x in out:
+        if x.get("uid") and gp.get(x["uid"]):
+            x["geparkt"] = gp[x["uid"]]
     for x in out:
         x.pop("_eid", None)
     return out
@@ -3808,10 +3813,35 @@ def _meldung_weg(eid):
         im_hintergrund(ha_anfrage, "/api/services/persistent_notification/dismiss", {"notification_id": "filament_" + eid[7:]})
 
 
-# Umgesteckte Rollen: Rolle verlässt ein Fach → hier „geparkt“; taucht dieselbe Sorte binnen ROLLE_PARKEN_S in einem
-# anderen Fach ohne eingetragene Rolle auf, wandert die Rolle (mit ihrem Gewicht) dorthin mit.
-ROLLE_PARKEN_S = 3 * 3600
-GEPARKT = {}  # Sorten-uid → [{"g", "von", "zeit"}]
+# Umgesteckte Rollen: Rolle verlässt ein Fach → sie wird mit ihrem Gewicht gemerkt (dauerhaft, auf dem Server gespeichert).
+# Taucht dieselbe Sorte in einem Fach ohne eingetragene Rolle auf und ist genau eine Rolle dieser Sorte gemerkt, wandert
+# sie automatisch dorthin; sind es mehrere, wählst du im Fach-Fenster, welche es ist.
+GEPARKT_KEY = "rollen_geparkt"
+_GEPARKT_LOCK = threading.Lock()
+
+
+def geparkt_lesen():
+    w, _ = daten_lesen(GEPARKT_KEY)
+    return w if isinstance(w, dict) else {}
+
+
+def geparkt_aendern(fn):
+    with _GEPARKT_LOCK:
+        w = geparkt_lesen()
+        erg = fn(w)
+        daten_schreiben(GEPARKT_KEY, {k: v for k, v in w.items() if v})
+        return erg
+
+
+def geparkt_nehmen(uid, rid):
+    """Gemerkte Rolle rid der Sorte uid herausnehmen → Eintrag oder None."""
+    def f(w):
+        liste = w.get(uid) or []
+        x = next((r for r in liste if r.get("id") == rid), None)
+        if x:
+            w[uid] = [r for r in liste if r is not x]
+        return x
+    return geparkt_aendern(f)
 
 
 def _sorte_daten(uid):
@@ -3832,18 +3862,20 @@ def rolle_umstecken(eid, alt_sig, neu_sig, drucker, jetzt):
             if f and f.get("g") is not None:
                 d2 = dict(d, faecher={k: v for k, v in d["faecher"].items() if k != key})
                 liste_aendern(ENT, "update_item", {"item": it["uid"], "description": json.dumps(d2, ensure_ascii=False)})
-                GEPARKT.setdefault(it["uid"], []).append({"g": f["g"], "von": key, "zeit": jetzt})
+                eintrag = {"id": "%x" % int(jetzt * 1000), "g": f["g"], "von": key, "zeit": int(jetzt)}
+                geparkt_aendern(lambda w: w.setdefault(it["uid"], []).append(eintrag))
                 print(f"Rolle: {it['summary']} ({f['g']} g) aus {key} genommen – wartet auf ein neues Fach", flush=True)
     if neu_sig:
         tr, _ = sorte_fuer(neu_sig[0], neu_sig[1], key)
         if not tr:
             return
         it, d = tr
-        liste = [x for x in GEPARKT.get(it["uid"], []) if jetzt - x["zeit"] < ROLLE_PARKEN_S]
-        GEPARKT[it["uid"]] = liste
-        if not liste or (isinstance(d.get("faecher"), dict) and key in d["faecher"]):
+        liste = geparkt_lesen().get(it["uid"]) or []
+        if len(liste) != 1 or (isinstance(d.get("faecher"), dict) and key in d["faecher"]):
+            return  # keine oder mehrere gemerkte Rollen: dann wählst du im Fach-Fenster
+        x = geparkt_nehmen(it["uid"], liste[0].get("id"))
+        if not x:
             return
-        x = liste.pop()  # die zuletzt herausgenommene Rolle
         it, d = _sorte_daten(it["uid"])
         if not it:
             return
@@ -4341,11 +4373,15 @@ class Handler(BaseHTTPRequestHandler):
                                              "description": json.dumps(log, ensure_ascii=False)})
             melden({"typ": "liste"})
             return self._json(200, {"ok": True, "sorte": it["summary"], "zurueck_g": round(g, 1), "vorher_g": int(round(vorher)), "bestand_g": int(round(bestand))})
+        if teile == ["rolle", "vergessen"] and methode == "POST":
+            b = self._json_rumpf()
+            x = geparkt_nehmen(str(b.get("uid") or ""), str(b.get("id") or ""))
+            return self._json(200, {"ok": bool(x)})
         if teile == ["rolle"] and methode == "POST":
             b = self._json_rumpf()
             dr, ort, aktion = str(b.get("drucker") or ""), str(b.get("ort") or ""), str(b.get("aktion") or "")
-            if aktion not in ("voll", "gramm", "entfernen") or not dr or not ort:
-                raise Fehler(400, "drucker, ort und aktion (voll, gramm, entfernen) fehlen")
+            if aktion not in ("voll", "gramm", "entfernen", "geparkt") or not dr or not ort:
+                raise Fehler(400, "drucker, ort und aktion (voll, gramm, entfernen, geparkt) fehlen")
             ziel = next((r for r in rollen_liste() if r["drucker"] == dr and r["ort"] == ort), None)
             if not ziel or not ziel.get("uid"):
                 raise Fehler(404, "Diesem Fach ist keine Sorte mit Bestand zugeordnet – erst in SchichtLohn zuordnen")
@@ -4356,7 +4392,12 @@ class Handler(BaseHTTPRequestHandler):
                 ziel = dict(ziel, uid=wahl)
             it = next(i for i in liste_lesen(ENT) if i["uid"] == ziel["uid"])
             d = _desc(it)
-            if aktion == "gramm":
+            if aktion == "geparkt":  # eine gemerkte (herausgenommene) Rolle steckt jetzt hier
+                x = geparkt_nehmen(it["uid"], str(b.get("id") or ""))
+                if not x:
+                    raise Fehler(404, "Diese Rolle ist nicht mehr gemerkt")
+                aktion, g, b = "gramm", float(x["g"]), dict(b, quelle="umgesteckt von " + str(x.get("von") or ""))
+            elif aktion == "gramm":
                 try:
                     g = float(str(b.get("g")).replace(",", "."))
                 except (TypeError, ValueError):

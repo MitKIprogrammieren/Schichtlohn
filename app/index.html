@@ -3152,6 +3152,7 @@ function rolleModal(key,ortText,items){const R=RL.m[key];const [dr,ort]=key.spli
         <button class="btn" data-rla="wahl">Übernehmen</button></div>
       <div class="hint">Ab dann bucht SchichtLohn Drucke aus diesem Fach bei dieser Sorte ab.</div>`:""}
       ${zeile("Diese Rolle",ro&&ro.g!=null?N0.format(Math.round(ro.g))+" g":"unbekannt")}
+      ${(R.geparkt||[]).length?`<div class="dl-gp"><div class="dl-rlab">Herausgenommene Rollen dieser Sorte – steckt eine davon hier?</div>${R.geparkt.slice().reverse().map(x=>`<div class="dl-gpz"><span><b>${N0.format(Math.round(x.g))} g</b> · aus ${esc(String(x.von||"").replace("|"," · "))}${x.zeit?` · ${new Date(x.zeit*1000).toLocaleDateString("de-DE")}`:""}</span><button class="btn" data-rla="geparkt" data-gid="${esc(x.id)}">Steckt hier</button><button class="btn ghost" data-rla="vergessen" data-gid="${esc(x.id)}" title="Nicht mehr merken" aria-label="Nicht mehr merken">✕</button></div>`).join("")}</div>`:""}
       ${ro?zeile("Eingetragen",esc([seitT?new Date(seitT).toLocaleDateString("de-DE"):"",qn].filter(Boolean).join(" · "))):""}
       ${(R.gleiche||[]).map(x=>zeile("Gleiche Sorte, "+esc(x.key.replace("|"," · ")),x.g!=null?N0.format(Math.round(x.g))+" g":"?")).join("")}
       ${abH}
@@ -3180,6 +3181,9 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-rl],
       if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=`${r.ort}: ${r.sorte} (${r.typ}${r.eigene_id?"":", allgemeines Profil – die Sorte hat keine Bambu-ID"}, Düse ${r.duese[0]}–${r.duese[1]} °C).`;toast("Fach am Drucker aktualisiert")}
     catch(x2){t.disabled=false;t.textContent="Ins Fach am Drucker schreiben";if(document.getElementById("dl_rlmsg"))document.getElementById("dl_rlmsg").textContent=x2.status===404&&/nicht gefunden|Not Found/i.test(x2.message||"")?"Braucht Server-Version 3.8.3.":String(x2&&x2.message||x2)}
     return}
+  if(aktion==="vergessen"){const R=RL.m[key]||{};t.disabled=true;try{await SRV.req("POST","/api/rolle/vergessen",{uid:R.uid,id:t.dataset.gid});const z=t.closest(".dl-gpz");if(z)z.remove();RL.zeit=0;rollenHolen()}catch(x){t.disabled=false}return}
+  if(aktion==="geparkt"){t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",{drucker,ort,aktion:"geparkt",id:t.dataset.gid});closeModal();toast(`${d.sorte}: Rolle mit ${N0.format(Math.round((d.rolle||{}).g||0))} g steckt jetzt hier`);RL.zeit=0;rollenHolen()}
+    catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}return}
   if(aktion==="wahl"){const uid=(document.getElementById("dl_rwahl")||{}).value;if(!uid)return;
     t.disabled=true;try{const d=await SRV.req("POST","/api/rolle",{drucker,ort,aktion:"voll",uid,quelle:"wahl"});closeModal();toast(`${d.sorte}: steckt jetzt in ${ort}`);RL.zeit=0;rollenHolen()}
     catch(x){const el=document.getElementById("dl_rlmsg");if(el)el.textContent="Fehler: "+(x.message||x);t.disabled=false}
@@ -3516,6 +3520,8 @@ window.DLIVE={html,after,liste:()=>{try{return quelle().l}catch(e){return []}},a
 .lgr1 small{font-size:10.5px;color:var(--fg-3);white-space:nowrap}
 .lgr1 em{font-style:normal;font-size:10px;color:var(--good);white-space:nowrap}
 .lgr1.mehr{justify-content:center;font-size:12px;color:var(--fg-3)}
+.dl-gp{margin:4px 0 6px;padding:8px 10px;border:1px solid var(--line-2);border-radius:10px;background:rgba(255,255,255,.02)}
+.dl-gpz{display:flex;align-items:center;gap:8px;margin-top:6px}.dl-gpz>span{flex:1;min-width:0;font-size:13px;color:var(--fg-2)}.dl-gpz b{color:var(--fg)}
 @media (max-width:760px){.dl-aufr{display:none}.dc .dl-akt .btn.icon{width:34px;height:34px}.dl-fort{padding:0 14px 12px}}
 </style>
 <style>
