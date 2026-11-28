@@ -3567,8 +3567,12 @@ BAMBU = drucker_mod.Bambu(_Wirt())
 
 # Leere-Platte-Prüfung: Referenzbilder der leeren Platte je Drucker, Prüfung im Leerlauf
 PLATTE = platte_mod.Platte(os.path.join(os.path.dirname(DB_PFAD) or ".", "platte"))
-SCHICHTFOTOS = schichtfotos_mod.Schichtfotos(os.path.join(os.path.dirname(DB_PFAD) or ".", "schichtfotos"),
-                                             drucker_kamera, drucker_mod.praefix, lambda t: print(t, flush=True))
+# Schichtfotos: mit SCHICHTFOTOS_ORDNER (z. B. NAS-Ordner) bleibt alles erhalten, sonst die letzten 30 Drucke je Drucker
+_SF_LOKAL = os.path.join(os.path.dirname(DB_PFAD) or ".", "schichtfotos")
+_SF_ORDNER = os.environ.get("SCHICHTFOTOS_ORDNER", "").strip()
+SCHICHTFOTOS = schichtfotos_mod.Schichtfotos(_SF_ORDNER or _SF_LOKAL, drucker_kamera, drucker_mod.praefix,
+                                             lambda t: print(t, flush=True), ersatz=_SF_LOKAL if _SF_ORDNER else None,
+                                             aufheben=int(os.environ.get("SCHICHTFOTOS_AUFHEBEN") or (0 if _SF_ORDNER else 30)))
 PLATTE_ALLE_S = 180
 
 
@@ -4630,7 +4634,7 @@ class Handler(BaseHTTPRequestHandler):
             # Schichtfotos: Liste (…/schichtfotos), Bilder eines Drucks (…/<präfix>/<druck>), Datei (…/<präfix>/<druck>/<datei>)
             if len(teile) == 1 and methode == "GET":
                 q = parse_qs(urlparse(self.path).query)
-                return self._json(200, {"an": einstellungen().get("schichtfotos", True) is not False,
+                return self._json(200, {"an": einstellungen().get("schichtfotos", True) is not False, "nas": bool(_SF_ORDNER),
                                         "drucke": SCHICHTFOTOS.liste((q.get("pre") or [None])[0])})
             if len(teile) == 3 and methode == "GET":
                 if not SCHICHTFOTOS.ordner(teile[1], teile[2]):

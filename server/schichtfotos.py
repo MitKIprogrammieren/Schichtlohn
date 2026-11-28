@@ -5,7 +5,11 @@ dass eine neue Schicht anfängt (layer_num), und nimmt einfach das aktuelle Kame
 dabei ganz normal weiter – der Kopf ist auf den Bildern deshalb mal hier, mal da.
 
 Ablage: <basis>/<drucker-präfix>/<JJJJ-MM-TT_HH-MM>_<aufgabe>/schicht_0001.jpg …
-Nach dem Druck macht ffmpeg daraus zeitraffer.mp4. Je Drucker bleiben die letzten AUFHEBEN Drucke.
+Nach dem Druck macht ffmpeg daraus zeitraffer.mp4.
+
+Ordner frei wählbar über SCHICHTFOTOS_ORDNER (z. B. ein NAS-Ordner, im Container eingehängt) – dann bleibt alles
+erhalten. Ohne NAS liegen die Bilder im Datenordner des Servers und nur die letzten AUFHEBEN Drucke bleiben.
+Ist der NAS-Ordner gerade nicht erreichbar, landen die Bilder im Datenordner (ersatz) und werden später umgezogen.
 """
 import glob
 import json
@@ -17,7 +21,7 @@ import threading
 import time
 
 LAUFEND = ("RUNNING", "PREPARE", "SLICING", "PAUSE")
-AUFHEBEN = 30          # Drucke je Drucker, ältere werden gelöscht
+AUFHEBEN = 30          # Drucke je Drucker auf dem Server; liegt der Ordner auf der NAS: alle (0 = nie löschen)
 FPS = 24               # Bilder pro Sekunde im Zeitraffer
 MAX_ALTER = 3.0        # Kamerabild höchstens so alt (s), sonst auf ein neues warten
 
@@ -29,9 +33,11 @@ def _sauber(t, n=60):
 
 
 class Schichtfotos:
-    def __init__(self, basis, kamera_von, praefix_von, log=print):
-        """kamera_von(dr) → Kamera-Objekt (kamera.py) oder None; praefix_von(dr) → „h2c_31b8…“."""
+    def __init__(self, basis, kamera_von, praefix_von, log=print, ersatz=None, aufheben=AUFHEBEN):
+        """kamera_von(dr) → Kamera-Objekt (kamera.py) oder None; praefix_von(dr) → „h2c_31b8…“.
+        ersatz: Ausweichordner, falls basis (NAS) nicht beschreibbar ist; aufheben: Drucke je Drucker (0 = alle)."""
         self.basis, self.kamera_von, self.praefix_von, self.log = basis, kamera_von, praefix_von, log
+        self.ersatz, self.aufheben = ersatz, aufheben
         self.lock = threading.Lock()
         self.lauf = {}          # serial → {"ordner", "schicht", "bilder", "beschaeftigt"}
 
@@ -60,7 +66,7 @@ class Schichtfotos:
             if not l:
                 if schicht <= 0:
                     return  # Aufheizen, Kalibrieren – noch keine Schicht
-                ordner = os.path.join(self.basis, self.praefix_von(dr),
+                ordner = os.path.join(self._ziel(), self.praefix_von(dr),
                                       time.strftime("%Y-%m-%d_%H-%M") + "_" + _sauber(name))
                 l = self.lauf[serial] = {"ordner": ordner, "name": name, "schicht": 0, "bilder": 0,
                                          "beschaeftigt": False, "start": time.time(),
@@ -73,6 +79,36 @@ class Schichtfotos:
                 return
             l["schicht"], l["beschaeftigt"] = schicht, True
         threading.Thread(target=self._foto, args=(l, k, schicht), daemon=True).start()
+
+    def _ziel(self):
+        """basis, wenn beschreibbar (NAS eingehängt) – sonst der Ausweichordner."""
+        try:
+            os.makedirs(self.basis, exist_ok=True)
+            probe = os.path.join(self.basis, ".probe")
+            with open(probe, "w") as f:
+                f.write("1")
+            os.remove(probe)
+            return self.basis
+        except OSError as e:
+            if not self.ersatz:
+                return self.basis
+            self.log(f"Schichtfotos: {self.basis} nicht beschreibbar ({e}) – nehme {self.ersatz}")
+            return self.ersatz
+
+    def umziehen(self):
+        """Drucke aus dem Ausweichordner in den NAS-Ordner verschieben, sobald der wieder geht."""
+        if not self.ersatz or self._ziel() != self.basis or not os.path.isdir(self.ersatz):
+            return
+        laufend = {l["ordner"] for l in self.lauf.values()}
+        for d in glob.glob(os.path.join(self.ersatz, "*", "*")):
+            if os.path.isdir(d) and d not in laufend:
+                ziel = os.path.join(self.basis, os.path.relpath(d, self.ersatz))
+                try:
+                    os.makedirs(os.path.dirname(ziel), exist_ok=True)
+                    shutil.move(d, ziel)
+                    self.log(f"Schichtfotos: {os.path.basename(d)} auf die NAS verschoben")
+                except OSError as e:
+                    self.log(f"Schichtfotos: Umzug von {d} fehlgeschlagen: {e}")
 
     def _foto(self, l, k, schicht):
         try:
@@ -107,6 +143,7 @@ class Schichtfotos:
         if len(bilder) >= 2:
             self.zeitraffer(ordner)
         self.aufraeumen(os.path.dirname(ordner))
+        self.umziehen()
 
     def zeitraffer(self, ordner):
         ffmpeg = shutil.which("ffmpeg")
@@ -128,12 +165,15 @@ class Schichtfotos:
             return None
 
     def aufraeumen(self, drucker_ordner):
+        aufheben = AUFHEBEN if self.ersatz and drucker_ordner.startswith(self.ersatz) else self.aufheben
+        if not aufheben:
+            return  # NAS: alles bleibt
         try:
             drucke = sorted(d for d in os.listdir(drucker_ordner) if os.path.isdir(os.path.join(drucker_ordner, d)))
         except OSError:
             return
         laufend = {os.path.basename(l["ordner"]) for l in self.lauf.values()}
-        for d in drucke[:-AUFHEBEN]:
+        for d in drucke[:-aufheben]:
             if d not in laufend:
                 shutil.rmtree(os.path.join(drucker_ordner, d), ignore_errors=True)
 
@@ -142,7 +182,7 @@ class Schichtfotos:
         """Alle gespeicherten Drucke mit Schichtfotos, neueste zuerst."""
         aus = []
         laufend = {l["ordner"]: l for l in self.lauf.values()}
-        for dp in sorted(glob.glob(os.path.join(self.basis, "*"))):
+        for dp in sorted(glob.glob(os.path.join(self.basis, "*")) + (glob.glob(os.path.join(self.ersatz, "*")) if self.ersatz else [])):
             p = os.path.basename(dp)
             if pre and p != pre:
                 continue
@@ -166,8 +206,13 @@ class Schichtfotos:
 
     def ordner(self, pre, druck):
         pre, druck = re.sub(r"[^a-z0-9_]", "", str(pre).lower()), os.path.basename(str(druck))
-        d = os.path.join(self.basis, pre, druck)
-        return d if druck and not druck.startswith(".") and os.path.isdir(d) else None
+        if not druck or druck.startswith("."):
+            return None
+        for b in [self.basis] + ([self.ersatz] if self.ersatz else []):
+            d = os.path.join(b, pre, druck)
+            if os.path.isdir(d):
+                return d
+        return None
 
     def bilder(self, pre, druck):
         d = self.ordner(pre, druck)
