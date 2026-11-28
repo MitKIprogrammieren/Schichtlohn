@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.30.0 – 28.11.2026
+- Neu: Schichtfotos. Bei jedem Schichtwechsel macht SchichtLohn ein Bild aus der Druckerkamera – der Drucker hält dafür nicht an und der Druckkopf fährt nicht weg. Nach dem Druck wird aus den Bildern ein Zeitraffer-Video.
+- Ein- und ausschalten unter Einstellungen → Zusatzfunktionen („Schichtfotos“). Die letzten 30 Drucke je Drucker bleiben gespeichert.
+
 ## 3.29.0 – 27.11.2026
 - Druckerübersicht aufgeräumt: kompaktere Karten, kleinere Knöpfe, der Fortschrittsbalken geht über die ganze Breite. Der Notaus-Knopf ist nur noch rot, während gedruckt wird.
 - Jede AMS-Einheit zeigt jetzt ihr Bild (AMS, AMS lite, AMS 2 Pro, AMS HT) – das Originalfoto aus dem Bambu-Store, sonst eine Zeichnung. Zugeklappt siehst du die Modelle klein nebeneinander, z. B. „AMS 2 Pro ×4“.

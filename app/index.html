@@ -1855,14 +1855,15 @@ window.rolleUrl=id=>{const b=rolleBasis();return b+(b.includes("?")?"&":"?")+"ro
 function funktionenHTML(){fnServerLaden();const E=SLF.e;
   const ok=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
   const chip=(k,t,on)=>`<button type="button" class="chip${on?" on":""}" data-act="fnToggle" data-k="${k}" aria-pressed="${on}">${on?ok:""}${t}</button>`;
-  const fertig=E?E.fertig_meldung!==false:true;
+  const fertig=E?E.fertig_meldung!==false:true;const sfoto=E?E.schichtfotos!==false:true;
   return `<div class="eb-cap fn-cap">Zusatzfunktionen</div>
-    <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${chip("preisliste","Preisliste",fnAn("preisliste"))}${S.srv?chip("einkauf","Warenkorb",fnAn("einkauf")):""}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}</div>
+    <div class="tabtg">${chip("reicht","Reicht die Rolle?",fnAn("reicht"))}${chip("rueckblick","Jahresrückblick",fnAn("rueckblick"))}${chip("preisliste","Preisliste",fnAn("preisliste"))}${S.srv?chip("einkauf","Warenkorb",fnAn("einkauf")):""}${S.srv?chip("fertig","Meldung „Druck fertig“",fertig):""}${S.srv?chip("schichtfotos","Schichtfotos",sfoto):""}</div>
     <div class="fnliste">
       <div><b>Reicht die Rolle?</b> Der Rechner zeigt unter dem Filament, ob die Rolle im Lager reicht, wie viel danach übrig bleibt und welche Rolle als Ersatz passt.</div>
       <div><b>Preisliste</b> Knopf „Preisliste“ im Lager: täglich aktuelle Preise der Herstellershops (Sunlu, Tinmorry, Nobufil, Polymaker, Princore, CR3D …) und von 3DJake für jede Sorte, die günstigste markiert.</div>
       ${S.srv?`<div><b>Warenkorb</b> Knopf „Warenkorb“ im Lager: Sorten unter dem Mindestbestand, von dir markierte und fehlende Bambu-Farben – mit einem Tipp in den Warenkorb bei Bambu Lab, Amazon, 3DJake oder Tinmorry.</div>`:""}
       <div><b>Jahresrückblick</b> Knopf „Rückblick“ im Lager: Kilo, Kosten, Drucke, Lieblingsfarben und Fehldrucke eines Jahres.</div>
+      ${S.srv?`<div><b>Schichtfotos</b> Bei jedem Schichtwechsel ein Bild aus der Druckerkamera, ohne dass der Drucker anhält. Nach dem Druck wird daraus ein Zeitraffer. Die letzten 30 Drucke je Drucker bleiben auf dem Server.</div>`:""}
       ${S.srv?`<div><b>Druck fertig</b> Nach jedem Druck eine Handymeldung mit Vorschaubild, Dauer und Verbrauch. Geht an die Handys, die unter „SchichtLohn-Server“ eingetragen sind.</div>`:""}
     </div>`}
 /* ---------- Preisvergleich: Zugangsdaten für eBay und AliExpress (liegen nur auf dem SchichtLohn-Server) ---------- */
@@ -2216,6 +2217,7 @@ document.addEventListener("click",async e=>{
   if(a==="pvLogAlle"){PVL.alle=!PVL.alle;const el=document.getElementById("pv_log");if(el)el.outerHTML=pvLogHTML();return}
   if(a==="pvJetzt"){SRV.req("POST","/api/preise/abrufen").then(()=>{PV.d=Object.assign({},PV.d,{laeuft:true});const el=document.getElementById("pv_stand");if(el)el.innerHTML=pvStand();toast("Preise werden abgerufen")}).catch(x=>toast(x.message||String(x)));return}
   if(a==="fnToggle"){const k=b.dataset.k;
+    if(k==="schichtfotos"){const neu=!(SLF.e?SLF.e.schichtfotos!==false:true);schalterSetzen(b,neu);SRV.req("PUT","/api/einstellungen",{schichtfotos:neu}).then(e=>{SLF.e=e;toast(neu?"Schichtfotos an":"Schichtfotos aus")}).catch(x=>{schalterSetzen(b,!neu);toast(x.message||String(x))});return}
     if(k==="fertig"){const neu=!(SLF.e?SLF.e.fertig_meldung!==false:true);schalterSetzen(b,neu);SRV.req("PUT","/api/einstellungen",{fertig_meldung:neu}).then(e=>{SLF.e=e;toast(neu?"Meldung „Druck fertig“ an":"Meldung „Druck fertig“ aus")}).catch(x=>{schalterSetzen(b,!neu);toast(x.message||String(x))});return}
     const h=new Set(S.cfg.fnAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.fnAus=[...h];saveCfgSoon();schalterSetzen(b,!h.has(k));return}
   if(a==="lagerGeraet"){const k=b.dataset.k,h=new Set(S.cfg.lagerAus||[]);h.has(k)?h.delete(k):h.add(k);S.cfg.lagerAus=[...h];saveCfgSoon();schalterSetzen(b,!h.has(k));return}

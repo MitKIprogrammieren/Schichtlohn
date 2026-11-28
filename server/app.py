@@ -72,6 +72,7 @@ import web
 import kamera as kamera_mod
 import snapmaker as snapmaker_mod
 import platte as platte_mod
+import schichtfotos as schichtfotos_mod
 import bambushop
 
 # Als Home-Assistant-App: Optionen aus /data/options.json übernehmen
@@ -86,7 +87,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.29.0"
+VERSION = "3.30.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -654,6 +655,7 @@ def einstellungen():
     w.setdefault("alexa", {})
     w.setdefault("abbuchung", True)
     w.setdefault("fertig_meldung", True)
+    w.setdefault("schichtfotos", True)
     w.setdefault("fach_meldung", True)
     w.setdefault("fach_link", "/schichtlohn-app")
     w.setdefault("waage_url", "")
@@ -740,9 +742,11 @@ def einstellungen_setzen(neu):
         e["fertig_meldung"] = bool(neu["fertig_meldung"])
     if "fach_meldung" in neu:
         e["fach_meldung"] = bool(neu["fach_meldung"])
+    if "schichtfotos" in neu:
+        e["schichtfotos"] = bool(neu["schichtfotos"])
     if "fach_link" in neu:
         e["fach_link"] = str(neu["fach_link"] or "").strip()[:200] or "/schichtlohn-app"
-    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "fach_link", "waage_url", "preise", "telegram", "whatsapp", "alexa"}
+    nur_extras = set(neu) <= {"fertig_meldung", "fach_meldung", "schichtfotos", "fach_link", "waage_url", "preise", "telegram", "whatsapp", "alexa"}
     if "waage_url" in neu:
         u = str(neu["waage_url"] or "").strip().rstrip("/")[:120]
         if u and not re.match(r"^https?://", u):
@@ -3085,6 +3089,11 @@ class _Wirt:
             druck_beobachten(dr)
         except Exception as ex:
             print("Druckverlauf:", ex, flush=True)
+        try:
+            if not getattr(dr, "snapmaker", False):
+                SCHICHTFOTOS.pruefen(dr, einstellungen().get("schichtfotos", True) is not False)
+        except Exception as ex:
+            print("Schichtfotos:", ex, flush=True)
 
     def druckende(self, dr, erg):
         name = dr.d.get("name") or drucker_mod.MODELL_NAMEN.get(dr.d.get("modell") or "", dr.serial)
@@ -3558,6 +3567,8 @@ BAMBU = drucker_mod.Bambu(_Wirt())
 
 # Leere-Platte-Prüfung: Referenzbilder der leeren Platte je Drucker, Prüfung im Leerlauf
 PLATTE = platte_mod.Platte(os.path.join(os.path.dirname(DB_PFAD) or ".", "platte"))
+SCHICHTFOTOS = schichtfotos_mod.Schichtfotos(os.path.join(os.path.dirname(DB_PFAD) or ".", "schichtfotos"),
+                                             drucker_kamera, drucker_mod.praefix, lambda t: print(t, flush=True))
 PLATTE_ALLE_S = 180
 
 
@@ -4027,6 +4038,41 @@ class Handler(BaseHTTPRequestHandler):
             t = t or a[7:].strip()
         import hmac
         return hmac.compare_digest(str(t or ""), tok)
+
+    def _datei_bereich(self, pfad, typ):
+        """Datei senden, mit Range-Anfragen (das iPhone spielt Videos nur so ab)."""
+        groesse = os.path.getsize(pfad)
+        a, e = 0, groesse - 1
+        m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                a, e = int(m.group(1)), min(int(m.group(2) or e), e)
+            else:
+                a = max(0, groesse - int(m.group(2)))
+            if a > e:
+                self.send_response(416)
+                self._cors()
+                self.send_header("Content-Range", f"bytes */{groesse}")
+                self.end_headers()
+                return
+        self.send_response(206 if m and (m.group(1) or m.group(2)) else 200)
+        self._cors()
+        self.send_header("Content-Type", typ)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Cache-Control", "private, max-age=86400")
+        if m and (m.group(1) or m.group(2)):
+            self.send_header("Content-Range", f"bytes {a}-{e}/{groesse}")
+        self.send_header("Content-Length", str(e - a + 1))
+        self.end_headers()
+        with open(pfad, "rb") as f:
+            f.seek(a)
+            rest = e - a + 1
+            while rest > 0:
+                b = f.read(min(rest, 262144))
+                if not b:
+                    break
+                self.wfile.write(b)
+                rest -= len(b)
 
     def _senden(self, code, body, typ, cache="no-cache"):
         if isinstance(body, str):
@@ -4580,6 +4626,29 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as ex:
                 raise Fehler(400, str(ex))
             return self._json(200, {"refs": len(PLATTE.refs(pre)), **(erg or {})})
+        if teile and teile[0] == "schichtfotos":
+            # Schichtfotos: Liste (…/schichtfotos), Bilder eines Drucks (…/<präfix>/<druck>), Datei (…/<präfix>/<druck>/<datei>)
+            if len(teile) == 1 and methode == "GET":
+                q = parse_qs(urlparse(self.path).query)
+                return self._json(200, {"an": einstellungen().get("schichtfotos", True) is not False,
+                                        "drucke": SCHICHTFOTOS.liste((q.get("pre") or [None])[0])})
+            if len(teile) == 3 and methode == "GET":
+                if not SCHICHTFOTOS.ordner(teile[1], teile[2]):
+                    raise Fehler(404, "Druck nicht gefunden")
+                return self._json(200, {"bilder": SCHICHTFOTOS.bilder(teile[1], teile[2])})
+            if len(teile) == 4 and teile[3] == "loeschen" and methode == "POST":
+                return self._json(200, {"geloescht": SCHICHTFOTOS.loeschen(teile[1], teile[2])})
+            if len(teile) == 4 and teile[3] == "zeitraffer" and methode == "POST":
+                d = SCHICHTFOTOS.ordner(teile[1], teile[2])
+                if not d or not SCHICHTFOTOS.zeitraffer(d):
+                    raise Fehler(409, "Zeitraffer ließ sich nicht bauen – zu wenige Bilder?")
+                return self._json(200, {"zeitraffer": True})
+            if len(teile) == 4 and methode == "GET":
+                pfad = SCHICHTFOTOS.datei(teile[1], teile[2], teile[3])
+                if not pfad:
+                    raise Fehler(404, "Datei nicht gefunden")
+                return self._datei_bereich(pfad, "video/mp4" if pfad.endswith(".mp4") else "image/jpeg")
+            raise Fehler(404, "unbekannt")
         if len(teile) >= 2 and teile[0] == "kamera" and methode == "GET":
             # Druckerkamera über Home Assistant: Einzelbild (…/<präfix>.jpg) oder Live-Bild (…/<präfix>/live, MJPEG)
             pre = re.sub(r"[^a-z0-9_]", "", teile[1].lower().removesuffix(".jpg"))
