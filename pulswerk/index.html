@@ -63,6 +63,8 @@ canvas{width:100%;height:150px;display:block}
 .wer .n{font-weight:600;overflow-wrap:anywhere}
 .wer .n small{display:block;color:var(--txt3);font-weight:400;font-size:12px}
 .wer .stufe{display:flex;gap:3px;justify-content:flex-end}
+.wer .art{font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;background:var(--fl2);color:var(--txt3);margin-left:6px;vertical-align:2px}
+.werMehr{display:block;width:100%;margin-top:4px;padding:10px 0 2px;border:0;border-top:1px solid var(--rand);background:none;color:var(--txt3);font:inherit;font-size:13px;cursor:pointer}
 .wer .stufe i{width:14px;height:14px;border-radius:4px;background:var(--fl2)}
 .wer .stufe i.an{background:var(--gruen)}.wer .stufe i.an.m{background:var(--gelb)}.wer .stufe i.an.b{background:var(--blau)}.wer .stufe i.an.h{background:var(--rot)}
 .netzk{grid-column:1/-1}
@@ -333,7 +335,9 @@ function netzZeichnen(){
   x.strokeStyle=col;x.lineWidth=2;x.lineJoin='round';x.stroke();
   if(k===0&&NETZ.length){x.lineTo(w,h);x.lineTo(w*(MAX-NETZ.length)/(MAX-1),h);x.closePath();x.fillStyle='#6aa9ff22';x.fill()}});
 }
-let BEREICH='1h',PUNKTE=[],TURBO=null,TURBO_WARTET=false;
+let BEREICH='1h',PUNKTE=[],TURBO=null,TURBO_WARTET=false,WER_ALLE=false;
+const werText=n=>WER_ALLE?'Ruhige ausblenden ▴':n+(n===1?' weiterer ruhig':' weitere ruhig')+' ▾';
+function werUmschalten(b,n){WER_ALLE=!WER_ALLE;b.nextElementSibling.hidden=!WER_ALLE;b.textContent=werText(n)}
 async function turboSchalten(){
  if(TURBO==null)return;const ziel=!TURBO;TURBO_WARTET=true;$('tSchalter').disabled=true;$('tSchalter').classList.toggle('an',ziel);
  try{const r=await (await fetch('api/turbo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({an:ziel})})).json();
@@ -397,11 +401,16 @@ async function holen(){
  const zeilen=[['🧠','Prozessor','das Gehirn des NUC',T.cpu,65,80],['💾','SSD','die Festplatte',T.ssd,55,70],['🔌','Hauptplatine','die Platine darunter',T.brett,60,75]];
  $('temps').innerHTML=zeilen.filter(r=>r[3]).map(([ic,n,u,t,gg,rr])=>{const st=stufe(t.grad,gg,rr);return `<div class="temp" style="--f:${F[st]}"><div class="ic">${ic}</div><div class="n">${n}<small>${u}</small></div><div class="w">${z(t.grad)} °C<small>${{gut:'gut',mittel:'warm',hoch:'heiß'}[st]}</small></div><div class="skala"><i style="left:${pos(t.grad,gg,rr,15)}%"></i></div>${n==='Prozessor'&&T.kerne.length?kernHtml(T.kerne,d.kerne_last,d.kerne_straenge):''}</div>`}).join('')||'<div class="erkl">Noch keine Temperaturen.</div>';
  // Wer arbeitet
- const liste=[...(d.gaeste||[]),...(d.container||[]).filter(c=>!/pulswerk/.test(c.name))].map(x=>({...x,nn:nett(x.name)}));
- const ges2={};liste.forEach(x=>{const k=x.nn[0];if(!ges2[k]||(x.cpu||0)>(ges2[k].cpu||0))ges2[k]=x});
- const sort=Object.values(ges2).sort((a,b)=>(b.cpu||0)-(a.cpu||0)).slice(0,8);
- $('wer').innerHTML=sort.map(x=>{const c=x.cpu||0,n=c>=20?5:c>=10?4:c>=4?3:c>=1?2:c>0.2?1:0,k=n>=5?'h':n>=4?'m':'';
-  return `<div class="wer"><div class="n">${x.nn[0]}<small>${x.nn[1]||' '}</small></div><div class="stufe" title="${z(c,1)} %">${[1,2,3,4,5].map(i=>`<i class="${i<=n?'an '+k:''}"></i>`).join('')}</div></div>`}).join('')||'<div class="erkl">Noch keine Daten.</div>';
+ // CT 100 ist der Docker-Host: seine Container stehen einzeln da, deshalb nicht noch einmal als Summe
+ const liste=[...(d.gaeste||[]).filter(g=>String(g.id)!=='100').map(x=>({...x,art:'Proxmox'})),
+  ...(d.container||[]).filter(c=>!/pulswerk/.test(c.name)).map(x=>({...x,art:'Docker'}))].map(x=>({...x,nn:nett(x.name)}));
+ const ges2={};liste.forEach(x=>{const k=x.art+'|'+x.nn[0];if(!ges2[k]||(x.cpu||0)>(ges2[k].cpu||0))ges2[k]=x});
+ const sort=Object.values(ges2).sort((a,b)=>(b.cpu||0)-(a.cpu||0));
+ const aktiv=sort.filter(x=>(x.cpu||0)>0.2),ruhig=sort.filter(x=>(x.cpu||0)<=0.2);
+ const werZeile=x=>{const c=x.cpu||0,n=c>=20?5:c>=10?4:c>=4?3:c>=1?2:c>0.2?1:0,k=n>=5?'h':n>=4?'m':'';
+  return `<div class="wer"><div class="n">${x.nn[0]}<span class="art">${x.art}</span><small>${x.nn[1]||' '}</small></div><div class="stufe" title="${z(c,1)} %">${[1,2,3,4,5].map(i=>`<i class="${i<=n?'an '+k:''}"></i>`).join('')}</div></div>`};
+ $('wer').innerHTML=(aktiv.map(werZeile).join('')||'<div class="erkl">Gerade arbeitet niemand.</div>')+
+  (ruhig.length?`<button class="werMehr" onclick="werUmschalten(this,${ruhig.length})">${werText(ruhig.length)}</button><div${WER_ALLE?'':' hidden'}>${ruhig.map(werZeile).join('')}</div>`:'');
  // Turbo
  TURBO=d.turbo;$('turboK').hidden=d.turbo==null;
  if(d.turbo!=null&&!TURBO_WARTET){const an=d.turbo;$('tSchalter').classList.toggle('an',an);
