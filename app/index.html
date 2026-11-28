@@ -3270,14 +3270,16 @@ document.addEventListener("visibilitychange",()=>{if(document.hidden)document.qu
 function after(){LAUF.forEach(b=>{if(!b.isConnected)kStop(b)});document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(b=>{if(!LAUF.has(b))kStart(b)});
   if(window.HAP&&S.backend==="ha"){if(!HAP._printers().length&&!after.l){after.l=1;HAP.ensure().then(()=>{after.l=0;letzt="";neu()}).catch(()=>{after.l=0})}HAP.liveCovers("#dlive ")}
   else if(window.JOBS&&JOBS.coverFor)document.querySelectorAll("#dlive [data-lc]").forEach(async el=>{if(el.dataset.done)return;el.dataset.done=1;
-    const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
+    const d=quelle().l.find(x=>x.key===el.dataset.lc);if(!d||art(d)==="aus")return;
+    /* Vorschau des letzten Drucks nur, während er läuft – sonst bleibt das Foto des Druckers stehen */
+    if(druckerBild(d)&&!["druckt","pause"].includes(art(d))){delete el.dataset.done;return}try{const u=await JOBS.coverFor(d.serial);if(u){const i=new Image();i.onload=()=>{if(el.isConnected){el.style.backgroundImage=`url("${u.replace(/"/g,"%22")}")`;el.innerHTML=""}};i.src=u}}catch(e){}})}
 /* nur den Block austauschen, damit Suche und Auswahl unten unberührt bleiben; Bilder behalten */
 let tm=null,letzt="";
 function neu(){if(S.tab!=="drucke"){document.querySelectorAll("#dlive .dl-kam").forEach(kStop);return}const alt=document.getElementById("dlive");if(!alt)return;
   const h=html();if(h===letzt)return;letzt=h;const bilder={};alt.querySelectorAll("[data-lc]").forEach(el=>{if(el.style.backgroundImage)bilder[el.dataset.lc]=el.style.backgroundImage});
   const kams={};alt.querySelectorAll(".dl-kam[data-kam]").forEach(el=>{kams[el.dataset.kam]=el});
   window.slMorphAussen(alt,h,{opaque:el=>el.classList.contains("dl-kam"),skipAttr:(el,at)=>(at==="class"&&el.classList.contains("dl-kam"))||((at==="style"||at==="data-done")&&el.hasAttribute("data-lc")&&el.dataset.done)});
-  document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){if(a!==el){el.replaceWith(a)}delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];if(b){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
+  document.querySelectorAll("#dlive .dl-kam[data-kam]").forEach(el=>{const a=kams[el.dataset.kam];if(a){if(a!==el){el.replaceWith(a)}delete kams[el.dataset.kam]}else kStart(el)});Object.values(kams).forEach(kStop);document.querySelectorAll("#dlive [data-lc]").forEach(el=>{const b=bilder[el.dataset.lc];const dd=quelle().l.find(x=>x.key===el.dataset.lc);const nurFoto=dd&&druckerBild(dd)&&!["druckt","pause"].includes(art(dd));if(nurFoto&&el.style.backgroundImage){el.style.backgroundImage="";delete el.dataset.done;if(!el.querySelector("img"))el.innerHTML=druckerBild(dd)}if(b&&!nurFoto){el.style.backgroundImage=b;el.innerHTML="";el.dataset.done=1}});after()}
 const bald=()=>{if(tm)return;tm=setTimeout(()=>{tm=null;neu()},3000)};
 window.addEventListener("pw-hass-update",bald);window.addEventListener("sl-zustand",bald);
 /* ---- Leere-Platte-Prüfung (SchichtLohn-Server): Schild in der Zeile, Leiste unter der Kamera ---- */
