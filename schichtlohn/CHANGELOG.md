@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.33.0 – 28.11.2026
+- Leere Spulen: nur noch eine Liste. Jede Spule erscheint beim Wiegen an der Waage und im Fach-Fenster. Unter „Standard für Hersteller“ legst du fest, dass ihr Gewicht automatisch für alle Sorten dieses Herstellers gilt – das ersetzt das frühere „Leergewicht je Hersteller“. Bisherige Einträge werden übernommen.
+
 ## 3.32.0 – 28.11.2026
 - Herausgenommene Rollen merkt sich SchichtLohn jetzt dauerhaft (auch nach einem Neustart), ohne Zeitgrenze. Steckt dieselbe Sorte wieder in einem Fach und ist genau eine Rolle gemerkt, wandert sie automatisch mit. Bei mehreren wählst du im Fach-Fenster unter „Herausgenommene Rollen dieser Sorte“, welche drinsteckt – oder lässt eine mit ✕ vergessen.
 

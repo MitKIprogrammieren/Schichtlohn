@@ -205,6 +205,11 @@ table.list tr.click:hover td{background:var(--glass)}
 }
 @media (max-width:400px){.setup,.cols2{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.lgesp{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--sunken)}
+.lgesp.std{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.lgesp-l{display:flex;flex-direction:column;gap:2px;flex:1 1 140px;min-width:0}.lgesp-l>span{font-size:11.5px;color:var(--fg-3)}.lgesp-l select{width:100%}
+.lgesp.std .lgesp-h{color:var(--accent);font-weight:600}
+.lgesp-rest{justify-content:space-between;align-items:center;color:var(--fg-2);font-size:14px;padding:6px 2px;border-top:1px solid var(--line);margin-top:2px}.lgesp-rest em{font-style:normal;color:var(--fg-3);font-weight:500}
 </style>
 
 <script>document.documentElement.dataset.skin=window.__PW_HA?"ha":"bambu"</script>
@@ -1442,11 +1447,10 @@ function renderSettings(m){
       return kopf("Warnungen","Ab wann ein AMS rot wird oder eine Sorte als knapp gilt. Gilt auf allen Geräten.")+`
           <div class="cols2">${I.zahlen.map(([k,t,u,,,info])=>`<label class="field"><span>${esc(t)}</span><div class="unit"><input type="text" inputmode="decimal" data-lge="${k}" value="${esc(String(e[k]))}"><em>${u}</em></div><small class="hint">${esc(info)}</small></label>`).join("")}</div>
           <span class="hint" id="lge_msg" style="color:var(--bad)"></span><button type="button" hidden data-act="lgEinSave"></button></section>
-        `+kopf("Leere Spulen","Gewicht der leeren Spule je Hersteller – für Waage, Lager und „Spule erkannt“. Alle anderen: 250 g. Ein eigener Wert bei der Sorte geht vor.")+`
-          <div class="stack" id="lge_leerh" style="gap:6px">${I.leer||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeLeerPlus">+ Hersteller</button></div>
-          <div class="lgsh" style="margin-top:10px"><span>Zur Auswahl beim Wiegen</span></div>
-          <div class="hint">Rechts wählst du, wie die Spule im Lager gezeichnet wird. Diese Spulen wählst du beim Wiegen aus – an der Waage (Tippen auf „Leerspule“) und hier im Fach-Fenster. Praktisch für Refills, die mal auf der einen, mal auf der anderen Spule stecken. An der Waage kannst du eine leere Spule auch direkt wiegen und speichern.</div>
-          <div class="stack" id="lge_spulen" style="gap:6px">${I.spulen||""}</div><div class="row"><button type="button" class="btn sm" data-act="lgeSpPlus">+ Spule</button></div></section>`})()}
+        `+kopf("Leere Spulen","Eine Liste für alles: Jede Spule hier erscheint beim Wiegen an der Waage und im Fach-Fenster. Wählst du einen Hersteller, gilt das Gewicht automatisch für dessen Sorten. Ein eigener Wert bei der Sorte geht vor.")+`
+          <div class="stack" id="lge_spulen" style="gap:8px">${I.spulen||""}</div>
+          <div class="row lgesp-rest"><span>Alle anderen Hersteller</span><b>250<em> g</em></b></div>
+          <div class="row"><button type="button" class="btn sm pri" data-act="lgeSpPlus">+ Spule</button></div></section>`})()}
     ${window.etikettDruckerHTML?etikettDruckerHTML():""}
 
     ${designHTML()}
@@ -6991,7 +6995,18 @@ function leerspuleArt(name){const n=String(name||"").trim();if(!n)return "";cons
   if(/papp|karton|cardboard/.test(m))return "pappe";if(/bambu/.test(m))return /ht|grau/.test(m)?"dunkel":((S.cfg||{}).spuleBambu||"klar");
   if(/marswork/.test(m))return "marswork";if(/sunlu/.test(m))return "lochplatte";if(/tinmorry/.test(m))return "schlitz";if(/filaxix/.test(m))return "zweifarbig";if(/fd ?3d/.test(m))return "rippen";return (S.cfg||{}).spuleFremd||"dunkel"}
 window.leerspuleArt=leerspuleArt;
-function spulenZeile(n,g,art){const T=(typeof SP_TYPEN!=="undefined"?SP_TYPEN:window.SP_TYPEN)||[];const a=art||(n?leerspuleArt(n):"");return `<div class="row lgesp" style="gap:8px;align-items:center;flex-wrap:wrap"><input type="text" class="lgesp-n" value="${esc(n||"")}" placeholder="z. B. Sunlu Kunststoffspule" maxlength="40" style="flex:1 1 160px;min-width:0"><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgesp-g" value="${g?esc(String(g)):""}" placeholder="g"><em>g</em></div><select class="lgesp-a" aria-label="Aussehen der Spule" style="width:140px">${T.map(([v,t])=>`<option value="${v}"${a===v?" selected":""}>${esc(t)}</option>`).join("")}</select><button type="button" class="btn icon ghost" data-act="lgeSpWeg" aria-label="Entfernen">${ICON.x}</button></div>`}
+function spulenZeile(n,g,art,h){const T=(typeof SP_TYPEN!=="undefined"?SP_TYPEN:window.SP_TYPEN)||[];const a=art||(n?leerspuleArt(n):"");
+  let hs=[];try{hs=known("hersteller")}catch(x){}hs=[...new Set([...hs,...(h?[h]:[])])].sort((x,y)=>x.localeCompare(y,"de"));
+  return `<div class="lgesp${h?" std":""}"><div class="row" style="gap:8px;align-items:center"><input type="text" class="lgesp-n" value="${esc(n||"")}" placeholder="z. B. Sunlu Kunststoffspule" maxlength="40" style="flex:1 1 160px;min-width:0" aria-label="Name"><div class="unit" style="width:96px"><input type="text" inputmode="numeric" class="lgesp-g" value="${g?esc(String(g)):""}" placeholder="g" aria-label="Gewicht"><em>g</em></div><button type="button" class="btn icon ghost" data-act="lgeSpWeg" aria-label="Entfernen">${ICON.x}</button></div>
+  <div class="row" style="gap:8px;align-items:center;margin-top:6px"><label class="lgesp-l"><span>Aussehen</span><select class="lgesp-a" aria-label="Aussehen der Spule">${T.map(([v,t])=>`<option value="${v}"${a===v?" selected":""}>${esc(t)}</option>`).join("")}</select></label><label class="lgesp-l"><span>Standard für Hersteller</span><select class="lgesp-h" aria-label="Standard für Hersteller"><option value="">nur Auswahl</option>${hs.map(x=>`<option${x===h?" selected":""}>${esc(x)}</option>`).join("")}</select></label></div></div>`}
+/* Eine gemeinsame Liste: Leerspulen + früheres „Leergewicht je Hersteller“ (leer_hersteller). Herstellerwerte ohne passende
+   Spule werden zu einer Spule mit Hersteller; passt Name (beginnt mit dem Hersteller) und Gewicht, wird die Spule markiert. */
+function leerspulenVereint(){const L=leerspulenListe().map(x=>Object.assign({},x));const t=leerTab();
+  for(const [h,gw] of Object.entries(t)){const g=Math.round(Number(gw));if(!h||!(g>0))continue;const hl=h.toLowerCase();
+    if(L.some(x=>String(x.hersteller||"").toLowerCase()===hl))continue;
+    const m=L.find(x=>!x.hersteller&&x.name.toLowerCase().startsWith(hl)&&Math.round(Number(x.g))===g);
+    if(m)m.hersteller=h;else L.push({name:(h+" Spule").slice(0,40),g,hersteller:h})}
+  return L}
 const einGespeichert=()=>{const it=einItem();const d=it?desc(it):{};return (d.werte&&typeof d.werte==="object")?d.werte:{}};
 function einVoll(){const g=einGespeichert(),e=Object.assign({},EIN_STD);Object.keys(EIN_STD).forEach(k=>{const v=g[k];if(v!==undefined&&v!==null&&v!=="")e[k]=typeof EIN_STD[k]==="number"?(fNum(v)??e[k]):v});return e}
 async function einSpeichern(neu){const it=einItem();const werte=Object.assign({},einGespeichert(),neu);const d=JSON.stringify({typ:"einstellungen_plus",v:1,werte});
@@ -7172,8 +7187,10 @@ document.addEventListener("click",async e=>{
     const gs=document.getElementById("lge_gruppe"),ls=document.getElementById("lge_leer");if(gs)g.gruppe=gs.value;if(ls)g.leer_zeigen=ls.value==="1";
     if(document.getElementById("lge_leerh")){const lt={};for(const z of document.querySelectorAll("#lge_leerh .lgeleer")){const h=z.querySelector(".lgeleer-h").value.trim();const raw=z.querySelector(".lgeleer-g").value.trim();if(!h||!raw)continue;const n=fNum(raw);
       if(!(n>0&&n<1500))return say(`Leere Spule ${h}: bitte Gramm von 1 bis 1499.`);lt[h]=Math.round(n)}g.leer_hersteller=lt}
-    if(document.getElementById("lge_spulen")){const ls=[],da=new Set();for(const z of document.querySelectorAll("#lge_spulen .lgesp")){const n=z.querySelector(".lgesp-n").value.trim().slice(0,40);const raw=z.querySelector(".lgesp-g").value.trim();if(!n&&!raw)continue;const x=fNum(raw);
-      if(!n)return say("Leere Spule: bitte einen Namen eingeben.");if(!(x>0&&x<1500))return say(`Leere Spule ${n}: bitte Gramm von 1 bis 1499.`);if(da.has(n.toLowerCase()))continue;da.add(n.toLowerCase());const a=z.querySelector(".lgesp-a");ls.push(Object.assign({name:n,g:Math.round(x)},a&&a.value?{art:a.value}:{}))}g.leerspulen=ls}
+    if(document.getElementById("lge_spulen")){const ls=[],da=new Set(),lt={};for(const z of document.querySelectorAll("#lge_spulen .lgesp")){const n=z.querySelector(".lgesp-n").value.trim().slice(0,40);const raw=z.querySelector(".lgesp-g").value.trim();if(!n&&!raw)continue;const x=fNum(raw);
+      if(!n)return say("Leere Spule: bitte einen Namen eingeben.");if(!(x>0&&x<1500))return say(`Leere Spule ${n}: bitte Gramm von 1 bis 1499.`);if(da.has(n.toLowerCase()))continue;da.add(n.toLowerCase());const a=z.querySelector(".lgesp-a"),hs=z.querySelector(".lgesp-h");let h=hs?hs.value.trim():"";
+      if(h&&Object.keys(lt).some(k=>k.toLowerCase()===h.toLowerCase()))h="";if(h)lt[h]=Math.round(x);z.classList.toggle("std",!!h);
+      ls.push(Object.assign({name:n,g:Math.round(x)},a&&a.value?{art:a.value}:{},h?{hersteller:h}:{}))}g.leerspulen=ls;g.leer_hersteller=lt}
     try{await einSpeichern(g);say("");toast("Lager-Einstellungen gespeichert")}catch(err){say("Speichern fehlgeschlagen: "+(err.message||err))}return}
   if(a==="lgSilica"){silicaModal();return}
   if(a==="lgeLeerPlus"){const c=document.getElementById("lge_leerh");if(c){const da=new Set([...c.querySelectorAll(".lgeleer-h")].map(x=>x.value));const h=known("hersteller").find(x=>!da.has(x))||"";c.insertAdjacentHTML("beforeend",leerZeile(h,""))}return}
@@ -8236,7 +8253,7 @@ function gesamtModal(){
   const b=document.querySelector("#modal #lgGv");if(b){b.outerHTML=h;return}
   modal("Gesamtverbrauch seit erstem Druck",h,`<span class="sp"></span><button class="btn ghost" data-act="close">Schließen</button>`)}
 window.LGN={render,onStates,_G:G,bearbeiten:uid=>{start();const x=entries().find(y=>y.uid===uid);if(x)formModal(x)},neu:vor=>{start();formModal(null,vor)},besOf,spool,preisliste:()=>{start();try{preislisteModal()}catch(x){}},einkauf:()=>{start();try{return einkauf()}catch(x){return []}},summe:()=>{try{return entries().reduce((a,e)=>a+total(e),0)}catch(x){return 0}},preise:()=>{start();return preiseLaden()},sorten:()=>{start();try{return entries()}catch(x){return []}},_book:BOOK,_lokPush:()=>{lokPush(ENT);lokPush(META)},scanCode:c=>{start();if(G.serieAktiv)serieAdd(c,true);else onCode(c)},marken:()=>{start();return [...new Set(entries().map(e=>e.hersteller).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de",{sensitivity:"base"}))},
-  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:Object.entries(leerTab()).map(([h,g])=>leerZeile(h,g)).join(""),spulen:leerspulenListe().map(x=>spulenZeile(x.name,x.g,x.art)).join("")}},
+  einInfo(){start();return {e:einVoll(),ok:!!G.metaOk,meta:metaDa(),sorts:SORTS,zahlen:EIN_ZAHLEN,leer:"",spulen:leerspulenVereint().map(x=>spulenZeile(x.name,x.g,x.art,x.hersteller)).join("")}},
   leerspulen(){return leerspulenListe()},
   /* an der Waage zu einem NFC-Chip gemerkte Leerspule ({name, g}) oder null */
   leerspuleFuerTag(uid){const je=einGespeichert().leerspule_je_tag;const n=je&&typeof je==="object"?je[String(uid||"").toUpperCase()]:"";return n?leerspulenListe().find(x=>x.name===n)||null:null}};
@@ -8704,7 +8721,7 @@ let t=0;const m=document.getElementById("main");new MutationObserver(()=>{clearT
 window.__einOrdnen=ordnen;ordnen()})();</script>
 <script>/* Lager-Einstellungen (Warnungen, Leere Spulen, Sortierung) speichern sich selbst – kein „Übernehmen“ mehr */
 (()=>{let t=0;const los=()=>{clearTimeout(t);t=setTimeout(()=>{const b=document.querySelector("[data-act=lgEinSave]");if(b&&document.querySelector("[data-lge]"))b.click()},500)};
-document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g,.lgesp-n,.lgesp-g,.lgesp-a"))los()});
+document.addEventListener("change",e=>{const x=e.target;if(x&&x.matches&&x.matches("[data-lge],#lge_gruppe,#lge_leer,.lgeleer-h,.lgeleer-g,.lgesp-n,.lgesp-g,.lgesp-a,.lgesp-h"))los()});
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-act=lgeLeerWeg],[data-act=lgeSpWeg]"))los()})})();</script>
 <style>
 .dsfein{border-top:1px solid var(--line);padding-top:12px}

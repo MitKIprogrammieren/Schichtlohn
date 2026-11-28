@@ -90,7 +90,7 @@ except (OSError, ValueError):
     pass
 HA_APP = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
-VERSION = "3.32.0"
+VERSION = "3.33.0"
 PORT = int(os.environ.get("PORT", "8093"))
 DB_PFAD = os.environ.get("DB", "/daten/schichtlohn.db")
 TOKEN_UMGEBUNG = os.environ.get("TOKEN", "").strip()  # aus der HA-Konfiguration (token) bzw. docker-compose (TOKEN=…)
@@ -1472,6 +1472,8 @@ def leerspulen_liste():
             e = {"name": str(x["name"]).strip()[:40], "g": int(round(_zahl(x["g"])))}
             if isinstance(x.get("art"), str) and re.fullmatch(r"[a-z]{3,20}", x["art"]):
                 e["art"] = x["art"]  # wie die Spule im Lager gezeichnet wird
+            if isinstance(x.get("hersteller"), str) and x["hersteller"].strip():
+                e["hersteller"] = x["hersteller"].strip()[:40]  # Standard-Leerspule dieses Herstellers (→ leer_hersteller)
             out.append(e)
     return out
 
@@ -1519,10 +1521,19 @@ def leerspule_merken(name, g):
     vorher = next((x for x in alt if x["name"].lower() == name.lower()), {})
     liste = [x for x in alt if x["name"].lower() != name.lower()]
     neu = {"name": name, "g": int(round(g))}
-    if vorher.get("art"):
-        neu["art"] = vorher["art"]
+    for k in ("art", "hersteller"):
+        if vorher.get(k):
+            neu[k] = vorher[k]
     liste.append(neu)
-    _werte_setzen(leerspulen=liste)
+    werte = {"leerspulen": liste}
+    if neu.get("hersteller"):  # Standard eines Herstellers: Gewicht auch für dessen Sorten übernehmen
+        _, d = _einst_plus()
+        lt = dict((d.get("werte") or {}).get("leer_hersteller") or {})
+        lt = {k: v for k, v in lt.items() if k.lower() != neu["hersteller"].lower()}
+        lt[neu["hersteller"]] = neu["g"]
+        werte["leer_hersteller"] = lt
+        LEER_NEU.set()
+    _werte_setzen(**werte)
     return liste
 
 
