@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.34.0 – 28.11.2026
+- Neues Spulenbild „Geeetech“: schwarz mit Carbon-Muster und zwei ovalen Aussparungen. Geeetech-Sorten und die Geeetech-Leerspule bekommen es automatisch.
+- Waage: Die Weboberfläche öffnet sich jetzt in einem eigenen Fenster mit „‹ Zurück“-Knopf – auch in der iPhone-App kommst du so wieder zu SchichtLohn.
+
 ## 3.33.0 – 28.11.2026
 - Leere Spulen: nur noch eine Liste. Jede Spule erscheint beim Wiegen an der Waage und im Fach-Fenster. Unter „Standard für Hersteller“ legst du fest, dass ihr Gewicht automatisch für alle Sorten dieses Herstellers gilt – das ersetzt das frühere „Leergewicht je Hersteller“. Bisherige Einträge werden übernommen.
 
