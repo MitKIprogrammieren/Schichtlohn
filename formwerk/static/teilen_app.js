@@ -34,6 +34,22 @@ const einst = Object.assign({ fbStecken: true, fbTiefe: 1.2, fbSpiel: 0.15, fbMi
   JSON.parse(localStorage.getItem('fw_teilen') || '{}'));
 const merken = () => localStorage.setItem('fw_teilen', JSON.stringify(einst));
 
+// ───────── Hell/Dunkel (gemeinsam mit der Druckvorbereitung) ─────────
+function thema() {
+  let th = null; try { th = JSON.parse(localStorage.getItem('fw_druck') || '{}').thema; } catch { }
+  const dunkel = th ? th === 'dunkel' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.classList.toggle('dunkel', dunkel);
+  document.documentElement.classList.toggle('hell', !dunkel);
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dunkel ? '#141517' : '#F4F5F6';
+}
+thema();
+document.getElementById('thema').onclick = () => {
+  let d = {}; try { d = JSON.parse(localStorage.getItem('fw_druck') || '{}'); } catch { }
+  d.thema = document.documentElement.classList.contains('dunkel') ? 'hell' : 'dunkel';
+  try { localStorage.setItem('fw_druck', JSON.stringify(d)); } catch { }
+  thema(); scene.background = hgFarbe();
+};
+
 // ───────── 3D ─────────
 const view = $('#view'), cv = $('#cv');
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
@@ -256,6 +272,7 @@ function liste() {
   const zapfen = st.fugen.reduce((s, f) => s + f.anzahl, 0);
   const anzOk = st.teile.filter(t => passt(t.groesse)).length;
   const d = drucker();
+  $('#mi').innerHTML = `<b>${esc(st.name || 'Modell')}</b> · ${st.teile.length} ${st.teile.length === 1 ? 'Teil' : 'Teile'} · ${anzOk === st.teile.length ? 'alle passen aufs Bett' : `${st.teile.length - anzOk} zu groß`}`;
   $('#stats').innerHTML = [
     ['Druckbett', `${d.x} × ${d.y} × ${d.z} mm`],
     ['Teile', st.teile.length],
@@ -336,7 +353,7 @@ function regler(id, min, max, step, wert, einheit) {
 
 function werkzeugOptionen() {
   const o = $('#werkzeugOpt');
-  $('#hint').textContent = sid ? HINWEIS[werkzeug] : 'Modell öffnen';
+  $('#hint').textContent = sid ? HINWEIS[werkzeug] : 'Modell öffnen'; $('#hint').style.display = sid ? '' : 'none';
   const t = teilInfo(auswahl);
   if (werkzeug === 'band') {
     o.innerHTML = zeile('Band kippen', regler('kipp', -45, 45, 1, einst.kipp, '°')) + zeile('Band verschieben', regler('schub', -40, 40, 0.5, einst.schub, ' mm')) +
@@ -380,7 +397,7 @@ function farbOptionen(o, t) {
   if (!b) {
     const fertig = stand?.teile.some(x => x.farbe > 0) && !alle.length;
     if (fertig) {
-      o.innerHTML = '<div class="help"><span class="ok">Farben sind herausgelöst.</span> Die Farbteile stehen rechts in der Liste.<br><br>Ist der Grundkörper zu groß fürs Druckbett, jetzt mit Band, Ebene oder Auto schneiden – die Verbinder kommen wie gewohnt dazu.<br><br>Export: <b>Bambu-3MF</b> legt jedes Teil mit seinem Filament an.</div>';
+      o.innerHTML = '<div class="help"><span class="ok">Farben sind herausgelöst.</span> Die Farbteile stehen in der Teileliste.<br><br>Ist der Grundkörper zu groß fürs Druckbett, jetzt mit Band, Ebene oder Auto schneiden – die Verbinder kommen wie gewohnt dazu.<br><br>Export: <b>Bambu-3MF</b> legt jedes Teil mit seinem Filament an.</div>';
       return;
     }
     o.innerHTML = `<div class="help">${alle.length ? 'Das ausgewählte Teil hat keine Bemalung (mehr). Bemaltes Teil anklicken' + (alle.length ? ` – z. B. Teil ${alle.map(x => x.teil).join(', ')}` : '') + '.' :
